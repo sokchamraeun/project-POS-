@@ -300,7 +300,7 @@ if (!function_exists('ingredient_cost_map')) {
  */
 if (!function_exists('order_cogs')) {
     function order_cogs(mysqli $conn, array $orderIds, array $costMap): array {
-        $out = ['total' => 0.0, 'items' => 0, 'by_product' => []];
+        $out = ['total' => 0.0, 'items' => 0, 'gift_items' => 0, 'by_product' => []];
         $ids = array_values(array_filter(array_map('intval', $orderIds)));
         if (!$ids) { return $out; }
         $in = implode(',', $ids);
@@ -353,16 +353,53 @@ if (!function_exists('order_cogs')) {
                 }
             }
 
+            // A loyalty redemption is not a sale. They ride in order_items under
+            // the product_id = 0 sentinel, and product_id is the ONLY reliable
+            // way to spot one:
+            //   - the "[GIFT] " name prefix misses 6 rows written before it
+            //     existed (Free Shirt/Free Drink/Free Toy "(Loyalty)");
+            //   - price = 0 is worse still, because a buy-X-get-1-free promo
+            //     drink is also $0 and IS a real cup that was poured. Filtering
+            //     on price is what once excluded free promo drinks from the cup
+            //     count and left them uncosted, overstating money kept on every
+            //     promo day.
+            // Flagged here, in the one helper the screen, the PDF and the
+            // spreadsheet all share, so they cannot disagree about it again.
+            $isGift = ($pid === 0);
+
             $out['total'] += $cost;
             $out['items'] += $qty;
+            if ($isGift) { $out['gift_items'] += $qty; }
             if (!isset($out['by_product'][$name])) {
-                $out['by_product'][$name] = ['qty' => 0, 'cost' => 0.0, 'revenue' => 0.0];
+                $out['by_product'][$name] = ['qty' => 0, 'cost' => 0.0, 'revenue' => 0.0, 'is_gift' => $isGift];
             }
             $out['by_product'][$name]['qty']     += $qty;
             $out['by_product'][$name]['cost']    += $cost;
             $out['by_product'][$name]['revenue'] += (float)($it['price'] ?? 0) * $qty;
         }
         return $out;
+    }
+}
+
+/**
+ * Cups actually poured, from an order_cogs() result.
+ *
+ * order_cogs()['items'] counts every line in the order, loyalty redemptions
+ * included, which is right for costing and wrong for a card headed "cups sold":
+ * a shirt handed over for points is not a cup. On 1 June that gap was 22 of 92.
+ *
+ * This drops the handful of redemptions that were free *drinks* along with the
+ * shirts and toys — three lines in the entire database — because product_id is
+ * the only trustworthy signal and it cannot tell one gift from another. Three
+ * cups understated beats thirty-eight overstated.
+ *
+ * Exists as one function rather than a subtraction repeated at each call site
+ * so tab 1, tab 2, the PDF and the spreadsheet cannot drift apart. They already
+ * did once: tab 1 said 70 cups while tab 2 said 92 on the same day.
+ */
+if (!function_exists('cogs_cups')) {
+    function cogs_cups(array $cogs): int {
+        return max(0, (int)($cogs['items'] ?? 0) - (int)($cogs['gift_items'] ?? 0));
     }
 }
 

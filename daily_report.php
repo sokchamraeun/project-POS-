@@ -150,7 +150,7 @@ if ($baseGot['basis'] !== 'none') {
         $dayCogs = order_cogs($conn, $dayIds, $costMap);
         $keptSum  += ($gotByDay[$d] ?? 0.0) - $dayCogs['total'];
         $orderSum += count($dayIds);
-        $cupSum   += $dayCogs['items'];
+        $cupSum   += cogs_cups($dayCogs);
     }
     $n = count($baseGot['dates']);
     $keptBaseline   = $keptSum / $n;
@@ -295,12 +295,19 @@ if ($hourPeakVal > 0) {
 
 // Best seller: $cogs['by_product'] arrives unsorted (insertion order), so sort
 // by cups moved. uasort preserves the key, and the key IS the product name.
-$byProductSorted = $cogs['by_product'];
+//
+// Loyalty redemptions are skipped. A shirt handed over for points is not a
+// thing the shop sold, and on a quiet day it outranks every real drink —
+// "[GIFT] Free Shirt (Loyalty)" sat under a heading reading BEST SELLER on
+// 31 May, which reads as a broken report rather than a slow day. The same
+// is_gift flag drives the PDF and the spreadsheet.
+$byProductSorted = array_filter($cogs['by_product'], fn($p) => empty($p['is_gift']));
 uasort($byProductSorted, fn($a, $b) => $b['qty'] <=> $a['qty']);
 $bestSellerName = null;
 $bestSellerQty  = 0;
 foreach ($byProductSorted as $bpName => $bpRow) { $bestSellerName = $bpName; $bestSellerQty = (int)$bpRow['qty']; break; }
-$avgCups = $paidOrderCount > 0 ? $cogs['items'] / $paidOrderCount : null;
+$cupsToday = cogs_cups($cogs);
+$avgCups   = $paidOrderCount > 0 ? $cupsToday / $paidOrderCount : null;
 
 /**
  * For pay-later, Completed means the drinks were made and the customer still
@@ -372,12 +379,17 @@ function dr_fragment_orders(mysqli $conn, string $date): void {
 
     // Cups per order, for the per-row data attribute the footer's JS sums
     // over the currently-filtered rows.
+    //
+    // product_id <> 0 drops loyalty redemptions, matching cogs_cups() on tab 1.
+    // This footer and that card have disagreed before — 70 against 92 — and the
+    // two count cups by different routes, so the same rule has to be written
+    // into both. Do not change one without the other.
     $cupsByOrder = [];
     $stmt = $conn->prepare("
         SELECT oi.order_id, COALESCE(SUM(oi.quantity),0) AS cups
         FROM order_items oi
         JOIN orders o ON o.order_id = oi.order_id
-        WHERE o.business_date = ? AND " . paid_orders_where('o') . "
+        WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o') . "
         GROUP BY oi.order_id
     ");
     $stmt->bind_param("s", $date);
@@ -1109,9 +1121,12 @@ body{
                     it is how a manager walks back forward toward the present. */ ?>
             <a class="dr-nav" href="?date=<?= htmlspecialchars($nextDate) ?>">Tomorrow <i class="fa-solid fa-chevron-right"></i></a>
             <?php endif; ?>
-            <button class="dr-nav" onclick="drExport()"><i class="fa-solid fa-file-excel"></i> Excel</button>
-            <a class="dr-nav" href="daily_report_pdf.php?date=<?= htmlspecialchars($date) ?>"><i class="fa-solid fa-file-pdf"></i> PDF</a>
-            <button class="dr-nav" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+            <?php /* Both exports are built on the server from the same shared helpers this
+                    page uses, so neither can drift from what is on screen. Print opens the
+                    PDF in a new tab rather than printing the page: the browser's own print
+                    of a tabbed, lazily-loaded report only ever captured the visible tab. */ ?>
+            <a class="dr-nav" href="daily_report_xlsx.php?date=<?= htmlspecialchars($date) ?>"><i class="fa-solid fa-file-excel"></i> Excel</a>
+            <a class="dr-nav" href="daily_report_pdf.php?date=<?= htmlspecialchars($date) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-print"></i> Print</a>
             <a class="dr-nav" href="report.php?mode=daily&date=<?= htmlspecialchars($date) ?>">Full analytics <i class="fa-solid fa-arrow-right"></i></a>
         </div>
     </div>
@@ -1138,7 +1153,7 @@ body{
               $dGot   = dr_delta($gotToday,  $baseGot['value'],  $baseGot['label']);
               $dKept  = dr_delta($keptToday, $keptBaseline,      $baseGot['label']);
               $dOrd   = dr_delta((float)$paidOrderCount, $ordersBaseline, $baseGot['label'], false);
-              $dCups  = dr_delta((float)$cogs['items'],  $cupsBaseline,   $baseGot['label'], false);
+              $dCups  = dr_delta((float)$cupsToday,      $cupsBaseline,   $baseGot['label'], false);
               $dAvg   = dr_delta($avgToday,  $avgBaseline,       $baseGot['label']);
           }
           $tip    = $baselineTooltip !== '' ? ' title="' . htmlspecialchars($baselineTooltip) . '"' : '';
@@ -1161,7 +1176,7 @@ body{
           </div>
           <div class="dr-stat">
             <div class="dr-k">cups sold</div>
-            <div class="dr-v-lg"><?= (int)$cogs['items'] ?></div>
+            <div class="dr-v-lg"><?= (int)$cupsToday ?></div>
             <div class="dr-delta tone-<?= $dCups['tone'] ?>"><?= htmlspecialchars($dCups['text']) ?></div>
           </div>
           <div class="dr-stat">
@@ -1344,57 +1359,12 @@ async function loadFragment(tab) {
     }
 }
 
-/**
- * Export the day for a spreadsheet. CSV rather than a real .xlsx: Excel opens
- * it natively, so does Sheets, and it needs no library. The leading BOM is what
- * stops Excel mangling the Khmer and the dollar signs.
- *
- * Exports the whole day, not just the tab on screen — a manager who clicks
- * Excel wants the day's numbers, not whichever table they happened to be
- * looking at. Tables already loaded are included; ones never opened are
- * fetched first so the file is never silently short.
- */
-async function drExport() {
-    const q = s => '"' + String(s).replace(/"/g, '""') + '"';
-    const rows = [];
-    const section = t => { rows.push([]); rows.push([t]); };
-
-    rows.push(['Daily report', DR_DATE]);
-    section('The day');
-    // On a past date box 3 carries no headline and no verdict line by design,
-    // so read every cell defensively — a missing node must export as empty,
-    // never as the string "undefined".
-    const cell = (el, sel) => (el.querySelector(sel)?.textContent || '').replace(/\s+/g, ' ').trim();
-    document.querySelectorAll('#panel-today .dr-stat').forEach(v => {
-        rows.push([cell(v, '.dr-k'), cell(v, '.dr-v-lg'), cell(v, '.dr-delta')]);
-    });
-    const alertStrip = document.querySelector('#panel-today .dr-alert');
-    if (alertStrip) rows.push(['stock', alertStrip.textContent.replace(/\s+/g, ' ').trim()]);
-    document.querySelectorAll('#panel-today .dr-facts > .dr-card').forEach(c => {
-        rows.push([cell(c, '.dr-k'), cell(c, '.dr-v'), cell(c, '.dr-note')]);
-    });
-
-    // Pull any tab the manager has not opened, so the file is complete.
-    for (const tab of ['orders', 'stock', 'staff']) {
-        if (!drLoaded[tab]) { await loadFragment(tab); }
-        const table = document.querySelector('#panel-' + tab + ' table');
-        if (!table) continue;
-        section(tab.charAt(0).toUpperCase() + tab.slice(1));
-        table.querySelectorAll('tr').forEach(tr => {
-            const cells = [...tr.querySelectorAll('th,td')]
-                .map(td => td.textContent.replace(/\s+/g, ' ').trim());
-            if (cells.some(c => c !== '')) rows.push(cells);
-        });
-    }
-
-    const csv  = rows.map(r => r.map(q).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = 'daily-report-' + DR_DATE + '.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
-}
+/* The Excel export used to be built here, in the browser, by scraping the
+ * rendered tables into a CSV. It has moved to daily_report_xlsx.php, which
+ * queries the same shared helpers this page does. Scraping the DOM meant the
+ * file could only ever contain what had already been rendered — tabs the
+ * manager never opened had to be fetched first just to be read back out — and
+ * CSV could carry no headings, no currency and no charts. */
 
 /**
  * Shared pager for every table on this page — « ‹ 1 2 3 › », windowed two

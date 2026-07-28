@@ -1328,13 +1328,15 @@ select option {
     </div>
     
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button class="btn-generate" onclick="exportPDF()" title="Export as PDF">
-            <i class="fa-solid fa-file-pdf"></i> PDF
-        </button>
         <button class="btn-generate" onclick="exportCSV()" title="Export product data as CSV">
             <i class="fa-solid fa-file-csv"></i> CSV
         </button>
-        <button class="btn-generate" onclick="window.print()" title="Print this report">
+        <?php /* One button, not two. A separate "PDF" beside a "Print" left the manager
+                guessing which one to click, and the two did different things: Print sent
+                the live page to the printer, PDF built the laid-out document. The document
+                is the one worth having, so Print opens it and the viewer prints from
+                there. */ ?>
+        <button class="btn-generate" onclick="exportPDF()" title="Open the printable report">
             <i class="fa-solid fa-print"></i> Print
         </button>
         <button class="theme-toggle" onclick="toggleTheme()">

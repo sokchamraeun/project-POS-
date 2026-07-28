@@ -46,7 +46,7 @@ while ($row = $res->fetch_row()) { $ids[] = (int)$row[0]; }
 
 $costMap  = ingredient_cost_map($conn);
 $cogs     = order_cogs($conn, $ids, $costMap);
-$itemsSold = (int)$cogs['items'];
+$itemsSold = cogs_cups($cogs);   // cups poured, loyalty redemptions excluded
 $kept      = $gotToday - $cogs['total'];
 $avgOrder  = $orderCount > 0 ? $gotToday / $orderCount : 0.0;
 
@@ -76,24 +76,21 @@ for ($i = 6; $i < 30; $i++) {
         'label' => sprintf('%02d:00 to %02d:59', $h, $h),
         'rev'   => $hourRev[$h],
         'ord'   => $hourOrd[$h],
-        'items' => (int)order_cogs($conn, $hourIds[$h], $costMap)['items'],
+        'items' => cogs_cups(order_cogs($conn, $hourIds[$h], $costMap)),
     ];
 }
 
 // ── Top sellers ──
-// Loyalty redemptions ride in order_items under the product_id=0 sentinel and
-// are named "[GIFT] …". A shirt handed over for points is not a drink sold, so
-// it has no place in a table headed "top selling drinks". Free promo drinks
-// keep a real product id and stay — they were made and poured like any other.
-$byProduct = array_filter(
-    $cogs['by_product'],
-    fn($name) => strpos($name, '[GIFT]') !== 0,
-    ARRAY_FILTER_USE_KEY
-);
-$giftCount = array_sum(array_map(
-    fn($p) => (int)$p['qty'],
-    array_filter($cogs['by_product'], fn($n) => strpos($n, '[GIFT]') === 0, ARRAY_FILTER_USE_KEY)
-));
+// Loyalty redemptions ride in order_items under the product_id=0 sentinel. A
+// shirt handed over for points is not a drink sold, so it has no place in a
+// table headed "top selling drinks". Free promo drinks keep a real product id
+// and stay — they were made and poured like any other.
+//
+// The test is the is_gift flag order_cogs() sets from product_id, not the
+// "[GIFT] " name prefix this used to match: six rows predate that prefix and
+// leaked through as top sellers.
+$byProduct = array_filter($cogs['by_product'], fn($p) => empty($p['is_gift']));
+$giftCount = (int)$cogs['gift_items'];
 uasort($byProduct, fn($a, $b) => $b['qty'] <=> $a['qty']);
 $topProducts = array_slice($byProduct, 0, 10, true);
 
@@ -269,4 +266,8 @@ $canvas = $dompdf->getCanvas();
 $canvas->page_text(40, $canvas->get_height() - 28, "The Bird's Nest Coffee", null, 8, [0.42, 0.38, 0.35]);
 $canvas->page_text($canvas->get_width() - 110, $canvas->get_height() - 28, 'Page {PAGE_NUM} of {PAGE_COUNT}', null, 8, [0.42, 0.38, 0.35]);
 
-$dompdf->stream('daily-report-' . $date . '.pdf', ['Attachment' => true]);
+// Opened inline, not downloaded: this is what the Print button loads, and a
+// manager who wanted paper needs to see the pages before sending them. The
+// browser's PDF viewer carries both a print and a save control, so nothing is
+// lost by not forcing the file to disk.
+$dompdf->stream('daily-report-' . $date . '.pdf', ['Attachment' => false]);
