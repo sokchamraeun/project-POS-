@@ -8,23 +8,33 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// Every "today" below means the trading day (06:00 to 06:00), read from the
+// business_date column — the same definition dashboard.php renders with.
+//
+// This file used to filter on DATE(order_date) = CURDATE(). Because it is
+// polled every 5 seconds and writes straight into the KPI cards, it quietly
+// replaced the correct figures with calendar-date ones a few seconds after
+// every page load. The two disagree on 186 orders, and disagree about every
+// order between midnight and 06:00 — the tail of a trading day belongs to the
+// day before, which is exactly when a late shift is watching this screen.
+$business_date = business_date_today();
+
 // ── TODAY SALES ──
 $sales_sql = "
 SELECT IFNULL(SUM(total),0) AS total_sales
 FROM orders
-WHERE DATE(order_date) = CURDATE() AND " . paid_orders_where() . "
+WHERE business_date = ? AND " . paid_orders_where() . "
 ";
-$sales_result = mysqli_query($conn, $sales_sql);
-$sales = mysqli_fetch_assoc($sales_result)['total_sales'];
+$stmt = $conn->prepare($sales_sql);
+$stmt->bind_param("s", $business_date);
+$stmt->execute();
+$sales = $stmt->get_result()->fetch_assoc()['total_sales'];
 
 // ── TOTAL ORDERS TODAY ──
-$order_sql = "
-SELECT COUNT(*) AS total_orders
-FROM orders
-WHERE DATE(order_date) = CURDATE()
-";
-$order_result = mysqli_query($conn, $order_sql);
-$total_orders = mysqli_fetch_assoc($order_result)['total_orders'];
+$stmt = $conn->prepare("SELECT COUNT(*) AS total_orders FROM orders WHERE business_date = ?");
+$stmt->bind_param("s", $business_date);
+$stmt->execute();
+$total_orders = $stmt->get_result()->fetch_assoc()['total_orders'];
 
 // ── UNPAID ORDERS COUNT ──
 $unpaid_sql = "
@@ -58,13 +68,10 @@ $total_refunds = $refund_data['total_refunds'];
 $refund_count = $refund_data['refund_count'];
 
 // ── STATUS COUNTS ──
-$status_sql = "
-SELECT status, COUNT(*) as count
-FROM orders
-WHERE DATE(order_date) = CURDATE()
-GROUP BY status
-";
-$status_result = mysqli_query($conn, $status_sql);
+$stmt = $conn->prepare("SELECT status, COUNT(*) as count FROM orders WHERE business_date = ? GROUP BY status");
+$stmt->bind_param("s", $business_date);
+$stmt->execute();
+$status_result = $stmt->get_result();
 $status_counts = [];
 while ($row = mysqli_fetch_assoc($status_result)) {
     $status_counts[$row['status']] = $row['count'];
@@ -91,15 +98,17 @@ while ($row = mysqli_fetch_assoc($unpaid_orders_result)) {
 }
 
 // ── KITCHEN QUEUE (LIMIT 5) ──
-$kitchen_sql = "
+$stmt = $conn->prepare("
 SELECT order_id, daily_order_no, customer_name, total, token_number, order_date
 FROM orders
-WHERE DATE(order_date) = CURDATE()
+WHERE business_date = ?
 AND status = 'Preparing'
 ORDER BY order_date ASC
 LIMIT 5
-";
-$kitchen_result = mysqli_query($conn, $kitchen_sql);
+");
+$stmt->bind_param("s", $business_date);
+$stmt->execute();
+$kitchen_result = $stmt->get_result();
 $kitchen_orders = [];
 while ($row = mysqli_fetch_assoc($kitchen_result)) {
     $kitchen_orders[] = $row;

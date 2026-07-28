@@ -156,7 +156,10 @@ $preparing_count = $status_counts['Preparing']      ?? 0;
 $completed_count = $status_counts['Completed']      ?? 0;
 $cancelled_count = $status_counts['Cancelled']      ?? 0;
 
-$stmt_items = $conn->prepare("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.business_date=? AND " . paid_orders_where('o'));
+// product_id <> 0 drops loyalty redemptions, matching cogs_cups() on the daily
+// report this card now links to. Without it the dashboard read 92 items on
+// 1 June while the report it opens read 70 cups for the same day.
+$stmt_items = $conn->prepare("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.business_date=? AND oi.product_id <> 0 AND " . paid_orders_where('o'));
 $stmt_items->bind_param("s", $business_date);
 $stmt_items->execute();
 $items_sold = $stmt_items->get_result()->fetch_assoc()['total_items'];
@@ -1519,8 +1522,11 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
     <!-- KPI ROW -->
     <div class="kpi-row fu" style="animation-delay:.1s">
 
-        <!-- Revenue → the day's report (payment breakdown + the orders it sums) -->
-        <a href="report.php?mode=daily&amp;date=<?= urlencode($business_date) ?>" class="kpi-card c-amber" title="Open today's sales report">
+        <!-- Revenue → the day's report (payment breakdown + the orders it sums).
+             daily_report.php, not report.php: the daily report is the Report
+             destination everywhere else in the app, and report.php answers a
+             different question ("Full analytics", reachable from inside it). -->
+        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-amber" title="Open today's sales report">
             <i class="kpi-watermark fa-solid fa-dollar-sign"></i>
             <span class="kpi-drill">View report <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label">Today's Revenue</div>
@@ -1537,8 +1543,12 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             <?php endif; ?>
         </a>
 
-        <!-- Orders → the order board holding these orders -->
-        <a href="view_order.php" class="kpi-card c-green" title="Open the orders board">
+        <!-- Orders → the order board holding these orders.
+             ?tab=all is stated rather than left to the default: the board opens
+             on whatever tab the role last implies, so a manager clicking a card
+             headed "Orders Today" could land on a filtered, possibly empty list
+             and think the link was broken. view_order.php reads ?tab= on load. -->
+        <a href="view_order.php?tab=all" class="kpi-card c-green" title="Open the orders board">
             <i class="kpi-watermark fa-solid fa-receipt"></i>
             <span class="kpi-drill">View orders <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label">Orders Today</div>
@@ -1549,8 +1559,10 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             </span>
         </a>
 
-        <!-- Items Sold → the report's item/product breakdown -->
-        <a href="report.php?mode=daily&amp;date=<?= urlencode($business_date) ?>#kv-items" class="kpi-card c-blue" title="Open the item breakdown">
+        <!-- Items Sold → the day's report, which carries the best seller and the
+             per-order cup counts. The old link went to report.php#kv-items, an
+             anchor on a single inline <span> that scrolled nowhere useful. -->
+        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-blue" title="Open the item breakdown">
             <i class="kpi-watermark fa-solid fa-mug-hot"></i>
             <span class="kpi-drill">View breakdown <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label">Items Served</div>
