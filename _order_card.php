@@ -104,7 +104,13 @@ if ($overdueMins < 60) {
                <?= $isPL ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_bakong.php?order_id='.$order['order_id'].'" onclick="return interceptPayLater(event,this)"' : '' ?>>
                 <i class="fa-solid fa-qrcode"></i> Bakong
             </a>
-            <a href="receipt_paylater.php?order_id=<?= $order['order_id'] ?>" target="_blank" class="btn btn-receipt">
+            <?php /* receipt_paylater.php stamps PAY LATER across the page and closes
+                     with "Payment pending" — both hardcoded, neither conditional. Sending
+                     every order there printed a cash or Bakong sale as an unpaid tab.
+                     receipt_pdf.php is the method-aware one: it reads order_payments and
+                     names what was actually tendered. */ ?>
+            <a href="<?= $isPayLater ? 'receipt_paylater.php' : 'receipt_pdf.php' ?>?order_id=<?= $order['order_id'] ?>"
+               target="_blank" class="btn btn-receipt" title="Open receipt">
                 <i class="fa-solid fa-file-pdf"></i>
             </a>
             <?php if (!$is_cashier): ?>
@@ -118,7 +124,44 @@ if ($overdueMins < 60) {
     <div class="card-bottom">
         <div class="card-meta">
             <span class="<?= $isOverdue ? 'age-overdue' : '' ?>"><i class="fa-solid fa-clock"></i> <?= $timeAgo ?> &nbsp;·&nbsp; <?= date("d M, g:i A", strtotime($order['order_date'])) ?></span>
-            <span><i class="fa-solid fa-credit-card"></i> <?= htmlspecialchars(ucfirst($order['payment_method'])) ?></span>
+            <?php
+            /* payment_method on an unpaid order is the method the customer PICKED at
+               checkout, not one they have paid by — nobody has paid. Printing it bare
+               put "Bakong" on a card whose own buttons offer Cash or Bakong, which
+               reads as a contradiction and, worse, as a settled fact. The customer is
+               still free to hand over cash, and until they do this is an intention.
+
+               Collected is the same test the rest of the app uses (paid_orders_where):
+               closed, and not in a status that means unpaid or reversed. */
+            $collected = ((int)$order['is_open'] === 0)
+                && !in_array($order['status'], ['PendingPayment', 'Cancelled', 'Refunded', 'Void'], true);
+
+            // ucfirst('paylater') gives "Paylater", and a settled tab would have
+            // read "Paid by Paylater". Pay later is also not a method the
+            // customer picked at the till — it is a tab they opened — so it
+            // gets its own wording in both states.
+            $methodLabels = ['cash' => 'Cash', 'bakong' => 'Bakong', 'paylater' => 'Pay later'];
+            $methodName   = $methodLabels[$order['payment_method']] ?? ucfirst($order['payment_method']);
+
+            // Refunded is tested before the collected check, the same order
+            // dr_pay_label() uses on the daily report: money that WAS collected
+            // and then handed back is not money that was never paid. Without
+            // this a refund read "Cash selected — not paid yet", which is the
+            // opposite of what happened.
+            if ($order['status'] === 'Refunded') {
+                $methodText = 'Refunded — ' . $methodName . ' given back';
+            } elseif ($isPayLater) {
+                $methodText = $collected ? 'Pay later — settled' : 'Pay later — not paid yet';
+            } else {
+                $methodText = $collected
+                    ? 'Paid by ' . $methodName
+                    : $methodName . ' selected — not paid yet';
+            }
+            ?>
+            <span<?= $collected ? '' : ' style="color:var(--text-muted);"' ?>>
+                <i class="fa-solid <?= $collected ? 'fa-credit-card' : 'fa-hourglass-half' ?>"></i>
+                <?= htmlspecialchars($methodText) ?>
+            </span>
             <span class="table-edit-wrap" data-order="<?= $order['order_id'] ?>">
                 <i class="fa-solid fa-ticket" style="color:var(--accent);"></i>
                 <span class="table-label" style="color:var(--accent);"><?= !empty($order['table_number']) ? 'Stand ' . htmlspecialchars($order['table_number']) : 'No stand' ?></span>

@@ -48,6 +48,48 @@ try {
     $stmt->bind_param("i", $order_id);
     $stmt->execute();
 
+    // This button means "the customer is handing over cash", so cash is what
+    // has to be recorded. Marking the existing row paid without touching its
+    // method booked the money under whatever was chosen at checkout: an order
+    // placed as Bakong and then paid in cash was stored as Bakong on both
+    // orders.payment_method and order_payments, silently. Nothing downstream
+    // could tell — it leaves no trace to search for — so the day's Bakong
+    // figure absorbed money that is physically in the drawer.
+    //
+    // payment.php:30-38 has always done this correctly for the same decision
+    // made at the checkout screen. This is that behaviour, applied to the
+    // counter.
+    //
+    // Pay-later is deliberately excluded: settling a tab in cash does not stop
+    // it being a pay-later sale, and the reports keep a separate "pay later,
+    // settled" bucket that reads orders.payment_method.
+    if (($order['payment_method'] ?? '') !== 'paylater') {
+        // A split tender cannot be rewritten as cash — 96 orders in this
+        // database are genuine splits (e.g. $1.00 Bakong + $2.30 cash), and
+        // collapsing them to one method would assert how money we never saw
+        // was handed over. Convert only when a single method is in play.
+        $chk = $conn->prepare("SELECT COUNT(DISTINCT payment_method) FROM order_payments WHERE order_id = ?");
+        $chk->bind_param("i", $order_id);
+        $chk->execute();
+        $methodCount = (int)$chk->get_result()->fetch_row()[0];
+
+        if ($methodCount <= 1) {
+            $stmt = $conn->prepare("
+                UPDATE order_payments
+                SET payment_method = 'cash', payment_status = 'paid'
+                WHERE order_id = ?
+            ");
+            $stmt->bind_param("i", $order_id);
+            $stmt->execute();
+
+            $stmt = $conn->prepare("
+                UPDATE orders SET payment_method = 'cash', bakong_md5 = NULL WHERE order_id = ?
+            ");
+            $stmt->bind_param("i", $order_id);
+            $stmt->execute();
+        }
+    }
+
     // Award loyalty points only for Pay Later orders settled at the counter.
     // Regular orders already receive points at confirm_order.php (creation time).
     // Guard: skip if points were already credited (e.g. items added earlier
