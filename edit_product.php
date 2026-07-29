@@ -668,9 +668,22 @@ input[name=category] { display: none; }
                         <label class="flabel" for="f_price">Price</label>
                         <div class="input-wrap">
                             <span class="prefix">$</span>
+                            <?php /* When this product has sizes, the save handler overwrites
+                                     products.price with the Medium size price (or the first
+                                     size offered) so the legacy single-price paths in cart
+                                     and receipts keep working. The field used to stay fully
+                                     editable anyway, so typing a price here, saving, and
+                                     watching it come back as something else looked like the
+                                     save was broken. It is read-only while sizes are on, and
+                                     mirrors the size that actually drives it. */ ?>
                             <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
                                 required class="has-prefix"
+                                <?= $hasSizes ? 'readonly' : '' ?>
                                 value="<?= $product['price'] ?>">
+                        </div>
+                        <div class="char-count" id="priceNote"
+                             style="display:<?= $hasSizes ? 'block' : 'none' ?>;color:var(--muted);">
+                            Set by the Medium size below — clear the sizes checkbox to price this product directly.
                         </div>
                     </div>
 
@@ -678,7 +691,7 @@ input[name=category] { display: none; }
                         <label class="form-check" for="has_sizes" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                             <input type="checkbox" id="has_sizes" name="has_sizes" value="1"
                                 <?= $hasSizes ? 'checked' : '' ?>
-                                onchange="document.getElementById('sizeRows').style.display=this.checked?'block':'none'">
+                                onchange="document.getElementById('sizeRows').style.display=this.checked?'block':'none'; syncBasePrice();">
                             <span class="flabel" style="margin:0">This product has sizes (S / M / L)</span>
                         </label>
                         <div id="sizeRows" style="display:<?= $hasSizes ? 'block' : 'none' ?>;flex-direction:column;gap:10px;margin-top:10px;">
@@ -700,7 +713,7 @@ input[name=category] { display: none; }
                                 <input type="text" name="size_label[]" value="<?= htmlspecialchars($lv) ?>" placeholder="Label" style="flex:1.3">
                                 <div class="input-wrap" style="flex:1">
                                     <span class="prefix">$</span>
-                                    <input type="number" step="0.01" min="0" name="size_price[]" value="<?= htmlspecialchars($pv) ?>" placeholder="Price" class="has-prefix">
+                                    <input type="number" step="0.01" min="0" name="size_price[]" value="<?= htmlspecialchars($pv) ?>" placeholder="Price" class="has-prefix size-price" data-size-code="<?= $d['code'] ?>">
                                 </div>
                                 <input type="number" step="0.01" min="0" name="size_factor[]" value="<?= htmlspecialchars($fv) ?>" placeholder="Stock ×" style="flex:0.8">
                             </div>
@@ -877,6 +890,34 @@ fPrice.addEventListener('input', () => {
     const v = parseFloat(fPrice.value);
     ppPrice.textContent = isNaN(v) ? '$—' : '$' + v.toFixed(2);
 });
+
+// ── Base price follows the sizes ──
+// The server picks Medium, falling back to the first size actually offered
+// (edit_product.php: $mediumPrice ?? $fallbackPrice). Mirror that rule exactly
+// rather than approximating it, so the number on screen is the number that will
+// be stored. A size left blank is not offered, which is why blanks are skipped
+// here the same way the save handler skips them.
+function syncBasePrice() {
+    const on   = document.getElementById('has_sizes').checked;
+    const note = document.getElementById('priceNote');
+
+    fPrice.readOnly    = on;
+    note.style.display = on ? 'block' : 'none';
+    if (!on) return;
+
+    const priced = [...document.querySelectorAll('.size-price')]
+        .filter(el => parseFloat(el.value) > 0);
+    if (!priced.length) return;   // every size blank — the server keeps the typed price
+
+    const medium = priced.find(el => el.dataset.sizeCode === 'M');
+    const chosen = parseFloat((medium || priced[0]).value);
+
+    fPrice.value = chosen.toFixed(2);
+    ppPrice.textContent = '$' + chosen.toFixed(2);
+}
+
+document.querySelectorAll('.size-price').forEach(el => el.addEventListener('input', syncBasePrice));
+syncBasePrice();
 
 // ── Category pills ──
 function selectCat(el) {
