@@ -21,20 +21,29 @@ $list_msg = match($_GET['msg'] ?? '') {
 };
 
 $filter = $_GET['status'] ?? 'all';
-$allowed = ['all','Draft','Ordered','Received','Cancelled'];
+$allowed = ['all','Draft','Ordered','Partially Received','Received','Cancelled'];
 if (!in_array($filter, $allowed)) $filter = 'all';
 
 // Stats
 $stats = [];
-$sres = $conn->query("SELECT status, COUNT(*) AS cnt, IFNULL(SUM(total_cost),0) AS tot FROM purchase_orders GROUP BY status");
-$allTotal = 0; $allCount = 0; $receivedTotal = 0; $pendingCount = 0;
+$sres = $conn->query("SELECT status, COUNT(*) AS cnt, IFNULL(SUM(total_cost),0) AS tot
+                      FROM purchase_orders GROUP BY status");
+$allTotal = 0; $allCount = 0; $pendingCount = 0;
 while ($sr = $sres->fetch_assoc()) {
     $stats[$sr['status']] = $sr;
     $allCount += $sr['cnt'];
     $allTotal += $sr['tot'];
-    if ($sr['status'] === 'Received') $receivedTotal = $sr['tot'];
-    if (in_array($sr['status'], ['Draft','Ordered'])) $pendingCount += $sr['cnt'];
+    if (in_array($sr['status'], ['Draft','Ordered','Partially Received'])) $pendingCount += $sr['cnt'];
 }
+
+// Money actually spent, not money ordered. Summing total_cost here counted the
+// full value of any order that arrived short.
+$receivedTotal = (float)$conn->query("
+    SELECT IFNULL(SUM(poi.qty_received * poi.unit_cost), 0)
+    FROM purchase_order_items poi
+    JOIN purchase_orders p ON p.po_id = poi.po_id
+    WHERE p.status IN ('Received','Partially Received')
+")->fetch_row()[0];
 
 // Pagination
 $filter_count = $filter === 'all' ? $allCount : (int)($stats[$filter]['cnt'] ?? 0);
@@ -67,6 +76,8 @@ if ($res) while ($r = $res->fetch_assoc()) $pos[] = $r;
 $statusColors = [
     'Draft'     => ['bg'=>'rgba(255,255,255,.06)',  'color'=>'#888',     'icon'=>'fa-pen'],
     'Ordered'   => ['bg'=>'rgba(52,152,219,.15)',   'color'=>'#3498db',  'icon'=>'fa-clock'],
+    // Amber, not red: a part delivery needs attention, it is not a failure.
+    'Partially Received' => ['bg'=>'rgba(224,169,85,.14)', 'color'=>'#e0a955', 'icon'=>'fa-truck-ramp-box'],
     'Received'  => ['bg'=>'rgba(85,224,135,.13)',   'color'=>'#55e087',  'icon'=>'fa-check'],
     'Cancelled' => ['bg'=>'rgba(255,95,95,.12)',    'color'=>'#ff5f5f',  'icon'=>'fa-xmark'],
 ];
@@ -239,6 +250,7 @@ tbody tr:hover td{background:rgba(255,255,255,.025);}
         'all'       => ['label'=>'All',       'icon'=>'fa-list'],
         'Draft'     => ['label'=>'Draft',     'icon'=>'fa-pen'],
         'Ordered'   => ['label'=>'Ordered',   'icon'=>'fa-clock'],
+        'Partially Received' => ['label'=>'Part delivered', 'icon'=>'fa-truck-ramp-box'],
         'Received'  => ['label'=>'Received',  'icon'=>'fa-check'],
         'Cancelled' => ['label'=>'Cancelled', 'icon'=>'fa-xmark'],
     ];
@@ -311,14 +323,13 @@ tbody tr:hover td{background:rgba(255,255,255,.025);}
                             <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
                             <button type="submit" class="btn btn-info btn-sm"><i class="fa-solid fa-paper-plane"></i> Mark Ordered</button>
                         </form>
-                        <?php elseif ($po['status'] === 'Ordered'): ?>
-                        <form method="POST" action="purchase_order_view.php?po_id=<?= $po['po_id'] ?>" style="display:inline"
-                              class="po-action" data-confirm="receive" data-po="<?= he($po['po_number']) ?>">
-                            <input type="hidden" name="action" value="mark_received">
-                            <input type="hidden" name="return" value="list">
-                            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
-                            <button type="submit" class="btn btn-success btn-sm"><i class="fa-solid fa-box-open"></i> Receive Stock</button>
-                        </form>
+                        <?php elseif (in_array($po['status'], ['Ordered','Partially Received'], true)): ?>
+                        <?php /* Receiving needs a quantity per line, so it happens on
+                                 the PO page where the lines are rendered. Keeping one
+                                 caller for the stock arithmetic is the point. */ ?>
+                        <a class="btn btn-success btn-sm" href="purchase_order_view.php?po_id=<?= (int)$po['po_id'] ?>">
+                            <i class="fa-solid fa-truck-ramp-box"></i> Receive
+                        </a>
                         <?php endif; ?>
                         <a class="btn btn-outline btn-sm" href="purchase_order_view.php?po_id=<?= $po['po_id'] ?>">
                             <i class="fa-solid fa-eye"></i> View
@@ -438,17 +449,9 @@ document.addEventListener('submit', async function (e) {
     e.preventDefault();
     if (form.dataset.sent) return;
 
-    const po       = form.dataset.po || 'this order';
-    const receive  = form.dataset.confirm === 'receive';
+    const po = form.dataset.po || 'this order';
 
-    const okd = await poConfirm(receive ? {
-        title:       'Receive this delivery?',
-        message:     'Mark ' + po + ' as received.',
-        note:        'Every ordered quantity is added to inventory. This cannot be undone.',
-        confirmText: 'Receive Stock',
-        icon:        'fa-box-open',
-        color:       '#55e087',
-    } : {
+    const okd = await poConfirm({
         title:       'Send this order?',
         message:     'Mark ' + po + ' as ordered.',
         note:        'Records that the order has been placed with the supplier. Stock is unchanged until it arrives.',

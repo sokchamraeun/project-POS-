@@ -187,6 +187,8 @@ if ($created_msg) $msg_text = ['text'=>$created_msg, 'type'=>'success'];
 $statusColors = [
     'Draft'     => ['bg'=>'rgba(136,136,136,.18)',   'color'=>'#888',     'icon'=>'fa-pen'],
     'Ordered'   => ['bg'=>'rgba(52,152,219,.15)',   'color'=>'#3498db',  'icon'=>'fa-clock'],
+    // Amber, not red: a part delivery needs attention, it is not a failure.
+    'Partially Received' => ['bg'=>'rgba(224,169,85,.14)', 'color'=>'#e0a955', 'icon'=>'fa-truck-ramp-box'],
     'Received'  => ['bg'=>'rgba(85,224,135,.13)',   'color'=>'#55e087',  'icon'=>'fa-check-circle'],
     'Cancelled' => ['bg'=>'rgba(255,95,95,.12)',    'color'=>'#ff5f5f',  'icon'=>'fa-xmark-circle'],
 ];
