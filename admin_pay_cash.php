@@ -6,10 +6,24 @@ if (!in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])) {
     exit;
 }
 
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
 $order_id = (int)($_GET['order_id'] ?? 0);
-$return_page = ($_GET['return'] ?? '') === 'dashboard' ? 'dashboard.php' : 'find_order.php?tab=pending';
+// Validated, never interpolated: this string ends up in a Location: header.
+$return_tab  = pay_return_tab($_POST['return'] ?? $_GET['return'] ?? null);
+$return_page = pay_return_url($return_tab);
 
 if ($order_id <= 0) {
+    header("Location: $return_page");
+    exit;
+}
+
+// Settling spends money, so it needs a submit. As a GET this page charged the
+// customer while it loaded: a refresh, a back-button or a browser link prefetch
+// was indistinguishable from a deliberate click, and the cashier had nowhere to
+// enter what the customer actually handed over.
+$is_settle = ($_SERVER['REQUEST_METHOD'] === 'POST');
+if ($is_settle && !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
     header("Location: $return_page");
     exit;
 }
@@ -26,6 +40,14 @@ $order = $stmt->get_result()->fetch_assoc();
 
 if (!$order) {
     header("Location: $return_page");
+    exit;
+}
+
+// A GET renders the tender screen and writes nothing. Everything below this line
+// runs only for a POST that carried a valid token, so the settlement logic stays
+// exactly as it was rather than being re-indented into a branch.
+if (!$is_settle) {
+    include '_cash_tender.php';
     exit;
 }
 
@@ -122,6 +144,5 @@ try {
 
 // Show the same success screen as the regular checkout (identical UI). Carry where the
 // cashier came from so its back button returns to the queue instead of the menu.
-$from = ($_GET['return'] ?? '') === 'dashboard' ? 'dashboard' : 'pending';
-header("Location: payment_cash.php?order_id=" . $order_id . "&from=" . $from);
+header("Location: payment_cash.php?order_id=" . $order_id . "&from=" . $return_tab);
 exit;
