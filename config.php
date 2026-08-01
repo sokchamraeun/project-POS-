@@ -537,6 +537,33 @@ if (!function_exists('po_may_close_short')) {
 }
 
 /**
+ * Where a cashier returns to after settling an order at the counter.
+ *
+ * The destination arrives as a query parameter and ends up in a Location:
+ * header, so it is validated against a fixed list rather than interpolated.
+ * 'pending' is the fallback because it is where the majority of counter
+ * settlements start; a wrong-but-safe tab beats an open redirect.
+ *
+ * 'dashboard' has no caller today. It is kept because dropping it would mean
+ * revisiting all three files the first time a dashboard cash button is added.
+ */
+if (!function_exists('pay_return_tab')) {
+    function pay_return_tab(?string $raw): string {
+        $allowed = ['all', 'pending', 'paylater', 'dashboard'];
+        return in_array($raw, $allowed, true) ? $raw : 'pending';
+    }
+}
+
+if (!function_exists('pay_return_url')) {
+    function pay_return_url(string $tab): string {
+        // Re-validate rather than trust the caller: this is the last stop
+        // before a Location: header.
+        $tab = pay_return_tab($tab);
+        return $tab === 'dashboard' ? 'dashboard.php' : 'find_order.php?tab=' . $tab;
+    }
+}
+
+/**
  * What a normal <weekday> takes, for judging today against.
  *
  * A cafe's trade is weekly-seasonal, so Saturday is only fair against other
