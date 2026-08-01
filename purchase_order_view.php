@@ -128,15 +128,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!po_may_close_short($_SESSION['role'] ?? null)) {
             po_redirect($from_list, $po_id, 'denied');
         }
+
+        // The reason is what makes this write-off auditable months later, so an
+        // unrecognised code is refused rather than stored. Validated against the
+        // same array the dropdown was built from.
+        $reason = trim($_POST['short_reason'] ?? '');
+        if (!isset(po_short_reasons()[$reason])) {
+            po_redirect($from_list, $po_id, 'badreason');
+        }
+        // Bounded here as well as by the column: a silent truncation on write is
+        // worse than a short note.
+        $note = mb_substr(trim($_POST['short_note'] ?? ''), 0, 255);
+
         // No stock is added. This records that the remainder is never coming,
-        // which is the opposite of a delivery.
+        // which is the opposite of a delivery. The reason rides in the SAME
+        // UPDATE as the status change: if this PO stopped being Partially
+        // Received in the meantime, neither is written.
         $by   = $_SESSION['username'] ?? null;
         $stmt = $conn->prepare("UPDATE purchase_orders
                                 SET status='Received', closed_short=1,
                                     closed_short_at=NOW(), closed_short_by=?,
+                                    closed_short_reason=?, closed_short_note=?,
                                     received_at=COALESCE(received_at, NOW())
                                 WHERE po_id=? AND status='Partially Received'");
-        $stmt->bind_param('si', $by, $po_id);
+        $stmt->bind_param('sssi', $by, $reason, $note, $po_id);
         $stmt->execute();
         if ($stmt->affected_rows === 0) { po_redirect($from_list, $po_id, 'nochange'); }
         po_redirect($from_list, $po_id, 'shortclosed');
@@ -191,6 +206,7 @@ $msg_text = match($_GET['msg'] ?? '') {
     'error'     => ['text'=>'The delivery could not be saved. Nothing was changed.','type'=>'danger'],
     'shortclosed' => ['text'=>'Purchase order closed short. The outstanding items were written off.', 'type'=>'info'],
     'denied'    => ['text'=>'You do not have permission to close a purchase order short.', 'type'=>'danger'],
+    'badreason' => ['text'=>'Pick a reason for the write-off before closing this order short.', 'type'=>'danger'],
     default     => null,
 };
 if ($created_msg) $msg_text = ['text'=>$created_msg, 'type'=>'success'];
@@ -341,6 +357,34 @@ tbody tr:hover td{background:var(--surface);}
     .info-grid{grid-template-columns:1fr;}
     thead th:nth-child(3),tbody td:nth-child(3){display:none;}
 }
+/* ── Close-short modal ── lifted from suppliers.php:254-280 so the two behave
+   identically, including its .open show/hide. This page had no modal styles. */
+.modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.65);
+    display:flex;align-items:center;justify-content:center;
+    z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{
+    background:var(--bg-card);border:1px solid var(--border-hover);
+    border-radius:18px;padding:32px;width:min(520px,calc(100vw - 32px));
+    box-shadow:var(--shadow-lg);
+    transform:translateY(16px);transition:transform .25s ease;
+}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+.modal-title{font-size:17px;font-weight:700;color:var(--text-light);}
+.modal-close{background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px;transition:var(--transition);}
+.modal-close:hover{color:var(--danger);}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.field select,.field textarea{
+    width:100%;background:var(--bg-input);border:1px solid var(--border);
+    border-radius:8px;padding:10px 14px;color:var(--text);font-family:'Poppins',sans-serif;font-size:13px;
+    transition:var(--transition);resize:vertical;
+}
+.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(209,144,75,.12);}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -369,12 +413,11 @@ tbody tr:hover td{background:var(--surface);}
         </form>
         <?php endif; ?>
         <?php if ($po['status'] === 'Partially Received' && $is_manager): ?>
-        <form method="POST" style="display:inline"
-              onsubmit="return confirm('Close this order short? The outstanding items will be written off and no stock will be added.')">
-            <input type="hidden" name="action" value="close_short">
-            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
-            <button type="submit" class="btn btn-danger"><i class="fa-solid fa-file-circle-xmark"></i> Close short</button>
-        </form>
+        <?php /* A native confirm() cannot collect a reason, and an unexplained
+                 write-off is the thing this feature exists to stop. */ ?>
+        <button type="button" class="btn btn-danger" onclick="openCloseShort()">
+            <i class="fa-solid fa-file-circle-xmark"></i> Close short
+        </button>
         <?php endif; ?>
     </div>
 </div>
@@ -562,6 +605,58 @@ window.addEventListener('storage', function (e) {
     }
 });
 </script>
+
+<?php if ($po['status'] === 'Partially Received' && $is_manager): ?>
+<!-- ── Close-short modal ── -->
+<div class="modal-overlay" id="closeShortModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title"><i class="fa-solid fa-file-circle-xmark"></i> Close short</div>
+            <button class="modal-close" type="button" onclick="closeCloseShort()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form method="POST">
+            <input type="hidden" name="action" value="close_short">
+            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
+
+            <p style="font-size:13px;color:var(--text-muted);margin:0 0 18px;line-height:1.55">
+                <strong style="color:var(--text)">$<?= number_format($vals['outstanding'], 2) ?></strong>
+                of goods will be written off. No stock will be added, and this cannot be undone.
+            </p>
+
+            <div class="field">
+                <label>Why is the rest not coming? *</label>
+                <select name="short_reason" required>
+                    <option value="">Select a reason&hellip;</option>
+                    <?php foreach (po_short_reasons() as $code => $label): ?>
+                    <option value="<?= he($code) ?>"><?= he($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Note (optional)</label>
+                <textarea name="short_note" rows="2" maxlength="255"
+                          placeholder="e.g. Only had 699g in the cold room."></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeCloseShort()">Cancel</button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fa-solid fa-file-circle-xmark"></i> Confirm write-off
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+function openCloseShort()  { document.getElementById('closeShortModal').classList.add('open'); }
+function closeCloseShort() { document.getElementById('closeShortModal').classList.remove('open'); }
+document.getElementById('closeShortModal').addEventListener('click', function (e) {
+    // Backdrop dismiss, but not a click that started inside the panel.
+    if (e.target === this) closeCloseShort();
+});
+</script>
+<?php endif; ?>
 
 </body>
 </html>
