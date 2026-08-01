@@ -21,7 +21,7 @@
 - **Every state-mutating POST checks CSRF** with `hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')`, redirecting through `po_redirect($from_list, $po_id, 'badtoken')` on failure. This is already in place at `purchase_order_view.php:27`; do not remove it.
 - **Schema changes go through `_migrate($conn, '<id>_v1', function($db) { ... })`** in `config.php`. Migrations are idempotent and self-apply on next page load.
 - **`purchase_orders.total_cost` is read-only.** No task may write to it.
-- **Manager gate is `in_array($_SESSION['role'] ?? '', ['admin','manager'], true)`** — the exact pattern used at `stock_count.php:87`. Never gate on a permission slug for this.
+- **Manager gate is the role list `['admin','manager']`** — the exact pattern used at `stock_count.php:87`. Never gate on a permission slug for this. Task 5 wraps it as `po_may_close_short()` so the handler, the button and the test all read one definition; call that function rather than re-inlining `in_array(...)`.
 - **HTML output is escaped with `he()`** (defined in `purchase_order_view.php`).
 - **Money is `number_format($n, 2)`; quantities are `number_format($n, 3)`** — matching the existing PO pages.
 - **Tests run with `php tests/<file>.php` and print `PASS`/`FAIL` lines**, ending with `ALL PASS` or a non-zero failure count. Copy the harness shape from `tests/daily_report_test.php`.
@@ -742,7 +742,9 @@ git commit -m "feat(procurement): per-line receive form on the PO page"
 
 **Interfaces:**
 - Consumes: `closed_short` columns from Task 1
-- Produces: POST action `close_short`; redirect message `shortclosed`; `$is_manager` boolean available to the action bar
+- Produces:
+  - `po_may_close_short(?string $role): bool` in `config.php` — the role gate, callable by both the handler and the test
+  - POST action `close_short`; redirect messages `shortclosed` and `denied`; `$is_manager` boolean available to the action bar
 
 - [ ] **Step 1: Write the failing test**
 
@@ -753,22 +755,49 @@ echo "close short\n";
 // Closing short writes off goods that were paid for, so it is a commercial
 // decision, not a counting one. Only admin and manager may do it — the same
 // split as stock_count.php, where the clerk counts and a manager applies.
-function may_close_short(string $role): bool {
-    return in_array($role, ['admin','manager'], true);
-}
-check('admin may close short',            may_close_short('admin'),           true);
-check('manager may close short',          may_close_short('manager'),         true);
-check('inventory clerk may not',          may_close_short('inventory_clerk'), false);
-check('cashier may not',                  may_close_short('staff'),           false);
-check('barista may not',                  may_close_short('barista'),         false);
+//
+// This asserts the production function, not a copy of the role list. A test
+// that redeclares the rule it is checking passes whatever the real code does.
+check('admin may close short',            po_may_close_short('admin'),           true);
+check('manager may close short',          po_may_close_short('manager'),         true);
+check('inventory clerk may not',          po_may_close_short('inventory_clerk'), false);
+check('cashier may not',                  po_may_close_short('staff'),           false);
+check('barista may not',                  po_may_close_short('barista'),         false);
+check('a missing role may not',           po_may_close_short(null),              false);
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `php tests/purchase_order_test.php`
-Expected: FAIL, `Call to undefined function may_close_short()` — the helper is defined in the test itself, so this passes once the block is added. It exists to pin the role list, which Step 3 must match exactly.
+Expected: PHP fatal, `Call to undefined function po_may_close_short()`.
 
-- [ ] **Step 3: Add the handler**
+- [ ] **Step 3: Add the role gate**
+
+Add to `config.php`, after `po_receive_line()`:
+
+```php
+/**
+ * Who may write off the undelivered part of a purchase order.
+ *
+ * Closing short abandons goods that were ordered and, on most terms, will still
+ * be invoiced — a commercial decision rather than a counting one. It is gated on
+ * the role and not on the purchase_orders permission, which the clerk who
+ * receives deliveries already holds. Mirrors stock_count.php: the clerk counts
+ * what is there, a manager commits the consequence.
+ */
+if (!function_exists('po_may_close_short')) {
+    function po_may_close_short(?string $role): bool {
+        return in_array($role, ['admin', 'manager'], true);
+    }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `php tests/purchase_order_test.php`
+Expected: `ALL PASS`.
+
+- [ ] **Step 5: Add the handler**
 
 In `purchase_order_view.php`, immediately after the `receive_items` block:
 
@@ -778,7 +807,7 @@ In `purchase_order_view.php`, immediately after the `receive_items` block:
         // gated on the role and not on the purchase_orders permission the
         // clerk already holds. Checked here rather than only in the markup —
         // hiding a button is not access control.
-        if (!in_array($_SESSION['role'] ?? '', ['admin','manager'], true)) {
+        if (!po_may_close_short($_SESSION['role'] ?? null)) {
             po_redirect($from_list, $po_id, 'denied');
         }
         // No stock is added. This records that the remainder is never coming,
@@ -802,12 +831,12 @@ Add the `denied` message to both message maps:
     'denied' => ['text'=>'You do not have permission to close a purchase order short.', 'type'=>'danger'],
 ```
 
-- [ ] **Step 4: Add the button**
+- [ ] **Step 6: Add the button**
 
 Near the top of the render section of `purchase_order_view.php` (after `$po` is fetched), add:
 
 ```php
-$is_manager = in_array($_SESSION['role'] ?? '', ['admin','manager'], true);
+$is_manager = po_may_close_short($_SESSION['role'] ?? null);
 ```
 
 Then in the action bar, after the Cancel PO block:
@@ -823,7 +852,7 @@ Then in the action bar, after the Cancel PO block:
         <?php endif; ?>
 ```
 
-- [ ] **Step 5: Show the write-off after the fact**
+- [ ] **Step 7: Show the write-off after the fact**
 
 In the PO header meta block, after the `received_at` span:
 
@@ -836,7 +865,7 @@ In the PO header meta block, after the `received_at` span:
                     <?php endif; ?>
 ```
 
-- [ ] **Step 6: Verify the gate holds against a direct POST**
+- [ ] **Step 8: Verify the gate holds against a direct POST**
 
 Run: `php -l purchase_order_view.php && php tests/purchase_order_test.php`
 
@@ -875,7 +904,7 @@ Expected: still `Partially Received`, `closed_short` still `0`.
 If there is no `Partially Received` PO yet, create one first by running Task 4's
 browser step, or the `$PO` variable will be empty and the curl will 404.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add purchase_order_view.php tests/purchase_order_test.php
