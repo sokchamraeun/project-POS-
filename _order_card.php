@@ -94,14 +94,20 @@ if ($overdueMins < 60) {
                 <i class="fa-solid fa-pen-to-square"></i> Edit
             </a>
             <?php endif; ?>
-            <a href="admin_pay_cash.php?order_id=<?= $order['order_id'] ?>"
+            <?php /* Carry the tab the cashier is on so settling returns them to it.
+                      Defaulted, because this partial may be included by a page that
+                      does not define $card_tab — that gets today's behaviour rather
+                      than a notice. data-lp-dest must match href exactly or the
+                      loyalty intercept navigates somewhere the link did not point. */
+                   $ret = '&return=' . urlencode($card_tab ?? 'pending'); ?>
+            <a href="admin_pay_cash.php?order_id=<?= $order['order_id'] ?><?= $ret ?>"
                class="btn btn-pay-cash"
-               <?= $isPL ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_cash.php?order_id='.$order['order_id'].'" onclick="return interceptPayLater(event,this)"' : '' ?>>
+               <?= $isPL ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_cash.php?order_id='.$order['order_id'].$ret.'" onclick="return interceptPayLater(event,this)"' : '' ?>>
                 <i class="fa-solid fa-money-bill-wave"></i> Cash
             </a>
-            <a href="admin_pay_bakong.php?order_id=<?= $order['order_id'] ?>"
+            <a href="admin_pay_bakong.php?order_id=<?= $order['order_id'] ?><?= $ret ?>"
                class="btn btn-pay-bakong"
-               <?= $isPL ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_bakong.php?order_id='.$order['order_id'].'" onclick="return interceptPayLater(event,this)"' : '' ?>>
+               <?= $isPL ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_bakong.php?order_id='.$order['order_id'].$ret.'" onclick="return interceptPayLater(event,this)"' : '' ?>>
                 <i class="fa-solid fa-qrcode"></i> Bakong
             </a>
             <?php /* receipt_paylater.php stamps PAY LATER across the page and closes

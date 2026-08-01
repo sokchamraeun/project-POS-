@@ -40,6 +40,11 @@ if ($is_cashier) {
     $filter_tab = 'paylater';
 }
 
+// The tab the cashier is looking at, carried into the settle links so they come
+// back to it instead of always landing on Pending Payment. Read after the cashier
+// override so a forced paylater tab returns to paylater.
+$card_tab = pay_return_tab($filter_tab);
+
 $perPage = 10;
 $page    = max(1, (int)($_GET['page'] ?? 1));
 
