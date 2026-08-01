@@ -31,9 +31,21 @@ if (!$order) {
 }
 
 // ── Only allow cancellation of non-terminal statuses ──
-$non_cancellable = ['Cancelled', 'Refunded', 'Completed'];
+//
+// 'Paid' belongs here: the money has been collected. Cancelling records no refund
+// and no return of cash, and paid_orders_where() excludes Cancelled — so the sale
+// vanishes from revenue while the cash is still in the drawer. The board makes this
+// easy to hit by accident, because boardState() displays a settled 'Paid' order as
+// "Completed"; the card says finished, the raw status said cancellable.
+//
+// The remedy for a paid order is a REFUND, which leaves a record of the money going
+// back. Cancel is for orders where nothing was collected.
+$non_cancellable = ['Cancelled', 'Refunded', 'Completed', 'Paid'];
 if (in_array($order['status'], $non_cancellable)) {
-    echo json_encode(["ok" => 0, "error" => "Cannot cancel an order with status: {$order['status']}"]);
+    $why = $order['status'] === 'Paid'
+        ? "This order has already been paid. Refund it instead — cancelling would leave the money unaccounted for."
+        : "Cannot cancel an order with status: {$order['status']}";
+    echo json_encode(["ok" => 0, "error" => $why]);
     exit;
 }
 

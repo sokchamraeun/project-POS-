@@ -39,10 +39,15 @@ if ($order['status'] === 'Refunded') {
     exit;
 }
 
-// ── Allow refunds on Completed OR Preparing orders (payment goes straight to Preparing) ──
-$refundable_statuses = ['Completed', 'Preparing'];
+/* Refundable once money has been taken or the drinks are being made.
+   'Paid' was missing, which made every settled order un-refundable — 191 of them —
+   while the rejection message said "Only paid or Completed orders can be refunded
+   (current status: Paid)", naming the status it was refusing. The comment below
+   already assumed Paid was refundable, so the list was simply wrong.
+   A settled sale is exactly the case a refund exists for. */
+$refundable_statuses = ['Completed', 'Preparing', 'Paid'];
 if (!in_array($order['status'], $refundable_statuses)) {
-    echo json_encode(["ok" => 0, "error" => "Only paid or Completed orders can be refunded (current status: {$order['status']})"]);
+    echo json_encode(["ok" => 0, "error" => "This order cannot be refunded (current status: {$order['status']})"]);
     exit;
 }
 

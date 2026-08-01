@@ -2132,8 +2132,14 @@ function addRow(o) {
 function getActionButtons(o) {
     let buttons = '';
     
-    // Call button - only for Paid or Preparing
-    if (o.status === 'Paid' || o.status === 'Preparing') {
+    /* These read the BOARD state, not the raw status. boardState() shows a settled
+       'Paid' order as "Completed", so reading o.status here made the buttons describe
+       a different order from the badge above them: Call and Cancel on a finished sale,
+       with Refund and Remake — the ones actually wanted — never rendering. */
+    const state = boardState(o);
+
+    // Call button - only for an order still in the queue
+    if (state === 'Preparing') {
         buttons += `
             <button class="call-btn" onclick="callOrder(${Number(o.order_id)}, '${escapeHtml(o.customer_name)}', ${Number(o.daily_order_no)})" title="Call customer">
                 <i class="fa-solid fa-bell"></i> Call
@@ -2150,8 +2156,8 @@ function getActionButtons(o) {
         `;
     }
     
-    // Complete button - only for Preparing
-    if (o.status === 'Preparing') {
+    // Complete button - only for an order still being made
+    if (state === 'Preparing') {
         buttons += `
             <button class="complete-btn" onclick="completeOrder(${Number(o.order_id)})" title="Complete order">
                 <i class="fa-solid fa-check"></i> Complete
@@ -2160,7 +2166,10 @@ function getActionButtons(o) {
     }
     
     // Cancel button - staff(cashier): Pending only; others: anything except Completed/Cancelled/Refunded
-    const canCancel = o.status !== 'Completed' && o.status !== 'Cancelled' && o.status !== 'Refunded' && userRole !== 'barista'
+    // Never on a settled sale: cancel_order.php refuses it, because cancelling a paid
+    // order records no refund and drops it out of revenue with the cash still taken.
+    const canCancel = state !== 'Completed' && o.status !== 'Paid'
+        && o.status !== 'Cancelled' && o.status !== 'Refunded' && userRole !== 'barista'
         && (userRole !== 'staff' || o.status === 'PendingPayment');
     if (canCancel) {
         buttons += `
@@ -2170,7 +2179,7 @@ function getActionButtons(o) {
         `;
     }
     
-    if (o.status === 'Completed') {
+    if (state === 'Completed') {
         // An open pay-later tab has taken no money — 'Completed' there means made-but-owing.
         // Refunding it would erase the debt and record cash that was never collected.
         const unpaidTab = o.payment_method === 'paylater' && Number(o.is_open) === 1;
