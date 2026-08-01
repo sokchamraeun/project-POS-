@@ -628,71 +628,7 @@ function _stash_stock_warning(array $shortfalls): void {
     $_SESSION['stock_warning'] = $msgs;
 }
 
-/**
- * Deduct ingredient stock for one ordered drink.
- * Deducts and logs only what is actually on hand (never goes negative, never logs
- * a phantom full deduction when short). Returns a list of shortfalls so the caller
- * can warn staff: each ['name' => ingredient, 'need' => required, 'had' => available].
- */
-function _deduct_stock(mysqli $conn, int $product_id, int $qty, string $milk_choice, int $order_id = 0, float $size_factor = 1.0): array {
-    $shortfalls = [];
-    $stmt = $conn->prepare("
-        SELECT pi.ingredient_id, pi.amount_used, i.ingredient_name
-        FROM product_ingredients pi
-        JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-        WHERE pi.product_id = ?
-    ");
-    $stmt->bind_param("i", $product_id);
-    $stmt->execute();
-    $rows = $stmt->get_result();
-
-    $created_by = $_SESSION['username'] ?? null;
-
-    while ($row = $rows->fetch_assoc()) {
-        $ing_id    = (int)$row['ingredient_id'];
-        $amount    = (float)$row['amount_used'] * $qty * $size_factor;
-        $ing_name  = strtolower(trim($row['ingredient_name']));
-        $disp_name = trim($row['ingredient_name']);
-
-        // Substitute milk ingredient if customer chose a different milk
-        if (strpos($ing_name, 'milk') !== false && !empty($milk_choice)) {
-            $stmt_milk = $conn->prepare("SELECT ingredient_id, ingredient_name FROM ingredients WHERE LOWER(ingredient_name) = LOWER(?) LIMIT 1");
-            $stmt_milk->bind_param("s", $milk_choice);
-            $stmt_milk->execute();
-            $milk_row = $stmt_milk->get_result()->fetch_assoc();
-            if ($milk_row) {
-                $ing_id    = (int)$milk_row['ingredient_id'];
-                $disp_name = trim($milk_row['ingredient_name']);
-            }
-        }
-
-        // Read current stock so we deduct (and log) only what's really on hand.
-        $cs = $conn->prepare("SELECT stock_quantity FROM ingredients WHERE ingredient_id = ?");
-        $cs->bind_param("i", $ing_id);
-        $cs->execute();
-        $have = (float)($cs->get_result()->fetch_assoc()['stock_quantity'] ?? 0);
-
-        $deducted = $amount;
-        if ($have < $amount) {
-            // Oversell: take what's left and flag it. (Order still completes.)
-            $deducted     = max(0, $have);
-            $shortfalls[] = ['name' => $disp_name, 'need' => $amount, 'had' => max(0, $have)];
-        }
-
-        // GREATEST(0, …) keeps stock from going negative even under concurrent edits.
-        $stmt_upd = $conn->prepare("UPDATE ingredients SET stock_quantity = GREATEST(0, stock_quantity - ?) WHERE ingredient_id = ?");
-        $stmt_upd->bind_param("di", $amount, $ing_id);
-        $stmt_upd->execute();
-
-        // Log the amount actually removed, not the phantom full amount.
-        if ($deducted > 0) {
-            $oid = $order_id > 0 ? $order_id : null;
-            $ref = $oid ? "Order #$order_id" : null;
-            $sh  = $conn->prepare("INSERT INTO ingredient_history (ingredient_id, change_type, amount, order_id, reference, created_by) VALUES (?, 'order_deduct', ?, ?, ?, ?)");
-            $sh->bind_param("idiss", $ing_id, $deducted, $oid, $ref, $created_by);
-            $sh->execute();
-        }
-    }
-    return $shortfalls;
-}
+/* _deduct_stock() lives in config.php so remake_order.php can share it — a
+   remake pours real drinks and must deduct the same way, including the milk
+   substitution. One writer, never a copy. */
 ?>
