@@ -48,6 +48,31 @@ $bad = (int)$conn->query("
 ")->fetch_row()[0];
 check('historical Received POs are backfilled in full', $bad, 0);
 
+echo "close-short reason\n";
+foreach (['closed_short_reason', 'closed_short_note'] as $c) {
+    check("$c exists",
+          $conn->query("SHOW COLUMNS FROM purchase_orders LIKE '$c'")->num_rows === 1, true);
+}
+$rc = $conn->query("SHOW COLUMNS FROM purchase_orders LIKE 'closed_short_reason'")->fetch_assoc();
+check('reason is NOT NULL',       $rc['Null'],    'NO');
+check('reason defaults to empty', $rc['Default'], '');
+
+$reasons = po_short_reasons();
+check('reason list is not empty', count($reasons) > 0,             true);
+check('other is offered',         isset($reasons['other']),        true);
+check('supplier_oos is offered',  isset($reasons['supplier_oos']), true);
+// A code longer than the column would be silently truncated on write, and the
+// truncated value would then fail every lookup.
+check('every code fits the column',
+      array_values(array_filter(array_keys($reasons), fn($k) => strlen($k) > 40)), []);
+// Codes are the stored value and end up in a value= attribute; labels are for humans.
+check('codes are plain identifiers',
+      array_values(array_filter(array_keys($reasons), fn($k) => !preg_match('/^[a-z_]+$/', $k))), []);
+// An unrecognised code must stay readable rather than collapsing to blank.
+check('a known code renders its label', po_short_reason_label('supplier_oos'), 'Supplier out of stock');
+check('an unknown code renders itself', po_short_reason_label('zzz_gone'),     'zzz_gone');
+check('an empty code says so',          po_short_reason_label(''),             'No reason recorded');
+
 // Draft and Ordered POs have not been delivered, so they must stay at zero.
 $early = (int)$conn->query("
     SELECT COUNT(*) FROM purchase_order_items poi

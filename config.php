@@ -537,6 +537,45 @@ if (!function_exists('po_may_close_short')) {
 }
 
 /**
+ * Why the undelivered part of a purchase order was written off.
+ *
+ * One array, read by both the dropdown that offers these and the handler that
+ * validates the submission, so the two cannot drift apart. The keys are stored in
+ * purchase_orders.closed_short_reason and must stay stable — labels are free to
+ * change, codes are not.
+ *
+ * Without this, a $7.00 gap between what a PO ordered and what arrived is
+ * indistinguishable months later from a damaged pallet or a theft. The manager who
+ * clicked the button knew; the system used to ask them nothing.
+ */
+if (!function_exists('po_short_reasons')) {
+    function po_short_reasons(): array {
+        return [
+            'supplier_oos'    => 'Supplier out of stock',
+            'damaged'         => 'Damaged in transit',
+            'never_arrived'   => 'Delivery never arrived',
+            'supplier_cancel' => 'Cancelled by supplier',
+            'other'           => 'Other',
+        ];
+    }
+}
+
+/**
+ * The human label for a stored reason code.
+ *
+ * Falls back to the raw code rather than blanking, so a row written by an older or
+ * newer version of the list stays readable instead of looking like no reason was
+ * given at all — which is a different and more serious claim.
+ */
+if (!function_exists('po_short_reason_label')) {
+    function po_short_reason_label(?string $code): string {
+        $code = trim((string)$code);
+        if ($code === '') return 'No reason recorded';
+        return po_short_reasons()[$code] ?? $code;
+    }
+}
+
+/**
  * Where a cashier returns to after settling an order at the counter.
  *
  * The destination arrives as a query parameter and ends up in a Location:
@@ -1356,6 +1395,19 @@ _migrate($conn, 'po_partial_receive_v1', function($db) {
                 JOIN purchase_orders p ON p.po_id = poi.po_id
                 SET poi.qty_received = poi.qty_ordered
                 WHERE p.status = 'Received'");
+});
+
+_migrate($conn, 'po_close_short_reason_v1', function($db) {
+    // Why the remainder was written off. Stored as a stable CODE so relabelling an
+    // option later cannot orphan history, and so write-offs stay groupable.
+    //
+    // No backfill: there is nothing to guess at, and '' renders honestly as
+    // "No reason recorded" rather than inventing an explanation for a decision
+    // nobody recorded.
+    $db->query("ALTER TABLE purchase_orders
+                ADD COLUMN IF NOT EXISTS closed_short_reason VARCHAR(40) NOT NULL DEFAULT ''");
+    $db->query("ALTER TABLE purchase_orders
+                ADD COLUMN IF NOT EXISTS closed_short_note VARCHAR(255) NULL DEFAULT NULL");
 });
 
 // ── SANITIZE FUNCTION ──
