@@ -147,8 +147,19 @@ the part that must not run twice.
 
 | File | Change |
 |---|---|
+| `config.php` | `pay_return_tab()` / `pay_return_url()` — one validated destination helper |
 | `admin_pay_cash.php` | GET renders a tender screen; existing settlement moves into a CSRF-checked POST branch; return destination becomes a validated tab |
 | `_order_card.php` | Cash and Bakong links carry the tab they are rendered under |
+| `find_order.php` | exposes the validated current tab to the card |
+| `payment_cash.php` | back-button map gains `all` |
+| `tests/counter_cash_test.php` | new |
+
+**Pay Later needs no new back-button entry.** `payment_cash.php:635-638`
+short-circuits on `$is_paylater` and hardcodes a Pay Later button before
+`$back_targets` is read. A settled pay-later order keeps
+`payment_method = 'paylater'` — that is the deliberate exclusion from this
+morning's method-recording fix — so the branch still fires and the button is
+already right. An entry in the map would be unreachable.
 
 The settlement logic itself — the status branch, the `order_payments` update, the
 single-method guard, the loyalty award and its `points_earned === 0` check — is
