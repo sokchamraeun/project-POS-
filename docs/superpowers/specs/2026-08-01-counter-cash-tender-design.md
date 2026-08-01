@@ -19,9 +19,25 @@ sales carried no tender line.
 refresh, a back-button, a link prefetch or a double-tap settles a tab. Nothing in
 the handler distinguishes a deliberate click from a repeat.
 
-The button appears on **Pay Later**, on **Pending Payment**, and on the dashboard.
-All three route through `admin_pay_cash.php`, so all three have both defects and
-all three are fixed by changing that one file.
+The button appears on every `find_order.php` tab — **All Active**, **Pending
+Payment** and **Pay Later** — via the shared `_order_card.php`. All of them route
+through `admin_pay_cash.php`, so one file carries both defects and one file fixes
+them. `dashboard.php` has no cash button; it contains no reference to
+`admin_pay_cash`.
+
+**A third defect, found while specifying this.** `admin_pay_cash.php:10` reads:
+
+```php
+$return_page = ($_GET['return'] ?? '') === 'dashboard' ? 'dashboard.php' : 'find_order.php?tab=pending';
+```
+
+Nothing in the codebase ever passes `return=dashboard` — the string appears
+nowhere else — so that branch is unreachable and **every settlement returns to
+`?tab=pending`**. A cashier who settles a pay-later tab is dropped on the Pending
+Payment tab, having started on Pay Later. The same binary choice is repeated at
+`:125` for the `payment_cash.php` success screen. This is current behaviour, not
+something introduced here, but the return path is being touched anyway and leaving
+it wrong would be a choice.
 
 ## Non-goals
 
@@ -79,10 +95,26 @@ skipped.
 
 ### 3. Where it returns to
 
-`admin_pay_cash.php` already reads `?return=dashboard` and otherwise sends the user
-to `find_order.php?tab=pending`. That is preserved and carried through the POST as
-a hidden field, so a settlement started from Pay Later returns to Pay Later and one
-started from the dashboard returns to the dashboard.
+The binary `dashboard` / `tab=pending` choice is replaced by the **originating
+tab**, carried end to end.
+
+`_order_card.php` appends the tab it is being rendered under to both the Cash and
+the Bakong links. `admin_pay_cash.php` validates that value against
+`['all', 'pending', 'paylater', 'dashboard']` and falls back to `pending` on
+anything else — an unvalidated value in a `Location:` header is a redirect the
+caller controls. The chosen destination is carried through the POST as a hidden
+field and passed on to `payment_cash.php` so the success screen's back button
+agrees with it.
+
+`dashboard` stays in the allow-list. It has no caller today, but it is one word and
+it keeps the door open for a dashboard cash button without a second round of this.
+
+Result: settling from Pay Later returns to Pay Later, from Pending Payment to
+Pending Payment, from All Active to All Active.
+
+This means `_order_card.php` **is** modified after all — one appended query
+parameter on two links. Its `interceptPayLater` handler is a loyalty prompt that
+runs before navigation and is unaffected.
 
 ### 4. Cancel
 
@@ -102,9 +134,10 @@ already covered.
 | POST replayed (back then resubmit) | second POST finds the order already settled and does not double-award loyalty points |
 | POST without a CSRF token | refused |
 | $100 tendered on a $4.73 tab | change reads $95.27; the order records $4.73 |
-| Pay Later entry point | returns to Pay Later |
-| Pending Payment entry point | settles and returns correctly |
-| Dashboard entry point (`?return=dashboard`) | returns to the dashboard |
+| Settle from Pay Later | order reaches `Paid`; returns to the **Pay Later** tab |
+| Settle from Pending Payment | order reaches `Preparing` — it still has to be made — and returns to the **Pending Payment** tab |
+| Settle from All Active | returns to **All Active** |
+| `?return=` set to junk, or omitted | falls back to `pending`; no open redirect |
 
 The replay case is the one to watch. Requiring a POST removes the accidental
 settlement, but a deliberate resubmit is still possible, and the loyalty award is
@@ -114,9 +147,11 @@ the part that must not run twice.
 
 | File | Change |
 |---|---|
-| `admin_pay_cash.php` | GET renders a tender screen; existing settlement moves into a CSRF-checked POST branch |
+| `admin_pay_cash.php` | GET renders a tender screen; existing settlement moves into a CSRF-checked POST branch; return destination becomes a validated tab |
+| `_order_card.php` | Cash and Bakong links carry the tab they are rendered under |
 
-`_order_card.php` needs **no** change. Its Cash link already points at
-`admin_pay_cash.php?order_id=N`, and that URL now renders instead of settling. The
-`interceptPayLater` handler on the pay-later variant is a loyalty prompt that runs
-before navigation and is unaffected.
+The settlement logic itself — the status branch, the `order_payments` update, the
+single-method guard, the loyalty award and its `points_earned === 0` check — is
+moved verbatim and not edited. The status branch in particular is easy to
+misremember: **pay-later settles to `Paid`, but a `PendingPayment` order settles to
+`Preparing`**, because paying for it is not the same as making it.
