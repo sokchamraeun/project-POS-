@@ -78,65 +78,119 @@ check('an untouched PO reads Partially Received',
       po_status_from_lines($conn, $notYet), 'Partially Received');
 
 echo "receive arithmetic\n";
-// Build a throwaway PO so the assertions never depend on demo data, and so a
-// failed run cannot corrupt a real order. Ingredient 48 is Milk base.
-$conn->query("INSERT INTO purchase_orders (po_number, supplier_id, status, total_cost, created_by)
-              SELECT 'PO-TEST', MIN(supplier_id), 'Ordered', 20.00, 'test' FROM suppliers");
-$testPo = (int)$conn->insert_id;
-$conn->query("INSERT INTO purchase_order_items (po_id, ingredient_id, qty_ordered, unit_cost)
-              VALUES ($testPo, 48, 10.000, 2.00)");
-$testPoi = (int)$conn->insert_id;
-$before  = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")
-                        ->fetch_row()[0];
-$histBefore = (int)$conn->query("SELECT COUNT(*) FROM ingredient_history
-                                 WHERE change_type='po_received'")->fetch_row()[0];
+// Everything below runs inside one outer transaction on this connection, rolled
+// back in the finally no matter how the block exits — assertion failure, thrown
+// exception, or a clean run. That makes explicit cleanup (DELETEs, a stock
+// restore) unnecessary and, more importantly, safe: the old straight-line
+// cleanup skipped entirely on a fatal between the scratch-PO insert and the
+// bottom of the script, which is exactly what happened mid-development and
+// left ingredient 48's stock permanently inflated. A restore statement like
+// `SET stock_quantity = $before` is also a lost-update hazard on a live DB —
+// it overwrites whatever a concurrent sale did to the same row while this ran.
+// A rollback has neither problem: nothing here is ever committed.
+$conn->begin_transaction();
+try {
+    // Build a throwaway PO so the assertions never depend on demo data, and so a
+    // failed run cannot corrupt a real order. Ingredient 48 is Milk base.
+    $conn->query("INSERT INTO purchase_orders (po_number, supplier_id, status, total_cost, created_by)
+                  SELECT 'PO-TEST', MIN(supplier_id), 'Ordered', 20.00, 'test' FROM suppliers");
+    $testPo = (int)$conn->insert_id;
+    $conn->query("INSERT INTO purchase_order_items (po_id, ingredient_id, qty_ordered, unit_cost)
+                  VALUES ($testPo, 48, 10.000, 2.00)");
+    $testPoi = (int)$conn->insert_id;
+    $before  = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")
+                            ->fetch_row()[0];
+    $histBefore = (int)$conn->query("SELECT COUNT(*) FROM ingredient_history
+                                     WHERE change_type='po_received'")->fetch_row()[0];
 
-check('first receive of 6 is claimed',
-      po_receive_line($conn, $testPo, $testPoi, 0.0, 6.0, 'test', 'PO-TEST'), true);
-$after1 = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
-check('stock moved by exactly 6',       round($after1 - $before, 3),  6.0);
-check('PO is short after a part delivery',
-      po_status_from_lines($conn, $testPo), 'Partially Received');
+    check('first receive of 6 is claimed',
+          po_receive_line($conn, $testPo, $testPoi, 0.0, 6.0, 'test', 'PO-TEST'), true);
+    $after1 = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
+    check('stock moved by exactly 6',       round($after1 - $before, 3),  6.0);
+    check('PO is short after a part delivery',
+          po_status_from_lines($conn, $testPo), 'Partially Received');
 
-// The regression this whole design is most likely to reintroduce: the same
-// form submitted twice must move stock once. The replay still claims
-// qty_received = 0, which no longer matches, so it is refused.
-check('a replayed submit is refused',
-      po_receive_line($conn, $testPo, $testPoi, 0.0, 6.0, 'test', 'PO-TEST'), false);
-$after2 = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
-check('stock did not move twice',       round($after2 - $before, 3),  6.0);
+    // The regression this whole design is most likely to reintroduce: the same
+    // form submitted twice must move stock once. The replay still claims
+    // qty_received = 0, which no longer matches, so it is refused.
+    check('a replayed submit is refused',
+          po_receive_line($conn, $testPo, $testPoi, 0.0, 6.0, 'test', 'PO-TEST'), false);
+    $after2 = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
+    check('stock did not move twice',       round($after2 - $before, 3),  6.0);
 
-check('topping up the last 4 is claimed',
-      po_receive_line($conn, $testPo, $testPoi, 6.0, 4.0, 'test', 'PO-TEST'), true);
-$after3 = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
-check('stock moved by exactly 4 more',  round($after3 - $after1, 3),  4.0);
-check('PO is complete once filled',     po_status_from_lines($conn, $testPo), 'Received');
+    check('topping up the last 4 is claimed',
+          po_receive_line($conn, $testPo, $testPoi, 6.0, 4.0, 'test', 'PO-TEST'), true);
+    $after3 = (float)$conn->query("SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
+    check('stock moved by exactly 4 more',  round($after3 - $after1, 3),  4.0);
+    check('PO is complete once filled',     po_status_from_lines($conn, $testPo), 'Received');
 
-// The ledger records the delta, not the ordered amount — two receives, two rows.
-$histAfter = (int)$conn->query("SELECT COUNT(*) FROM ingredient_history
-                                WHERE change_type='po_received'")->fetch_row()[0];
-check('one ledger row per successful receive', $histAfter - $histBefore, 2);
-$amounts = [];
-$hr = $conn->query("SELECT amount FROM ingredient_history WHERE change_type='po_received'
-                    ORDER BY id DESC LIMIT 2");
-while ($x = $hr->fetch_row()) { $amounts[] = round((float)$x[0], 3); }
-check('the ledger carries the deltas', $amounts, [4.0, 6.0]);
+    // The ledger records the delta, not the ordered amount — two receives, two rows.
+    $histAfter = (int)$conn->query("SELECT COUNT(*) FROM ingredient_history
+                                    WHERE change_type='po_received'")->fetch_row()[0];
+    check('one ledger row per successful receive', $histAfter - $histBefore, 2);
+    $amounts = [];
+    $hr = $conn->query("SELECT amount FROM ingredient_history WHERE change_type='po_received'
+                        ORDER BY id DESC LIMIT 2");
+    while ($x = $hr->fetch_row()) { $amounts[] = round((float)$x[0], 3); }
+    check('the ledger carries the deltas', $amounts, [4.0, 6.0]);
 
-// A line belonging to a different PO must never be claimable through this one.
-check('a poi_id from another PO is refused',
-      po_receive_line($conn, $testPo + 99999, $testPoi, 10.0, 1.0, 'test', 'PO-TEST'), false);
+    // A line belonging to a different PO must never be claimable through this one.
+    check('a poi_id from another PO is refused',
+          po_receive_line($conn, $testPo + 99999, $testPoi, 10.0, 1.0, 'test', 'PO-TEST'), false);
 
-$v = po_line_values($conn, $testPo);
-check('received value equals ordered value once complete',
-      round($v['received'], 2), 20.00);
-check('nothing outstanding once complete', round($v['outstanding'], 2), 0.0);
+    $v = po_line_values($conn, $testPo);
+    check('received value equals ordered value once complete',
+          round($v['received'], 2), 20.00);
+    check('nothing outstanding once complete', round($v['outstanding'], 2), 0.0);
 
-// Clean up: put the stock back and drop the scratch PO and its ledger rows.
-$conn->query("DELETE FROM ingredient_history WHERE reference = 'Received via PO-TEST'");
-$conn->query("DELETE FROM stock_refills WHERE notes = 'Received via PO-TEST'");
-$conn->query("UPDATE ingredients SET stock_quantity = $before WHERE ingredient_id = 48");
-$conn->query("DELETE FROM purchase_order_items WHERE po_id = $testPo");
-$conn->query("DELETE FROM purchase_orders WHERE po_id = $testPo");
+    // --- Atomicity: the caller must roll back a delivery that fails part-way ---
+    // po_receive_line() itself only ever claims or refuses one line; the "whole
+    // delivery rolls back together" property lives in the caller
+    // (purchase_order_view.php's receive_items handler), which wraps every line
+    // of a submission in one transaction and rolls it all back the moment any
+    // line refuses. Simulate exactly that here: a second line on the same PO,
+    // one call that claims and one that is deliberately submitted with the
+    // wrong 'seen' so it is refused, then roll back and confirm nothing from
+    // either call survived — not just the refused one.
+    //
+    // A SAVEPOINT is used for the rollback rather than $conn->rollback() bare,
+    // so only this inner simulated delivery unwinds — the outer transaction
+    // that the whole "receive arithmetic" block runs in stays open and still
+    // gets rolled back exactly once, in the finally below.
+    $conn->query("INSERT INTO purchase_order_items (po_id, ingredient_id, qty_ordered, unit_cost)
+                  VALUES ($testPo, 48, 5.000, 2.00)");
+    $testPoi2 = (int)$conn->insert_id;
+    $stockBeforeAtomic = (float)$conn->query(
+        "SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
+    $recvBeforeAtomic = (float)$conn->query(
+        "SELECT qty_received FROM purchase_order_items WHERE poi_id=$testPoi2")->fetch_row()[0];
+
+    // Raw SQL, not mysqli::savepoint()/rollback($flags,$name): on this driver
+    // the OOP rollback() with a name performs a full ROLLBACK regardless of
+    // the savepoint argument, not a ROLLBACK TO SAVEPOINT — confirmed by
+    // comparing both side by side before writing this. The SQL form behaves
+    // as documented.
+    $conn->query("SAVEPOINT atomic_delivery");
+    $claim1 = po_receive_line($conn, $testPo, $testPoi2, 0.0,   2.0, 'test', 'PO-TEST');
+    $claim2 = po_receive_line($conn, $testPo, $testPoi,  999.0, 1.0, 'test', 'PO-TEST');
+    check('first line of the doomed delivery claims', $claim1, true);
+    check('second line of the doomed delivery is refused on a stale seen', $claim2, false);
+    $conn->query("ROLLBACK TO SAVEPOINT atomic_delivery");
+
+    $stockAfterAtomic = (float)$conn->query(
+        "SELECT stock_quantity FROM ingredients WHERE ingredient_id=48")->fetch_row()[0];
+    $recvAfterAtomic = (float)$conn->query(
+        "SELECT qty_received FROM purchase_order_items WHERE poi_id=$testPoi2")->fetch_row()[0];
+    check('rolling back a doomed delivery leaves stock untouched',
+          round($stockAfterAtomic - $stockBeforeAtomic, 3), 0.0);
+    check('rolling back a doomed delivery leaves qty_received untouched',
+          round($recvAfterAtomic - $recvBeforeAtomic, 3), 0.0);
+} finally {
+    // Undoes everything in this block in one shot: the scratch PO, its items,
+    // the stock move, the stock_refills and ingredient_history rows. Runs even
+    // if a check() assertion never ran because something above it threw.
+    $conn->rollback();
+}
 
 echo $failures === 0 ? "\nALL PASS\n" : "\n$failures FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);
