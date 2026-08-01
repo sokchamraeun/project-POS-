@@ -48,11 +48,15 @@ $is_paylater = ($order['payment_method'] ?? '') === 'paylater';
    order from Find Orders and then being dropped at the menu loses the queue they were
    working; only a fresh menu checkout should offer New Order.
      from=pending    → collected from Find Orders → Pending Payment (cash or Bakong)
+     from=all        → collected from Find Orders → All Active
      from=dashboard  → collected via the dashboard shortcut
-     (absent)        → a fresh order taken at the menu */
+     (absent)        → a fresh order taken at the menu
+   No 'paylater' entry: a settled pay-later order keeps payment_method='paylater',
+   so the $is_paylater branch below wins before this map is read. */
 $from = $_GET['from'] ?? '';
 $back_targets = [
     'pending'   => ['find_order.php?tab=pending', 'Back to Pending Payment', 'fa-arrow-left'],
+    'all'       => ['find_order.php?tab=all',     'Back to Active Orders',   'fa-arrow-left'],
     'dashboard' => ['dashboard.php',              'Back to Dashboard',       'fa-arrow-left'],
 ];
 $back_from = $back_targets[$from] ?? null;

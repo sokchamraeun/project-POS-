@@ -35,5 +35,19 @@ check('dashboard URL', pay_return_url('dashboard'), 'dashboard.php');
 // Defence in depth: even if an unvalidated string reaches it.
 check('junk URL falls back', pay_return_url('evil.com'), 'find_order.php?tab=pending');
 
+echo "payment_cash back targets\n";
+// The map is a literal in the page, so assert on the source rather than booting
+// the page (it requires a session and a real order). Assert on strings that are
+// genuinely absent today: "'paylater'" and "find_order.php?tab=paylater" already
+// appear in this file for unrelated reasons and would pass before the change.
+$pc = file_get_contents(__DIR__ . '/../payment_cash.php');
+check('back target: pending kept',   strpos($pc, "'pending'   =>") !== false, true);
+check('back target: dashboard kept', strpos($pc, "'dashboard' =>") !== false, true);
+check('back target: all added',      strpos($pc, "'all'       =>") !== false, true);
+check('all active back label',       strpos($pc, 'Back to Active Orders') !== false, true);
+// Pay Later is served by the $is_paylater short-circuit at :635, not this map.
+// An entry here would be unreachable.
+check('no unreachable paylater entry', strpos($pc, "'paylater'  =>") === false, true);
+
 echo $failures === 0 ? "\nALL PASS\n" : "\n$failures FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);
