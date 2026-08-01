@@ -6,10 +6,13 @@
  * order is only settled by the POST this form submits.
  *
  * Expects in scope: $order, $order_id, $return_tab, $return_page.
+ * Optional: $tender_fragment — true to omit the document shell and scope the CSS,
+ * for injection into the find_order.php modal.
  *
- * The amount received is deliberately NOT a named form field. It never reaches
- * the server: the order settles for its full total either way, and sending a
- * short tender would make it look like a partial payment nobody agreed to.
+ * The amount received IS submitted, as cash_received, and stored in
+ * order_payments.reference so the receipt can print Received / Change. It never
+ * changes what is settled: the order is paid in full whatever is typed, so a
+ * short tender can never look like a partial payment.
  */
 if (!isset($order, $order_id, $return_tab, $return_page)) { http_response_code(500); exit('Tender screen loaded out of context.'); }
 
@@ -23,7 +26,12 @@ $owed      = (float)$order['total'];
 $khr_owed  = (int)(round($owed * KHR_RATE / 100) * 100);
 $is_pl     = ($order['payment_method'] ?? '') === 'paylater';
 $cust      = trim($order['customer_name'] ?? '') !== '' ? $order['customer_name'] : 'Guest';
+// Fragment mode omits the document shell so the panel can be injected into the
+// find_order.php modal. The <style> block is emitted either way — the modal needs
+// it, and a repeated <style> is harmless since every rule is class-scoped.
+$tender_fragment = !empty($tender_fragment);
 ?>
+<?php if (!$tender_fragment): ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,7 +41,38 @@ $cust      = trim($order['customer_name'] ?? '') !== '' ? $order['customer_name'
 <title>Cash Payment | Bird's Nest Coffee</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<?php endif; ?>
+<?php
+/* Every rule is scoped to .tender-card in fragment mode. These styles get injected
+   straight into find_order.php, and :root / body / * are page-level selectors —
+   unscoped they would reset that page's margins, recolour its variables and turn
+   its body into a centred flex column. The panel must not be able to restyle its
+   host. */
+$S = $tender_fragment ? '.tender-card ' : '';
+/* Component-level dark rules. Standalone they hang off [data-theme="dark"]; in the
+   modal dark is the DEFAULT so they apply unconditionally and are undone by the
+   light block below. */
+$DARK = $tender_fragment ? '.tender-card' : '[data-theme="dark"]';
+?>
 <style>
+<?php if ($tender_fragment): ?>
+/* The host page (find_order.php) follows the app convention: dark is the default
+   and [data-theme="light"] overrides it. This partial standalone does the opposite
+   — light base, [data-theme="dark"] override — so the fragment MUST invert. On a
+   dark find_order.php there is no data-theme attribute at all, and a
+   [data-theme="dark"] rule would never match, leaving a white panel on a black page. */
+.tender-card {
+    --bg-body: #0a0a0a; --bg-card: #141414;
+    --border: #222; --orange: #d1904b; --green: #2ecc71;
+    --text-1: #f0f0f0; --text-2: #aaa; --text-3: #666;
+    --shadow-md: 0 8px 32px rgba(0,0,0,0.6);
+}
+[data-theme="light"] .tender-card {
+    --bg-body: #f0ebe4; --bg-card: #fffdf9;
+    --border: #e4d9cc; --text-1: #1a1410; --text-2: #5a4a3a; --text-3: #9a8070;
+    --shadow-md: 0 8px 32px rgba(90,60,20,0.13);
+}
+<?php else: ?>
 :root {
     --bg-body: #f0ebe4; --bg-card: #fffdf9;
     --border: #e4d9cc; --orange: #d1904b; --green: #2ecc71;
@@ -45,70 +84,87 @@ $cust      = trim($order['customer_name'] ?? '') !== '' ? $order['customer_name'
     --border: #222; --text-1: #f0f0f0; --text-2: #aaa; --text-3: #666;
     --shadow-md: 0 8px 32px rgba(0,0,0,0.6);
 }
+<?php endif; ?>
+<?php if ($tender_fragment): ?>
+.tender-card, .tender-card * { box-sizing: border-box; }
+.tender-card { font-family: 'Poppins', sans-serif; color: var(--text-1); display: flex; justify-content: center; }
+<?php else: ?>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     background: var(--bg-body); font-family: 'Poppins', sans-serif;
     min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
     padding: 24px 16px 40px; color: var(--text-1);
 }
-.card {
+<?php endif; ?>
+<?= $S ?>.card {
     background: var(--bg-card); border-radius: 18px; width: 100%; max-width: 420px;
     border: 1px solid var(--border); box-shadow: var(--shadow-md); overflow: hidden;
 }
-.card-accent { height: 4px; background: linear-gradient(90deg, var(--green), var(--orange)); }
-.card-body { padding: 24px 24px 20px; }
+<?= $S ?>.card-accent { height: 4px; background: linear-gradient(90deg, var(--green), var(--orange)); }
+<?= $S ?>.card-body { padding: 24px 24px 20px; }
 
-.head { text-align: center; padding-bottom: 16px; border-bottom: 1px dashed var(--border); margin-bottom: 18px; }
-.head h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.head .sub { font-size: 12px; color: var(--text-3); margin-top: 5px; }
-.pl-pill {
+<?= $S ?>.head { text-align: center; padding-bottom: 16px; border-bottom: 1px dashed var(--border); margin-bottom: 18px; }
+<?= $S ?>.head h1 { font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; }
+<?= $S ?>.head .sub { font-size: 12px; color: var(--text-3); margin-top: 5px; }
+<?= $S ?>.pl-pill {
     display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 999px;
     background: rgba(52,152,219,.14); color: #3498db; font-size: 11px; font-weight: 700;
 }
 
-.amount-due { text-align: center; margin-bottom: 16px; }
-.amount-due .lbl { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
-.amount-due .amt { font-size: 38px; font-weight: 800; color: var(--orange); line-height: 1.15; }
-.amount-due .khr { font-size: 13px; color: var(--text-3); font-weight: 600; }
+<?= $S ?>.amount-due { text-align: center; margin-bottom: 16px; }
+<?= $S ?>.amount-due .lbl { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+<?= $S ?>.amount-due .amt { font-size: 38px; font-weight: 800; color: var(--orange); line-height: 1.15; }
+<?= $S ?>.amount-due .khr { font-size: 13px; color: var(--text-3); font-weight: 600; }
 
 /* Tender block — same classes and behaviour as the menu.php checkout, so a
    cashier who has used checkout already knows this screen. */
-.cp-change-calc { margin-top: 6px; padding: 12px; background: rgba(85,224,135,.05); border-radius: 9px; border: 1px solid rgba(85,224,135,.2); }
-.cp-change-calc label { font-size: 11px; color: var(--text-2); font-weight: 600; display: block; margin-bottom: 4px; }
-.cp-change-calc input { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(85,224,135,.35); background: var(--bg-card); color: var(--text-1); font-size: 16px; font-weight: 700; font-family: 'Poppins',sans-serif; outline: none; text-align: right; }
-.cp-change-calc input:focus { border-color: #55e087; }
-[data-theme="dark"] .cp-change-calc { background: rgba(85,224,135,.03); }
-[data-theme="dark"] .cp-change-calc input { background: #1a1a1a; color: #f0f0f0; border-color: #252525; color-scheme: dark; }
+<?= $S ?>.cp-change-calc { margin-top: 6px; padding: 12px; background: rgba(85,224,135,.05); border-radius: 9px; border: 1px solid rgba(85,224,135,.2); }
+<?= $S ?>.cp-change-calc label { font-size: 11px; color: var(--text-2); font-weight: 600; display: block; margin-bottom: 4px; }
+<?= $S ?>.cp-change-calc input { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(85,224,135,.35); background: var(--bg-card); color: var(--text-1); font-size: 16px; font-weight: 700; font-family: 'Poppins',sans-serif; outline: none; text-align: right; }
+<?= $S ?>.cp-change-calc input:focus { border-color: #55e087; }
+<?= $DARK ?> .cp-change-calc { background: rgba(85,224,135,.03); }
+<?= $DARK ?> .cp-change-calc input { background: #1a1a1a; color: #f0f0f0; border-color: #252525; color-scheme: dark; }
 
-.cp-tender-quick { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
-.cp-tender-btn { flex: 1 1 auto; min-width: 48px; padding: 8px; border-radius: 7px; border: 1.5px solid rgba(85,224,135,.3); background: var(--bg-body); color: var(--text-2); font-family: 'Poppins',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.cp-tender-btn:hover { border-color: #55e087; color: #2e9c5a; }
-.cp-tender-btn.active { background: rgba(85,224,135,.16); border-color: #55e087; color: #2e9c5a; box-shadow: 0 0 0 2px rgba(85,224,135,.15); }
-[data-theme="dark"] .cp-tender-btn { background: #1a1a1a; border-color: #2d2d2d; color: #aaa; }
-[data-theme="dark"] .cp-tender-btn.active { background: rgba(85,224,135,.14); border-color: #55e087; color: #55e087; }
+<?= $S ?>.cp-tender-quick { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+<?= $S ?>.cp-tender-btn { flex: 1 1 auto; min-width: 48px; padding: 8px; border-radius: 7px; border: 1.5px solid rgba(85,224,135,.3); background: var(--bg-body); color: var(--text-2); font-family: 'Poppins',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
+<?= $S ?>.cp-tender-btn:hover { border-color: #55e087; color: #2e9c5a; }
+<?= $S ?>.cp-tender-btn.active { background: rgba(85,224,135,.16); border-color: #55e087; color: #2e9c5a; box-shadow: 0 0 0 2px rgba(85,224,135,.15); }
+<?= $DARK ?> .cp-tender-btn { background: #1a1a1a; border-color: #2d2d2d; color: #aaa; }
+<?= $DARK ?> .cp-tender-btn.active { background: rgba(85,224,135,.14); border-color: #55e087; color: #55e087; }
 
-.cp-change-row { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(85,224,135,.15); }
-.cp-change-row .change-label { font-size: 11px; font-weight: 600; color: var(--text-2); }
-.cp-change-row .change-amount { font-size: 19px; font-weight: 800; color: #55e087; }
-.cp-change-row .change-amount.not-enough { color: #e74c3c; font-size: 13px; }
+<?= $S ?>.cp-change-row { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(85,224,135,.15); }
+<?= $S ?>.cp-change-row .change-label { font-size: 11px; font-weight: 600; color: var(--text-2); }
+<?= $S ?>.cp-change-row .change-amount { font-size: 19px; font-weight: 800; color: #55e087; }
+<?= $S ?>.cp-change-row .change-amount.not-enough { color: #e74c3c; font-size: 13px; }
 
-.btn-confirm {
+<?= $S ?>.btn-confirm {
     width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px;
     background: var(--green); color: #04210f; font-family: 'Poppins',sans-serif;
     font-size: 15px; font-weight: 700; cursor: pointer; transition: all .18s;
     display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.btn-confirm:hover { filter: brightness(1.07); transform: translateY(-1px); }
-.btn-cancel {
+<?= $S ?>.btn-confirm:hover { filter: brightness(1.07); transform: translateY(-1px); }
+<?= $S ?>.btn-cancel {
     display: block; text-align: center; margin-top: 10px; padding: 10px;
     color: var(--text-3); text-decoration: none; font-size: 13px; font-weight: 600;
     border-radius: 10px; border: 1px solid var(--border);
 }
-.btn-cancel:hover { color: var(--text-1); }
+<?= $S ?>.btn-cancel:hover { color: var(--text-1); }
+<?php if ($tender_fragment): ?>
+/* The component rules above hardcode dark values, which is correct by default in
+   the modal. Restore the light versions when the host page is in light mode. */
+[data-theme="light"] .tender-card .cp-change-calc { background: rgba(85,224,135,.05); }
+[data-theme="light"] .tender-card .cp-change-calc input { background: var(--bg-card); color: var(--text-1); border-color: rgba(85,224,135,.35); color-scheme: light; }
+[data-theme="light"] .tender-card .cp-tender-btn { background: var(--bg-body); border-color: rgba(85,224,135,.3); color: var(--text-2); }
+[data-theme="light"] .tender-card .cp-tender-btn.active { background: rgba(85,224,135,.16); border-color: #55e087; color: #2e9c5a; }
+<?php endif; ?>
 </style>
+<?php if (!$tender_fragment): ?>
 </head>
 <body>
+<?php endif; ?>
 
+<div class="tender-card">
 <div class="card">
     <div class="card-accent"></div>
     <div class="card-body">
@@ -155,9 +211,16 @@ body {
                 <i class="fa-solid fa-check"></i> Confirm Cash Payment
             </button>
         </form>
+        <?php /* In the modal, Cancel dismisses rather than navigating — the cashier
+                 is already on the page they would be sent back to. */ ?>
+        <?php if ($tender_fragment): ?>
+        <a href="#" class="btn-cancel" onclick="closeTenderModal(); return false;">Cancel</a>
+        <?php else: ?>
         <a href="<?= he($return_page) ?>" class="btn-cancel">Cancel</a>
+        <?php endif; ?>
 
     </div>
+</div>
 </div>
 
 <script>
@@ -234,6 +297,7 @@ function cpMarkActiveTender(val) {
   cpRenderTenderQuick();
 })();
 </script>
-
+<?php if (!$tender_fragment): ?>
 </body>
 </html>
+<?php endif; ?>

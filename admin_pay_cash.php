@@ -47,6 +47,10 @@ if (!$order) {
 // runs only for a POST that carried a valid token, so the settlement logic stays
 // exactly as it was rather than being re-indented into a branch.
 if (!$is_settle) {
+    // partial=1 returns just the tender panel, for the find_order.php modal, so the
+    // markup has exactly one source. Without it the full standalone page renders and
+    // still works for direct links and with JavaScript off.
+    $tender_fragment = (($_GET['partial'] ?? '') === '1');
     include '_cash_tender.php';
     exit;
 }

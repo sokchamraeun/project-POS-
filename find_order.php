@@ -610,6 +610,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'list') {
 
 </div><!-- end page-wrapper -->
 
+<!-- ── Tender Modal (cash settlement, panel fetched from admin_pay_cash.php) ── -->
+<div id="tenderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+     z-index:1200;align-items:center;justify-content:center;padding:16px;">
+    <div id="tenderModalBody" style="width:100%;max-width:420px;max-height:94vh;overflow-y:auto;"></div>
+</div>
+
 <!-- ── Loyalty Card Modal (Pay Later) ── -->
 <div id="lpModal">
     <div class="lp-modal-box">
@@ -645,6 +651,42 @@ function toggleTheme() {
 document.addEventListener('DOMContentLoaded', function() {
     if (localStorage.getItem('theme') === 'light') { document.getElementById('themeIcon').className='fa-solid fa-sun'; document.getElementById('themeText').textContent='Light'; }
 });
+
+// ── Tender modal ──
+// The panel is FETCHED from admin_pay_cash.php rather than rebuilt here, so the
+// tender markup has exactly one source. The form inside POSTs normally, so
+// settling still lands on the success screen and its receipt.
+async function openTenderModal(url) {
+    // Only cash has a tender to enter. Bakong shows a QR and keeps navigating.
+    if (url.indexOf('admin_pay_cash.php') === -1) { window.location.href = url; return; }
+
+    const modal = document.getElementById('tenderModal');
+    const body  = document.getElementById('tenderModalBody');
+    body.innerHTML = '<div style="padding:40px;color:#aaa;text-align:center">' +
+                     '<i class="fa-solid fa-spinner fa-spin fa-2x"></i></div>';
+    modal.style.display = 'flex';
+    try {
+        const sep  = url.indexOf('?') === -1 ? '?' : '&';
+        const resp = await fetch(url + sep + 'partial=1', { credentials: 'same-origin' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        body.innerHTML = await resp.text();
+        // innerHTML does not execute <script>, so re-run them to wire up the
+        // tender buttons, the change calculator and the prefill.
+        body.querySelectorAll('script').forEach(function (old) {
+            const s = document.createElement('script');
+            s.textContent = old.textContent;
+            document.body.appendChild(s);
+            s.remove();
+        });
+    } catch (e) {
+        // Never strand the cashier mid-payment: fall back to the page that always worked.
+        window.location.href = url;
+    }
+}
+function closeTenderModal() {
+    const m = document.getElementById('tenderModal');
+    if (m) m.style.display = 'none';
+}
 
 // ── Loyalty modal (Pay Later orders) ──
 let lpDestUrl = '';
@@ -710,14 +752,18 @@ async function confirmLpPayment() {
             return;
         }
     }
-    window.location.href = lpDestUrl;
+    closeLpModal();
+    openTenderModal(lpDestUrl);
 }
 
-function skipLpPayment() { closeLpModal(); window.location.href = lpDestUrl; }
+function skipLpPayment() { closeLpModal(); openTenderModal(lpDestUrl); }
 
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('lpModal');
     if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeLpModal(); });
+    // Backdrop dismiss, but not a click that started inside the panel.
+    const tm = document.getElementById('tenderModal');
+    if (tm) tm.addEventListener('click', e => { if (e.target === tm) closeTenderModal(); });
     const inp = document.getElementById('lpCardInput');
     if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') lpLookupCard(); });
 });

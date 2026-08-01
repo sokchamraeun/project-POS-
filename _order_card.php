@@ -100,9 +100,14 @@ if ($overdueMins < 60) {
                       than a notice. data-lp-dest must match href exactly or the
                       loyalty intercept navigates somewhere the link did not point. */
                    $ret = '&return=' . urlencode($card_tab ?? 'pending'); ?>
+            <?php /* Pay-later keeps its loyalty prompt first, which then opens the
+                      tender modal itself. Everything else goes straight to it. Both
+                      fall back to navigating if the fetch fails. */ ?>
             <a href="admin_pay_cash.php?order_id=<?= $order['order_id'] ?><?= $ret ?>"
                class="btn btn-pay-cash"
-               <?= $isPL ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_cash.php?order_id='.$order['order_id'].$ret.'" onclick="return interceptPayLater(event,this)"' : '' ?>>
+               <?= $isPL
+                   ? 'data-lp-order="'.$order['order_id'].'" data-lp-dest="admin_pay_cash.php?order_id='.$order['order_id'].$ret.'" onclick="return interceptPayLater(event,this)"'
+                   : 'onclick="openTenderModal(this.href); return false;"' ?>>
                 <i class="fa-solid fa-money-bill-wave"></i> Cash
             </a>
             <a href="admin_pay_bakong.php?order_id=<?= $order['order_id'] ?><?= $ret ?>"
