@@ -11,6 +11,12 @@ $list_msg = match($_GET['msg'] ?? '') {
     'cancelled' => ['text'=>'Purchase order cancelled.',                      'type'=>'danger'],
     'nochange'  => ['text'=>'No change — that order was already updated.',    'type'=>'info'],
     'badtoken'  => ['text'=>'Session expired. Reload and try again.',         'type'=>'danger'],
+    'partial'   => ['text'=>'Delivery recorded. Some items are still outstanding.', 'type'=>'info'],
+    'stale'     => ['text'=>'This purchase order changed while you were looking at it. Reload and try again.', 'type'=>'danger'],
+    'nothing'   => ['text'=>'Nothing was recorded — every quantity was zero.',      'type'=>'info'],
+    'badqty'    => ['text'=>'A received quantity cannot be negative.',              'type'=>'danger'],
+    'error'     => ['text'=>'The delivery could not be saved. Nothing was changed.','type'=>'danger'],
+    'shortclosed' => ['text'=>'Purchase order closed short. The outstanding items were written off.', 'type'=>'info'],
     default     => null,
 };
 

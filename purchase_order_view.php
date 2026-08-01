@@ -149,6 +149,12 @@ $msg_text = match($_GET['msg'] ?? '') {
     'cancelled' => ['text'=>'Purchase order cancelled.',      'type'=>'danger'],
     'nochange'  => ['text'=>'No change — this order was already updated.','type'=>'info'],
     'badtoken'  => ['text'=>'Session expired. Reload and try again.','type'=>'danger'],
+    'partial'   => ['text'=>'Delivery recorded. Some items are still outstanding.', 'type'=>'info'],
+    'stale'     => ['text'=>'This purchase order changed while you were looking at it. Reload and try again.', 'type'=>'danger'],
+    'nothing'   => ['text'=>'Nothing was recorded — every quantity was zero.',      'type'=>'info'],
+    'badqty'    => ['text'=>'A received quantity cannot be negative.',              'type'=>'danger'],
+    'error'     => ['text'=>'The delivery could not be saved. Nothing was changed.','type'=>'danger'],
+    'shortclosed' => ['text'=>'Purchase order closed short. The outstanding items were written off.', 'type'=>'info'],
     default     => null,
 };
 if ($created_msg) $msg_text = ['text'=>$created_msg, 'type'=>'success'];
@@ -317,13 +323,6 @@ tbody tr:hover td{background:var(--surface);}
             <button type="submit" class="btn btn-info"><i class="fa-solid fa-paper-plane"></i> Mark Ordered</button>
         </form>
         <?php endif; ?>
-        <?php if ($po['status'] === 'Ordered'): ?>
-        <form method="POST" style="display:inline" onsubmit="return confirm('Mark as Received? This will add all quantities to stock.')">
-            <input type="hidden" name="action" value="mark_received">
-            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
-            <button type="submit" class="btn btn-success"><i class="fa-solid fa-check"></i> Mark Received</button>
-        </form>
-        <?php endif; ?>
         <?php if (in_array($po['status'], ['Draft','Ordered'])): ?>
         <form method="POST" style="display:inline" onsubmit="return confirm('Cancel this purchase order?')">
             <input type="hidden" name="action" value="cancel">
@@ -383,7 +382,18 @@ tbody tr:hover td{background:var(--surface);}
             <div class="info-block">
                 <div class="info-label"><i class="fa-solid fa-dollar-sign"></i> Cost Summary</div>
                 <div class="info-val">
-                    <strong style="font-size:20px;color:var(--accent)">$<?= number_format($po['total_cost'],2) ?></strong><br>
+                    <strong style="font-size:20px;color:var(--accent)">$<?= number_format($po['total_cost'],2) ?></strong>
+                    <span style="color:var(--text-muted);font-size:12px">ordered</span><br>
+                    <?php $vals = po_line_values($conn, $po_id);
+                          /* total_cost is the order that was placed and is never
+                             rewritten. The delivered value is derived, so a short
+                             delivery stays distinguishable from a small order. */
+                          if ($po['status'] === 'Partially Received' || $po['closed_short']): ?>
+                    <span style="font-size:13px">Received <strong>$<?= number_format($vals['received'],2) ?></strong></span>
+                    <span style="color:var(--warning,#e0a955);font-size:12px">
+                        · $<?= number_format($vals['outstanding'],2) ?> outstanding
+                    </span><br>
+                    <?php endif; ?>
                     <span style="color:var(--text-muted);font-size:12px"><?= count($items) ?> ingredient<?= count($items)!=1?'s':'' ?></span>
                 </div>
             </div>
@@ -391,35 +401,93 @@ tbody tr:hover td{background:var(--surface);}
     </div>
 
     <!-- ITEMS -->
+    <?php
+      // The form renders for exactly two statuses. Draft has not been placed;
+      // Received and Cancelled are finished. Task 3's handler repeats this
+      // check rather than trusting the markup.
+      $canReceive = in_array($po['status'], ['Ordered', 'Partially Received'], true);
+    ?>
     <div class="items-card">
         <div class="items-card-header"><i class="fa-solid fa-boxes-stacked"></i> Order Items</div>
+        <?php if ($canReceive): ?>
+        <form method="POST" id="receiveForm">
+        <input type="hidden" name="action" value="receive_items">
+        <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
+        <?php endif; ?>
         <table>
             <thead>
                 <tr>
                     <th>#</th>
                     <th>Ingredient</th>
                     <th>Unit</th>
-                    <th style="text-align:right">Qty Ordered</th>
+                    <th style="text-align:right">Ordered</th>
+                    <th style="text-align:right">Received</th>
+                    <?php if ($canReceive): ?><th style="text-align:right">Receiving now</th><?php endif; ?>
                     <th style="text-align:right">Unit Cost</th>
-                    <th style="text-align:right">Line Total</th>
                 </tr>
             </thead>
             <tbody>
-            <?php foreach ($items as $i => $item): ?>
+            <?php foreach ($items as $i => $item):
+                $ordered     = (float)$item['qty_ordered'];
+                $received    = (float)$item['qty_received'];
+                $outstanding = max(0, $ordered - $received);
+                $over        = $received > $ordered;
+            ?>
             <tr>
                 <td style="color:var(--text-muted);font-size:12px"><?= $i+1 ?></td>
                 <td><span class="ing-name"><?= he($item['ingredient_name']) ?></span></td>
                 <td><span class="unit-pill"><?= he($item['unit']) ?></span></td>
-                <td style="text-align:right;font-weight:600"><?= number_format($item['qty_ordered'],3) ?></td>
+                <td style="text-align:right;font-weight:600"><?= number_format($ordered,3) ?></td>
+                <td style="text-align:right;font-weight:600<?= $over ? ';color:var(--warning,#e0a955)' : '' ?>">
+                    <?= number_format($received,3) ?>
+                    <?php if ($over): ?><br><span style="font-size:11px">+<?= number_format($received-$ordered,3) ?> over</span><?php endif; ?>
+                </td>
+                <?php if ($canReceive): ?>
+                <td style="text-align:right">
+                    <?php if ($outstanding > 0): ?>
+                        <?php /* Prefilled with the outstanding quantity: a full
+                                 delivery is the normal case and stays one click,
+                                 so typing is reserved for the exception. */ ?>
+                        <input type="number" step="0.001" min="0"
+                               name="recv[<?= (int)$item['poi_id'] ?>]"
+                               value="<?= number_format($outstanding, 3, '.', '') ?>"
+                               style="width:96px;text-align:right;padding:6px 8px;border-radius:6px;
+                                      border:1px solid var(--border,#333);background:var(--card,#1a1a1a);
+                                      color:inherit;">
+                        <?php /* The value the form was rendered against. Task 3
+                                 claims the line on this, so a replayed POST is
+                                 refused instead of adding stock twice. */ ?>
+                        <input type="hidden" name="seen[<?= (int)$item['poi_id'] ?>]"
+                               value="<?= number_format($received, 3, '.', '') ?>">
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">
+                            <?= number_format($outstanding,3) ?> outstanding
+                        </div>
+                    <?php else: ?>
+                        <span style="color:var(--success);font-size:12px">
+                            <i class="fa-solid fa-check"></i> complete
+                        </span>
+                    <?php endif; ?>
+                </td>
+                <?php endif; ?>
                 <td style="text-align:right;color:var(--text-muted)">$<?= number_format($item['unit_cost'],2) ?></td>
-                <td style="text-align:right;font-weight:700;color:var(--success)">$<?= number_format($item['line_total'],2) ?></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        <?php if ($canReceive): ?>
+        <div class="total-bar">
+            <div class="total-bar-inner" style="gap:12px">
+                <div class="total-bar-label">Record what actually arrived</div>
+                <button type="submit" class="btn btn-success">
+                    <i class="fa-solid fa-truck-ramp-box"></i> Confirm delivery
+                </button>
+            </div>
+        </div>
+        </form>
+        <?php endif; ?>
         <div class="total-bar">
             <div class="total-bar-inner">
-                <div class="total-bar-label">Total Cost</div>
+                <div class="total-bar-label">Total Cost (ordered)</div>
                 <div class="total-bar-value">$<?= number_format($po['total_cost'],2) ?></div>
             </div>
         </div>
