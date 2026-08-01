@@ -192,5 +192,19 @@ try {
     $conn->rollback();
 }
 
+echo "close short\n";
+// Closing short writes off goods that were paid for, so it is a commercial
+// decision, not a counting one. Only admin and manager may do it — the same
+// split as stock_count.php, where the clerk counts and a manager applies.
+//
+// This asserts the production function, not a copy of the role list. A test
+// that redeclares the rule it is checking passes whatever the real code does.
+check('admin may close short',            po_may_close_short('admin'),           true);
+check('manager may close short',          po_may_close_short('manager'),         true);
+check('inventory clerk may not',          po_may_close_short('inventory_clerk'), false);
+check('cashier may not',                  po_may_close_short('staff'),           false);
+check('barista may not',                  po_may_close_short('barista'),         false);
+check('a missing role may not',           po_may_close_short(null),              false);
+
 echo $failures === 0 ? "\nALL PASS\n" : "\n$failures FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);

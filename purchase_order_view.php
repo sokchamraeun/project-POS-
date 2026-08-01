@@ -109,6 +109,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($action === 'close_short') {
+        // Writing off undelivered goods is a commercial decision, so it is
+        // gated on the role and not on the purchase_orders permission the
+        // clerk already holds. Checked here rather than only in the markup —
+        // hiding a button is not access control.
+        if (!po_may_close_short($_SESSION['role'] ?? null)) {
+            po_redirect($from_list, $po_id, 'denied');
+        }
+        // No stock is added. This records that the remainder is never coming,
+        // which is the opposite of a delivery.
+        $by   = $_SESSION['username'] ?? null;
+        $stmt = $conn->prepare("UPDATE purchase_orders
+                                SET status='Received', closed_short=1,
+                                    closed_short_at=NOW(), closed_short_by=?,
+                                    received_at=COALESCE(received_at, NOW())
+                                WHERE po_id=? AND status='Partially Received'");
+        $stmt->bind_param('si', $by, $po_id);
+        $stmt->execute();
+        if ($stmt->affected_rows === 0) { po_redirect($from_list, $po_id, 'nochange'); }
+        po_redirect($from_list, $po_id, 'shortclosed');
+    }
+
     if ($action === 'cancel') {
         $stmt = $conn->prepare("UPDATE purchase_orders SET status='Cancelled' WHERE po_id=? AND status IN ('Draft','Ordered')");
         $stmt->bind_param('i', $po_id);
@@ -129,6 +151,8 @@ $stmt->bind_param('i', $po_id);
 $stmt->execute();
 $po = $stmt->get_result()->fetch_assoc();
 if (!$po) { header('Location: purchase_orders.php'); exit; }
+
+$is_manager = po_may_close_short($_SESSION['role'] ?? null);
 
 // ── FETCH ITEMS ──
 $istmt = $conn->prepare("
@@ -155,6 +179,7 @@ $msg_text = match($_GET['msg'] ?? '') {
     'badqty'    => ['text'=>'A received quantity cannot be negative.',              'type'=>'danger'],
     'error'     => ['text'=>'The delivery could not be saved. Nothing was changed.','type'=>'danger'],
     'shortclosed' => ['text'=>'Purchase order closed short. The outstanding items were written off.', 'type'=>'info'],
+    'denied'    => ['text'=>'You do not have permission to close a purchase order short.', 'type'=>'danger'],
     default     => null,
 };
 if ($created_msg) $msg_text = ['text'=>$created_msg, 'type'=>'success'];
@@ -330,6 +355,14 @@ tbody tr:hover td{background:var(--surface);}
             <button type="submit" class="btn btn-danger"><i class="fa-solid fa-xmark"></i> Cancel PO</button>
         </form>
         <?php endif; ?>
+        <?php if ($po['status'] === 'Partially Received' && $is_manager): ?>
+        <form method="POST" style="display:inline"
+              onsubmit="return confirm('Close this order short? The outstanding items will be written off and no stock will be added.')">
+            <input type="hidden" name="action" value="close_short">
+            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
+            <button type="submit" class="btn btn-danger"><i class="fa-solid fa-file-circle-xmark"></i> Close short</button>
+        </form>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -359,6 +392,12 @@ tbody tr:hover td{background:var(--surface);}
                     <?php endif; ?>
                     <?php if ($po['received_at']): ?>
                     <span><i class="fa-solid fa-check"></i> Received <?= fmtDate($po['received_at']) ?></span>
+                    <?php endif; ?>
+                    <?php if ($po['closed_short']): ?>
+                    <span style="color:var(--warning,#e0a955)">
+                        <i class="fa-solid fa-file-circle-xmark"></i>
+                        Closed short <?= fmtDate($po['closed_short_at']) ?> by <?= he($po['closed_short_by']) ?>
+                    </span>
                     <?php endif; ?>
                     <span><i class="fa-solid fa-user"></i> <?= he($po['created_by']) ?></span>
                 </div>

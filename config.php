@@ -522,6 +522,21 @@ if (!function_exists('po_receive_line')) {
 }
 
 /**
+ * Who may write off the undelivered part of a purchase order.
+ *
+ * Closing short abandons goods that were ordered and, on most terms, will still
+ * be invoiced — a commercial decision rather than a counting one. It is gated on
+ * the role and not on the purchase_orders permission, which the clerk who
+ * receives deliveries already holds. Mirrors stock_count.php: the clerk counts
+ * what is there, a manager commits the consequence.
+ */
+if (!function_exists('po_may_close_short')) {
+    function po_may_close_short(?string $role): bool {
+        return in_array($role, ['admin', 'manager'], true);
+    }
+}
+
+/**
  * What a normal <weekday> takes, for judging today against.
  *
  * A cafe's trade is weekly-seasonal, so Saturday is only fair against other
