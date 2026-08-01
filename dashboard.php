@@ -76,7 +76,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') {
     $inv_total_products = (int)($conn->query("SELECT COUNT(*) c FROM products")->fetch_assoc()['c'] ?? 0);
 
     $inv_pending_po = (int)($conn->query(
-        "SELECT COUNT(*) c FROM purchase_orders WHERE status IN ('Draft','Ordered')"
+        "SELECT COUNT(*) c FROM purchase_orders WHERE status IN ('Draft','Ordered','Partially Received')"
     )->fetch_assoc()['c'] ?? 0);
 
     // Out of stock = ingredients currently at (or below) zero — the "order now" alarm

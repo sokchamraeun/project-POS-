@@ -115,8 +115,9 @@ $res = $conn->query("
            IFNULL(SUM(p.total_cost),0) AS total_spent,
            -- Last time we actually placed an order. Draft POs have a NULL
            -- ordered_at (not ordered yet) and Cancelled ones never happened,
-           -- so neither should count as 'we restocked from them'.
-           MAX(CASE WHEN p.status IN ('Ordered','Received') THEN p.ordered_at END) AS last_ordered_at
+           -- so neither should count as 'we restocked from them'. Partially
+           -- Received was definitely ordered, so it counts too.
+           MAX(CASE WHEN p.status IN ('Ordered','Partially Received','Received') THEN p.ordered_at END) AS last_ordered_at
     FROM suppliers s
     LEFT JOIN purchase_orders p ON p.supplier_id = s.supplier_id
     GROUP BY s.supplier_id
