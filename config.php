@@ -1169,6 +1169,35 @@ _migrate($conn, 'loyalty_history_type_enum_v1', function($db) {
     $db->query("ALTER TABLE loyalty_history MODIFY COLUMN type ENUM('earned','redeemed','bonus','created','adjusted_add','adjusted_deduct') NOT NULL");
 });
 
+// ── Partial receiving: record what actually arrived, not what was ordered ──
+// mark_received used to add qty_ordered to stock regardless of the delivery,
+// so a short delivery silently inflated inventory. qty_received is the number
+// the clerk counted off the truck.
+_migrate($conn, 'po_partial_receive_v1', function($db) {
+    $db->query("ALTER TABLE purchase_order_items
+                ADD COLUMN IF NOT EXISTS qty_received DECIMAL(10,3) NOT NULL DEFAULT 0");
+
+    $db->query("ALTER TABLE purchase_orders
+                MODIFY COLUMN status
+                ENUM('Draft','Ordered','Partially Received','Received','Cancelled')
+                NULL DEFAULT 'Draft'");
+
+    $db->query("ALTER TABLE purchase_orders
+                ADD COLUMN IF NOT EXISTS closed_short TINYINT(1) NOT NULL DEFAULT 0");
+    $db->query("ALTER TABLE purchase_orders
+                ADD COLUMN IF NOT EXISTS closed_short_at DATETIME NULL DEFAULT NULL");
+    $db->query("ALTER TABLE purchase_orders
+                ADD COLUMN IF NOT EXISTS closed_short_by VARCHAR(100) NULL DEFAULT NULL");
+
+    // Anything already Received was received in full — that was the only
+    // behaviour the old code had. Without this backfill all twelve historical
+    // POs would render as shortfalls the moment the new columns appear.
+    $db->query("UPDATE purchase_order_items poi
+                JOIN purchase_orders p ON p.po_id = poi.po_id
+                SET poi.qty_received = poi.qty_ordered
+                WHERE p.status = 'Received'");
+});
+
 // ── SANITIZE FUNCTION ──
 if (!function_exists('sanitizeForReceipt')) {
     function sanitizeForReceipt(string $text): string {
