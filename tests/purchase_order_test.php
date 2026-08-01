@@ -34,10 +34,17 @@ foreach (['closed_short', 'closed_short_at', 'closed_short_by'] as $c) {
 echo "backfill\n";
 // Every PO that was already Received predates this feature and was, by
 // definition, received in full. Left at 0 they would all read as shortfalls.
+//
+// Two legitimate exceptions, both created after this assertion was written:
+//   - an over-delivery (qty_received > qty_ordered) is supported and rendered as
+//     "+N over", so only a SHORTFALL indicates a missed backfill
+//   - a closed-short PO is Received *with* a shortfall, on purpose
 $bad = (int)$conn->query("
     SELECT COUNT(*) FROM purchase_order_items poi
     JOIN purchase_orders p ON p.po_id = poi.po_id
-    WHERE p.status = 'Received' AND poi.qty_received <> poi.qty_ordered
+    WHERE p.status = 'Received'
+      AND p.closed_short = 0
+      AND poi.qty_received < poi.qty_ordered
 ")->fetch_row()[0];
 check('historical Received POs are backfilled in full', $bad, 0);
 
@@ -60,22 +67,17 @@ check('returns three keys',        array_keys($v), ['ordered','received','outsta
 check('a full PO has no shortfall', round($v['outstanding'], 2),          0.0);
 check('received equals ordered',    round($v['received'] - $v['ordered'], 2), 0.0);
 
-// An Ordered PO has been placed but not delivered: nothing received, all outstanding.
-$notYet = (int)$conn->query(
-    "SELECT po_id FROM purchase_orders WHERE status='Ordered' ORDER BY po_id LIMIT 1"
-)->fetch_row()[0];
-$v2 = po_line_values($conn, $notYet);
-check('an undelivered PO has received 0',        round($v2['received'], 2),    0.0);
-check('an undelivered PO is fully outstanding',
-      round($v2['outstanding'] - $v2['ordered'], 2),                           0.0);
+// The "undelivered PO" assertions used to look up the first Ordered PO here. Once
+// every real PO had been received that query returned no row, the (int) cast turned
+// it into po_id 0, and po_line_values() answers all-zeroes for an unknown PO — so
+// two of the three checks passed vacuously and the third failed. They now run
+// against the fixture PO built inside the transaction below, which always exists.
 
 check('an unknown PO is all zeroes', po_line_values($conn, 0),
       ['ordered'=>0.0, 'received'=>0.0, 'outstanding'=>0.0]);
 
 echo "po_status_from_lines\n";
 check('a fully received PO reads Received', po_status_from_lines($conn, $anyReceived), 'Received');
-check('an untouched PO reads Partially Received',
-      po_status_from_lines($conn, $notYet), 'Partially Received');
 
 echo "receive arithmetic\n";
 // Everything below runs inside one outer transaction on this connection, rolled
@@ -102,6 +104,17 @@ try {
                             ->fetch_row()[0];
     $histBefore = (int)$conn->query("SELECT COUNT(*) FROM ingredient_history
                                      WHERE change_type='po_received'")->fetch_row()[0];
+
+    // An Ordered PO has been placed but not delivered: nothing received, all
+    // outstanding. Asserted against this fixture rather than whatever demo PO
+    // happens to exist — the previous ambient lookup silently resolved to po_id 0
+    // once every real PO had been received, and passed vacuously.
+    $v2 = po_line_values($conn, $testPo);
+    check('an undelivered PO has received 0',     round($v2['received'], 2), 0.0);
+    check('an undelivered PO is fully outstanding',
+          round($v2['outstanding'] - $v2['ordered'], 2),                     0.0);
+    check('an untouched PO reads Partially Received',
+          po_status_from_lines($conn, $testPo), 'Partially Received');
 
     check('first receive of 6 is claimed',
           po_receive_line($conn, $testPo, $testPoi, 0.0, 6.0, 'test', 'PO-TEST'), true);
