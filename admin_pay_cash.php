@@ -127,11 +127,24 @@ try {
     $rowCount = (int)$rows->get_result()->fetch_row()[0];
 
     $tender = $_POST['cash_received'] ?? '';
-    if ($rowCount === 1 && is_numeric($tender) && (float)$tender > 0) {
-        $tenderStr = number_format((float)$tender, 2, '.', '');
-        $rf = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ?");
-        $rf->bind_param("si", $tenderStr, $order_id);
-        $rf->execute();
+    if ($rowCount === 1) {
+        // Bring the row up to what was actually collected. A pay-later row is
+        // written for the tab's OPENING total and never updated as items are
+        // added, so it understates the sale — order 1908 reads $1.34 against a
+        // $19.78 order. At settlement the amount paid is the order total, so the
+        // record is made to say that. Only for a single row: a split's legs are
+        // per-method and already correct.
+        $amt  = (float)$order['total'];
+        $sync = $conn->prepare("UPDATE order_payments SET amount = ? WHERE order_id = ?");
+        $sync->bind_param("di", $amt, $order_id);
+        $sync->execute();
+
+        if (is_numeric($tender) && (float)$tender > 0) {
+            $tenderStr = number_format((float)$tender, 2, '.', '');
+            $rf = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ?");
+            $rf->bind_param("si", $tenderStr, $order_id);
+            $rf->execute();
+        }
     }
 
     // Award loyalty points only for Pay Later orders settled at the counter.
