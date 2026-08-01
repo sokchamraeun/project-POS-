@@ -36,50 +36,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         po_redirect($from_list, $po_id, 'ordered');
     }
 
-    if ($action === 'mark_received') {
+    if ($action === 'receive_items') {
+        // Receiving is now per line and repeatable, so the old guard — claiming
+        // the PO by flipping status='Ordered' and checking affected_rows — no
+        // longer guards anything: the second receive of a partially delivered
+        // order is legitimate. Each line is claimed individually instead,
+        // against the qty_received the form was rendered with.
+        $po_now = $conn->prepare("SELECT po_number, status FROM purchase_orders WHERE po_id=?");
+        $po_now->bind_param('i', $po_id);
+        $po_now->execute();
+        $po_row = $po_now->get_result()->fetch_assoc();
+        if (!$po_row || !in_array($po_row['status'], ['Ordered', 'Partially Received'], true)) {
+            po_redirect($from_list, $po_id, 'nochange');
+        }
+
+        $recv = (array)($_POST['recv'] ?? []);
+        $seen = (array)($_POST['seen'] ?? []);
+
+        // A negative delivery is not a thing. Reject before opening the
+        // transaction so nothing is half-applied.
+        foreach ($recv as $qty) {
+            if ($qty !== '' && (!is_numeric($qty) || (float)$qty < 0)) {
+                po_redirect($from_list, $po_id, 'badqty');
+            }
+        }
+        // A blank or non-numeric box means "none of this arrived", never "all
+        // of it did" — the old code's assumption is what caused phantom stock.
+        $moves = [];
+        foreach ($recv as $poi_id => $qty) {
+            $q = is_numeric($qty) ? (float)$qty : 0.0;
+            if ($q > 0) { $moves[(int)$poi_id] = $q; }
+        }
+        if (!$moves) { po_redirect($from_list, $po_id, 'nothing'); }
+
         $conn->begin_transaction();
         try {
-            // Update PO status
-            $s1 = $conn->prepare("UPDATE purchase_orders SET status='Received', received_at=NOW() WHERE po_id=? AND status='Ordered'");
-            $s1->bind_param('i', $po_id);
-            $s1->execute();
+            $by     = $_SESSION['username'] ?? null;
+            $po_num = $po_row['po_number'];
 
-            // Atomically claim the receive. Without this the stock loop below would
-            // still run on an already-Received PO (double-submit, back-button re-POST,
-            // double-click on the list button) and add every quantity to stock twice.
-            if ($s1->affected_rows === 0) {
-                $conn->rollback();
-                po_redirect($from_list, $po_id, 'nochange');
+            foreach ($moves as $poi_id => $qty) {
+                // A missing 'seen' field must never look like a valid claim.
+                // -1 can never equal a stored qty_received, so the line is
+                // refused rather than blindly topped up.
+                $was = isset($seen[$poi_id]) && is_numeric($seen[$poi_id])
+                     ? (float)$seen[$poi_id] : -1.0;
+
+                // Someone received against this line between the page render
+                // and this POST — a double-click, a back-button re-POST, or a
+                // second clerk. Abandon the whole delivery rather than apply
+                // part of it.
+                if (!po_receive_line($conn, $po_id, (int)$poi_id, $was, $qty, $by, $po_num)) {
+                    $conn->rollback();
+                    po_redirect($from_list, $po_id, 'stale');
+                }
             }
 
-            // Fetch items and update stock
-            $items = $conn->prepare("SELECT ingredient_id, qty_ordered FROM purchase_order_items WHERE po_id=?");
-            $items->bind_param('i', $po_id);
-            $items->execute();
-            $items_res = $items->get_result();
+            // Status is derived from the lines, never assigned, so the badge
+            // cannot drift from the quantities under it.
+            $new = po_status_from_lines($conn, $po_id);
+            $st  = $conn->prepare("UPDATE purchase_orders
+                                   SET status = ?,
+                                       received_at = CASE WHEN ? = 'Received' THEN NOW() ELSE received_at END
+                                   WHERE po_id = ?");
+            $st->bind_param('ssi', $new, $new, $po_id);
+            $st->execute();
 
-            $po_num = $conn->query("SELECT po_number FROM purchase_orders WHERE po_id=$po_id")->fetch_assoc()['po_number'];
-
-            $upd  = $conn->prepare("UPDATE ingredients SET stock_quantity = stock_quantity + ? WHERE ingredient_id=?");
-            $log  = $conn->prepare("INSERT INTO stock_refills (ingredient_id, purchase_qty, notes) VALUES (?,?,?)");
-            $hist = $conn->prepare("INSERT INTO ingredient_history (ingredient_id, change_type, amount, reference, created_by) VALUES (?, 'po_received', ?, ?, ?)");
-            $by   = $_SESSION['username'] ?? null;
-            while ($item = $items_res->fetch_assoc()) {
-                $iid = (int)$item['ingredient_id'];
-                $qty = (float)$item['qty_ordered'];
-                $upd->bind_param('di', $qty, $iid);
-                $upd->execute();
-                $note = "Received via $po_num";
-                $log->bind_param('ids', $iid, $qty, $note);
-                $log->execute();
-                $hist->bind_param('idss', $iid, $qty, $note, $by);
-                $hist->execute();
-            }
             $conn->commit();
-            po_redirect($from_list, $po_id, 'received');
-        } catch (Exception $e) {
+            po_redirect($from_list, $po_id, $new === 'Received' ? 'received' : 'partial');
+        } catch (Throwable $e) {
             $conn->rollback();
-            $err_msg = $e->getMessage();
+            po_redirect($from_list, $po_id, 'error');
         }
     }
 

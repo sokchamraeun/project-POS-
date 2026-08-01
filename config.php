@@ -460,6 +460,68 @@ if (!function_exists('po_status_from_lines')) {
 }
 
 /**
+ * Record one line of a delivery: claim it, move the stock, write the ledger.
+ *
+ * $seen is the qty_received the form was rendered against. The UPDATE only
+ * matches while the line still holds that value, so a double-click, a
+ * back-button re-POST, or a second clerk on another till claims nothing and
+ * gets false back.
+ *
+ * This replaces the old guard, which claimed the whole PO by flipping
+ * status='Ordered' and checking affected_rows. That worked only because
+ * receiving happened exactly once; partial receiving means receiving the same
+ * PO repeatedly and legitimately, so the guard had to move down to the line.
+ *
+ * Stock moves by $qty — what arrived this time — never by qty_ordered. Adding
+ * the ordered amount regardless of the delivery is what put stock in the
+ * system that was never in the building.
+ *
+ * The caller owns the transaction: a false return must roll it back.
+ */
+if (!function_exists('po_receive_line')) {
+    function po_receive_line(mysqli $conn, int $po_id, int $poi_id, float $seen,
+                             float $qty, ?string $by, string $po_num): bool {
+        if ($qty <= 0) { return false; }
+
+        // po_id is in the WHERE so a poi_id belonging to another order cannot
+        // be claimed through this one.
+        $claim = $conn->prepare("UPDATE purchase_order_items
+                                 SET qty_received = qty_received + ?
+                                 WHERE poi_id = ? AND po_id = ? AND qty_received = ?");
+        $claim->bind_param('diid', $qty, $poi_id, $po_id, $seen);
+        $claim->execute();
+        if ($claim->affected_rows !== 1) { return false; }
+
+        $line = $conn->prepare("SELECT ingredient_id FROM purchase_order_items
+                                WHERE poi_id = ? AND po_id = ?");
+        $line->bind_param('ii', $poi_id, $po_id);
+        $line->execute();
+        $row = $line->get_result()->fetch_row();
+        if (!$row) { return false; }
+        $iid = (int)$row[0];
+
+        $upd = $conn->prepare("UPDATE ingredients SET stock_quantity = stock_quantity + ?
+                               WHERE ingredient_id = ?");
+        $upd->bind_param('di', $qty, $iid);
+        $upd->execute();
+
+        $note = "Received via $po_num";
+        $log  = $conn->prepare("INSERT INTO stock_refills (ingredient_id, purchase_qty, notes)
+                                VALUES (?,?,?)");
+        $log->bind_param('ids', $iid, $qty, $note);
+        $log->execute();
+
+        $hist = $conn->prepare("INSERT INTO ingredient_history
+                                (ingredient_id, change_type, amount, reference, created_by)
+                                VALUES (?, 'po_received', ?, ?, ?)");
+        $hist->bind_param('idss', $iid, $qty, $note, $by);
+        $hist->execute();
+
+        return true;
+    }
+}
+
+/**
  * What a normal <weekday> takes, for judging today against.
  *
  * A cafe's trade is weekly-seasonal, so Saturday is only fair against other
