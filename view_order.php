@@ -2513,6 +2513,17 @@ function buildAddonGroup(productId, current) {
 
 function toggleAddonPill(btn) { btn.classList.toggle('selected'); }
 
+/* Quantity and options apply only to a drink being remade, so they stay hidden
+   until it is ticked. A visible option pill on an unticked drink implies it will
+   be applied, and the server deliberately ignores it. */
+function toggleRemakePick(cb) {
+    const block = cb.closest('.remake-item-block');
+    const on = cb.checked;
+    block.querySelector('.remake-qty-row').style.display = on ? '' : 'none';
+    block.querySelector('.remake-opts').style.display    = on ? '' : 'none';
+    block.style.opacity = on ? '1' : '.55';
+}
+
 function showRemakeModal(id, orderNumber) {
     currentRemakeId = id;
     document.getElementById('remakeOrderNumber').textContent = '#' + orderNumber;
@@ -2527,12 +2538,33 @@ function showRemakeModal(id, orderNumber) {
             const block = document.createElement('div');
             block.className = 'remake-item-block';
             block.dataset.itemId = item.item_id;
+            // Each remade drink is poured again and deducts real ingredients, so
+            // the barista picks which ones and how many rather than the whole order.
+            const maxQty = parseInt(item.quantity, 10) || 1;
             block.innerHTML =
-                `<div class="remake-item-name"><i class="fa-solid fa-mug-hot" style="margin-right:5px"></i>${escapeHtml(item.product_name)}</div>` +
+                `<div class="remake-item-name">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                        <input type="checkbox" class="remake-pick" onchange="toggleRemakePick(this)">
+                        <i class="fa-solid fa-mug-hot"></i>
+                        ${escapeHtml(item.product_name)}
+                        ${maxQty > 1 ? `<span style="opacity:.6;font-weight:400;text-transform:none">×${maxQty} ordered</span>` : ''}
+                    </label>
+                 </div>` +
+                `<div class="remake-qty-row" style="display:none;margin-bottom:8px">
+                    <div class="remake-adj-label">How many to remake</div>
+                    <input type="number" class="remake-qty" value="1" min="1" max="${maxQty}"
+                           style="width:74px;padding:5px 8px;border-radius:6px;
+                                  border:1px solid rgba(52,152,219,.25);
+                                  background:rgba(0,0,0,.25);color:inherit;
+                                  font-family:inherit;font-size:13px">
+                 </div>` +
+                `<div class="remake-opts" style="display:none">` +
                 buildPillGroup('sweetness', SWEETNESS_OPTS, item.sweetness) +
                 buildPillGroup('ice',       ICE_OPTS,       item.ice) +
                 buildPillGroup('milk',      MILK_OPTS,      item.milk) +
-                buildAddonGroup(item.product_id, item.addons);
+                buildAddonGroup(item.product_id, item.addons) +
+                `</div>`;
+            block.style.opacity = '.55';
             adjDiv.appendChild(block);
         });
     }
@@ -2553,9 +2585,15 @@ async function confirmRemake() {
     btn.disabled = true;
 
     const adjustments = [];
+    const items = [];
     document.querySelectorAll('#remakeAdjustments .remake-item-block').forEach(block => {
+        // Only ticked drinks are remade — the rest are neither deducted nor adjusted.
+        if (!block.querySelector('.remake-pick').checked) return;
+        const itemId = block.dataset.itemId;
+        const qty    = parseInt(block.querySelector('.remake-qty').value, 10) || 1;
+        items.push({ item_id: itemId, qty: qty });
         adjustments.push({
-            item_id:   block.dataset.itemId,
+            item_id:   itemId,
             sweetness: block.querySelector('[data-type="sweetness"].selected')?.textContent || '',
             ice:       block.querySelector('[data-type="ice"].selected')?.textContent || '',
             milk:      block.querySelector('[data-type="milk"].selected')?.textContent || '',
@@ -2565,15 +2603,28 @@ async function confirmRemake() {
         });
     });
 
+    if (!items.length) {
+        showToast('Pick at least one drink to remake.', 'error');
+        btn.disabled = false;
+        return;
+    }
+
     try {
         const formData = new FormData();
         formData.append('reason', reason);
+        formData.append('items', JSON.stringify(items));
         formData.append('adjustments', JSON.stringify(adjustments));
         const r = await fetch(`remake_order.php?order_id=${currentRemakeId}`, { method: 'POST', body: formData });
         const data = await r.json();
         if (data.ok) {
             closeRemakeModal();
             showToast('🔁 ' + data.message);
+            if (data.shortfalls && data.shortfalls.length) {
+                // Same warning the ordering flow gives. The remake is recorded
+                // either way — the drink is already poured — but the shop is short.
+                const names = [...new Set(data.shortfalls.map(s => s.name))].join(', ');
+                showToast('⚠️ Not enough stock: ' + names, 'error');
+            }
             await loadOrders();
         } else {
             showToast('❌ ' + (data.error || 'Failed to log remake.'), 'error');
