@@ -365,7 +365,7 @@ $histAfter = (int)$conn->query("SELECT COUNT(*) FROM ingredient_history
 check('one ledger row per successful receive', $histAfter - $histBefore, 2);
 $amounts = [];
 $hr = $conn->query("SELECT amount FROM ingredient_history WHERE change_type='po_received'
-                    ORDER BY history_id DESC LIMIT 2");
+                    ORDER BY id DESC LIMIT 2");
 while ($x = $hr->fetch_row()) { $amounts[] = round((float)$x[0], 3); }
 check('the ledger carries the deltas', $amounts, [4.0, 6.0]);
 
@@ -722,7 +722,7 @@ Expected: PO badge reads `Partially Received`; the changed line shows the smalle
 Verify the ledger:
 ```bash
 php -r "require 'config.php';
-\$r=\$conn->query(\"SELECT ingredient_id, amount, reference, created_at FROM ingredient_history WHERE change_type='po_received' ORDER BY history_id DESC LIMIT 5\");
+\$r=\$conn->query(\"SELECT ingredient_id, amount, reference, created_at FROM ingredient_history WHERE change_type='po_received' ORDER BY id DESC LIMIT 5\");
 while(\$x=\$r->fetch_assoc()) echo implode(' | ', \$x), \"\n\";"
 ```
 
