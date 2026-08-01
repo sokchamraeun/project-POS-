@@ -940,6 +940,21 @@ In the status tabs array, after `Ordered`:
         'Partially Received' => ['label'=>'Part delivered', 'icon'=>'fa-truck-ramp-box'],
 ```
 
+**`purchase_order_view.php` has its own `$statusColors` map** at line ~162, and it
+needs the identical entry. It is a separate array from the one above — not a
+shared constant — so adding it in only one file leaves the other showing a
+`Partially Received` PO in Draft's grey with a pen icon, because line ~168 falls
+back with `?? $statusColors['Draft']`. Add the same line after its `Ordered`
+entry:
+
+```php
+    // Amber, not red: a part delivery needs attention, it is not a failure.
+    'Partially Received' => ['bg'=>'rgba(224,169,85,.14)', 'color'=>'#e0a955', 'icon'=>'fa-truck-ramp-box'],
+```
+
+After this step, load a `Partially Received` PO on both screens and confirm the
+badge is amber with a truck icon in each, not grey with a pen.
+
 - [ ] **Step 2: Turn the one-click receive into a link**
 
 Replace the `elseif ($po['status'] === 'Ordered')` form containing `mark_received` with:
