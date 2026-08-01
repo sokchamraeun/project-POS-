@@ -73,14 +73,36 @@ back.
 `add_to_existing_order.php`, immediately before its redirect (`:102-107`):
 
 ```
-cart_stash := cart          (only when cart is non-empty)
-cart       := []
+if cart is non-empty and cart_stash is NOT already set:
+    cart_stash := cart
+cart := []
 ```
 
 **A stash is created only when the cart is non-empty.** The presence of
 `$_SESSION['cart_stash']` is therefore the single signal for both the notice in §4
 and the restore in §3 — there is no separate flag to keep in step with it. An empty
 cart produces no stash, no notice, and nothing to return.
+
+**An existing stash is never overwritten.** `find_order.php` offers *Add Items*, so
+`add_to_existing_order.php` is reachable while add-to-order mode is already active —
+without passing through `menu.php`, which means the restore in §3 never fires. Without
+this guard:
+
+```
+cart_stash = [Matcha]     held from the new order
+cart       = [Latte]      queued for tab 12
+→ Add Items on tab 15
+→ cart_stash := [Latte]   overwrites [Matcha] — silently lost
+```
+
+That is exactly the failure this spec exists to prevent, on the one path where the
+restore cannot intervene. With the guard, `[Matcha]` survives and returns when the
+cashier next reaches a plain menu.
+
+The consequence is deliberate: switching from tab 12 to tab 15 mid-add **discards the
+drinks queued for tab 12**. That is the correct reading — the cashier abandoned that
+tab's additions by navigating to another one — and it is the in-flight add-cart being
+dropped, never the held new-order cart.
 
 ### 3. Leaving it
 
@@ -126,12 +148,25 @@ rebuilding it.
 
 `cart.php:1426` derives `is_add_to_order` from `$_SESSION['add_to_order_id']`. With
 §3 clearing that key on exit, the value is trustworthy whenever `cart.php` is
-reached through the normal flow. No change to `cart.php` is required by this spec.
+reached through the normal flow. **No behavioural change to `cart.php` is required.**
 
 This is deliberate: rewiring the flag to an explicit source means giving `cart.php`
 a way to know the mode that the session does not already provide, which is the
-separate-keys refactor this spec declines. Recorded so the decision is visible rather
-than an oversight.
+separate-keys refactor this spec declines.
+
+**A comment is added at that line** recording why the session read is correct and
+what remains accepted, so the next reader does not "repair" it by adding a second
+session read and rebuild the circular guard `confirm_order.php:95` warns about:
+
+```php
+/* Mode comes from the session on purpose: menu.php clears add_to_order_id the
+   moment the cashier returns to a plain menu, so a stale value cannot survive to
+   hijack a normal checkout. Do NOT add a second session read here to "fix" this —
+   that is what made confirm_order.php:95's guard circular in the first place.
+   Accepted gap: reaching this page via a payment-error "Go back" link while still
+   in add-to-order mode keeps the flag. See
+   docs/superpowers/specs/2026-08-02-add-to-order-cart-stash-design.md §5. */
+```
 
 ## Testing
 
@@ -145,16 +180,22 @@ No test framework covers session state; these are manual, in a browser.
 | Cart has 1 drink → Add Items → navigate to `menu.php` without confirming | the original drink is back; the add-to-order banner is gone |
 | Cart empty → Add Items | no stash, no notice, add-cart empty |
 | Abandon add-to-order, then check out a new order normally | the new order is its own order and is NOT appended to the old tab |
+| Cart has 1 drink → Add Items tab 12 → queue a drink → **without returning to the menu**, Add Items tab 15 from `find_order.php` | the held drink still returns on exit; tab 12's queued drink is dropped |
+| Back out to the menu, then Add Items on a different tab | the restored cart is stashed again; nothing accumulates or is lost |
+| Confirm an add, then Add Items on another tab before visiting the menu | the held drink survives and returns when the menu is next reached |
 
-The last case is the second defect and the one most worth re-testing: before this
-change, an abandoned flow could silently append a fresh sale to a previous tab.
+The abandon case is the second defect and the one most worth re-testing: before this
+change, an abandoned flow could silently append a fresh sale to a previous tab. The
+nested-entry case is the one the restore cannot cover, which is why §2 guards the
+stash rather than relying on §3.
 
 ## Files touched
 
 | File | Change |
 |---|---|
-| `add_to_existing_order.php` | stash the cart before redirecting |
+| `add_to_existing_order.php` | stash the cart before redirecting, without overwriting an existing stash |
 | `menu.php` | restore on exit; one-line notice on the banner |
+| `cart.php` | comment only, at `:1426` — no behavioural change |
 
-Two files. `cart.php`, `confirm_order.php`, `add_to_cart.php` and the other five
-readers of `$_SESSION['cart']` are untouched.
+`confirm_order.php`, `add_to_cart.php` and the other five readers of
+`$_SESSION['cart']` are untouched.
