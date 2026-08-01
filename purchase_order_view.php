@@ -422,11 +422,41 @@ tbody tr:hover td{background:var(--surface);}
     </div>
 </div>
 
+<?php
+// Hoisted above the write-off strip, which needs the outstanding figure. The Cost
+// Summary further down reuses this rather than recomputing it — one query, and the
+// two can never disagree.
+$vals = po_line_values($conn, $po_id);
+?>
 <div class="content">
     <?php if ($msg_text): ?>
     <div class="alert alert-<?= $msg_text['type'] ?>">
         <i class="fa-solid fa-<?= $msg_text['type']==='success'?'check-circle':($msg_text['type']==='danger'?'circle-exclamation':'info-circle') ?>"></i>
         <?= he($msg_text['text']) ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ((int)$po['closed_short'] === 1): ?>
+    <?php /* Amber, not red: a write-off needs attention and an explanation, but the
+             order itself is closed and correct. Permanent, unlike the msg banner
+             above — this is the record, not a notification. */ ?>
+    <div style="background:rgba(224,169,85,.10);border:1px solid rgba(224,169,85,.28);
+                border-left:3px solid #e0a955;border-radius:10px;padding:12px 14px;
+                margin-bottom:16px;font-size:13px;line-height:1.6">
+        <div style="color:#e0a955;font-weight:600;margin-bottom:3px;">
+            <i class="fa-solid fa-file-circle-xmark"></i>
+            Closed short by <?= he($po['closed_short_by'] ?: 'unknown') ?>
+            on <?= fmtDate($po['closed_short_at']) ?>
+            &mdash; <?= he(po_short_reason_label($po['closed_short_reason'])) ?>
+        </div>
+        <div style="color:var(--text-muted);">
+            $<?= number_format($vals['outstanding'], 2) ?> written off. No stock was added.
+        </div>
+        <?php if (trim((string)$po['closed_short_note']) !== ''): ?>
+        <div style="color:var(--text-muted);font-style:italic;margin-top:5px;">
+            &ldquo;<?= he($po['closed_short_note']) ?>&rdquo;
+        </div>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -479,8 +509,8 @@ tbody tr:hover td{background:var(--surface);}
                 <div class="info-val">
                     <strong style="font-size:20px;color:var(--accent)">$<?= number_format($po['total_cost'],2) ?></strong>
                     <span style="color:var(--text-muted);font-size:12px">ordered</span><br>
-                    <?php $vals = po_line_values($conn, $po_id);
-                          /* total_cost is the order that was placed and is never
+                    <?php /* $vals is computed once, above the write-off strip.
+                             total_cost is the order that was placed and is never
                              rewritten. The delivered value is derived, so a short
                              delivery stays distinguishable from a small order. */
                           if ($po['status'] === 'Partially Received' || $po['closed_short']): ?>

@@ -300,6 +300,23 @@ tbody tr:hover td{background:rgba(255,255,255,.025);}
                     <span class="status-badge" style="background:<?= $sc['bg'] ?>;color:<?= $sc['color'] ?>">
                         <i class="fa-solid <?= $sc['icon'] ?>"></i> <?= $po['status'] ?>
                     </span>
+                    <?php /* A closed-short PO is Received, so without this it looks
+                             identical to a clean delivery in the list. The reason
+                             rides in the tooltip rather than the cell: the chip
+                             answers "is there a write-off here", the tooltip answers
+                             "why", and only one of those belongs in a table. */ ?>
+                    <?php if ((int)($po['closed_short'] ?? 0) === 1):
+                        $tip = po_short_reason_label($po['closed_short_reason'] ?? '');
+                        if (trim((string)($po['closed_short_note'] ?? '')) !== '') {
+                            $tip .= ' — ' . $po['closed_short_note'];
+                        }
+                    ?>
+                    <span class="status-badge"
+                          style="background:rgba(224,169,85,.14);color:#e0a955;margin-left:4px;"
+                          title="<?= he($tip) ?>">
+                        <i class="fa-solid fa-file-circle-xmark"></i> closed short
+                    </span>
+                    <?php endif; ?>
                 </td>
                 <td><?= (int)$po['item_count'] ?> item<?= $po['item_count'] != 1 ? 's' : '' ?></td>
                 <td style="text-align:right;font-weight:600;color:var(--success)">
