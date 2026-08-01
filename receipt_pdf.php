@@ -455,14 +455,18 @@ $stmt->execute();
 $payments = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 if (!empty($payments)) {
+    // Decides whether the PAYMENT block is suppressed. Deliberately NOT widened:
+    // a settled pay-later receipt must keep showing how it was paid.
     $is_solo_cash = count($payments) === 1 && $payments[0]['payment_method'] === 'cash';
 
     if ($is_solo_cash) {
         // Solo cash: no PAYMENT block — just show change details if cashier entered a received amount
         $ref_val      = (string)($payments[0]['reference'] ?? '');
-        $tendered_usd = $ref_val !== '' ? (float)$ref_val : 0;
+        $tendered_usd = is_numeric($ref_val) ? (float)$ref_val : 0.0;
         if ($tendered_usd > 0) {
-            $change_usd = round($tendered_usd - (float)$payments[0]['amount'], 2);
+            // Against the order total, not the payment row — see the note on the
+            // split branch below: a single payment row can carry a stale amount.
+            $change_usd = round($tendered_usd - $stored_total, 2);
             $ck         = (int)(round(max(0, $change_usd) * KHR_RATE / 100) * 100);
             $html .= '
 <div style="margin-top:6px;padding-top:4px;border-top:1px dashed #000;">
@@ -522,8 +526,19 @@ if (!empty($payments)) {
                 }
             } else {
                 $amount_display = '$' . number_format($pay_amount, 2);
-                $tendered_usd   = ($pay['payment_method'] === 'cash' && $ref !== '') ? (float)$ref : 0;
-                $change_usd     = $tendered_usd > 0 ? round($tendered_usd - $pay_amount, 2) : 0;
+                // Keyed on a recorded tender rather than on the method. A pay-later
+                // tab settled in cash at the counter deliberately keeps
+                // payment_method='paylater' so its reporting bucket survives, and
+                // requiring 'cash' here is why those receipts printed no change
+                // lines. Bakong cannot misfire: its reference is never numeric.
+                $tendered_usd   = is_numeric($ref) ? (float)$ref : 0;
+                // Change is measured against what the customer owed, not against
+                // this row. A pay-later row is written when the tab opens and is
+                // never updated as items are added — 18 orders carry a stale
+                // amount — so on a single-row payment the order total is the
+                // truth. A split's legs are per-method and genuinely correct.
+                $owed_for_change = count($payments) === 1 ? $stored_total : $pay_amount;
+                $change_usd     = $tendered_usd > 0 ? round($tendered_usd - $owed_for_change, 2) : 0;
                 if ($tendered_usd > 0) {
                     $ck = (int)(round(max(0, $change_usd) * KHR_RATE / 100) * 100);
                     $change_rows = '

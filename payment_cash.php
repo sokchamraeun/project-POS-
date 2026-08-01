@@ -585,10 +585,22 @@ body {
             </div>
 
             <?php
-            // ── Change block for cash with a received reference ──
-            if ($pay['payment_method'] === 'cash' && is_numeric($pay['reference']) && (float)$pay['reference'] > 0):
+            // ── Change block, shown whenever a tender was recorded ──
+            // Gated on the tender rather than on the method: a settled pay-later tab
+            // deliberately keeps payment_method='paylater' so the reporting bucket
+            // survives, and would otherwise never show its change. Bakong cannot
+            // misfire here — its reference is never numeric.
+            if (is_numeric($pay['reference']) && (float)$pay['reference'] > 0):
                 $received   = (float)$pay['reference'];
-                $change_usd = round(max(0, $received - (float)$pay['amount']), 2);
+                // Change is what the customer is owed back, so it is measured
+                // against what they owed. On a single-row payment that is the
+                // order total: a pay-later row is written when the tab opens and
+                // is NOT updated as items are added, so 18 orders here carry a
+                // stale amount (order 1908: row says $1.34, order totals $19.78).
+                // Using the row would have printed $18.66 change on a $0.22
+                // reality. A split's legs are per-method and genuinely correct.
+                $owed_for_change = count($payments) === 1 ? $total : (float)$pay['amount'];
+                $change_usd = round(max(0, $received - $owed_for_change), 2);
                 $change_khr = (int)(round($change_usd * KHR_RATE / 100) * 100);
             ?>
             <div class="change-block">

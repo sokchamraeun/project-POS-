@@ -49,5 +49,25 @@ check('all active back label',       strpos($pc, 'Back to Active Orders') !== fa
 // An entry here would be unreachable.
 check('no unreachable paylater entry', strpos($pc, "'paylater'  =>") === false, true);
 
+echo "change block gating\n";
+// The gate must key on "a tender was recorded", not on the method reading cash.
+// A settled pay-later tab deliberately keeps payment_method='paylater' so the
+// reporting bucket survives, and would otherwise never show its change.
+$pc = file_get_contents(__DIR__ . '/../payment_cash.php');
+check('success screen does not require cash',
+      strpos($pc, "\$pay['payment_method'] === 'cash' && is_numeric") === false, true);
+check('success screen still requires a numeric tender',
+      strpos($pc, "is_numeric(\$pay['reference'])") !== false, true);
+
+$rp = file_get_contents(__DIR__ . '/../receipt_pdf.php');
+check('receipt gates on a tender, not the method',
+      strpos($rp, "\$pay['payment_method'] === 'cash' && \$ref !== ''") === false, true);
+check('receipt still requires a numeric tender',
+      strpos($rp, 'is_numeric($ref)') !== false, true);
+// $is_solo_cash must survive: it suppresses the PAYMENT block for a plain cash
+// sale, and a pay-later receipt has to keep showing how it was settled.
+check('receipt keeps the solo-cash distinction',
+      strpos($rp, '$is_solo_cash') !== false, true);
+
 echo $failures === 0 ? "\nALL PASS\n" : "\n$failures FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);
