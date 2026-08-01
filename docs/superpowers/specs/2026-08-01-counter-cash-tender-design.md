@@ -41,10 +41,17 @@ it wrong would be a choice.
 
 ## Non-goals
 
-- **Persisting the tender.** Nothing in the schema stores an amount received or
+- ~~**Persisting the tender.** Nothing in the schema stores an amount received or
   change given — `order_payments` has no such column and `menu.php` keeps its
-  calculator entirely client-side. Mirroring that keeps this change schema-free.
-  Whether the drawer should record tenders is a real question and a separate one.
+  calculator entirely client-side.~~
+
+  **WRONG — corrected 2026-08-01, see the amendment below.** The tender *is*
+  persisted, in `order_payments.reference`. `menu.php:2300-2305` posts the received
+  amount as `payment_references[]`, `confirm_order.php:446` writes it, and both
+  `receipt_pdf.php:460` and `payment_cash.php:589` read it back to print
+  Received / Change / Change (KHR). The first implementation was built on this
+  false premise and therefore deliberately discarded the amount, which is why
+  pay-later and pending-payment receipts have no change lines.
 - **Touching Bakong.** `admin_pay_bakong.php` has its own flow and no change to
   compute.
 - **Revisiting what gets recorded as cash.** The method-recording fix landed
@@ -166,3 +173,87 @@ single-method guard, the loyalty award and its `points_earned === 0` check — i
 moved verbatim and not edited. The status branch in particular is easy to
 misremember: **pay-later settles to `Paid`, but a `PendingPayment` order settles to
 `Preparing`**, because paying for it is not the same as making it.
+
+---
+
+# Amendment — 2026-08-01: persist the tender, and settle without leaving the queue
+
+The first implementation shipped (`8979c9b`..`ebea2fd`). Using it surfaced one
+wrong premise in this spec and two gaps.
+
+## What was wrong
+
+**The tender is persisted, in `order_payments.reference`.** The non-goal above
+asserted the opposite. Evidence:
+
+| Site | What it does |
+|---|---|
+| `menu.php:2300-2305` | posts the received amount as `payment_references[]` |
+| `confirm_order.php:446` | writes it into `order_payments.reference` |
+| `payment_cash.php:589` | prints Received / Change / Change (KHR) from it |
+| `receipt_pdf.php:460-483` | same, on the printed receipt |
+
+Because this spec said otherwise, `_cash_tender.php` deliberately gave the amount
+no `name` attribute and threw it away. A counter settlement therefore produces a
+receipt with no change lines, while a checkout sale produces one with them.
+
+## Gap 1 — the change block never renders for a counter settlement
+
+Two different causes:
+
+- **Pending Payment (bakong → cash).** The settle converts
+  `order_payments.payment_method` to `cash`, so `receipt_pdf.php:458`'s
+  `$is_solo_cash` gate passes. The block is skipped only because `reference` is
+  empty. Writing the tender is the whole fix.
+- **Pay Later.** The settle deliberately keeps the method as `paylater` — the
+  reporting bucket depends on it — so `$is_solo_cash` is **false** and the block is
+  skipped even with a tender present. The gate must change too.
+
+**The gate becomes "a single payment row carrying a numeric reference greater than
+zero"**, rather than "the method says cash". That is the honest condition: it means
+*a tender was recorded*. It cannot misfire on Bakong — all 182 bakong rows in this
+database have a blank reference, and a Bakong reference is never numeric.
+
+## Gap 2 — settling loses the queue
+
+The Cash button navigates away from `find_order.php`. A cashier working a list of
+tabs loses their place on every settlement.
+
+The tender screen becomes a **modal on `find_order.php` that fetches the existing
+partial** from `admin_pay_cash.php`. One source of truth: the standalone page keeps
+working for direct links and without JavaScript, and the markup is not duplicated.
+Rebuilding the modal client-side from the card's data was rejected — that is how the
+buy-X-get-1-free formula ended up in ten places.
+
+## Also folded in
+
+**A tender below the total is silently accepted.** Nothing validates that the
+amount covers the bill; the receipt renders `max(0, change)` so a $2 tender on a
+$3.15 tab prints change `$0.00` with no sign the customer underpaid. The tender
+screen gains a client-side warning. It does **not** block submission — a cashier who
+has already counted the change must not be stopped by a field they skipped, and the
+order settles in full either way.
+
+## Deliberately still not done
+
+- **Riel at the counter.** `admin_pay_cash.php` and `_cash_tender.php` have zero
+  Riel support. This is not being added: the decision (2026-08-01) is to hide Riel
+  as a separate method and record it as cash. Adding it here would build the thing
+  that is about to be removed.
+- **`admin_pay_bakong.php`'s GET write.** It opens a transaction on load
+  (`:73`) but only persists the KHQR md5; settlement happens in `check_payment.php`
+  once Bakong confirms. It is not a double-charge path and does not need the
+  GET/POST split. Recorded so it is not "fixed" later.
+- **Backfilling old receipts.** 328 of 362 historical cash rows have a blank
+  reference — the tender was never captured. Inventing one would fabricate a record.
+
+## Amended files
+
+| File | Change |
+|---|---|
+| `_cash_tender.php` | amount received gains a `name`; underpayment warning; renders standalone or as a modal fragment |
+| `admin_pay_cash.php` | stores the tender in `order_payments.reference`; serves the fragment |
+| `find_order.php` | modal that fetches the partial |
+| `receipt_pdf.php` | change block gated on a numeric reference, not on the method |
+| `payment_cash.php` | same gate |
+| `tests/counter_cash_test.php` | gate assertions |
