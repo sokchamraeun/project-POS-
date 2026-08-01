@@ -49,5 +49,33 @@ $early = (int)$conn->query("
 ")->fetch_row()[0];
 check('undelivered POs stay at zero', $early, 0);
 
+echo "po_line_values\n";
+// PO 1 is historical and fully received, so ordered and received must agree
+// and nothing is outstanding.
+$anyReceived = (int)$conn->query(
+    "SELECT po_id FROM purchase_orders WHERE status='Received' ORDER BY po_id LIMIT 1"
+)->fetch_row()[0];
+$v = po_line_values($conn, $anyReceived);
+check('returns three keys',        array_keys($v), ['ordered','received','outstanding']);
+check('a full PO has no shortfall', round($v['outstanding'], 2),          0.0);
+check('received equals ordered',    round($v['received'] - $v['ordered'], 2), 0.0);
+
+// An Ordered PO has been placed but not delivered: nothing received, all outstanding.
+$notYet = (int)$conn->query(
+    "SELECT po_id FROM purchase_orders WHERE status='Ordered' ORDER BY po_id LIMIT 1"
+)->fetch_row()[0];
+$v2 = po_line_values($conn, $notYet);
+check('an undelivered PO has received 0',        round($v2['received'], 2),    0.0);
+check('an undelivered PO is fully outstanding',
+      round($v2['outstanding'] - $v2['ordered'], 2),                           0.0);
+
+check('an unknown PO is all zeroes', po_line_values($conn, 0),
+      ['ordered'=>0.0, 'received'=>0.0, 'outstanding'=>0.0]);
+
+echo "po_status_from_lines\n";
+check('a fully received PO reads Received', po_status_from_lines($conn, $anyReceived), 'Received');
+check('an untouched PO reads Partially Received',
+      po_status_from_lines($conn, $notYet), 'Partially Received');
+
 echo $failures === 0 ? "\nALL PASS\n" : "\n$failures FAILURE(S)\n";
 exit($failures === 0 ? 0 : 1);

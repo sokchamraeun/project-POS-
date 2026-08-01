@@ -404,6 +404,62 @@ if (!function_exists('cogs_cups')) {
 }
 
 /**
+ * What a purchase order is worth, ordered against actually delivered.
+ *
+ * purchase_orders.total_cost records the order that was placed and is never
+ * rewritten — changing it would falsify a document already issued to a
+ * supplier, and would make a short delivery indistinguishable from a small
+ * order. The delivered value is derived here instead.
+ *
+ * Over-delivery is not clamped: if twelve cartons arrive against ten ordered,
+ * the received value exceeds the ordered value and 'outstanding' is zero
+ * rather than negative, because you cannot be owed a negative quantity.
+ */
+if (!function_exists('po_line_values')) {
+    function po_line_values(mysqli $conn, int $po_id): array {
+        $out = ['ordered' => 0.0, 'received' => 0.0, 'outstanding' => 0.0];
+        if ($po_id <= 0) { return $out; }
+
+        $stmt = $conn->prepare("
+            SELECT COALESCE(SUM(qty_ordered  * unit_cost), 0),
+                   COALESCE(SUM(qty_received * unit_cost), 0),
+                   COALESCE(SUM(GREATEST(qty_ordered - qty_received, 0) * unit_cost), 0)
+            FROM purchase_order_items WHERE po_id = ?
+        ");
+        $stmt->bind_param('i', $po_id);
+        $stmt->execute();
+        [$ordered, $received, $outstanding] = $stmt->get_result()->fetch_row();
+
+        return [
+            'ordered'     => (float)$ordered,
+            'received'    => (float)$received,
+            'outstanding' => (float)$outstanding,
+        ];
+    }
+}
+
+/**
+ * The status a purchase order's lines say it should be in.
+ *
+ * Derived from the lines rather than assigned, so the badge can never drift
+ * from the quantities beneath it. Only ever returns one of the two delivery
+ * states — Draft, Ordered and Cancelled are decisions a person makes, not
+ * facts the lines can tell you.
+ */
+if (!function_exists('po_status_from_lines')) {
+    function po_status_from_lines(mysqli $conn, int $po_id): string {
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) FROM purchase_order_items
+            WHERE po_id = ? AND qty_received < qty_ordered
+        ");
+        $stmt->bind_param('i', $po_id);
+        $stmt->execute();
+        $short = (int)$stmt->get_result()->fetch_row()[0];
+        return $short === 0 ? 'Received' : 'Partially Received';
+    }
+}
+
+/**
  * What a normal <weekday> takes, for judging today against.
  *
  * A cafe's trade is weekly-seasonal, so Saturday is only fair against other
