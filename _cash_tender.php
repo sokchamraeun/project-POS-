@@ -132,14 +132,22 @@ body {
             <div class="cp-change-calc">
                 <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> Amount Received</label>
                 <!-- oninput only fires for real typing, never for a programmatic .value set,
-                     so this flag reliably marks "the cashier has entered their own amount". -->
-                <input type="number" id="cpCashReceived" step="0.01" min="0" placeholder="0.00"
+                     so this flag reliably marks "the cashier has entered their own amount".
+                     Submitted as cash_received and stored in order_payments.reference —
+                     the same column checkout writes — so the receipt can print
+                     Received / Change. It never changes the amount settled. -->
+                <input type="number" id="cpCashReceived" name="cash_received"
+                       step="0.01" min="0" placeholder="0.00"
                        oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
                        onfocus="this.select()">
                 <div class="cp-tender-quick" id="cpTenderQuick"></div>
                 <div class="cp-change-row">
                     <span class="change-label">Change to give back</span>
                     <span class="change-amount" id="cpChangeAmount">$0.00</span>
+                </div>
+                <div id="cpShortWarn" style="display:none;margin-top:6px;font-size:11px;color:#e0a955;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    This is less than the total. The order will still be settled in full.
                 </div>
             </div>
 
@@ -161,6 +169,11 @@ function cpCalcChange() {
   var change   = received - cpOwedInCash();
   var el       = document.getElementById('cpChangeAmount');
   if (!el) return;
+  var warn = document.getElementById('cpShortWarn');
+  // Non-blocking on purpose: a cashier who has already counted the change must not
+  // be stopped by a field they skipped, and the order settles in full either way.
+  if (warn) warn.style.display = (received > 0 && change < 0) ? 'block' : 'none';
+
   if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
   if (change < 0) { el.textContent = 'Need $' + Math.abs(change).toFixed(2) + ' more'; el.className = 'change-amount not-enough'; }
   else            { el.textContent = '$' + change.toFixed(2); el.className = 'change-amount'; }

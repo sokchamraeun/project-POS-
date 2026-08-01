@@ -112,6 +112,28 @@ try {
         }
     }
 
+    // The tender is what lets a receipt print Received / Change. It lives in
+    // order_payments.reference — the same column menu.php writes at checkout via
+    // payment_references[] (confirm_order.php:446) and that receipt_pdf.php reads
+    // back. Without it, a counter settlement produced a receipt with no change
+    // lines while an identical checkout sale produced one with them.
+    //
+    // Single-row payments only: on a split the change belongs to one leg, and
+    // writing it across every row would assert how money we never saw was handed
+    // over. Storing it never alters the amount settled.
+    $rows = $conn->prepare("SELECT COUNT(*) FROM order_payments WHERE order_id = ?");
+    $rows->bind_param("i", $order_id);
+    $rows->execute();
+    $rowCount = (int)$rows->get_result()->fetch_row()[0];
+
+    $tender = $_POST['cash_received'] ?? '';
+    if ($rowCount === 1 && is_numeric($tender) && (float)$tender > 0) {
+        $tenderStr = number_format((float)$tender, 2, '.', '');
+        $rf = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ?");
+        $rf->bind_param("si", $tenderStr, $order_id);
+        $rf->execute();
+    }
+
     // Award loyalty points only for Pay Later orders settled at the counter.
     // Regular orders already receive points at confirm_order.php (creation time).
     // Guard: skip if points were already credited (e.g. items added earlier
