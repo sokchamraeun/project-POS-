@@ -1354,11 +1354,18 @@ body {
                     <span class="method-label">Pay Later</span>
                 </div>
 
+                <?php /* Riel is taken inside the Cash tender on menu.php's payment modal now.
+                         cart.php is a duplicate checkout surface whose entry link was dropped in
+                         fec47c6, so it gets no riel field of its own. Hidden rather than deleted
+                         because riel is still a valid payment_method for 4 historical orders.
+                         To restore, change false back to true. */ ?>
+                <?php if (false): ?>
                 <div class="payment-method" onclick="togglePayment(this)">
                     <input type="checkbox" value="riel">
                     <span class="method-icon">🇰🇭</span>
                     <span class="method-label">Riel ៛</span>
                 </div>
+                <?php endif; ?>
             </div>
             
             <!-- ── Split Payment Inputs ── -->
@@ -1381,6 +1388,8 @@ body {
             </div>
         </div>
 
+        <?php /* Riel calculator — hidden with its tile above. */ ?>
+        <?php if (false): ?>
         <!-- Riel calculator (shown when Riel solo is selected) -->
         <div class="change-calc" id="rielCalc">
             <label><i class="fa-solid fa-coins" style="color:#e74c3c;margin-right:5px;"></i>Amount in Riel (KHR)</label>
@@ -1395,6 +1404,7 @@ body {
                 <span class="change-amount" id="rielChangeKhr">&#x17DB;0</span>
             </div>
         </div>
+        <?php endif; ?>
 
         <form method="post" action="confirm_order.php" class="checkout-form" id="checkoutForm">
             <div class="form-group">
@@ -1445,7 +1455,6 @@ body {
                 <span class="sc"><kbd>B</kbd> Bakong</span>
                 <span class="sc"><kbd>C</kbd> Cash</span>
                 <span class="sc"><kbd>P</kbd> Pay Later</span>
-                <span class="sc"><kbd>R</kbd> Riel</span>
                 <span class="sc"><kbd>Enter</kbd> Confirm</span>
                 <span class="sc"><kbd>Esc</kbd> Back</span>
             </div>
