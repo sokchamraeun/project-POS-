@@ -36,7 +36,7 @@ if ($source_id === $target_id) {
     exit;
 }
 
-$load = $conn->prepare("SELECT card_id, loyalty_id, points, total_orders, total_drinks, is_active
+$load = $conn->prepare("SELECT card_id, loyalty_id, points, points_progress, total_orders, total_drinks, is_active
                         FROM loyalty_cards WHERE card_id IN (?, ?)");
 $load->bind_param("ii", $source_id, $target_id);
 $load->execute();
@@ -61,6 +61,9 @@ if ((int)$cards[$source_id]['is_active'] !== 1) {
 $src = $cards[$source_id];
 $tgt = $cards[$target_id];
 $moved_points = (int)$src['points'];
+// The carry toward the source's next point. Without moving it, a customer one
+// drink into their next point loses that drink the moment their card is merged.
+$moved_progress = (int)($src['points_progress'] ?? 0);
 
 $conn->begin_transaction();
 try {
@@ -68,7 +71,7 @@ try {
        managers merging the same card at once can't move its points twice. */
     $deact = $conn->prepare(
         "UPDATE loyalty_cards
-            SET points = 0, is_active = 0, merged_into = ?, merged_at = NOW()
+            SET points = 0, points_progress = 0, is_active = 0, merged_into = ?, merged_at = NOW()
           WHERE card_id = ? AND is_active = 1"
     );
     $deact->bind_param("ii", $target_id, $source_id);
@@ -79,15 +82,16 @@ try {
 
     $add = $conn->prepare(
         "UPDATE loyalty_cards
-            SET points        = points + ?,
-                total_orders  = total_orders + ?,
-                total_drinks  = total_drinks + ?,
-                last_used     = NOW()
+            SET points          = points + ?,
+                points_progress = points_progress + ?,
+                total_orders    = total_orders + ?,
+                total_drinks    = total_drinks + ?,
+                last_used       = NOW()
           WHERE card_id = ?"
     );
     $so = (int)$src['total_orders'];
     $sd = (int)$src['total_drinks'];
-    $add->bind_param("iiii", $moved_points, $so, $sd, $target_id);
+    $add->bind_param("iiiii", $moved_points, $moved_progress, $so, $sd, $target_id);
     $add->execute();
 
     // Repoint history so the kept card shows the full earning record.

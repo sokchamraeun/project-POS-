@@ -87,16 +87,12 @@ try {
     $card_id    = (int)($order['loyalty_card_id'] ?? 0);
     $pts_earned = (int)($order['points_earned']   ?? 0);
     if ($card_id > 0) {
-        // 1) Claw back the points EARNED on this order
-        if ($pts_earned > 0) {
-            $stmt_pts = $conn->prepare("UPDATE loyalty_cards SET points = GREATEST(0, points - ?), total_drinks = GREATEST(0, total_drinks - ?), last_used = NOW() WHERE card_id = ?");
-            $stmt_pts->bind_param("iii", $pts_earned, $pts_earned, $card_id);
-            $stmt_pts->execute();
-            $neg = -$pts_earned;
-            $stmt_hist = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_deduct', 'Points reversed — order cancelled')");
-            $stmt_hist->bind_param("iii", $card_id, $order_id, $neg);
-            $stmt_hist->execute();
-        }
+        // 1) Reverse the points EARNED on this order.
+        //    Syncing to zero earning drinks undoes both the points and the
+        //    progress, restoring the card to exactly where it stood before this
+        //    order — including any part-progress toward the next point, which a
+        //    points-only claw-back would silently take from the customer.
+        loyalty_sync($conn, $card_id, $order_id, 0, 'Points reversed — order cancelled');
 
         // 2) Refund points the customer SPENT redeeming rewards on this order
         //    (type='redeemed' rows are real reward redemptions; edit-sync uses adjusted_*)
