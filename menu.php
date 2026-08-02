@@ -1180,7 +1180,6 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         <span><kbd>B</kbd> Bakong</span>
         <span><kbd>C</kbd> Cash</span>
         <span><kbd>P</kbd> Pay Later</span>
-        <span><kbd>R</kbd> Riel</span>
         <?php endif; ?>
         <span><kbd>Enter</kbd> Confirm</span>
       </div>
@@ -1287,11 +1286,18 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
           <i class="cp-pm-ico fa-solid fa-clock"></i><span class="cp-pm-lbl">Later</span>
           <i class="cp-pm-check fa-solid fa-circle-check"></i>
         </div>
+        <?php /* Riel is no longer offered as its own method: the shop has one
+                 drawer, and riel is now taken inside the Cash tender below.
+                 Hidden rather than deleted — 4 historical orders still carry
+                 payment_method='riel' and their receipts read this method.
+                 To restore, change false back to true. */ ?>
+        <?php if (false): ?>
         <div class="cp-pay-method" data-method="riel" onclick="cpTogglePayment(this)">
           <input type="checkbox" value="riel">
           <i class="cp-pm-ico fa-solid fa-coins"></i><span class="cp-pm-lbl">Riel &#x17DB;</span>
           <i class="cp-pm-check fa-solid fa-circle-check"></i>
         </div>
+        <?php endif; ?>
       </div>
       <div class="cp-split-inputs" id="cpSplitInputs"><div id="cpSplitRows"></div></div>
 
@@ -1310,14 +1316,32 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 
       <div class="cp-change-calc" id="cpChangeCalc">
         <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> Amount Received</label>
-        <!-- oninput only fires for real typing, never for a programmatic .value set,
-             so this flag reliably marks "the cashier has entered their own amount". -->
-        <input type="number" id="cpCashReceived" step="0.01" min="0" placeholder="0.00"
-               oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)" onfocus="this.select()">
+
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;font-weight:700;color:var(--text-2,#aaa);width:16px;">$</span>
+          <!-- oninput only fires for real typing, never for a programmatic .value
+               set, so dataset.touched reliably marks "the cashier entered this". -->
+          <input type="number" id="cpCashReceived" step="0.01" min="0" placeholder="0.00"
+                 oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
+                 onfocus="this.select()">
+        </div>
         <div class="cp-tender-quick" id="cpTenderQuick"></div>
+
+        <div style="display:flex;align-items:center;gap:6px;margin-top:9px;">
+          <span style="font-size:12px;font-weight:700;color:var(--text-2,#aaa);width:16px;">&#x17DB;</span>
+          <input type="number" id="cpRielCash" step="100" min="0" placeholder="0"
+                 oninput="cpOnRielInput(); cpCalcChange()" onfocus="this.select()">
+          <span id="cpRielCashUsd" style="font-size:11px;color:#888;white-space:nowrap;">&asymp; $0.00</span>
+        </div>
+        <div class="cp-tender-quick" id="cpRielQuick"></div>
+
         <div class="cp-change-row">
           <span class="change-label">Change to give back</span>
           <span class="change-amount" id="cpChangeAmount">$0.00</span>
+        </div>
+        <div id="cpShortWarn" style="display:none;margin-top:6px;font-size:11px;color:#e0a955;">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          This is less than the total. The order will still be settled in full.
         </div>
       </div>
       <?php endif; ?>
@@ -1374,6 +1398,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
   </div>
 </div>
 
+<script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <script>
 const CP_KHR_RATE = <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
 
@@ -1982,6 +2007,7 @@ function cpUpdateConfirmBtn(selected) {
     if (selected.includes('cash') && cc) {
       cc.classList.add('visible');
       cpPrefillCashReceived();
+      cpRenderRielQuick();
       setTimeout(function() { var cr = document.getElementById('cpCashReceived'); if (cr) { cr.focus(); cr.select(); } }, 50);
     }
   } else if (selected.includes('riel')) {
@@ -2002,6 +2028,7 @@ function cpUpdateConfirmBtn(selected) {
     btn.classList.add('cash');
     if (cc) cc.classList.add('visible');
     cpPrefillCashReceived();
+    cpRenderRielQuick();
     setTimeout(function() { var cr = document.getElementById('cpCashReceived'); if (cr) { cr.focus(); cr.select(); } }, 50);
   } else if (selected.includes('bakong')) {
     if (icon) icon.className = 'fa-solid fa-qrcode';
@@ -2151,7 +2178,10 @@ function cpClosePayModal() {
   });
   var cr = document.getElementById('cpCashReceived');
   if (cr) { cr.value = ''; delete cr.dataset.touched; }   // next open prefills again
-  var ri = document.getElementById('cpRielReceived'); if (ri) ri.value = '';
+  var ri = document.getElementById('cpRielCash');
+  if (ri) ri.value = '';
+  var eq = document.getElementById('cpRielCashUsd');
+  if (eq) eq.textContent = '≈ $0.00';
   cpUpdateConfirmBtn([]);
   cpUpdateSplitInputs();
 }
@@ -2236,15 +2266,39 @@ function cpOnSplitChange(changedInp) {
 }
 
 // ── CHANGE CALCULATOR ──
+/* The received === 0 guard used to mean "nothing entered yet". With dollars and
+   riel in separate fields, ZERO DOLLARS IS THE NORMAL RIEL-ONLY CASE — a cashier
+   who types ៛5,500 on a $1.34 order would otherwise see the change line sit at
+   $0.00 and hand back nothing: wrong on screen, right in the database. The guard
+   keys on the combined total from tender.js instead.
+   The arithmetic and the wording both live in tender.js so this screen and the
+   counter screen cannot drift apart. */
+function cpCashReceivedUsd() {
+  return tenderCashReceivedUsd('cpCashReceived', 'cpRielCash', CP_KHR_RATE);
+}
+
 function cpCalcChange() {
-  var received = parseFloat(document.getElementById('cpCashReceived')?.value) || 0;
-  var total    = cpGetCartTotal();
-  var change   = received - total;
-  var el       = document.getElementById('cpChangeAmount');
+  var el = document.getElementById('cpChangeAmount');
   if (!el) return;
+  var received = cpCashReceivedUsd();
+  var owed     = cpOwedInCash();
+  var ch       = tenderChange(received, owed, CP_KHR_RATE);
+
+  var warn = document.getElementById('cpShortWarn');
+  if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
+
   if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
-  if (change < 0) { el.textContent = 'Need $' + Math.abs(change).toFixed(2) + ' more'; el.className = 'change-amount not-enough'; }
-  else            { el.textContent = '$' + change.toFixed(2); el.className = 'change-amount'; }
+  el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
+  el.textContent = tenderChangeText(ch, received, owed);
+}
+
+function cpOnRielInput() {
+  tenderOnRielInput('cpCashReceived', 'cpRielCash', 'cpRielCashUsd', CP_KHR_RATE);
+}
+
+function cpRenderRielQuick() {
+  tenderRenderRielQuick('cpRielQuick', 'cpRielCash', cpOwedInCash(), CP_KHR_RATE,
+    function () { cpOnRielInput(); cpCalcChange(); });
 }
 
 function cpCalcRielChange() {
@@ -2357,8 +2411,9 @@ document.addEventListener('DOMContentLoaded', function() {
           reference = Math.round(khrVal).toString();
         }
         if (method === 'cash') {
-          var received = parseFloat((document.getElementById('cpCashReceived') || {}).value) || 0;
-          if (received > 0) reference = received.toFixed(2);
+          var usd = Math.max(0, parseFloat((document.getElementById('cpCashReceived') || {}).value) || 0);
+          var khr = Math.max(0, parseFloat((document.getElementById('cpRielCash')     || {}).value) || 0);
+          reference = tenderRef(usd, Math.round(khr));
         }
         var h1 = document.createElement('input'); h1.type='hidden'; h1.name='payment_methods[]'; h1.value=method; container.appendChild(h1);
         var h2 = document.createElement('input'); h2.type='hidden'; h2.name='payment_amounts[]'; h2.value=usdAmount; container.appendChild(h2);
