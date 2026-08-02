@@ -6,6 +6,14 @@
  * Everything that writes runs inside a transaction rolled back in a finally,
  * because these tests touch real loyalty cards.
  */
+// The rate is pinned here rather than inherited from the live settings table.
+// A test asserting a mathematical property (carry-forward) must fix its own
+// inputs: at the live default of Y=1 there is no carry to observe, so a test
+// that read the real constants would exercise loyalty_sync() only at Y=1 and
+// never prove the thing this whole change exists for. config.php's constants
+// guard with if (!defined(...)), so defining them first here wins.
+define('LOYALTY_POINTS_PER', 1);
+define('LOYALTY_POINTS_DRINKS', 2);
 require __DIR__ . '/../config.php';
 
 $failures = 0;
@@ -60,6 +68,23 @@ try {
                   VALUES ('loyalty-test', 5.00, 'Paid', 0, 'cash', '2020-01-01', 1, $cardA)");
     $ord = (int)$conn->insert_id;
 
+    echo "loyalty_earning_qty\n";
+    // Four lines exercising all three filters at once: a real drink (counts), a
+    // merch line via earns_points=0 (never earns), a gift line via product_id=0
+    // (the only reliable gift test — see the docblock), and a zero-price line
+    // (also excluded, distinctly from the gift case). Only the drink's quantity
+    // should survive.
+    $conn->query("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, earns_points)
+                  VALUES ($ord, 101, 'Iced Latte',   3.00, 2, 1)");   // real drink: counts
+    $conn->query("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, earns_points)
+                  VALUES ($ord, 202, 'Tote Bag',     15.00, 1, 0)");  // merch: earns_points=0
+    $conn->query("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, earns_points)
+                  VALUES ($ord, 0,   '[GIFT] Latte', 3.00, 1, 1)");   // gift: product_id=0
+    $conn->query("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, earns_points)
+                  VALUES ($ord, 303, 'Free Sample',  0.00, 1, 1)");   // zero price
+    check('earning qty counts only the real drink line',
+          loyalty_earning_qty($conn, $ord), 2);
+
     $cardPoints = function (int $id) use ($conn): array {
         $r = $conn->query("SELECT points, points_progress, total_orders, total_drinks
                            FROM loyalty_cards WHERE card_id = $id")->fetch_assoc();
@@ -67,15 +92,12 @@ try {
                 'orders'=>(int)$r['total_orders'], 'drinks'=>(int)$r['total_drinks']];
     };
 
-    // Seed a card mid-way to its next point so the round-trip has something to
-    // restore. A test that starts from zero cannot tell "restored" from "reset".
-    // Clamped to a value that is actually reachable at the configured rate: at
-    // the mandatory 1:1 default (Y=1) progress can only ever be 0, since every
-    // single drink completes a point on its own — there is no "mid-way" state
-    // to seed, so seeding 1 there would be testing recovery of data the app
-    // itself could never have produced.
-    $seedProgress = min(1, LOYALTY_POINTS_DRINKS - 1);
-    $conn->query("UPDATE loyalty_cards SET points_progress = $seedProgress WHERE card_id = $cardA");
+    // Seed a card mid-way to its next point, AND with points already banked, so
+    // the round-trip has something to restore on both axes. A test that starts
+    // from zero cannot tell "restored" from "reset" — an implementation gutted
+    // to always write points=0, progress=0 would pass a from-zero test every
+    // time. Valid at the pinned Y=2 above: progress=1 is reachable (0..Y-1).
+    $conn->query("UPDATE loyalty_cards SET points_progress = 1, points = 5 WHERE card_id = $cardA");
     $before = $cardPoints($cardA);
 
     loyalty_sync($conn, $cardA, $ord, 3, 'test award');
