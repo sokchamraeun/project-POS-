@@ -473,7 +473,11 @@ if (!empty($payments)) {
         if ($tendered_usd > 0) {
             // Against the order total, not the payment row — see the note on the
             // split branch below: a single payment row can carry a stale amount.
-            $ch = tender_change($tendered_usd, $stored_total);
+            // Follow the currency: a riel-only tender's change is all riel. The
+            // flag comes from the same tender_is_riel_only() the checkout modal
+            // and the counter screen use — a receipt that disagreed with the
+            // screen about the change is a bug this feature has already had.
+            $ch = tender_change($tendered_usd, $stored_total, tender_is_riel_only($tender_p));
             // Both labels come from config.php so the receipt and the counter
             // screen cannot drift. They did: this site used to print the raw
             // received-minus-owed difference in the no-riel branch, which misses
@@ -553,7 +557,10 @@ if (!empty($payments)) {
                 // truth. A split's legs are per-method and genuinely correct.
                 $owed_for_change = count($payments) === 1 ? $stored_total : $pay_amount;
                 if ($tendered_usd > 0) {
-                    $ch = tender_change($tendered_usd, $owed_for_change);
+                    // Follow the currency, same rule and same helper as the solo
+                    // branch above. Note this is the leg's OWN tender: a split
+                    // whose cash leg was paid in riel gets riel back on that leg.
+                    $ch = tender_change($tendered_usd, $owed_for_change, tender_is_riel_only($tender_p));
                     // Shared with the counter screen — see the note on the
                     // single-payment branch above.
                     $received_label = tender_received_text($tender_p, $tendered_usd);

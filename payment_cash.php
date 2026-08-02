@@ -607,7 +607,11 @@ body {
                 // $1.34, order totals $19.78). A split's legs are per-method and
                 // genuinely correct.
                 $owed_for_change = count($payments) === 1 ? $total : (float)$pay['amount'];
-                $ch = tender_change($received, $owed_for_change);
+                // Follow the currency: a riel-only tender's change is all riel.
+                // The flag comes from the same tender_is_riel_only() the screens
+                // use, so this page cannot disagree with what the cashier was
+                // told to hand over.
+                $ch = tender_change($received, $owed_for_change, tender_is_riel_only($tender_p));
                 // Both labels come from config.php so this screen and the
                 // printed receipt cannot drift. They did: the no-riel branch
                 // used to print the raw received-minus-owed difference, which

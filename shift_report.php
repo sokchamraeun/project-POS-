@@ -74,10 +74,16 @@ if ($order_ids) {
 // dollar drawer, so leaving it in would accuse the cashier of a shortage equal
 // to every riel sale of the shift. Subtract what the riel side actually kept.
 // No max(0.0, ...) clamp here on purpose: a riel-heavy shift can legitimately
-// send this negative (e.g. one $1.34 sale tendered ៛20,000 — change pays out
-// $3 in notes, so the dollar drawer is down $3 even though the sale itself was
-// tiny). Clamping to $0.00 would hide that the drawer really is $3 light,
-// which is exactly the phantom-shortage bug this function exists to prevent.
+// send this negative (e.g. one $1.34 sale tendered $1.00 + ៛20,000 — change
+// pays out $4 in notes, so the dollar drawer is down $4 even though the sale
+// itself was tiny). Clamping to $0.00 would hide that the drawer really is $4
+// light, which is exactly the phantom-shortage bug this function exists to
+// prevent.
+// Under follow-the-currency a tender that was riel and NOTHING ELSE hands back
+// only riel, so no dollar note leaves the till and the sale nets to zero here
+// instead of dragging the figure down. Only tenders with a dollar side — mixed,
+// as above — can still push it negative, and when they do, the dollars really
+// did leave.
 // cash_counts.expected_cash is DECIMAL(10,2), not UNSIGNED, so it stores fine.
 $expected_cash = $pay_breakdown['cash'] ?? 0.0;
 $riel_share    = tender_riel_share($conn, $order_ids);

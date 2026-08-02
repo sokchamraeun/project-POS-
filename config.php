@@ -879,6 +879,28 @@ if (!function_exists('tender_usd_total')) {
 }
 
 /**
+ * Did the customer pay entirely in riel?
+ *
+ * The one definition of that question, because tender_change() now branches on
+ * it and EVERY call site — two live screens, two receipt sites, the counter
+ * settlement page and the drawer figure — has to answer it identically. The
+ * last time a rule like this was spelled out at more than one site the copies
+ * drifted and the same sale read $4.00 on screen and $3.99 on the receipt. One
+ * function, called from all of them.
+ *
+ * Zero dollars AND positive riel. A zero tender is not riel-only: nothing was
+ * handed over, so nothing was handed over in riel, and treating it as riel
+ * would put the change path in the wrong branch on an empty field. Null parts
+ * (a Bakong reference, an unparsable string) are not a tender at all.
+ */
+if (!function_exists('tender_is_riel_only')) {
+    function tender_is_riel_only(?array $parts): bool {
+        if ($parts === null) { return false; }
+        return (float)($parts['usd'] ?? 0) <= 0 && (int)($parts['khr'] ?? 0) > 0;
+    }
+}
+
+/**
  * What the cashier physically hands back.
  *
  * Split the way it actually happens in Cambodia: whole dollars as notes, the
@@ -891,15 +913,43 @@ if (!function_exists('tender_usd_total')) {
  * every screen. When the rounding fills a whole dollar it is promoted to a
  * dollar bill rather than handed over as 4,100 riel in small notes.
  *
+ * FOLLOW THE CURRENCY ($all_riel). A customer who paid entirely in riel gets
+ * change entirely in riel. Handing dollars back to someone who paid in riel
+ * converts currency on them at the shop's rate without being asked — the
+ * customer walks out holding a currency they did not choose, on a conversion
+ * they never agreed to, and if they want their riel back they pay the spread
+ * twice. A shop gives back what it was given. Every other tender (dollars-only,
+ * or dollars and riel mixed) keeps the dollars-first split above: dollars were
+ * in the exchange, so dollars may come back.
+ *
+ * NO CARRY on this path, deliberately. The carry above promotes a riel
+ * remainder that fills a whole dollar into a dollar note; letting it run here
+ * would hand a dollar back to a riel payer and reintroduce exactly what the
+ * rule forbids. The whole change is one riel figure rounded to ៛100 — the same
+ * smallest-note rounding, applied once instead of to a sub-dollar remainder.
+ *
+ * The flag is a parameter and not something this function derives, because the
+ * live screens hold two input fields and no reference string yet; they answer
+ * tender_is_riel_only() from the fields, the stored-reference callers answer it
+ * from tender_parts(). Defaulting to false keeps every unconverted caller on
+ * the old path.
+ *
  * Short tenders report short and hand back nothing. The order still settles in
  * full — a cashier who has already counted the change must not be blocked by a
  * field they skipped.
  */
 if (!function_exists('tender_change')) {
-    function tender_change(float $received_usd_total, float $owed): array {
+    function tender_change(float $received_usd_total, float $owed, bool $all_riel = false): array {
         $change = round($received_usd_total - $owed, 4);
         if ($change <= 0) {
             return ['usd' => 0, 'khr' => 0, 'short' => $change < 0];
+        }
+        if ($all_riel) {
+            return [
+                'usd'   => 0,
+                'khr'   => (int)(round(($change * KHR_RATE) / 100) * 100),
+                'short' => false,
+            ];
         }
         $dollars = (int)floor($change);
         $riel    = (int)(round((($change - $dollars) * KHR_RATE) / 100) * 100);
@@ -976,18 +1026,29 @@ if (!function_exists('tender_received_text')) {
  * arithmetic, not money. Before this feature the old payment_method='riel' rows
  * were excluded from the cash bucket outright and the figure was correct.
  *
- * NET of the riel handed back — and the change itself is NOT all riel, because
- * tender_change() hands back whole dollars first and only the sub-dollar
- * remainder in riel. A customer who gives ៛5,500 for a $1.34 bill and takes ៛0
- * back leaves ៛5,500 in the drawer, worth $1.34, exactly the bill. One who
- * gives ៛20,000 for the same bill gets $3 in notes plus ៛2,200 back, so ៛17,800
- * stays in the drawer — worth $4.34, MORE than the bill. That is not a bug: it
- * is correct, because three physical dollar notes left the drawer as change, so
- * the dollar side of the count is down by exactly $3 too. (That is why
- * shift_report.php's expected-cash figure is allowed to go negative — see the
- * comment there.) The change portion is measured with tender_change() against
- * the ORDER TOTAL, mirroring receipt_pdf.php — the payment row's own amount can
- * be stale on a pay-later tab that grew after it was opened.
+ * NET of the riel handed back, and WHICH currency comes back matters here, so
+ * this passes tender_is_riel_only() through to tender_change() exactly as the
+ * screens and the receipts do. Get that flag wrong and this figure silently
+ * disagrees with the change the cashier actually counted out.
+ *
+ * A riel-ONLY sale now nets to the order total, and that is the point. ៛20,000
+ * on a $1.34 bill hands back ៛14,500, so ៛5,500 stays — worth $1.34, the bill
+ * exactly. shift_report.php subtracts this from the cash bucket, which holds
+ * that same $1.34, so the sale contributes nothing to the expected DOLLAR
+ * drawer. Correct: no dollar note ever moved. Under the old dollars-first rule
+ * the same sale handed back $3 in notes, left ៛17,800 (worth $4.34) and pulled
+ * the expected figure $3 negative — true then, because three real dollars left
+ * the till, and no longer true now that they do not.
+ *
+ * A MIXED tender still pays dollars back and still can: $1.00 + ៛20,000 on that
+ * bill returns $4 + ៛2,200, leaves ៛17,800, and drives expected cash negative
+ * by the four notes that genuinely left the drawer. That is why
+ * shift_report.php must keep allowing a negative figure — see the comment
+ * there. Clamping it to $0.00 was the phantom-shortage bug.
+ *
+ * The change portion is measured with tender_change() against the ORDER TOTAL,
+ * mirroring receipt_pdf.php — the payment row's own amount can be stale on a
+ * pay-later tab that grew after it was opened.
  *
  * Conversion uses the current KHR_RATE, the same rate the checkout screen used
  * to accept the tender, so the count and the sale agree on the same shift.
@@ -1024,10 +1085,13 @@ if (!function_exists('tender_riel_share')) {
         while ($r = $res->fetch_assoc()) {
             $parts = tender_parts($r['reference']);
             if ($parts === null || $parts['khr'] <= 0) { continue; }
-            $ch = tender_change(tender_usd_total($r['reference']), (float)$r['total']);
+            $ch = tender_change(tender_usd_total($r['reference']), (float)$r['total'],
+                                tender_is_riel_only($parts));
             // Only riel is handed back as riel; the dollar part of the change
             // comes out of the dollar drawer and is already accounted for by
-            // the cash total this figure is subtracted from.
+            // the cash total this figure is subtracted from. On a riel-only
+            // tender there IS no dollar part, so the whole change nets off here
+            // and the row leaves the dollar drawer alone.
             $khr_net += max(0, (int)$parts['khr'] - (int)$ch['khr']);
         }
         return round($khr_net / KHR_RATE, 2);

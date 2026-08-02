@@ -49,6 +49,20 @@ check('riel only',      round(tender_usd_total('0.00|4100'), 2), 1.00);
 check('both',           round(tender_usd_total('1.00|4100'), 2), 2.00);
 check('not a tender is zero', tender_usd_total('KHQR9F2A1B'),    0.0);
 
+echo "tender_is_riel_only\n";
+// The single definition of "the customer paid entirely in riel". Every caller
+// asks this question through this function; the last time an expression like it
+// was inlined at more than one site the two drifted and the screen and the
+// receipt disagreed by a cent.
+check('riel only',                      tender_is_riel_only(tender_parts('0.00|20000')), true);
+check('dollars only is not',            tender_is_riel_only(tender_parts('5.00')),       false);
+check('mixed is not',                   tender_is_riel_only(tender_parts('1.00|8000')),  false);
+// A reference that is not a tender at all (Bakong) parses to null.
+check('null is not riel-only',          tender_is_riel_only(null),                       false);
+// Nothing was handed over, so nothing was handed over in riel. Guards the
+// change path from treating an empty tender as a riel tender.
+check('a zero tender is not riel-only', tender_is_riel_only(tender_parts('0')),          false);
+
 echo "tender_change\n";
 // $5.00 handed over on a $1.34 bill: $3.66 back. No US coins circulate, so the
 // remainder is riel.
@@ -70,6 +84,57 @@ $c = tender_change(1.00, 1.34);
 check('a short tender is flagged', $c['short'], true);
 check('a short tender hands back no dollars', $c['usd'], 0);
 check('a short tender hands back no riel',    $c['khr'], 0);
+
+echo "tender_change follow-the-currency\n";
+// A shop gives back what it was given. Handing dollars to someone who paid in
+// riel converts currency on them without being asked, at the shop's rate, on a
+// transaction they did not agree to. Pay in riel, get riel back.
+$riel_ref = '0.00|20000';
+$c = tender_change(tender_usd_total($riel_ref), 1.34,
+                   tender_is_riel_only(tender_parts($riel_ref)));
+check('a riel-only tender hands back NO dollars',      $c['usd'], 0);
+check('a riel-only tender hands back all of it in riel', $c['khr'], 14500);
+check('a covered riel-only tender is not short',       $c['short'], false);
+check('and the label reads as riel only',              tender_change_text($c), 'KHR 14,500');
+
+// Everything that is not riel-only keeps today's behaviour exactly. These two
+// are the same sums as the block above, now routed through the flag the call
+// sites actually pass, so a wrong flag would show up here.
+$usd_ref = '5.00';
+$c = tender_change(tender_usd_total($usd_ref), 1.34,
+                   tender_is_riel_only(tender_parts($usd_ref)));
+check('a dollars-only tender still splits dollars first', $c['usd'], 3);
+check('a dollars-only tender still gives riel remainder',  $c['khr'], 2700);
+
+$mix_ref = '1.00|8000';
+$c = tender_change(tender_usd_total($mix_ref), 1.34,
+                   tender_is_riel_only(tender_parts($mix_ref)));
+check('a mixed tender still splits dollars first', $c['usd'], 1);
+check('a mixed tender still gives riel remainder',  $c['khr'], 2500);
+
+// Short is short in either currency: the order settles in full and nothing is
+// handed back, so the flag must not conjure riel out of a negative difference.
+$short_ref = '0.00|4000';
+$c = tender_change(tender_usd_total($short_ref), 1.34,
+                   tender_is_riel_only(tender_parts($short_ref)));
+check('a short riel-only tender is still flagged short', $c['short'], true);
+check('a short riel-only tender hands back no dollars',  $c['usd'], 0);
+check('a short riel-only tender hands back no riel',     $c['khr'], 0);
+
+// THE PARITY GUARD. The dollars-first path carries a riel remainder that fills
+// a whole dollar up into a dollar note. That carry must never fire on the
+// riel-only path or it would hand a dollar back to someone who paid in riel —
+// the exact thing this rule exists to stop. Swept across bills and notes so a
+// future edit cannot reintroduce it for one unlucky amount.
+$carried = [];
+foreach ([0.75, 1.34, 2.50, 3.00, 4.10, 7.25, 12.80] as $owed) {
+    foreach ([5000, 10000, 20000, 50000, 100000] as $khr) {
+        $ref = tender_ref(0, $khr);
+        $g = tender_change(tender_usd_total($ref), $owed, tender_is_riel_only(tender_parts($ref)));
+        if ($g['usd'] !== 0) { $carried[] = "$ref on $owed gave \${$g['usd']}"; }
+    }
+}
+check('no riel-only tender anywhere hands back a single dollar', $carried, []);
 
 echo "tender_change_text\n";
 // THE REGRESSION LOCK. The receipt used to build this label by hand and, when
@@ -129,26 +194,35 @@ try {
     check('a riel-only cash sale is entirely riel',
           tender_riel_share($conn, [$rielOnly]), 1.34);
 
-    // Net of change: ៛20,000 in, $3 + ៛2,200 back, so ៛17,800 stayed.
+    // Net of change under follow-the-currency: ៛20,000 in, ៛14,500 back, so
+    // ៛5,500 stayed — worth exactly the $1.34 bill.
     $bigRiel = $mk(1.34, 'cash', tender_ref(0, 20000));
     check('riel handed back as change is netted off',
-          tender_riel_share($conn, [$bigRiel]), round(17800 / KHR_RATE, 2));
+          tender_riel_share($conn, [$bigRiel]), round(5500 / KHR_RATE, 2));
 
-    // R2 lock: this same $1.34 order's riel share (~$4.34) is bigger than the
-    // order total itself. That is correct, not a bug — the $20,000 tender's
-    // change paid out $3 in whole dollar notes before the sub-dollar riel
-    // remainder, so three real dollar notes left the drawer on top of the riel
-    // that never entered it. shift_report.php subtracts this from a shift's
-    // cash total, so a riel-heavy shift like this one can legitimately drive
-    // expected_cash negative — clamping it to $0.00 (the old behaviour) would
-    // hide that the dollar drawer is really $3 lighter than it started.
+    // THE DRAWER CONSEQUENCE. Under the old dollars-first rule this same sale's
+    // riel share was ~$4.34 against a $1.34 bill, because $3 in real dollar
+    // notes left the drawer as change on top of the riel that never entered it.
+    // Follow-the-currency hands back only riel, so NO dollar note moves: the
+    // share now nets to the order total, and shift_report.php's
+    // (cash total − riel share) leaves the expected dollar figure untouched by
+    // riel-only sales. That is the whole point — a riel sale should be
+    // invisible to a drawer counted in dollars.
     $bigRielShare = tender_riel_share($conn, [$bigRiel]);
-    // Expressed via KHR_RATE, not hardcoded, so this stays correct if the
-    // configured exchange rate ever changes; at today's rate (4100) it is $4.34.
-    check('a big riel tender exceeds the order total, about $4.34 vs $1.34',
-          round($bigRielShare, 2), round(17800 / KHR_RATE, 2));
-    check('and is therefore greater than the order total (drives expected-cash negative)',
-          $bigRielShare > 1.34, true);
+    check('a riel-only sale nets to the order total, so expected dollar cash is unchanged',
+          round(1.34 - $bigRielShare, 2), 0.0);
+
+    // ...but the negative-capable behaviour still has to exist, because a MIXED
+    // tender still pays dollars back. ៛20,000 with $1.00 on a $1.34 bill is not
+    // riel-only, so change is $4 + ៛2,200 and ៛17,800 stays: a $4.34 share
+    // against a $1.34 sale, four dollar notes genuinely gone from the drawer.
+    // shift_report.php must keep letting expected_cash go negative — clamping it
+    // to $0.00 was the phantom-shortage bug, and it is still reachable here.
+    $mixedBig = $mk(1.34, 'cash', tender_ref(1.00, 20000));
+    $mixedShare = tender_riel_share($conn, [$mixedBig]);
+    check('a mixed big-riel tender still exceeds the order total',
+          round($mixedShare, 2), round(17800 / KHR_RATE, 2));
+    check('and still drives expected-cash negative', $mixedShare > 1.34, true);
 
     // A dollars-only tender put dollars in the dollar drawer. Nothing to subtract.
     $dollars = $mk(1.34, 'cash', tender_ref(5.00, 0));
@@ -169,8 +243,8 @@ try {
 
     // And the shift-level sum, which is how shift_report.php calls it.
     check('a whole shift sums its riel rows only',
-          tender_riel_share($conn, [$rielOnly, $bigRiel, $dollars, $legacy, $bakong]),
-          round((5500 + 17800) / KHR_RATE, 2));
+          tender_riel_share($conn, [$rielOnly, $bigRiel, $mixedBig, $dollars, $legacy, $bakong]),
+          round((5500 + 5500 + 17800) / KHR_RATE, 2));
 
     // An id that does not exist must not throw or count.
     check('an unknown order contributes nothing', tender_riel_share($conn, [-1]), 0.0);

@@ -12,7 +12,7 @@
  * rate at render (menu.php emits const CP_KHR_RATE) and passes it in.
  *
  * Keep in step with config.php's tender_ref / tender_parts / tender_usd_total /
- * tender_change. Same names, same rules, same rounding.
+ * tender_is_riel_only / tender_change. Same names, same rules, same rounding.
  */
 
 function tenderRef(usd, khr) {
@@ -39,9 +39,34 @@ function tenderUsdTotal(ref, rate) {
   return p.usd + (p.khr / rate);
 }
 
-function tenderChange(receivedUsdTotal, owed, rate) {
+/* Did the customer pay entirely in riel? The twin of config.php's
+   tender_is_riel_only(). One definition, because tenderChange() branches on it
+   and the screen and the receipt must answer it the same way — the last time a
+   rule like this was spelled out twice they drifted and one sale read $4.00 on
+   screen and $3.99 on paper.
+
+   Zero dollars AND positive riel. A zero tender is not riel-only: nothing was
+   handed over, so nothing was handed over in riel. */
+function tenderIsRielOnly(parts) {
+  if (!parts) { return false; }
+  return (Number(parts.usd) || 0) <= 0 && (Number(parts.khr) || 0) > 0;
+}
+
+/* FOLLOW THE CURRENCY (allRiel). A customer who paid entirely in riel gets
+   change entirely in riel. Handing back dollars converts currency on them at
+   the shop's rate without being asked; a shop gives back what it was given.
+   Every other tender — dollars only, or dollars and riel mixed — keeps the
+   dollars-first split, because dollars were in the exchange.
+
+   NO CARRY on the riel-only path, deliberately: the carry below promotes a
+   full-dollar riel remainder to a dollar note, which is precisely the thing
+   this rule forbids. Keep in step with config.php tender_change(). */
+function tenderChange(receivedUsdTotal, owed, rate, allRiel) {
   var change = Math.round((receivedUsdTotal - owed) * 10000) / 10000;
   if (change <= 0) { return { usd: 0, khr: 0, short: change < 0 }; }
+  if (allRiel) {
+    return { usd: 0, khr: Math.round((change * rate) / 100) * 100, short: false };
+  }
   var dollars = Math.floor(change);
   var riel    = Math.round(((change - dollars) * rate) / 100) * 100;
   if (riel >= rate) { dollars += 1; riel = 0; }
@@ -71,6 +96,18 @@ function tenderCashReceivedUsd(usdId, khrId, rate) {
   var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
   var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
   return Math.max(0, usd) + Math.max(0, khr) / rate;
+}
+
+/* The follow-the-currency flag for a LIVE screen, which holds two input fields
+   and no stored reference yet. Shaped into the same {usd, khr} that
+   tenderParts() produces and answered by the same tenderIsRielOnly(), so the
+   checkout modal, the counter screen and the receipt all decide "riel-only" by
+   one rule. Re-deriving the test inline at each screen is how the $4.00/$3.99
+   mismatch happened once already. */
+function tenderFieldsRielOnly(usdId, khrId) {
+  var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
+  var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
+  return tenderIsRielOnly({ usd: Math.max(0, usd), khr: Math.max(0, khr) });
 }
 
 /* The prefill trap. The dollar field is pre-seeded with the exact total so

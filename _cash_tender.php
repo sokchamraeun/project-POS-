@@ -259,7 +259,11 @@ function cpCalcChange() {
   if (!el) return;
   var received = cpCashReceivedUsd();
   var owed     = cpOwedInCash();
-  var ch       = tenderChange(received, owed, CP_KHR_RATE);
+  // Follow the currency: a tender that is riel and nothing else comes back
+  // entirely in riel. Same derivation as the checkout modal, from tender.js,
+  // so the two screens and the receipt agree on which tenders are riel-only.
+  var ch       = tenderChange(received, owed, CP_KHR_RATE,
+                              tenderFieldsRielOnly('cpCashReceived', 'cpRielCash'));
 
   var warn = document.getElementById('cpShortWarn');
   // Non-blocking on purpose: a cashier who has already counted the change must

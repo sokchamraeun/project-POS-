@@ -2282,7 +2282,12 @@ function cpCalcChange() {
   if (!el) return;
   var received = cpCashReceivedUsd();
   var owed     = cpOwedInCash();
-  var ch       = tenderChange(received, owed, CP_KHR_RATE);
+  // Follow the currency: a tender that is riel and nothing else comes back
+  // entirely in riel. Derived from the two fields through tender.js so this
+  // modal, the counter screen and the printed receipt cannot disagree about
+  // which tenders are riel-only.
+  var ch       = tenderChange(received, owed, CP_KHR_RATE,
+                              tenderFieldsRielOnly('cpCashReceived', 'cpRielCash'));
 
   var warn = document.getElementById('cpShortWarn');
   if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
