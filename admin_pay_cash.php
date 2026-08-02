@@ -165,20 +165,12 @@ try {
     // already awarded them via confirm_order.php), mirroring check_payment.php.
     $lc_id = (int)($order['loyalty_card_id'] ?? 0);
     if ($lc_id > 0 && ($order['payment_method'] ?? '') === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
-        $pts_stmt = $conn->prepare("SELECT SUM(quantity) AS total_qty FROM order_items WHERE order_id = ?");
-        $pts_stmt->bind_param("i", $order_id);
-        $pts_stmt->execute();
-        $pts = (int)($pts_stmt->get_result()->fetch_assoc()['total_qty'] ?? 0);
-        if ($pts > 0) {
-            $su = $conn->prepare("UPDATE loyalty_cards SET points = points + ?, last_used = NOW() WHERE card_id = ?");
-            if ($su) { $su->bind_param("ii", $pts, $lc_id); $su->execute(); }
-            $sc = $conn->prepare("UPDATE loyalty_cards SET total_orders = total_orders + 1, total_drinks = total_drinks + ? WHERE card_id = ?");
-            if ($sc) { $sc->bind_param("ii", $pts, $lc_id); $sc->execute(); }
-            $si = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'earned', 'Points earned from Pay Later order')");
-            if (!$si) $si = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_add', 'Points earned from Pay Later order')");
-            if ($si) { $si->bind_param("iii", $lc_id, $order_id, $pts); $si->execute(); }
-            $sl = $conn->prepare("UPDATE orders SET points_earned = ? WHERE order_id = ?");
-            if ($sl) { $sl->bind_param("ii", $pts, $order_id); $sl->execute(); }
+        // Was SUM(quantity) with no filter, which awarded points for merch and
+        // for the free gift drink itself — while the same basket paid up front
+        // awarded neither. loyalty_earning_qty() is the one definition.
+        $qty = loyalty_earning_qty($conn, $order_id);
+        if ($qty > 0) {
+            loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
         }
     }
 
