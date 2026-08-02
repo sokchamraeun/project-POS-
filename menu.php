@@ -1058,9 +1058,17 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
             <i class="fa-solid fa-xmark"></i> Remove Discount
           </button>
           <?php else: ?>
+          <?php /* Discounting needs more shape than one blanket control before it goes in
+                   front of customers. Hidden rather than removed: the POST handler, the
+                   manual_discount column and every reader stay untouched, so orders that
+                   already carry a discount still render theirs. To restore, change false
+                   back to true here AND flip CP_SHOW_DISCOUNT below. Same pattern as the
+                   Riel tile and products.php:1508. */ ?>
+          <?php if (false): ?>
           <button type="button" class="cp-discount-toggle" id="cpAddDiscBtn" onclick="cpOpenDiscount()">
             <i class="fa-solid fa-tag"></i> Add Discount
           </button>
+          <?php endif; ?>
           <?php endif; ?>
           <div id="cpDiscountForm" style="display:none">
             <div class="cp-dtype-row">
@@ -1401,6 +1409,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 <script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <script>
 const CP_KHR_RATE = <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
+const CP_SHOW_DISCOUNT = false;   // see the PHP note at the Add Discount button
 
 // ── Theme ──
 (function() {
@@ -1689,7 +1698,7 @@ function renderCartPanel(data) {
   itemsHtml += '<div id="cpDiscountPanel">';
   if (manualV > 0) {
     itemsHtml += '<button type="button" class="cp-discount-toggle remove" onclick="cpClearDiscount()"><i class="fa-solid fa-xmark"></i> Remove Discount</button>';
-  } else {
+  } else if (CP_SHOW_DISCOUNT) {
     itemsHtml += '<button type="button" class="cp-discount-toggle" id="cpAddDiscBtn" onclick="cpOpenDiscount()"><i class="fa-solid fa-tag"></i> Add Discount</button>';
   }
   itemsHtml += '<div id="cpDiscountForm" style="display:none">' +
