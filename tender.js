@@ -1,0 +1,121 @@
+/* Two-currency cash tender — the browser twin of the PHP helpers in config.php.
+ *
+ * NOTHING BINDS ON LOAD. This file defines functions and does nothing else. The
+ * DOM helpers below attach listeners only when a host page CALLS them, after
+ * that page's markup exists. find_order.php injects _cash_tender.php with
+ * innerHTML and re-executes its <script> tags by hand, so anything that bound
+ * at load time would bind against markup that is not there yet and silently do
+ * nothing. Each page owns the calls; this file owns the logic.
+ *
+ * The exchange rate is a PARAMETER, not a constant. This file is static and is
+ * never parsed by PHP, so it cannot read KHR_RATE. Each host page inlines the
+ * rate at render (menu.php emits const CP_KHR_RATE) and passes it in.
+ *
+ * Keep in step with config.php's tender_ref / tender_parts / tender_usd_total /
+ * tender_change. Same names, same rules, same rounding.
+ */
+
+function tenderRef(usd, khr) {
+  usd = Math.max(0, Number(usd) || 0);
+  khr = Math.max(0, Math.round(Number(khr) || 0));
+  if (usd <= 0 && khr <= 0) { return ''; }
+  if (khr <= 0) { return usd.toFixed(2); }
+  return usd.toFixed(2) + '|' + khr;
+}
+
+function tenderParts(ref) {
+  ref = String(ref == null ? '' : ref).trim();
+  if (ref === '') { return null; }
+  var one = /^(\d+(?:\.\d+)?)$/.exec(ref);
+  if (one) { return { usd: parseFloat(one[1]), khr: 0 }; }
+  var two = /^(\d+(?:\.\d+)?)\|(\d+)$/.exec(ref);
+  if (two) { return { usd: parseFloat(two[1]), khr: parseInt(two[2], 10) }; }
+  return null;
+}
+
+function tenderUsdTotal(ref, rate) {
+  var p = tenderParts(ref);
+  if (p === null) { return 0; }
+  return p.usd + (p.khr / rate);
+}
+
+function tenderChange(receivedUsdTotal, owed, rate) {
+  var change = Math.round((receivedUsdTotal - owed) * 10000) / 10000;
+  if (change <= 0) { return { usd: 0, khr: 0, short: change < 0 }; }
+  var dollars = Math.floor(change);
+  var riel    = Math.round(((change - dollars) * rate) / 100) * 100;
+  if (riel >= rate) { dollars += 1; riel = 0; }
+  return { usd: dollars, khr: riel, short: false };
+}
+
+/* What the change line reads. Shared so the checkout modal and the counter
+   screen cannot drift apart — they must agree to the cent. */
+function tenderChangeText(ch, received, owed) {
+  if (ch.short) { return 'Need $' + (owed - received).toFixed(2) + ' more'; }
+  if (ch.khr > 0) {
+    return ch.usd > 0
+      ? '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString()
+      : '៛' + ch.khr.toLocaleString();
+  }
+  return '$' + ch.usd.toFixed(2);
+}
+
+/* ── DOM helpers ──────────────────────────────────────────────────────────
+   Shared so menu.php and _cash_tender.php do not each carry a copy. Called by
+   the host page after its markup exists; never bound on load. */
+
+/* The combined tender in dollars. Keyed on BOTH fields: with dollars and riel
+   separate, zero dollars is the normal riel-only case, and a dollars-only test
+   would leave the change line at $0.00 while the cashier holds 5,500 riel. */
+function tenderCashReceivedUsd(usdId, khrId, rate) {
+  var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
+  var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
+  return Math.max(0, usd) + Math.max(0, khr) / rate;
+}
+
+/* The prefill trap. The dollar field is pre-seeded with the exact total so
+   one-tap exact cash stays one tap. With a second field that seed is dangerous:
+   a prefilled $1.34 plus a typed ៛5,500 reads as $2.68 received on a $1.34
+   order, and the screen would confidently show change that was never owed.
+   The first real keystroke in the riel field clears an UNTOUCHED dollar
+   prefill. A dollar amount the cashier typed themselves carries
+   dataset.touched and is never cleared. */
+function tenderOnRielInput(usdId, khrId, eqId, rate) {
+  var ri  = document.getElementById(khrId);
+  var cr  = document.getElementById(usdId);
+  var khr = Math.max(0, parseFloat(ri ? ri.value : 0) || 0);
+  if (cr && cr.dataset.touched !== '1' && khr > 0) { cr.value = ''; }
+  var eq = document.getElementById(eqId);
+  if (eq) { eq.textContent = '≈ $' + (khr / rate).toFixed(2); }
+}
+
+/* Riel notes that could plausibly cover the bill, capped at four — the same
+   rule the dollar buttons already use. onPick runs after the value is set so
+   the host can recalculate its own change line. */
+function tenderRenderRielQuick(wrapId, khrId, owed, rate, onPick) {
+  var wrap = document.getElementById(wrapId);
+  if (!wrap) { return; }
+  wrap.innerHTML = '';
+  if (owed <= 0) { return; }
+  var owedKhr = Math.round(owed * rate / 100) * 100;
+
+  var mk = function (label, val) {
+    var b = document.createElement('button');
+    b.type = 'button';          // a bare <button> in a form submits it
+    b.className = 'cp-tender-btn';
+    b.textContent = label;
+    b.addEventListener('click', function () {
+      var ri = document.getElementById(khrId);
+      if (!ri) { return; }
+      ri.value = val;
+      if (typeof onPick === 'function') { onPick(); }
+    });
+    return b;
+  };
+
+  wrap.appendChild(mk('Exact ៛', owedKhr));
+  [5000, 10000, 20000, 50000, 100000]
+    .filter(function (n) { return n > owedKhr; })
+    .slice(0, 4)
+    .forEach(function (n) { wrap.appendChild(mk('៛' + n.toLocaleString(), n)); });
+}
