@@ -446,7 +446,19 @@ try {
         // split leg could be recorded under a method the order itself never names.
         $method    = order_payment_method_or($payment_methods[$i] ?? null, 'cash');
         $amount    = (float)$payment_amounts[$i];
-        $reference = $payment_references[$i] ?? '';
+        $reference = (string)($payment_references[$i] ?? '');
+        // A cash tender is re-emitted through tender_ref() so the stored string
+        // is always canonical, whatever the POST contained. Same guard pattern
+        // as f5aea86, which stopped orders.payment_method being written verbatim
+        // from a POST and leaving 195 rows reading '0'.
+        //
+        // Only the cash leg: a Bakong reference is a transaction id and must
+        // pass through untouched, and tender_parts() would return null for it
+        // anyway.
+        if ($method === 'cash') {
+            $parts     = tender_parts($reference);
+            $reference = $parts === null ? '' : tender_ref($parts['usd'], $parts['khr']);
+        }
         $pay_status = in_array($method, ['bakong', 'paylater']) ? 'pending' : 'paid';
 
         if ($amount > 0) {
