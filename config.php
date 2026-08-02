@@ -815,6 +815,93 @@ if (!function_exists('order_payment_method_or')) {
 }
 
 /**
+ * A cash tender, recorded in two currencies.
+ *
+ * order_payments.reference has always held one bare number for a cash tender —
+ * the dollars handed over — and receipts read it back to print Received and
+ * Change. Taking riel as well needs two numbers in one column.
+ *
+ * The bare number is kept for a dollars-only tender so the 191 existing rows,
+ * and every future dollars-only sale, write and read byte-identically. The
+ * two-part form appears only when riel is actually involved.
+ *
+ * Riel is not a separate payment method here. The shop has one drawer; splitting
+ * it across two tender types made the counter and the checkout disagree.
+ */
+if (!function_exists('tender_ref')) {
+    function tender_ref(float $usd, int $khr): string {
+        $usd = max(0, $usd);
+        $khr = max(0, $khr);
+        if ($usd <= 0 && $khr <= 0) { return ''; }
+        if ($khr <= 0) { return number_format($usd, 2, '.', ''); }
+        return number_format($usd, 2, '.', '') . '|' . $khr;
+    }
+}
+
+/**
+ * Read a stored tender back, or null if the value is not one.
+ *
+ * Exactly two shapes are recognised. Everything else — a Bakong transaction id,
+ * an empty reference, a malformed string — returns null, so no reader can
+ * mistake a non-tender for money. This replaces is_numeric(), which would have
+ * accepted a bare '22000' written by anything at all.
+ */
+if (!function_exists('tender_parts')) {
+    function tender_parts(?string $ref): ?array {
+        $ref = trim((string)$ref);
+        if ($ref === '') { return null; }
+        if (preg_match('/^(\d+(?:\.\d+)?)$/', $ref, $m)) {
+            return ['usd' => (float)$m[1], 'khr' => 0];
+        }
+        if (preg_match('/^(\d+(?:\.\d+)?)\|(\d+)$/', $ref, $m)) {
+            return ['usd' => (float)$m[1], 'khr' => (int)$m[2]];
+        }
+        return null;
+    }
+}
+
+/**
+ * What a stored tender is worth in dollars. Zero for anything that is not one.
+ */
+if (!function_exists('tender_usd_total')) {
+    function tender_usd_total(?string $ref): float {
+        $p = tender_parts($ref);
+        if ($p === null) { return 0.0; }
+        return $p['usd'] + ($p['khr'] / KHR_RATE);
+    }
+}
+
+/**
+ * What the cashier physically hands back.
+ *
+ * Split the way it actually happens in Cambodia: whole dollars as notes, the
+ * remainder under a dollar in riel, because no US coins circulate. Showing
+ * "$3.66 or ៛15,000" and letting the cashier decide would leave the mental
+ * arithmetic this screen exists to remove.
+ *
+ * The riel rounds to ៛100, the smallest note in practice, so a handover can be
+ * a few cents either side of exact. That is already true of the ៛ total shown on
+ * every screen. When the rounding fills a whole dollar it is promoted to a
+ * dollar bill rather than handed over as 4,100 riel in small notes.
+ *
+ * Short tenders report short and hand back nothing. The order still settles in
+ * full — a cashier who has already counted the change must not be blocked by a
+ * field they skipped.
+ */
+if (!function_exists('tender_change')) {
+    function tender_change(float $received_usd_total, float $owed): array {
+        $change = round($received_usd_total - $owed, 4);
+        if ($change <= 0) {
+            return ['usd' => 0, 'khr' => 0, 'short' => $change < 0];
+        }
+        $dollars = (int)floor($change);
+        $riel    = (int)(round((($change - $dollars) * KHR_RATE) / 100) * 100);
+        if ($riel >= KHR_RATE) { $dollars += 1; $riel = 0; }
+        return ['usd' => $dollars, 'khr' => $riel, 'short' => false];
+    }
+}
+
+/**
  * Where a cashier returns to after settling an order at the counter.
  *
  * The destination arrives as a query parameter and ends up in a Location:
