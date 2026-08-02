@@ -134,6 +134,22 @@ try {
     check('riel handed back as change is netted off',
           tender_riel_share($conn, [$bigRiel]), round(17800 / KHR_RATE, 2));
 
+    // R2 lock: this same $1.34 order's riel share (~$4.34) is bigger than the
+    // order total itself. That is correct, not a bug — the $20,000 tender's
+    // change paid out $3 in whole dollar notes before the sub-dollar riel
+    // remainder, so three real dollar notes left the drawer on top of the riel
+    // that never entered it. shift_report.php subtracts this from a shift's
+    // cash total, so a riel-heavy shift like this one can legitimately drive
+    // expected_cash negative — clamping it to $0.00 (the old behaviour) would
+    // hide that the dollar drawer is really $3 lighter than it started.
+    $bigRielShare = tender_riel_share($conn, [$bigRiel]);
+    // Expressed via KHR_RATE, not hardcoded, so this stays correct if the
+    // configured exchange rate ever changes; at today's rate (4100) it is $4.34.
+    check('a big riel tender exceeds the order total, about $4.34 vs $1.34',
+          round($bigRielShare, 2), round(17800 / KHR_RATE, 2));
+    check('and is therefore greater than the order total (drives expected-cash negative)',
+          $bigRielShare > 1.34, true);
+
     // A dollars-only tender put dollars in the dollar drawer. Nothing to subtract.
     $dollars = $mk(1.34, 'cash', tender_ref(5.00, 0));
     check('a dollars-only cash sale contributes nothing',

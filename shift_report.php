@@ -73,9 +73,15 @@ if ($order_ids) {
 // on a cash sale is booked to the cash bucket for revenue but never entered the
 // dollar drawer, so leaving it in would accuse the cashier of a shortage equal
 // to every riel sale of the shift. Subtract what the riel side actually kept.
+// No max(0.0, ...) clamp here on purpose: a riel-heavy shift can legitimately
+// send this negative (e.g. one $1.34 sale tendered ៛20,000 — change pays out
+// $3 in notes, so the dollar drawer is down $3 even though the sale itself was
+// tiny). Clamping to $0.00 would hide that the drawer really is $3 light,
+// which is exactly the phantom-shortage bug this function exists to prevent.
+// cash_counts.expected_cash is DECIMAL(10,2), not UNSIGNED, so it stores fine.
 $expected_cash = $pay_breakdown['cash'] ?? 0.0;
 $riel_share    = tender_riel_share($conn, $order_ids);
-$expected_cash = max(0.0, round($expected_cash - $riel_share, 2));
+$expected_cash = round($expected_cash - $riel_share, 2);
 
 // ── Drinks sold by type this shift ──
 $drinks = [];
@@ -471,13 +477,25 @@ $show_cash_step = $has_countdown; // only cashier/staff run the till; barista (d
     <div class="section-title"><i class="fa-solid fa-cash-register"></i> Count Your Drawer</div>
     <div class="cash-row">
         <span class="cash-label">Expected cash (from system)</span>
-        <span class="cash-val">$<?= number_format($expected_cash, 2) ?></span>
+        <!-- $expected_cash can be negative on a riel-heavy shift (see the
+             comment above where it's computed) — render the sign in front of
+             the $ (-$3.00), not "$-3.00", to keep it readable in a slot the
+             rest of the page treats as a plain amount. -->
+        <span class="cash-val"><?= $expected_cash < 0 ? '&minus;$' . number_format(abs($expected_cash), 2) : '$' . number_format($expected_cash, 2) ?></span>
     </div>
     <?php if ($riel_share > 0): ?>
     <!-- Shown only when riel was taken, so the deduction is explainable rather
          than a figure that mysteriously disagrees with the payment breakdown. -->
     <div class="cash-note">
         Excludes $<?= number_format($riel_share, 2) ?> taken in riel &mdash; that money is in the riel drawer, not the dollar drawer.
+    </div>
+    <?php endif; ?>
+    <?php if ($expected_cash < 0): ?>
+    <!-- The figure above went negative: dollar notes physically left the
+         drawer as change on a riel sale, so the dollar drawer is expected to
+         come up short even though every sale this shift was legitimate. -->
+    <div class="cash-note">
+        Negative because dollar notes were paid out as change on riel sales &mdash; the dollar drawer is expected to be $<?= number_format(abs($expected_cash), 2) ?> lighter than it started, not because anything is missing.
     </div>
     <?php endif; ?>
     <div class="cash-input-wrap">

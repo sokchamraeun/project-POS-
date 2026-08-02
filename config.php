@@ -976,12 +976,18 @@ if (!function_exists('tender_received_text')) {
  * arithmetic, not money. Before this feature the old payment_method='riel' rows
  * were excluded from the cash bucket outright and the figure was correct.
  *
- * NET of the riel handed back: a customer who gives ៛5,500 for a $1.34 bill and
- * takes ៛0 back leaves ៛5,500 in the drawer, but one who gives ៛20,000 for the
- * same bill and takes ៛14,600 back leaves only ៛5,400. The change portion is
- * measured with tender_change() against the ORDER TOTAL, mirroring
- * receipt_pdf.php — the payment row's own amount can be stale on a pay-later tab
- * that grew after it was opened.
+ * NET of the riel handed back — and the change itself is NOT all riel, because
+ * tender_change() hands back whole dollars first and only the sub-dollar
+ * remainder in riel. A customer who gives ៛5,500 for a $1.34 bill and takes ៛0
+ * back leaves ៛5,500 in the drawer, worth $1.34, exactly the bill. One who
+ * gives ៛20,000 for the same bill gets $3 in notes plus ៛2,200 back, so ៛17,800
+ * stays in the drawer — worth $4.34, MORE than the bill. That is not a bug: it
+ * is correct, because three physical dollar notes left the drawer as change, so
+ * the dollar side of the count is down by exactly $3 too. (That is why
+ * shift_report.php's expected-cash figure is allowed to go negative — see the
+ * comment there.) The change portion is measured with tender_change() against
+ * the ORDER TOTAL, mirroring receipt_pdf.php — the payment row's own amount can
+ * be stale on a pay-later tab that grew after it was opened.
  *
  * Conversion uses the current KHR_RATE, the same rate the checkout screen used
  * to accept the tender, so the count and the sale agree on the same shift.
