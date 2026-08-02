@@ -576,6 +576,56 @@ if (!function_exists('po_receive_was_replay')) {
 }
 
 /**
+ * Write a purchase order's derived status back, without mistaking a no-op for a
+ * lost race.
+ *
+ * The status read before the transaction opened is stale by the time a delivery
+ * commits — the PO could have been cancelled in another tab, and flipping it
+ * back to Received with stock already added would hide that. So the acceptable
+ * prior states are re-asserted in the WHERE clause rather than trusted.
+ *
+ * What that guard must NOT do is judge the outcome by affected_rows. MySQL
+ * reports 0 both when no row matched AND when the row matched but every column
+ * was already the value being written. A second partial delivery leaves the
+ * order Partially Received, which is what it already was, so the UPDATE is a
+ * no-op and affected_rows is 0 — and the handler was rolling the whole delivery
+ * back and reporting "this purchase order changed while you were looking at it".
+ *
+ * The visible consequence was that receiving the FULL outstanding quantity
+ * worked, because it flips the status to Received and the row genuinely changes,
+ * while receiving LESS was claimed and then discarded. That is why entering a
+ * smaller quantity looked forbidden when nothing ever forbade it.
+ *
+ * Re-reading the row answers the real question — is the order in the state we
+ * just wrote? — for both a no-op and a genuine write. The same trap cost a
+ * working loyalty card link (b25732c). Note the deliberate contrast with
+ * po_receive_line(), which uses affected_rows CORRECTLY as a claim: there the
+ * value always changes, so 0 can only mean the claim was lost.
+ *
+ * Connection-level CLIENT_FOUND_ROWS would also mask this, and must not be used:
+ * it would silently break po_receive_line()'s claim, which depends on
+ * affected_rows meaning matched AND changed.
+ */
+if (!function_exists('po_commit_status')) {
+    function po_commit_status(mysqli $conn, int $po_id, string $new): bool {
+        $st = $conn->prepare("UPDATE purchase_orders
+                                 SET status = ?,
+                                     received_at = CASE WHEN ? = 'Received' THEN NOW() ELSE received_at END
+                               WHERE po_id = ? AND status IN ('Ordered','Partially Received')");
+        $st->bind_param('ssi', $new, $new, $po_id);
+        $st->execute();
+
+        $chk = $conn->prepare("SELECT status FROM purchase_orders WHERE po_id = ?");
+        $chk->bind_param('i', $po_id);
+        $chk->execute();
+        $row = $chk->get_result()->fetch_row();
+        if (!$row) { return false; }
+
+        return $row[0] === $new;
+    }
+}
+
+/**
  * Who may write off the undelivered part of a purchase order.
  *
  * Closing short abandons goods that were ordered and, on most terms, will still

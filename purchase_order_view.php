@@ -100,21 +100,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Status is derived from the lines, never assigned, so the badge
             // cannot drift from the quantities under it.
+            //
+            // po_commit_status() re-reads the row instead of judging by
+            // affected_rows, which MySQL reports as 0 for a no-op write as well
+            // as for a lost race. A second partial delivery leaves the order
+            // Partially Received — the value it already held — so this used to
+            // roll back every partial receive that did not complete the PO, and
+            // that is what made entering a smaller quantity look forbidden.
             $new = po_status_from_lines($conn, $po_id);
-            // The status read at the top of this handler happened before the
-            // transaction opened, so it is stale by the time we get here: the
-            // PO could have been cancelled in between (another tab, another
-            // clerk). Re-assert the pre-transaction state in the WHERE clause
-            // rather than trusting it — without this, a Cancelled PO gets
-            // silently flipped back to Received/Partially Received even though
-            // stock has already been added above.
-            $st  = $conn->prepare("UPDATE purchase_orders
-                                   SET status = ?,
-                                       received_at = CASE WHEN ? = 'Received' THEN NOW() ELSE received_at END
-                                   WHERE po_id = ? AND status IN ('Ordered','Partially Received')");
-            $st->bind_param('ssi', $new, $new, $po_id);
-            $st->execute();
-            if ($st->affected_rows === 0) {
+            if (!po_commit_status($conn, $po_id, $new)) {
                 $conn->rollback();
                 po_redirect($from_list, $po_id, 'stale');
             }

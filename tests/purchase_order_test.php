@@ -263,6 +263,37 @@ try {
         "SELECT qty_received FROM purchase_order_items WHERE poi_id=$testPoi")->fetch_row()[0];
     check('classifying a failure writes nothing',
           round($recvAfterClassify - $recvBeforeClassify, 3), 0.0);
+
+    // --- Committing a status that did not change ---
+    // MySQL reports affected_rows = 0 when an UPDATE writes a value the column
+    // already holds. The receive handler read that as "the PO moved underneath
+    // me" and rolled the whole delivery back, so every partial receive that
+    // left the order still Partially Received was claimed and then discarded.
+    // Only a delivery large enough to flip the status to Received survived —
+    // which is exactly why entering a SMALLER quantity looked forbidden.
+    $conn->query("INSERT INTO purchase_orders (po_number, supplier_id, status, total_cost, created_by)
+                  SELECT 'PO-TEST-ST', MIN(supplier_id), 'Partially Received', 10.00, 'test' FROM suppliers");
+    $stPo = (int)$conn->insert_id;
+
+    check('committing an unchanged status succeeds',
+          po_commit_status($conn, $stPo, 'Partially Received'), true);
+    check('committing a changed status succeeds',
+          po_commit_status($conn, $stPo, 'Received'), true);
+    check('received_at is stamped when the order completes',
+          $conn->query("SELECT received_at IS NOT NULL FROM purchase_orders WHERE po_id=$stPo")
+               ->fetch_row()[0], '1');
+
+    // The guard this replaces exists to stop a PO that was cancelled mid-
+    // transaction being flipped back to Received with stock already added.
+    // That must still fail — and now for the right reason.
+    $conn->query("UPDATE purchase_orders SET status='Cancelled' WHERE po_id=$stPo");
+    check('committing over a cancelled order is refused',
+          po_commit_status($conn, $stPo, 'Received'), false);
+    check('a cancelled order keeps its status',
+          $conn->query("SELECT status FROM purchase_orders WHERE po_id=$stPo")->fetch_row()[0],
+          'Cancelled');
+    check('committing against an unknown order is refused',
+          po_commit_status($conn, $stPo + 99999, 'Received'), false);
 } finally {
     // Undoes everything in this block in one shot: the scratch PO, its items,
     // the stock move, the stock_refills and ingredient_history rows. Runs even
