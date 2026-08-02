@@ -17,7 +17,7 @@
 - **`KHR_RATE`** is defined per request at `config.php:58` from the `khr_exchange_rate` setting. Currently **4100**. Never hardcode 4100 in PHP; JS receives it as a parameter.
 - **JS function names mirror PHP exactly:** `tenderRef`, `tenderParts`, `tenderUsdTotal`, `tenderChange`.
 - **`tender.js` lives at the repo root**, not `assets/js/`. The live precedent is `animations.js`, loaded as `<script src="animations.js?v=<?= @filemtime('animations.js') ?>"></script>` (see `find_order.php:796`). `assets/js/menu.js` exists but no PHP file references it.
-- **`tender.js` contains pure functions only** — no event listeners, no DOM access. All wiring stays inline in the page that owns the markup, because `find_order.php` injects `_cash_tender.php` via `innerHTML` and re-executes its `<script>` tags by hand (`find_order.php:673-676`).
+- **`tender.js` must never bind anything on load.** It defines functions and does nothing else — no top-level DOM access, no listeners attached at load time. The DOM helpers it exports attach listeners *only when the host page calls them*, after that page's markup exists. This is the rule that matters: `find_order.php` injects `_cash_tender.php` via `innerHTML` and re-executes its `<script>` tags by hand (`find_order.php:673-676`), so anything that auto-bound at load would bind against markup that isn't there yet and silently do nothing. Each page's inline script owns the *calls*; the shared file owns the *logic*.
 - **Hiding the Riel tile uses the `if (false)` + restore-comment pattern**, precedent `products.php:1508`. Do not delete riel markup, do not touch `order_payment_methods()`.
 - **Never run `git commit` with `-i`** and never use PowerShell here-strings for commit messages; use `git commit -F -` with a heredoc.
 
@@ -278,12 +278,23 @@ EOF
 - Test: `tests/tender.test.mjs` (create)
 
 **Interfaces:**
-- Consumes: nothing — pure functions, rate passed in
-- Produces:
+- Consumes: nothing — rate passed in
+- Produces, pure:
   - `tenderRef(usd, khr)` → `'1.34'` | `'0.00|5500'` | `''`
   - `tenderParts(ref)` → `{usd, khr}` | `null`
   - `tenderUsdTotal(ref, rate)` → number
   - `tenderChange(receivedUsdTotal, owed, rate)` → `{usd, khr, short}`
+  - `tenderChangeText(ch, received, owed)` → the string the change line displays
+- Produces, DOM — **called by the host page, never bound on load**:
+  - `tenderCashReceivedUsd(usdId, khrId, rate)` → number
+  - `tenderOnRielInput(usdId, khrId, eqId, rate)` → void
+  - `tenderRenderRielQuick(wrapId, khrId, owed, rate, onPick)` → void
+
+These four exist so `menu.php` and `_cash_tender.php` do not each carry their
+own copy — the two screens must agree to the cent, and a formula duplicated
+across files is how this codebase's buy-X-get-1-free rule ended up in ten
+places. The DOM ones are verified in the browser (Task 8), not in node; only the
+pure ones are unit-tested here.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -300,10 +311,13 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src  = readFileSync(join(here, '..', 'tender.js'), 'utf8');
+// Only the pure functions are exposed here. The DOM helpers need a document and
+// are verified in the browser (Task 8) rather than against a shim that would
+// prove nothing about the real page.
 const ctx  = {};
 new Function('globalThis', src + '\nglobalThis.tenderRef=tenderRef;'
   + 'globalThis.tenderParts=tenderParts;globalThis.tenderUsdTotal=tenderUsdTotal;'
-  + 'globalThis.tenderChange=tenderChange;')(ctx);
+  + 'globalThis.tenderChange=tenderChange;globalThis.tenderChangeText=tenderChangeText;')(ctx);
 
 let failures = 0;
 function check(what, got, want) {
@@ -341,6 +355,13 @@ check('short tender',                     ctx.tenderChange(1.00, 1.34, RATE), {u
 check('riel-only exact payment', ctx.tenderChange(ctx.tenderUsdTotal('0.00|5500', RATE), 1.34, RATE),
       {usd:0, khr:0, short:false});
 
+console.log('tenderChangeText');
+check('dollars and riel',  ctx.tenderChangeText({usd:3, khr:2700, short:false}, 5.00, 1.34), '$3 + ៛2,700');
+check('riel only',         ctx.tenderChangeText({usd:0, khr:2700, short:false}, 2.00, 1.34), '៛2,700');
+check('dollars only',      ctx.tenderChangeText({usd:4, khr:0,    short:false}, 5.34, 1.34), '$4.00');
+check('nothing to give back', ctx.tenderChangeText({usd:0, khr:0, short:false}, 1.34, 1.34), '$0.00');
+check('short says what is missing', ctx.tenderChangeText({usd:0, khr:0, short:true}, 1.00, 1.34), 'Need $0.34 more');
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
 ```
@@ -357,11 +378,12 @@ Create `tender.js` at the repo root:
 ```js
 /* Two-currency cash tender — the browser twin of the PHP helpers in config.php.
  *
- * PURE FUNCTIONS ONLY. No event listeners, no DOM. All wiring stays inline in
- * the page that owns the markup, because find_order.php injects
- * _cash_tender.php with innerHTML and re-executes its <script> tags by hand;
- * a shared file that attached listeners would have to re-bind after injection
- * and would silently fail when it didn't.
+ * NOTHING BINDS ON LOAD. This file defines functions and does nothing else. The
+ * DOM helpers below attach listeners only when a host page CALLS them, after
+ * that page's markup exists. find_order.php injects _cash_tender.php with
+ * innerHTML and re-executes its <script> tags by hand, so anything that bound
+ * at load time would bind against markup that is not there yet and silently do
+ * nothing. Each page owns the calls; this file owns the logic.
  *
  * The exchange rate is a PARAMETER, not a constant. This file is static and is
  * never parsed by PHP, so it cannot read KHR_RATE. Each host page inlines the
@@ -402,6 +424,78 @@ function tenderChange(receivedUsdTotal, owed, rate) {
   var riel    = Math.round(((change - dollars) * rate) / 100) * 100;
   if (riel >= rate) { dollars += 1; riel = 0; }
   return { usd: dollars, khr: riel, short: false };
+}
+
+/* What the change line reads. Shared so the checkout modal and the counter
+   screen cannot drift apart — they must agree to the cent. */
+function tenderChangeText(ch, received, owed) {
+  if (ch.short) { return 'Need $' + (owed - received).toFixed(2) + ' more'; }
+  if (ch.khr > 0) {
+    return ch.usd > 0
+      ? '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString()
+      : '៛' + ch.khr.toLocaleString();
+  }
+  return '$' + ch.usd.toFixed(2);
+}
+
+/* ── DOM helpers ──────────────────────────────────────────────────────────
+   Shared so menu.php and _cash_tender.php do not each carry a copy. Called by
+   the host page after its markup exists; never bound on load. */
+
+/* The combined tender in dollars. Keyed on BOTH fields: with dollars and riel
+   separate, zero dollars is the normal riel-only case, and a dollars-only test
+   would leave the change line at $0.00 while the cashier holds 5,500 riel. */
+function tenderCashReceivedUsd(usdId, khrId, rate) {
+  var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
+  var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
+  return Math.max(0, usd) + Math.max(0, khr) / rate;
+}
+
+/* The prefill trap. The dollar field is pre-seeded with the exact total so
+   one-tap exact cash stays one tap. With a second field that seed is dangerous:
+   a prefilled $1.34 plus a typed ៛5,500 reads as $2.68 received on a $1.34
+   order, and the screen would confidently show change that was never owed.
+   The first real keystroke in the riel field clears an UNTOUCHED dollar
+   prefill. A dollar amount the cashier typed themselves carries
+   dataset.touched and is never cleared. */
+function tenderOnRielInput(usdId, khrId, eqId, rate) {
+  var ri  = document.getElementById(khrId);
+  var cr  = document.getElementById(usdId);
+  var khr = Math.max(0, parseFloat(ri ? ri.value : 0) || 0);
+  if (cr && cr.dataset.touched !== '1' && khr > 0) { cr.value = ''; }
+  var eq = document.getElementById(eqId);
+  if (eq) { eq.textContent = '≈ $' + (khr / rate).toFixed(2); }
+}
+
+/* Riel notes that could plausibly cover the bill, capped at four — the same
+   rule the dollar buttons already use. onPick runs after the value is set so
+   the host can recalculate its own change line. */
+function tenderRenderRielQuick(wrapId, khrId, owed, rate, onPick) {
+  var wrap = document.getElementById(wrapId);
+  if (!wrap) { return; }
+  wrap.innerHTML = '';
+  if (owed <= 0) { return; }
+  var owedKhr = Math.round(owed * rate / 100) * 100;
+
+  var mk = function (label, val) {
+    var b = document.createElement('button');
+    b.type = 'button';          // a bare <button> in a form submits it
+    b.className = 'cp-tender-btn';
+    b.textContent = label;
+    b.addEventListener('click', function () {
+      var ri = document.getElementById(khrId);
+      if (!ri) { return; }
+      ri.value = val;
+      if (typeof onPick === 'function') { onPick(); }
+    });
+    return b;
+  };
+
+  wrap.appendChild(mk('Exact ៛', owedKhr));
+  [5000, 10000, 20000, 50000, 100000]
+    .filter(function (n) { return n > owedKhr; })
+    .slice(0, 4)
+    .forEach(function (n) { wrap.appendChild(mk('៛' + n.toLocaleString(), n)); });
 }
 ```
 
@@ -523,11 +617,11 @@ Replace `menu.php:2239-2248` with:
    riel in separate fields, ZERO DOLLARS IS THE NORMAL RIEL-ONLY CASE — a cashier
    who types ៛5,500 on a $1.34 order would otherwise see the change line sit at
    $0.00 and hand back nothing: wrong on screen, right in the database. The guard
-   keys on the combined total instead. */
+   keys on the combined total from tender.js instead.
+   The arithmetic and the wording both live in tender.js so this screen and the
+   counter screen cannot drift apart. */
 function cpCashReceivedUsd() {
-  var usd = parseFloat((document.getElementById('cpCashReceived') || {}).value) || 0;
-  var khr = parseFloat((document.getElementById('cpRielCash')     || {}).value) || 0;
-  return Math.max(0, usd) + Math.max(0, khr) / CP_KHR_RATE;
+  return tenderCashReceivedUsd('cpCashReceived', 'cpRielCash', CP_KHR_RATE);
 }
 
 function cpCalcChange() {
@@ -541,62 +635,17 @@ function cpCalcChange() {
   if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
 
   if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
-  if (ch.short) {
-    el.textContent = 'Need $' + (owed - received).toFixed(2) + ' more';
-    el.className   = 'change-amount not-enough';
-    return;
-  }
-  el.className   = 'change-amount';
-  el.textContent = ch.khr > 0
-    ? (ch.usd > 0 ? '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString() : '៛' + ch.khr.toLocaleString())
-    : '$' + ch.usd.toFixed(2);
+  el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
+  el.textContent = tenderChangeText(ch, received, owed);
 }
 
-/* The prefill trap. The dollar field is pre-seeded with the exact total so
-   one-tap exact cash stays one tap. With a second field that seed is dangerous:
-   a prefilled $1.34 plus a typed ៛5,500 reads as $2.68 received on a $1.34
-   order, and the screen would confidently show change that was never owed.
-   The first real keystroke in the riel field clears an UNTOUCHED dollar prefill;
-   a dollar amount the cashier typed themselves is never cleared. */
 function cpOnRielInput() {
-  var ri = document.getElementById('cpRielCash');
-  var cr = document.getElementById('cpCashReceived');
-  var khr = Math.max(0, parseFloat(ri ? ri.value : 0) || 0);
-  if (cr && cr.dataset.touched !== '1' && khr > 0) { cr.value = ''; }
-  var eq = document.getElementById('cpRielCashUsd');
-  if (eq) eq.textContent = '≈ $' + (khr / CP_KHR_RATE).toFixed(2);
+  tenderOnRielInput('cpCashReceived', 'cpRielCash', 'cpRielCashUsd', CP_KHR_RATE);
 }
 
-/* Riel notes that could plausibly cover the bill, capped at four — the same rule
-   the dollar buttons already use. */
 function cpRenderRielQuick() {
-  var wrap = document.getElementById('cpRielQuick');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-  var owed = cpOwedInCash();
-  if (owed <= 0) return;
-  var owedKhr = Math.round(owed * CP_KHR_RATE / 100) * 100;
-
-  var mk = function (label, val) {
-    var b = document.createElement('button');
-    b.type = 'button';                 // a bare <button> in a form submits
-    b.className = 'cp-tender-btn';
-    b.textContent = label;
-    b.addEventListener('click', function () {
-      var ri = document.getElementById('cpRielCash');
-      if (!ri) return;
-      ri.value = val;
-      cpOnRielInput();
-      cpCalcChange();
-    });
-    return b;
-  };
-
-  wrap.appendChild(mk('Exact ៛', owedKhr));
-  [5000, 10000, 20000, 50000, 100000]
-    .filter(function (n) { return n > owedKhr; })
-    .slice(0, 4)
-    .forEach(function (n) { wrap.appendChild(mk('៛' + n.toLocaleString(), n)); });
+  tenderRenderRielQuick('cpRielQuick', 'cpRielCash', cpOwedInCash(), CP_KHR_RATE,
+    function () { cpOnRielInput(); cpCalcChange(); });
 }
 ```
 
@@ -799,10 +848,11 @@ const CP_KHR_RATE = <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
 
 function cpOwedInCash() { return CP_OWED; }
 
+/* Arithmetic, the prefill-clear rule and the change wording all live in
+   tender.js, so this screen and the checkout modal cannot drift apart. This
+   file owns only the calls and this screen's own owed amount. */
 function cpCashReceivedUsd() {
-  var usd = parseFloat((document.getElementById('cpCashReceived') || {}).value) || 0;
-  var khr = parseFloat((document.getElementById('cpRielCash')     || {}).value) || 0;
-  return Math.max(0, usd) + Math.max(0, khr) / CP_KHR_RATE;
+  return tenderCashReceivedUsd('cpCashReceived', 'cpRielCash', CP_KHR_RATE);
 }
 
 /* Keyed on the COMBINED total, not on dollars. With separate fields, zero
@@ -812,7 +862,8 @@ function cpCalcChange() {
   var el = document.getElementById('cpChangeAmount');
   if (!el) return;
   var received = cpCashReceivedUsd();
-  var ch       = tenderChange(received, cpOwedInCash(), CP_KHR_RATE);
+  var owed     = cpOwedInCash();
+  var ch       = tenderChange(received, owed, CP_KHR_RATE);
 
   var warn = document.getElementById('cpShortWarn');
   // Non-blocking on purpose: a cashier who has already counted the change must
@@ -820,27 +871,12 @@ function cpCalcChange() {
   if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
 
   if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
-  if (ch.short) {
-    el.textContent = 'Need $' + (cpOwedInCash() - received).toFixed(2) + ' more';
-    el.className   = 'change-amount not-enough';
-    return;
-  }
-  el.className   = 'change-amount';
-  el.textContent = ch.khr > 0
-    ? (ch.usd > 0 ? '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString() : '៛' + ch.khr.toLocaleString())
-    : '$' + ch.usd.toFixed(2);
+  el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
+  el.textContent = tenderChangeText(ch, received, owed);
 }
 
-/* The first real keystroke in the riel field clears an UNTOUCHED dollar
-   prefill. Prefilled $1.34 plus a typed 5,500 riel would read as $2.68 on a
-   $1.34 order. A dollar amount the cashier typed is never cleared. */
 function cpOnRielInput() {
-  var ri  = document.getElementById('cpRielCash');
-  var cr  = document.getElementById('cpCashReceived');
-  var khr = Math.max(0, parseFloat(ri ? ri.value : 0) || 0);
-  if (cr && cr.dataset.touched !== '1' && khr > 0) { cr.value = ''; }
-  var eq = document.getElementById('cpRielCashUsd');
-  if (eq) eq.textContent = '≈ $' + (khr / CP_KHR_RATE).toFixed(2);
+  tenderOnRielInput('cpCashReceived', 'cpRielCash', 'cpRielCashUsd', CP_KHR_RATE);
 }
 
 /* One tap for the note the customer actually handed over. The prefilled exact
@@ -872,33 +908,8 @@ function cpRenderTenderQuick() {
 }
 
 function cpRenderRielQuick() {
-  var wrap = document.getElementById('cpRielQuick');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-  var owed = cpOwedInCash();
-  if (owed <= 0) return;
-  var owedKhr = Math.round(owed * CP_KHR_RATE / 100) * 100;
-
-  var mk = function (label, val) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'cp-tender-btn';
-    b.textContent = label;
-    b.addEventListener('click', function () {
-      var ri = document.getElementById('cpRielCash');
-      if (!ri) return;
-      ri.value = val;
-      cpOnRielInput();
-      cpCalcChange();
-    });
-    return b;
-  };
-
-  wrap.appendChild(mk('Exact ៛', owedKhr));
-  [5000, 10000, 20000, 50000, 100000]
-    .filter(function (n) { return n > owedKhr; })
-    .slice(0, 4)
-    .forEach(function (n) { wrap.appendChild(mk('៛' + n.toLocaleString(), n)); });
+  tenderRenderRielQuick('cpRielQuick', 'cpRielCash', cpOwedInCash(), CP_KHR_RATE,
+    function () { cpOnRielInput(); cpCalcChange(); });
 }
 
 function cpSetTender(val) {
