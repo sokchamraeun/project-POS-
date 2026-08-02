@@ -1423,6 +1423,15 @@ body {
             </div>
 
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+            <?php /* Mode comes from the session on purpose: menu.php clears
+                     add_to_order_id the moment the cashier returns to a plain menu,
+                     so a stale value cannot survive to hijack a normal checkout.
+                     Do NOT add a second session read here to "fix" this — deriving
+                     the flag from the same key confirm_order.php:95 is guarding
+                     against is what made that guard circular in the first place.
+                     Accepted gap: reaching this page through a payment-error
+                     "Go back" link while still in add-to-order mode keeps the flag.
+                     See docs/superpowers/specs/2026-08-02-add-to-order-cart-stash-design.md §5 */ ?>
             <input type="hidden" name="is_add_to_order" value="<?= $add_to_order_id > 0 ? '1' : '0' ?>">
             <div id="paymentInputs"></div>
 

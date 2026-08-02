@@ -84,6 +84,27 @@ if ($linked_loyalty_id_int > 0) {
 /* ── ADD TO EXISTING ORDER DETECTION ── */
 $add_to_order_mode = isset($_GET['add_to_order']) ? (int)$_GET['add_to_order'] : 0;
 
+/* Reaching a plain menu is the only way to begin a NEW order, so it is the moment
+   the cashier has demonstrably left add-to-order mode — by a Back button, the nav,
+   or the URL. Put back the cart they were building before they switched.
+
+   Keyed on cart_stash, NOT add_to_order_id: a successful add already clears that at
+   confirm_order.php:251, so keying on it would orphan the stash on the one path
+   meant to work — the cashier would confirm an add and never get their drinks back.
+
+   Clearing add_to_order_id here also closes the stale-session hole that
+   confirm_order.php:95 warns about: cart.php derives its add-to-order flag from
+   this key, so an abandoned flow can no longer hijack a later normal checkout. */
+$cart_restored_count = 0;
+if ($add_to_order_mode === 0 && isset($_SESSION['cart_stash'])) {
+    $_SESSION['cart']    = $_SESSION['cart_stash'];
+    $cart_restored_count = count($_SESSION['cart_stash']);
+    unset($_SESSION['cart_stash'], $_SESSION['add_to_order_id'],
+          $_SESSION['add_to_daily_no'], $_SESSION['paylater_reopen']);
+}
+// Drinks held while adding to a tab — drives the notice on the add-to-order banner.
+$cart_stash_count = isset($_SESSION['cart_stash']) ? count($_SESSION['cart_stash']) : 0;
+
 /* When adding to an existing order, points are awarded against THAT order's card
    (confirm_order.php reads $existing_order['loyalty_card_id']), never the session's.
    So show the parent order's card read-only instead of a Link button that would
@@ -705,6 +726,18 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
   <i class="fa-solid fa-cart-plus"></i>
   Adding to Order #<?= $add_to_order_mode ?> &nbsp;&middot;&nbsp;
   <a href="cart_paylater.php" style="color:inherit;font-weight:700;text-decoration:underline;">View Cart &amp; Confirm</a>
+  <?php /* Says HELD, not removed. It belongs on this strip and not in the checkout
+           panel: the panel only renders once the cart has items, and this notice is
+           needed precisely when the cart is empty — a cashier who was mid-order
+           would otherwise assume the system lost their work and rebuild it. */ ?>
+  <?php if ($cart_stash_count > 0): ?>
+  <span style="display:inline-block;margin-left:10px;padding:2px 9px;border-radius:999px;
+               background:rgba(0,0,0,.22);font-weight:600;font-size:12px;">
+    <i class="fa-solid fa-box-archive"></i>
+    <?= (int)$cart_stash_count ?> drink<?= $cart_stash_count === 1 ? '' : 's' ?>
+    held &mdash; back when you leave
+  </span>
+  <?php endif; ?>
 </div>
 <?php endif; ?>
 

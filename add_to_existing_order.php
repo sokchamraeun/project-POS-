@@ -98,6 +98,21 @@ if (!$order) {
 // Flag paylater re-opens so confirm_order.php resets status inside its transaction
 $_SESSION['paylater_reopen'] = ($order['payment_method'] === 'paylater' && $order['status'] === 'Completed');
 
+/* Hold whatever the cashier was building for a NEW customer, and start the
+   add-to-order cart empty. Both jobs share $_SESSION['cart'], so without this a
+   drink queued for a walk-in would be added to someone else's tab.
+   menu.php puts it back the moment the cashier returns to a plain menu.
+
+   An existing stash is never overwritten: find_order.php offers "Add Items", so
+   this file is reachable while add-to-order mode is ALREADY active, and menu.php's
+   restore never runs on that path. Overwriting would destroy the held cart —
+   the exact failure this is here to prevent. Switching tabs mid-add drops the
+   in-flight add-cart instead, which is what abandoning that tab means. */
+if (!empty($_SESSION['cart']) && !isset($_SESSION['cart_stash'])) {
+    $_SESSION['cart_stash'] = $_SESSION['cart'];
+}
+$_SESSION['cart'] = [];
+
 // Store the internal order_id in session
 $_SESSION['add_to_order_id'] = $order['order_id'];
 $_SESSION['add_to_daily_no'] = $order['daily_order_no'];
