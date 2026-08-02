@@ -29,6 +29,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'currency' => [
             'khr_exchange_rate' => (string)max(100, min(99999, (int)($_POST['khr_exchange_rate'] ?? 4100))),
         ],
+        'loyalty' => [
+            'loyalty_points_per'    => (string)max(1, min(100, (int)($_POST['loyalty_points_per']    ?? 1))),
+            'loyalty_points_drinks' => (string)max(1, min(100, (int)($_POST['loyalty_points_drinks'] ?? 1))),
+        ],
         'tax' => [
             'tax_rate' => (string)max(0, min(100, round((float)($_POST['tax_rate'] ?? 10), 2))),
         ],
@@ -88,6 +92,8 @@ $free_item_pid   = (int)($s['free_item_product_id'] ?? 0);
 $bx_start_date   = $s['buy_x_start_date'] ?? '';
 $bx_end_date     = $s['buy_x_end_date']   ?? '';
 $khr_rate        = (int)($s['khr_exchange_rate']   ?? 4100);
+$loy_per         = (int)($s['loyalty_points_per']    ?? 1);
+$loy_drinks      = (int)($s['loyalty_points_drinks'] ?? 1);
 $tax_rate        = (float)($s['tax_rate']          ?? 10);
 $daily_target    = (float)($s['daily_sales_target'] ?? 500);
 $stand_count     = (int)($s['stand_count'] ?? 20);
@@ -831,6 +837,54 @@ body::after {
         </div>
     </form>
 
+    <!-- ── LOYALTY EARN RATE ── -->
+    <form method="POST">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon"><i class="fa-solid fa-stamp"></i></div>
+                <div>
+                    <div class="card-title">Loyalty Earn Rate</div>
+                    <div class="card-sub">How many points a customer earns for how many drinks</div>
+                </div>
+            </div>
+
+            <div class="card-inner">
+                <div class="fields-grid">
+                    <div class="field">
+                        <label><i class="fa-solid fa-star"></i> Points earned</label>
+                        <input type="number" name="loyalty_points_per" id="loyPer"
+                               value="<?= $loy_per ?>" min="1" max="100">
+                        <span class="field-hint">How many points to award</span>
+                    </div>
+                    <div class="field">
+                        <label><i class="fa-solid fa-mug-hot"></i> Per how many drinks</label>
+                        <input type="number" name="loyalty_points_drinks" id="loyDrinks"
+                               value="<?= $loy_drinks ?>" min="1" max="100">
+                        <span class="field-hint">Leftover drinks carry over to the next visit</span>
+                    </div>
+                </div>
+
+                <?php /* Two bare number boxes are ambiguous until the ratio is
+                         spelled out, so the sentence is the part that matters. */ ?>
+                <div class="preview-row" id="loyPreview" style="margin-top:18px;">
+                    <i class="fa-solid fa-tag"></i>
+                    <span id="loyPreviewText"></span>
+                </div>
+            </div>
+
+            <input type="hidden" name="_section" value="loyalty">
+            <div class="form-actions">
+                <div class="form-actions-info">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Saves Loyalty Earn Rate only
+                </div>
+                <button type="submit" class="btn btn-save" style="padding:10px 22px;font-size:13px;">
+                    <i class="fa-solid fa-floppy-disk"></i> Save
+                </button>
+            </div>
+        </div>
+    </form>
+
     <!-- ── TAX RATE ── -->
     <form method="POST">
         <div class="card">
@@ -1110,6 +1164,23 @@ function updateKHRPreview() {
 }
 document.getElementById('khrRate').addEventListener('input', updateKHRPreview);
 updateKHRPreview();
+
+// ── Loyalty Earn Rate live preview ──
+function loyPreview() {
+  var per    = Math.max(1, parseInt(document.getElementById('loyPer').value, 10)    || 1);
+  var drinks = Math.max(1, parseInt(document.getElementById('loyDrinks').value, 10) || 1);
+  var el = document.getElementById('loyPreviewText');
+  if (!el) return;
+  el.textContent = per + (per === 1 ? ' point' : ' points') + ' per '
+                 + (drinks === 1 ? 'drink' : drinks + ' drinks')
+                 + ' — merch and free gift drinks never earn points'
+                 + (drinks > 1 ? ', and leftover drinks carry to the next visit.' : '.');
+}
+['loyPer', 'loyDrinks'].forEach(function (id) {
+  var n = document.getElementById(id);
+  if (n) n.addEventListener('input', loyPreview);
+});
+loyPreview();
 
 // ── Tax Rate live preview ──
 function updateTaxPreview() {
