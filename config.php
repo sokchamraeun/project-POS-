@@ -657,6 +657,38 @@ if (!function_exists('_deduct_stock')) {
 
 
 /**
+ * The payment methods this system recognises.
+ *
+ * orders.payment_method is a varchar with no constraint, so whatever a POST
+ * supplied was stored verbatim. 195 orders from 2026-05-27..30 carry the literal
+ * string '0' as a result: they count toward revenue but match no method, so a
+ * by-method breakdown for those dates is $430.81 short of its own total. Nothing
+ * validated the write, so nothing stopped it.
+ *
+ * 'riel' is still listed because 4 historical orders use it. It is scheduled to be
+ * folded into cash — do not add it to new UI.
+ */
+if (!function_exists('order_payment_methods')) {
+    function order_payment_methods(): array {
+        return ['cash', 'bakong', 'paylater', 'riel'];
+    }
+}
+
+/**
+ * Coerce a submitted payment method to a known one.
+ *
+ * Falls back rather than throwing: a checkout that has already taken the customer's
+ * money must not die on an unrecognised label. The fallback is recorded honestly by
+ * the caller instead of being written as an unusable value.
+ */
+if (!function_exists('order_payment_method_or')) {
+    function order_payment_method_or(?string $method, string $fallback = 'cash'): string {
+        $method = strtolower(trim((string)$method));
+        return in_array($method, order_payment_methods(), true) ? $method : $fallback;
+    }
+}
+
+/**
  * Where a cashier returns to after settling an order at the counter.
  *
  * The destination arrives as a query parameter and ends up in a Location:

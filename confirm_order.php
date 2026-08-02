@@ -356,7 +356,12 @@ if ($has_paylater) {
     $is_open      = 0;
 }
 
-$primary_method = $payment_methods[0] ?? 'bakong';
+/* Validated against the known set. This value went to orders.payment_method
+   verbatim, which is how 195 orders came to store the literal string '0' — they
+   count as revenue but match no method, so a by-method split misses them entirely.
+   Coerced rather than rejected: the customer's money is already committed by this
+   point, so failing here would be worse than recording a sane default. */
+$primary_method = order_payment_method_or($payment_methods[0] ?? null, 'cash');
 
 // ── DAILY ORDER NUMBER ──
 date_default_timezone_set('Asia/Phnom_Penh');
@@ -437,7 +442,9 @@ try {
         VALUES (?, ?, ?, ?, ?)
     ");
     for ($i = 0; $i < count($payment_methods); $i++) {
-        $method    = $payment_methods[$i];
+        // Same allow-list as orders.payment_method above: the two must agree, or a
+        // split leg could be recorded under a method the order itself never names.
+        $method    = order_payment_method_or($payment_methods[$i] ?? null, 'cash');
         $amount    = (float)$payment_amounts[$i];
         $reference = $payment_references[$i] ?? '';
         $pay_status = in_array($method, ['bakong', 'paylater']) ? 'pending' : 'paid';
