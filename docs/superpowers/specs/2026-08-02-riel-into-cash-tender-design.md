@@ -108,10 +108,37 @@ The JS lives in `assets/js/tender.js`, loaded by `<script src>` from `menu.php`,
 `find_order.php` and `_cash_tender.php`'s standalone `<head>`, following the
 `animations.js?v=<?= @filemtime(...) ?>` pattern `find_order.php:796` already
 uses. The cache-buster matters: a stale cached money calculation is a bad failure.
-`find_order.php` injects `_cash_tender.php` via `innerHTML` and re-executes its
-`<script>` tags by hand (`find_order.php:673-676`); keeping the shared code in a
-host-page `src` tag rather than relying on that re-execution avoids betting the
-change calculation on it.
+
+**`tender.js` contains pure functions only — it binds no event listeners and
+touches no DOM.** All wiring stays inline in the page or partial that owns the
+markup. This matters because `find_order.php` injects `_cash_tender.php` via
+`innerHTML` and re-executes its `<script>` tags by hand
+(`find_order.php:673-676`). Inline wiring rides that mechanism, which already
+works today; the shared arithmetic comes from a host-page `src` tag instead of
+betting the change calculation on it. A shared file that attached listeners would
+have to re-bind after injection and would silently fail to when it didn't — the
+split keeps that failure mode out of reach.
+
+The JS names mirror the PHP API exactly, so neither side invents its own
+vocabulary for the same operation:
+
+```js
+tenderRef(usd, khr)                        // → '1.34' | '0|5500' | ''
+tenderParts(ref)                           // → {usd: 1.34, khr: 0} | null
+tenderUsdTotal(ref, rate)                  // → 1.34
+tenderChange(receivedUsdTotal, owed, rate) // → {usd: 3, khr: 2700, short: false}
+```
+
+**The rate is a parameter on the JS side, not a constant.** `tender.js` is a
+static file and is never parsed by PHP, so it cannot read `KHR_RATE`. Each host
+page inlines the rate at render and passes it in: `menu.php:1378` already emits
+`const CP_KHR_RATE = <?= (int)KHR_RATE ?>`, and `_cash_tender.php` — which today
+inlines only `CP_OWED` — gains the same line.
+
+On the PHP side the helper reads `KHR_RATE` directly. That constant is
+`define()`d per request from the `khr_exchange_rate` setting
+(`config.php:58`), and PHP holds no state across requests, so it cannot go stale
+against a rate the admin changes mid-day: the next request re-reads it.
 
 ## Screens
 
@@ -172,20 +199,33 @@ updated as items are added.
 ## Two defects this exposes in existing code
 
 Both are latent today and become live the moment dollars and riel are separate
-fields. Neither is optional.
+fields. **Both ship in the same commit as the two-field UI.** Shipping the UI
+without them is a regression, not a follow-up.
 
 **1. `received === 0` no longer means "nothing tendered."**
 
-```php
-// menu.php:2245 and _cash_tender.php:240 — the same line in both
+```js
+// menu.php:2245 and _cash_tender.php:240 — the same line in both.
+// JavaScript, inside a <script> block, four lines under
+//   var received = parseFloat(document.getElementById('cpCashReceived')?.value) || 0;
 if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
 ```
 
 That guard means "no money entered yet". Once the fields are separate, zero
 dollars is the *normal riel-only case*. Left as-is, a cashier who types ៛5,500 on
 a $1.34 order sees the change line sit at **$0.00** and hands back nothing —
-wrong on screen, right in the database, which is the worst combination. The guard
-keys on `tender_usd_total()` instead.
+wrong on screen, right in the database, which is the worst combination.
+
+The fix is arithmetic on two floats, not string parsing — `received` is a float
+straight from the dollar field, and no reference string exists until submit:
+
+```js
+var totalUsd = usd + khr / CP_KHR_RATE;
+if (totalUsd === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
+```
+
+`tender_usd_total()` is the PHP-side reader for a stored reference and is *not*
+callable here. The two sites are JS.
 
 **2. `admin_pay_cash.php:146` would silently drop a riel-only reference.**
 
@@ -196,7 +236,15 @@ if (is_numeric($tender) && (float)$tender > 0) { /* write reference */ }
 `"0|5500"` is not `is_numeric`, so a riel-only settlement would write **no
 reference at all** — no error — and the receipt would reprint with no
 Received/Change lines, which is exactly the gap this block was added to close.
-The gate becomes `tender_parts()` non-null with a positive USD total.
+This one *is* PHP:
+
+```php
+$parts = tender_parts($tender);
+if ($parts !== null && tender_usd_total($tender) > 0) { /* write reference */ }
+```
+
+Writes `0|5500` for a riel-only tender; skips for an empty reference or a Bakong
+transaction id.
 
 ## Readers
 
@@ -234,9 +282,19 @@ The helper is pure, so these need no database and cannot touch order numbering.
 | `tender_parts('0\|5500')` | `['usd'=>0.0,'khr'=>5500]` |
 | `tender_parts('KHQR9F2A…')` | `null` — a Bakong txn id is not a tender |
 | `tender_parts('')` | `null` |
+| `tender_parts('0')` | `['usd'=>0.0,'khr'=>0]` — a zero tender is still a tender; `is_numeric` took it too, so no behaviour change |
 | `tender_change(5.00, 1.34)` | `$3 + ៛2,700` |
 | `tender_change(5.33, 1.34)` | `$4 + ៛0` — the rounding carry |
+| `tender_change(5.34, 1.34)` | `$4 + ៛0` — exact dollar, remainder 0 |
 | `tender_change(1.00, 1.34)` | short, no split |
+
+The carry cases are worth stating plainly. A remainder of $0.9998 converts to
+៛4,099, which rounds to ៛4,100 — exactly one dollar at the live rate — so the
+`riel >= RATE` check promotes it to a dollar bill rather than handing back 4,100
+riel in small notes. A remainder of exactly zero produces no riel line at all.
+Note that `tender_ref(0, 0)` returns `''` while `tender_parts('0')` returns
+zeros: the writer never emits `'0'`, but the reader accepts it, because legacy
+rows may hold it.
 
 **Browser — Playwright MCP**, entering at `http://localhost/Cafe/`.
 
