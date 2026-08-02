@@ -497,11 +497,14 @@ $show_cash_step = $has_countdown; // only cashier/staff run the till; barista (d
     </div>
     <?php endif; ?>
     <?php if ($expected_cash < 0): ?>
-    <!-- The figure above went negative: dollar notes physically left the
-         drawer as change on a riel sale, so the dollar drawer is expected to
-         come up short even though every sale this shift was legitimate. -->
+    <!-- The figure above went negative: dollar notes physically left the drawer
+         as change on a MIXED tender, so the dollar drawer is expected to come up
+         short even though every sale this shift was legitimate. Only mixed
+         tenders can do this. A riel-only sale now gets its change back in riel
+         (follow-the-currency), so no dollar notes leave the drawer for it and it
+         cannot push this figure negative. -->
     <div class="cash-note">
-        Negative because dollar notes were paid out as change on riel sales &mdash; the dollar drawer is expected to be $<?= number_format(abs($expected_cash), 2) ?> lighter than it started, not because anything is missing.
+        Negative because dollar notes were paid out as change on sales part-paid in riel &mdash; the dollar drawer is expected to be $<?= number_format(abs($expected_cash), 2) ?> lighter than it started, not because anything is missing.
     </div>
     <?php endif; ?>
     <div class="cash-input-wrap">

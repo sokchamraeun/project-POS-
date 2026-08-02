@@ -1035,7 +1035,10 @@ if (!function_exists('tender_received_text')) {
  * on a $1.34 bill hands back ៛14,500, so ៛5,500 stays — worth $1.34, the bill
  * exactly. shift_report.php subtracts this from the cash bucket, which holds
  * that same $1.34, so the sale contributes nothing to the expected DOLLAR
- * drawer. Correct: no dollar note ever moved. Under the old dollars-first rule
+ * drawer. Correct: no dollar note ever moved. (To the nearest ៛100, which is the
+ * smallest note handled: the change rounding leaves up to ±៛50, about ±$0.012 a
+ * sale, so a riel-heavy shift will not reconcile to the exact cent. It is a
+ * rounding residue, not a shortage.) Under the old dollars-first rule
  * the same sale handed back $3 in notes, left ៛17,800 (worth $4.34) and pulled
  * the expected figure $3 negative — true then, because three real dollars left
  * the till, and no longer true now that they do not.

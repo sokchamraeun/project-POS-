@@ -126,15 +126,27 @@ check('a short riel-only tender hands back no riel',     $c['khr'], 0);
 // riel-only path or it would hand a dollar back to someone who paid in riel —
 // the exact thing this rule exists to stop. Swept across bills and notes so a
 // future edit cannot reintroduce it for one unlucky amount.
+// Asserting usd === 0 ALONE is too weak: a branch that regressed to returning
+// short, or to handing back nothing at all, would satisfy it while being just as
+// broken. So a tender that genuinely covers the bill must also come back with
+// real riel and not be flagged short.
 $carried = [];
+$hollow  = [];
 foreach ([0.75, 1.34, 2.50, 3.00, 4.10, 7.25, 12.80] as $owed) {
     foreach ([5000, 10000, 20000, 50000, 100000] as $khr) {
-        $ref = tender_ref(0, $khr);
-        $g = tender_change(tender_usd_total($ref), $owed, tender_is_riel_only(tender_parts($ref)));
+        $ref   = tender_ref(0, $khr);
+        $total = tender_usd_total($ref);
+        $g     = tender_change($total, $owed, tender_is_riel_only(tender_parts($ref)));
         if ($g['usd'] !== 0) { $carried[] = "$ref on $owed gave \${$g['usd']}"; }
+        // Covers the bill by more than the ៛100 rounding step, so change is owed.
+        if ($total - $owed > 0.05) {
+            if ($g['short'])     { $hollow[] = "$ref on $owed said short"; }
+            if ($g['khr'] <= 0)  { $hollow[] = "$ref on $owed handed back no riel"; }
+        }
     }
 }
 check('no riel-only tender anywhere hands back a single dollar', $carried, []);
+check('every covered riel-only tender hands real riel back',     $hollow,  []);
 
 echo "tender_change_text\n";
 // THE REGRESSION LOCK. The receipt used to build this label by hand and, when

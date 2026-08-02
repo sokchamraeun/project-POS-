@@ -107,7 +107,14 @@ function tenderCashReceivedUsd(usdId, khrId, rate) {
 function tenderFieldsRielOnly(usdId, khrId) {
   var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
   var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
-  return tenderIsRielOnly({ usd: Math.max(0, usd), khr: Math.max(0, khr) });
+  // Rounded to cents FIRST, because that is what gets stored: tenderRef() and
+  // PHP's tender_ref() both format the dollar part to 2dp. A raw $0.004 typed
+  // beside a riel amount is not riel-only on screen but stores as "0.00|8000",
+  // which reads back as riel-only — so the receipt would show all-riel change
+  // while the screen showed dollars first. That is the same drift that once put
+  // $4.00 on screen against $3.99 on paper, and it is not repeating here.
+  usd = Math.round(Math.max(0, usd) * 100) / 100;
+  return tenderIsRielOnly({ usd: usd, khr: Math.max(0, khr) });
 }
 
 /* The prefill trap. The dollar field is pre-seeded with the exact total so
