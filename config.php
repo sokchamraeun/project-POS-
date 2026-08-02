@@ -657,6 +657,28 @@ if (!function_exists('_deduct_stock')) {
 
 
 /**
+ * What an order's status means for FULFILMENT, as opposed to money.
+ *
+ * orders.status mixes the two: 'Paid' answers "has the money arrived", which tells
+ * a barista or a customer nothing about whether the drink is made. Translate it:
+ *
+ *   Paid + is_open=1 → Preparing   paid up front, still to be made
+ *   Paid + is_open=0 → Completed   settled and closed, nothing outstanding
+ *
+ * Everything else already names a fulfilment state and passes through.
+ *
+ * The PHP twin of boardState() in view_order.php:1862. Keep the two in step — every
+ * screen that answers "is this drink made?" must give the same answer. Screens about
+ * money (find_order, the payment pages, the reports) read the raw status on purpose.
+ */
+if (!function_exists('order_board_state')) {
+    function order_board_state(?string $status, $is_open): string {
+        if ($status === 'Paid') return ((int)$is_open === 1) ? 'Preparing' : 'Completed';
+        return (string)$status;
+    }
+}
+
+/**
  * The payment methods this system recognises.
  *
  * orders.payment_method is a varchar with no constraint, so whatever a POST

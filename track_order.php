@@ -15,7 +15,7 @@ if ($action === 'status') {
     header('Content-Type: application/json');
 
     $stmt = $conn->prepare("
-        SELECT order_id, customer_name, status, total, order_date, daily_order_no
+        SELECT order_id, customer_name, status, is_open, total, order_date, daily_order_no
         FROM orders
         WHERE order_id = ?
         LIMIT 1
@@ -27,7 +27,10 @@ if ($action === 'status') {
 
     echo json_encode([
         "found" => $order ? true : false,
-        "status" => $order['status'] ?? 'Unknown',
+        /* Fulfilment state, not the money state. A customer tracking their drink was
+           shown "Paid", which answers a question they did not ask and hides the one
+           they did — is it ready? A settled order now reads "Order Ready!". */
+        "status" => $order ? order_board_state($order['status'], $order['is_open']) : 'Unknown',
         "customer_name" => $order['customer_name'] ?? '',
         "total" => $order['total'] ?? 0,
         "order_date" => $order['order_date'] ?? ''
@@ -39,7 +42,7 @@ if ($action === 'status') {
    FIRST PAGE LOAD
 ================================ */
 $stmt = $conn->prepare("
-    SELECT order_id, customer_name, status, total, order_date, daily_order_no
+    SELECT order_id, customer_name, status, is_open, total, order_date, daily_order_no
     FROM orders
     WHERE order_id = ?
     LIMIT 1
@@ -52,6 +55,12 @@ $order = $result->fetch_assoc();
 if (!$order) {
     die("Order not found.");
 }
+
+/* This page answers one question — is my drink ready? — so it shows the fulfilment
+   state, not the money state. Overwritten here so every label, colour and icon below
+   reads the translated value without each having to remember to convert. A settled
+   order used to display "💳 Paid", which is true and useless to the customer. */
+$order['status'] = order_board_state($order['status'], $order['is_open']);
 
 // ── Check if this is a redirect from payment ──
 $from_payment = isset($_GET['from_payment']) ? true : false;

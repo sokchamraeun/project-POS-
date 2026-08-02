@@ -1986,8 +1986,12 @@ function buildCardInner(o) {
 // ── Build Barista Card Inner HTML (station view) ──
 function buildBaristaCardInner(o) {
     const age = orderAgeMin(o);
-    const overdue = o.status === 'Preparing' && age >= OVERDUE_MINUTES;
-    const badge = o.status === 'Preparing'
+    // Board state throughout: the badge already used it, so reading the raw status
+    // for the overdue test could have shown a "Preparing" badge on a card the same
+    // function decided was Preparing by a different rule.
+    const isQueued = boardState(o) === 'Preparing';
+    const overdue = isQueued && age >= OVERDUE_MINUTES;
+    const badge = isQueued
         ? `<span class="bcard-badge ${overdue ? 'overdue' : 'prep'}">${overdue ? '<i class="fa-solid fa-circle-exclamation"></i> Overdue' : '<i class="fa-solid fa-hourglass-half"></i> Preparing'}</span>`
         : getStatusBadge(boardState(o));
     // Barista sees only UNMADE drinks — made ones are hidden so the queue shows just what's
@@ -2087,10 +2091,16 @@ function updateBaristaStats() {
     if (!el('stat-queue')) return;
     let queue = 0, overdue = 0, done = 0, waitSum = 0, waitN = 0;
     (allOrders || []).forEach(o => {
-        if (o.status === 'Preparing') {
+        /* Board state, not raw status. These stats count DRINKS MADE, and a settled
+           order carries status='Paid' while the board shows it as Completed — 191
+           orders here — so counting on the raw status left them in neither bucket
+           and under-reported the day's work. Symmetrically, a paid-but-still-open
+           order belongs in the queue. */
+        const st = boardState(o);
+        if (st === 'Preparing') {
             queue++;
             if (orderAgeMin(o) >= OVERDUE_MINUTES) overdue++;
-        } else if (o.status === 'Completed') {
+        } else if (st === 'Completed') {
             done++;
             const basis = o.started_at || o.order_date;
             if (o.completed_at && basis) {
@@ -2115,13 +2125,18 @@ function addRow(o) {
     card.dataset.orderId = o.order_id;
     if (userRole === 'barista') {
         card.classList.add('bcard');
-        if (o.status === 'Preparing') {
+        // Board state: a paid-but-open order is still work to make, so it can go
+        // overdue like anything else in the queue.
+        if (boardState(o) === 'Preparing') {
             const age = orderAgeMin(o);
             if (age >= OVERDUE_MINUTES) card.classList.add('is-overdue');
             else if (age >= Math.floor(OVERDUE_MINUTES * 0.7)) card.classList.add('is-warn');
         }
     }
-    if ((o.status === 'Completed' || o.status === 'Refunded') && !showCompleted) {
+    /* Hide what the card SAYS it is. On the raw status a settled order reads 'Paid'
+       and survived the toggle, so 191 cards labelled "Completed" stayed on screen
+       with "show completed" off — the filter disagreeing with its own badges. */
+    if ((boardState(o) === 'Completed' || o.status === 'Refunded') && !showCompleted) {
         card.style.display = 'none';
     }
     card.innerHTML = buildCardInner(o);
@@ -2217,12 +2232,14 @@ function updateExistingRow(o) {
     const card = document.getElementById("row-" + o.order_id);
     if (!card) return;
 
-    // Play bell when a remade order transitions back to Preparing
-    if (o.status === 'Preparing' && o.remake_count > 0 && card.dataset.status !== 'Preparing') {
+    // Play bell when a remade order transitions back to Preparing. dataset.status
+    // already holds the BOARD state, so compare like with like.
+    if (boardState(o) === 'Preparing' && o.remake_count > 0 && card.dataset.status !== 'Preparing') {
         play('bell');
     }
 
-    if ((o.status === 'Completed' || o.status === 'Refunded') && !showCompleted) {
+    // Same rule as addRow: hide what the card says it is, not the raw status.
+    if ((boardState(o) === 'Completed' || o.status === 'Refunded') && !showCompleted) {
         card.style.display = 'none';
     } else {
         card.style.display = '';
@@ -2231,7 +2248,7 @@ function updateExistingRow(o) {
     card.className = "order-card" + (o.remake_count > 0 ? " is-remade" : "");
     if (userRole === 'barista') {
         card.classList.add('bcard');
-        if (o.status === 'Preparing') {
+        if (boardState(o) === 'Preparing') {
             const age = orderAgeMin(o);
             if (age >= OVERDUE_MINUTES) card.classList.add('is-overdue');
             else if (age >= Math.floor(OVERDUE_MINUTES * 0.7)) card.classList.add('is-warn');
