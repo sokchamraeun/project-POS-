@@ -62,6 +62,12 @@ if (!defined('DAILY_SALES_TARGET'))  define('DAILY_SALES_TARGET',   (float)($_ca
 if (!defined('STAND_COUNT'))         define('STAND_COUNT',          max(1, min(100, (int)($_cafe_settings['stand_count'] ?? 20))));
 if (!defined('OVERDUE_MINUTES'))     define('OVERDUE_MINUTES',      max(1, min(120, (int)($_cafe_settings['overdue_minutes'] ?? 10))));
 if (!defined('PAYLATER_FOLLOWUP_MINUTES')) define('PAYLATER_FOLLOWUP_MINUTES', max(5, min(240, (int)($_cafe_settings['paylater_followup_minutes'] ?? 45))));
+// Loyalty earn rate, expressed as a ratio: X points per Y drinks. Both clamp to
+// a minimum of 1 — zero points awards nothing forever, zero drinks divides by
+// zero, and neither is a rate anyone means to type. The defaults reproduce the
+// old hardcoded behaviour exactly: one point per drink.
+if (!defined('LOYALTY_POINTS_PER'))    define('LOYALTY_POINTS_PER',    max(1, (int)($_cafe_settings['loyalty_points_per']    ?? 1)));
+if (!defined('LOYALTY_POINTS_DRINKS')) define('LOYALTY_POINTS_DRINKS', max(1, (int)($_cafe_settings['loyalty_points_drinks'] ?? 1)));
 unset($_cafe_settings, $_sr, $_today, $_hh_sd, $_hh_ed, $_hh_in_range, $_bx_sd, $_bx_ed, $_bx_in_range);
 
 // ── Schema migrations tracker ──
@@ -678,6 +684,151 @@ if (!function_exists('po_short_reason_label')) {
         return po_short_reasons()[$code] ?? $code;
     }
 }
+
+/**
+ * How many drinks on an order actually earn loyalty points.
+ *
+ * Earning lines only: a category flagged earns_points = 0 (merch) never earns,
+ * a zero-priced gift line never earns, and product_id = 0 is the only reliable
+ * gift test — the "[GIFT] " name prefix misses six older rows, and price = 0
+ * also matches a buy-X-get-1-free promo drink, which IS a real cup.
+ *
+ * This exists because two of the four award sites did not filter at all:
+ * admin_pay_cash.php and check_payment.php counted SUM(quantity), so a
+ * pay-later order awarded points for a T-shirt and for the free gift drink
+ * itself, while the same basket paid up front awarded neither.
+ */
+if (!function_exists('loyalty_earning_qty')) {
+    function loyalty_earning_qty(mysqli $conn, int $order_id): int {
+        $q = $conn->prepare("SELECT COALESCE(SUM(quantity), 0)
+                             FROM order_items
+                             WHERE order_id = ? AND earns_points = 1
+                               AND price > 0 AND product_id <> 0");
+        $q->bind_param('i', $order_id);
+        $q->execute();
+        return (int)($q->get_result()->fetch_row()[0] ?? 0);
+    }
+}
+
+/**
+ * Reconcile one order's loyalty effect to a given earning quantity.
+ *
+ * ONE writer for every loyalty movement, because the four sites that used to do
+ * this each did it slightly differently. Takes the order's TOTAL earning
+ * quantity, never a delta, and works out the difference itself against what the
+ * order already recorded. That makes three cases one call:
+ *
+ *   first award      qty_total = the order's earning drinks
+ *   add-to-order     qty_total = the NEW combined total
+ *   full reversal    qty_total = 0
+ *
+ * The reversal is exact rather than approximate. progress_before is recovered
+ * from what the order stored:
+ *     progress_before = progress_now + (points_earned x Y) - (qty_recorded x X)
+ * which is exact because points_earned = intdiv(progress_before + qty x X, Y)
+ * and progress_now = (progress_before + qty x X) % Y. So award-then-reverse
+ * returns the card to precisely where it started, which is what makes a refund
+ * safe for a customer who was part-way to their next point.
+ *
+ * Card merges: the source card is deactivated, NOT deleted, and
+ * orders.loyalty_card_id keeps pointing at it so the audit trail survives. Its
+ * points have already moved to the target, so writing here would credit a card
+ * nobody can spend from. merged_into is followed to the end of the chain first.
+ *
+ * Returns the net points change, positive or negative.
+ */
+if (!function_exists('loyalty_sync')) {
+    function loyalty_sync(mysqli $conn, int $card_id, int $order_id, int $qty_total, string $note): int {
+        if ($card_id <= 0 || $order_id <= 0) { return 0; }
+        $x = max(1, (int)LOYALTY_POINTS_PER);
+        $y = max(1, (int)LOYALTY_POINTS_DRINKS);
+        $qty_total = max(0, $qty_total);
+
+        // Follow a merge chain to the card that actually holds the balance.
+        // Bounded rather than while(true): a cycle in merged_into would hang the
+        // till, and ten hops is far beyond any real merge history.
+        $seen = 0;
+        while ($seen++ < 10) {
+            $m = $conn->prepare("SELECT merged_into FROM loyalty_cards WHERE card_id = ?");
+            $m->bind_param('i', $card_id);
+            $m->execute();
+            $row = $m->get_result()->fetch_row();
+            if (!$row) { return 0; }                       // card gone entirely
+            $next = (int)($row[0] ?? 0);
+            if ($next <= 0 || $next === $card_id) { break; }
+            $card_id = $next;
+        }
+
+        $c = $conn->prepare("SELECT points_progress FROM loyalty_cards WHERE card_id = ?");
+        $c->bind_param('i', $card_id);
+        $c->execute();
+        $crow = $c->get_result()->fetch_row();
+        if (!$crow) { return 0; }
+        $progress_now = (int)$crow[0];
+
+        $o = $conn->prepare("SELECT points_earned, points_qty FROM orders WHERE order_id = ?");
+        $o->bind_param('i', $order_id);
+        $o->execute();
+        $orow = $o->get_result()->fetch_assoc();
+        if (!$orow) { return 0; }
+        $points_old = (int)($orow['points_earned'] ?? 0);
+        $qty_old    = (int)($orow['points_qty']    ?? 0);
+
+        // Undo this order's contribution, then apply the new one.
+        $progress_before = $progress_now + ($points_old * $y) - ($qty_old * $x);
+        $numerator       = $progress_before + ($qty_total * $x);
+        $points_new      = intdiv(max(0, $numerator), $y);
+        $progress_new    = max(0, $numerator) % $y;
+
+        // Symptom guard, not a fix. If this ever fires the arithmetic above is
+        // wrong, and the log is the only thing that will say so before a
+        // customer notices their points are off.
+        if ($numerator < 0 || $progress_new < 0 || $progress_new >= $y) {
+            error_log("loyalty_sync: progress out of range for card $card_id order $order_id "
+                    . "(numerator $numerator, progress $progress_new, Y $y)");
+            $progress_new = max(0, min($y - 1, $progress_new));
+        }
+
+        $delta_points = $points_new - $points_old;
+        $delta_drinks = $qty_total - $qty_old;
+        // An order counts once toward total_orders while it has earning drinks.
+        $delta_orders = ($qty_total > 0 ? 1 : 0) - ($qty_old > 0 ? 1 : 0);
+
+        $u = $conn->prepare("UPDATE loyalty_cards
+                                SET points          = GREATEST(0, points + ?),
+                                    points_progress = ?,
+                                    total_orders    = GREATEST(0, total_orders + ?),
+                                    total_drinks    = GREATEST(0, total_drinks + ?),
+                                    last_used       = NOW()
+                              WHERE card_id = ?");
+        $u->bind_param('iiiii', $delta_points, $progress_new, $delta_orders, $delta_drinks, $card_id);
+        $u->execute();
+
+        // History records movement only. A sync that changes progress but awards
+        // nothing is real and correct, and a zero-point row every time would bury
+        // the entries a human actually reads.
+        if ($delta_points !== 0) {
+            $type = $delta_points > 0 ? 'earned' : 'adjusted_deduct';
+            // 'earned' is hardcoded in SQL rather than bound so ENUM validation
+            // happens at execute(); fall back for schemas without that member.
+            $h = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description)
+                                 VALUES (?, ?, ?, '$type', ?)");
+            if (!$h) {
+                $alt = $delta_points > 0 ? 'adjusted_add' : 'adjusted_deduct';
+                $h = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description)
+                                     VALUES (?, ?, ?, '$alt', ?)");
+            }
+            if ($h) { $h->bind_param('iiis', $card_id, $order_id, $delta_points, $note); $h->execute(); }
+        }
+
+        $so = $conn->prepare("UPDATE orders SET points_earned = ?, points_qty = ? WHERE order_id = ?");
+        $so->bind_param('iii', $points_new, $qty_total, $order_id);
+        $so->execute();
+
+        return $delta_points;
+    }
+}
+
 /**
  * Deduct ingredient stock for one drink.
  *
@@ -1934,6 +2085,17 @@ _migrate($conn, 'po_close_short_reason_v1', function($db) {
                 ADD COLUMN IF NOT EXISTS closed_short_reason VARCHAR(40) NOT NULL DEFAULT ''");
     $db->query("ALTER TABLE purchase_orders
                 ADD COLUMN IF NOT EXISTS closed_short_note VARCHAR(255) NULL DEFAULT NULL");
+});
+
+// points_progress is the carry toward the next point, always 0..Y-1. points_qty
+// records how many earning drinks an order counted — stored rather than
+// recomputed because order_items can change afterwards through add-to-order, so
+// the quantity that actually earned is not recoverable at refund time.
+// Both default to 0, which is already correct for every existing card and order
+// at the 1:1 default rate, so no backfill is needed.
+_migrate($conn, 'loyalty_progress_v1', function($db) {
+    $db->query("ALTER TABLE loyalty_cards ADD COLUMN IF NOT EXISTS points_progress INT NOT NULL DEFAULT 0");
+    $db->query("ALTER TABLE orders        ADD COLUMN IF NOT EXISTS points_qty      INT NOT NULL DEFAULT 0");
 });
 
 // ── SANITIZE FUNCTION ──
