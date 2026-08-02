@@ -4,10 +4,12 @@ require 'config.php';
 
 // Ensure employees table has user_id link column
 $conn->query("ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INT NULL");
-// Backfill existing rows that predate this column (best-effort using old ID assumption).
-// Scoped to is_pos=1 only — display-only/non-POS staff legitimately have a NULL user_id
-// and must never be auto-linked to a random user.
-$conn->query("UPDATE employees e JOIN users u ON u.user_id = e.employee_id SET e.user_id = u.user_id WHERE e.user_id IS NULL AND e.is_pos = 1");
+// NOTE: there used to be a backfill here that linked employees to users via
+// `u.user_id = e.employee_id`. Those two columns are unrelated numbers and never
+// coincide, so it mislinked staff (user #34 ended up owning two employee rows,
+// splitting order attribution). A NULL user_id is either a deliberate unlink or a
+// non-POS/display-only employee — neither should be auto-guessed. Link accounts
+// explicitly via employee_edit.php instead.
 
 // AJAX: username availability check
 if (isset($_GET['check_username'])) {
