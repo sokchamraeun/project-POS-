@@ -174,23 +174,15 @@ if ($existing_order_id > 0) {
         // ── LOYALTY: sync points with new combined drink count (adding items earns more) ──
         $lc_id = (int)($existing_order['loyalty_card_id'] ?? 0);
         if ($lc_id > 0) {
-            $old_pts = (int)($existing_order['points_earned'] ?? 0);
-            $delta   = $points_qty - $old_pts;
-            if ($delta !== 0) {
-                $lc = $conn->prepare("UPDATE loyalty_cards SET points = GREATEST(0, points + ?), total_drinks = GREATEST(0, total_drinks + ?), last_used = NOW() WHERE card_id = ?");
-                $lc->bind_param("iii", $delta, $delta, $lc_id);
-                $lc->execute();
-
-                $htype = $delta > 0 ? 'adjusted_add' : 'adjusted_deduct';
-                $hdesc = "Order #{$existing_order_id} items added — points adjusted by {$delta}";
-                $hi = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, ?, ?)");
-                $hi->bind_param("iiiss", $lc_id, $existing_order_id, $delta, $htype, $hdesc);
-                $hi->execute();
-
-                $up = $conn->prepare("UPDATE orders SET points_earned = ? WHERE order_id = ?");
-                $up->bind_param("ii", $points_qty, $existing_order_id);
-                $up->execute();
-            }
+            // $points_qty here is the COMBINED earning quantity of the existing
+            // order plus the items being added — computed at line 131 in this
+            // branch. loyalty_sync takes that total and works out the delta
+            // itself against what the order already recorded.
+            //
+            // NOTE: this branch's $points_qty is a different variable from the
+            // new-order branch's $point_qty further down. Both are correct.
+            loyalty_sync($conn, $lc_id, $existing_order_id, $points_qty,
+                         "Order #{$existing_order_id} items added — points adjusted");
         }
 
         $stmt_item = $conn->prepare("
@@ -569,38 +561,22 @@ try {
     unset($_SESSION['manual_discount']);
     unset($_SESSION['cart_started_at']);
 
-    // ── LOYALTY POINTS (1 point per drink ordered) ──
+    // ── LOYALTY POINTS ──
+    // Rate and carry-forward both live in loyalty_sync(); this site only says
+    // which card, which order, and how many earning drinks.
     $loyalty_card_id = isset($_SESSION['loyalty_card_id']) ? (int)$_SESSION['loyalty_card_id'] : 0;
     if ($loyalty_card_id > 0) {
-        $points_earned = $point_qty;   // earning (drink) items only — merch excluded
-
-        if ($points_earned > 0) {
-            // Step 1: Always update the points balance — only touches guaranteed columns.
-            // Split from the counter update so a missing column can't silently block this.
-            $su = $conn->prepare("UPDATE loyalty_cards SET points = points + ?, last_used = NOW() WHERE card_id = ?");
-            if ($su) { $su->bind_param("ii", $points_earned, $loyalty_card_id); $su->execute(); }
-
-            // Step 2: Increment counter columns if they exist in this schema version.
-            $sc = $conn->prepare("UPDATE loyalty_cards SET total_orders = total_orders + 1, total_drinks = total_drinks + ? WHERE card_id = ?");
-            if ($sc) { $sc->bind_param("ii", $point_qty, $loyalty_card_id); $sc->execute(); }
-
-            // Step 3: Write earn record to loyalty_history.
-            // Hardcode 'earned' directly in SQL (not as a parameter) so ENUM validation
-            // happens at execute(), not bind time. Falls back to 'adjusted_add' if prepare
-            // fails (e.g. schema uses a different ENUM set without 'earned').
-            $si = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'earned', 'Points earned from order')");
-            if (!$si) {
-                $si = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_add', 'Points earned from order')");
-            }
-            if ($si) {
-                $si->bind_param("iii", $loyalty_card_id, $order_id, $points_earned);
-                $si->execute();
-            }
+        if ($point_qty > 0) {
+            loyalty_sync($conn, $loyalty_card_id, $order_id, $point_qty, 'Points earned from order');
         }
 
-        // Link loyalty card to this order and record earned points for reporting
-        $stmt_link = $conn->prepare("UPDATE orders SET loyalty_card_id = ?, points_earned = ? WHERE order_id = ?");
-        if ($stmt_link) { $stmt_link->bind_param("iii", $loyalty_card_id, $points_earned, $order_id); $stmt_link->execute(); }
+        // Link the card to this order even when it earned nothing (e.g. a
+        // merch-only order) — refund_order.php and cancel_order.php key off
+        // orders.loyalty_card_id to know which card to reverse points on.
+        // loyalty_sync() only ever writes points_earned/points_qty, never this
+        // column, so it still needs setting here.
+        $stmt_link = $conn->prepare("UPDATE orders SET loyalty_card_id = ? WHERE order_id = ?");
+        if ($stmt_link) { $stmt_link->bind_param("ii", $loyalty_card_id, $order_id); $stmt_link->execute(); }
 
         // Clear card from session so the next customer's order doesn't accidentally inherit it
         unset($_SESSION['loyalty_card_id']);
