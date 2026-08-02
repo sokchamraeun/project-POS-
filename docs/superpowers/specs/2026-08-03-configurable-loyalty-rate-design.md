@@ -31,6 +31,20 @@ together.
 Two settings, one shared writer, and a carry-forward remainder so a fractional
 rate still works for the customer who buys one drink at a time.
 
+## Bug fixes included, not just a refactor
+
+Two of the four award sites are **patched**, not merely moved behind a helper.
+Anyone reading this later should not mistake the change for a tidy-up:
+
+1. **`admin_pay_cash.php:168` and `check_payment.php:139` count merch and gift
+   lines.** They use `SUM(quantity)` with no filter, so a pay-later order
+   containing a T-shirt awards a point for the T-shirt, and a free loyalty gift
+   drink (`product_id = 0`) awards a point for itself. The same basket paid up
+   front awards neither. After this change all four sites count the same thing.
+2. **`merge_loyalty_cards.php` does not follow points across a merge for
+   reversal.** See "Card merges" below — verified against live data, 3 cards are
+   already merged.
+
 ## Scope decisions
 
 Three decisions were taken during brainstorming, each with the rejected
@@ -104,6 +118,43 @@ This is exact because `points_earned = intdiv(progress_before + qty×X, Y)` and
 `progress_now = (progress_before + qty×X) % Y`, so the two substitute back to
 `progress_before`.
 
+**The invariant `0 ≤ progress < Y` is enforced, not assumed.** Both helpers clamp
+the value they write and log through `error_log()` when a clamp actually fires.
+A drift into negative or `≥ Y` would otherwise be invisible until a customer
+noticed their points were wrong, which is the worst way to find out. The clamp is
+a symptom guard, not a fix: if it ever fires, the arithmetic above is wrong and
+the log is the only thing that will say so.
+
+The helpers read `LOYALTY_POINTS_PER` / `LOYALTY_POINTS_DRINKS` directly rather
+than taking them as arguments, so no caller can pass `(0, 0)` and divide by zero.
+They still clamp on read with `max(1, ...)`, because a constant defined by another
+include or a direct database edit is outside this file's control.
+
+## Card merges
+
+`merge_loyalty_cards.php` folds one card into another: it moves `points`,
+`total_orders` and `total_drinks` to the target, zeroes the source's points and
+sets `is_active = 0` and `merged_into`. **The source row is deactivated, never
+deleted** — `orders.loyalty_card_id` still references it, deliberately, so the
+audit trail survives (`merge_loyalty_cards.php:7`).
+
+Two consequences for this design, both verified against live data where 3 cards
+are already merged:
+
+1. **The merge must carry `points_progress`** — add it to the target and zero the
+   source, exactly as it already does for `points`. Without this, a customer who
+   is one drink into their next point loses that drink the moment their card is
+   merged. Silent, and only ever against them.
+2. **Reversal must follow `merged_into`.** A refund of an order placed before the
+   merge would otherwise reverse against the source card, whose points are now
+   zero and whose progress belongs to the target. `loyalty_reverse()` resolves the
+   card through `merged_into` before writing, following the chain to its end.
+
+Note that reversing points against a merged-away card is **already** wrong today,
+before this change — the points moved to the target and `GREATEST(0, points - n)`
+on a zeroed source silently does nothing. Fixing it here is cheap because
+`loyalty_reverse()` is the one place that has to know.
+
 ## Components
 
 One shared writer in `config.php`, beside `_deduct_stock()` and the tender
@@ -140,6 +191,10 @@ _migrate($conn, 'loyalty_progress_v1', function($db) {
 });
 ```
 
+`ADD COLUMN IF NOT EXISTS` is safe here: this server is **MariaDB 10.4.32** (10.0+
+supports it) and `config.php` already relies on the same syntax in **47** places.
+Not a new risk.
+
 `points_progress` is the carry, always `0..Y-1`. `points_qty` records how many
 earning drinks an order counted; it is stored rather than recomputed because
 `order_items` can change afterwards through add-to-order, so the quantity that
@@ -175,18 +230,6 @@ Merch and free gift drinks don't earn points.
 The live summary line updates as the numbers change and is the part that makes
 the ratio unmistakable.
 
-## Hide Add Discount
-
-Independent of everything above and shipping as its own commit. The `Add
-Discount` button in `menu.php`'s cart panel is wrapped in `if (false):` with a
-restore comment — the pattern already used for the Riel tile and the bulk
-enable-sizes tool (`products.php:1508`).
-
-The POST handler, the `manual_discount` column and every reader stay untouched,
-so orders that already carry a discount still render it and the control can be
-restored by flipping one word. The reason is that discounting needs more shape
-than a single blanket control before it goes in front of customers.
-
 ## Testing
 
 `tests/loyalty_test.php`, following the `tests/purchase_order_test.php` harness —
@@ -204,7 +247,12 @@ The arithmetic is pure and needs no database:
 | 2 per 1 | 1 drink | 0 | 2 points, progress 0 |
 | 1 per 3 | 7 drinks | 0 | 2 points, progress 1 |
 | any | 0 drinks | any | 0 points, progress unchanged |
-| 0 per 0 | 1 drink | 0 | clamps to 1 per 1, no division by zero |
+
+Settings clamping is tested separately, at the level where it happens — the
+constant definitions, not the arithmetic. A stored `0` for either key must load
+as `1`. The helpers cannot receive `(0, 0)` because they read the constants
+rather than taking them as arguments, but they clamp on read anyway and that
+clamp is asserted too.
 
 Against the database, inside the rollback:
 
@@ -217,7 +265,33 @@ Against the database, inside the rollback:
   pay-later paths.
 - The same basket earns identically whether paid up front, settled at the counter
   or settled by Bakong. **This fails today.**
-- `points_progress` never leaves `0..Y-1`.
+- **Add-to-order accumulates without double-counting.** Order 2 drinks, award;
+  then add 1 more drink through the delta path (`confirm_order.php:177`) and award
+  again. At 1 per 2 the first award gives 1 point with progress 0, the second
+  gives 0 points with progress 1 — not 2 points. `orders.points_qty` must end at
+  3, not 1 or 2, or the later refund reverses the wrong amount. This is the path
+  `points_qty` exists for, and it is the one most likely to be got wrong.
+- **A merge carries progress.** Merge a card holding progress 1 into another
+  holding progress 1 at rate 1 per 2: the target ends with the source's points
+  added and progress carried, and the source ends at zero on both.
+- **Reversal after a merge lands on the target card**, not the deactivated source.
+- `points_progress` never leaves `0..Y-1`, asserted after every award, reversal
+  and merge in the sweeps above rather than only in a dedicated test.
+
+## Related housekeeping: hide Add Discount
+
+**Shares nothing with the loyalty work** — different file, different concern, its
+own commit. Recorded here only because it was asked for in the same breath; an
+implementer working on loyalty can skip this section entirely.
+
+The `Add Discount` button in `menu.php`'s cart panel is wrapped in `if (false):`
+with a restore comment — the pattern already used for the Riel tile and the bulk
+enable-sizes tool (`products.php:1508`). Six lines.
+
+The POST handler, the `manual_discount` column and every reader stay untouched,
+so orders that already carry a discount still render it and the control comes
+back by flipping one word. The reason for hiding it is that discounting needs
+more shape than a single blanket control before it goes in front of customers.
 
 ## Related
 
