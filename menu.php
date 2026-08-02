@@ -746,8 +746,13 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 <?php if ($add_to_order_mode > 0): ?>
 <div class="add-order-banner">
   <i class="fa-solid fa-cart-plus"></i>
-  Adding to Order #<?= $add_to_order_mode ?> &nbsp;&middot;&nbsp;
-  <a href="cart_paylater.php" style="color:inherit;font-weight:700;text-decoration:underline;">View Cart &amp; Confirm</a>
+  Adding to Order #<?= $add_to_order_mode ?>
+  <?php /* No "View Cart & Confirm" link here any more. It was the only caller of
+           cart_paylater.php and it led off a page that can already finish the job —
+           the cart panel's button reads "Add to Order #N" in this mode. With an
+           empty tab-cart it landed the cashier on "Your cart is empty, go back",
+           which reads like an error when nothing is wrong. cart_paylater.php is
+           left on disk, now unreferenced, if that review step is ever wanted. */ ?>
   <?php /* Says HELD, not removed. It belongs on this strip and not in the checkout
            panel: the panel only renders once the cart has items, and this notice is
            needed precisely when the cart is empty — a cashier who was mid-order
