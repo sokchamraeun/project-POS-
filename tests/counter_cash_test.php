@@ -53,17 +53,30 @@ echo "change block gating\n";
 // The gate must key on "a tender was recorded", not on the method reading cash.
 // A settled pay-later tab deliberately keeps payment_method='paylater' so the
 // reporting bucket survives, and would otherwise never show its change.
+// The gate itself is now tender_parts() !== null, not is_numeric(). Riel-into-cash
+// stores both amounts as "1.00|8000" (dollars|riel), and a riel-only tender reads
+// "0.00|5500" — not is_numeric() — so the old gate would have silently written or
+// shown nothing for it. tender_parts() accepts exactly the two valid tender shapes
+// (bare dollars, or "dollars|riel") and returns null for anything else, including
+// a Bakong transaction id, so it is a strict superset of what is_numeric() gated.
 $pc = file_get_contents(__DIR__ . '/../payment_cash.php');
 check('success screen does not require cash',
       strpos($pc, "\$pay['payment_method'] === 'cash' && is_numeric") === false, true);
-check('success screen still requires a numeric tender',
-      strpos($pc, "is_numeric(\$pay['reference'])") !== false, true);
+check('success screen still requires a recorded tender',
+      strpos($pc, "tender_parts(\$pay['reference'])") !== false, true);
+// Regression guard: the old gate must not quietly come back, since it would
+// silently drop the change block for every riel-only cash tender.
+check('success screen no longer gates on is_numeric',
+      strpos($pc, "is_numeric(\$pay['reference'])") === false, true);
 
 $rp = file_get_contents(__DIR__ . '/../receipt_pdf.php');
 check('receipt gates on a tender, not the method',
       strpos($rp, "\$pay['payment_method'] === 'cash' && \$ref !== ''") === false, true);
-check('receipt still requires a numeric tender',
-      strpos($rp, 'is_numeric($ref)') !== false, true);
+check('receipt still requires a recorded tender',
+      strpos($rp, 'tender_parts($ref)') !== false, true);
+// Regression guard: same as above, for the receipt's split/non-solo branch.
+check('receipt no longer gates on is_numeric',
+      strpos($rp, 'is_numeric($ref)') === false, true);
 // $is_solo_cash must survive: it suppresses the PAYMENT block for a plain cash
 // sale, and a pay-later receipt has to keep showing how it was settled.
 check('receipt keeps the solo-cash distinction',
