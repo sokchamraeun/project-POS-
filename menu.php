@@ -96,7 +96,18 @@ $add_to_order_mode = isset($_GET['add_to_order']) ? (int)$_GET['add_to_order'] :
    confirm_order.php:95 warns about: cart.php derives its add-to-order flag from
    this key, so an abandoned flow can no longer hijack a later normal checkout. */
 $cart_restored_count = 0;
+$add_cart_dropped    = 0;
+$add_cart_dropped_no = 0;
 if ($add_to_order_mode === 0 && isset($_SESSION['cart_stash'])) {
+    /* Anything still queued for the tab is abandoned by leaving — the restore
+       overwrites it. Counted BEFORE the overwrite so the cashier can be told what
+       was lost. Reported after the fact rather than confirmed before: a
+       beforeunload prompt cannot tell an abandon from an ordinary navigation,
+       fires when it should not, and gets dismissed by habit. Here we already know
+       exactly what was dropped. */
+    $add_cart_dropped    = count($_SESSION['cart'] ?? []);
+    $add_cart_dropped_no = (int)($_SESSION['add_to_daily_no'] ?? 0);
+
     $_SESSION['cart']    = $_SESSION['cart_stash'];
     $cart_restored_count = count($_SESSION['cart_stash']);
     unset($_SESSION['cart_stash'], $_SESSION['add_to_order_id'],
@@ -719,6 +730,17 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     </button>
   </div>
 </header>
+
+<!-- Drinks queued for a tab that was left without confirming. Shown once, on the
+     menu the cashier lands on, so an abandoned add is never silently swallowed. -->
+<?php if ($add_cart_dropped > 0): ?>
+<div class="add-order-banner" style="background:#8a5a1e;">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  <?= (int)$add_cart_dropped ?> drink<?= $add_cart_dropped === 1 ? '' : 's' ?>
+  queued for Order #<?= (int)$add_cart_dropped_no ?>
+  <?= $add_cart_dropped === 1 ? 'was' : 'were' ?> discarded &mdash; that order wasn&rsquo;t confirmed.
+</div>
+<?php endif; ?>
 
 <!-- ADD TO ORDER BANNER -->
 <?php if ($add_to_order_mode > 0): ?>
