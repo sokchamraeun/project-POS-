@@ -235,15 +235,21 @@ try {
     // $testPoi is at 10.0 received by this point (6 + 4, both claimed above).
     check('a re-POST of a delivery that already landed is a replay',
           po_receive_was_replay($conn, $testPo, $testPoi, 6.0, 4.0), true);
-    check('a re-POST of the very first delivery is a replay',
-          po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 6.0), true);
-    // Someone else received MORE than this form was ever going to: still a
-    // replay by the >= test, and still the honest message — this delivery is
-    // already accounted for.
-    check('an overtaken line reads as already recorded',
-          po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 1.0), true);
-    // A genuine conflict: the stored value has NOT reached seen + qty, so
-    // something really did move underneath the user.
+    // The case that makes this equality and not >=. A page rendered before an
+    // earlier delivery landed carries a stale seen, and the goods on the form
+    // are REAL and unbanked. Ordered 1000, 500 already in, a genuine 300
+    // submitted from the old page gives stored 800 against seen 0 + qty 300: a
+    // >= test calls that a replay and tells the clerk it was already recorded,
+    // while stock sits 300 short. It must ask for a reload instead.
+    check('a stale page submitting real new goods is NOT a replay',
+          po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 3.0), false);
+    // Overtaken by another clerk: stored has run past seen + qty, so this form
+    // is not the one already stored. Conflict, and the safe direction — it asks
+    // for a reload rather than claiming goods arrived.
+    check('an overtaken line is a conflict, not a replay',
+          po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 1.0), false);
+    // A genuine conflict the other way: the stored value has NOT reached
+    // seen + qty either.
     check('a line that never reached seen+qty is a genuine conflict',
           po_receive_was_replay($conn, $testPo, $testPoi, 10.0, 5.0), false);
     check('an unknown line is a genuine conflict, not a replay',

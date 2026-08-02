@@ -535,11 +535,22 @@ if (!function_exists('po_receive_line')) {
  * not: the Receiving now box is a DELTA, so a short delivery is entered by
  * typing what actually arrived. One sentence made a working feature look broken.
  *
- * The test is qty_received >= seen + qty: the line already carries everything
- * this submission was going to add, so the delivery is accounted for however it
- * got there. A line that never reached that total is a genuine conflict and
- * keeps the original wording. An unknown line is a conflict too — a poi_id that
- * does not resolve is not evidence of anything having landed.
+ * The test is qty_received == seen + qty EXACTLY. Only that means this precise
+ * submission is the one already stored.
+ *
+ * It must not be >=. A page rendered before an earlier delivery landed carries a
+ * stale seen, and a >= test reads it as a replay: ordered 1000, 500 received,
+ * then a genuine 300 submitted from the old page gives stored 800 >= seen 0 +
+ * qty 300, and the clerk is told the delivery was already recorded when nothing
+ * of it was. Stock sits at 500 while the message says everything is fine — worse
+ * than the wording this function exists to replace, because "reload and try
+ * again" at least prompts the re-entry that actually banks the goods.
+ *
+ * Everything else is a conflict and keeps the original wording: a stale page, a
+ * second clerk receiving in between, or a line that does not resolve at all. A
+ * replay that is ALSO overtaken by another clerk fails equality and reports a
+ * conflict, which is the safe direction — it asks for a reload rather than
+ * claiming goods arrived.
  *
  * Read-only, and only ever called after a claim has already been refused, so
  * the successful path pays nothing for it. It stays separate from
@@ -557,10 +568,10 @@ if (!function_exists('po_receive_was_replay')) {
         $row = $q->get_result()->fetch_row();
         if (!$row) { return false; }
 
-        // Tolerance, not equality: qty_received is DECIMAL(10,3) and both
-        // operands arrive as floats, so an exact-total replay can miss a bare
-        // >= by a fraction of the third decimal place.
-        return (float)$row[0] >= ($seen + $qty) - 0.0005;
+        // Tolerance around equality, not a bare ==: qty_received is
+        // DECIMAL(10,3) and both operands arrive as floats, so an exact-total
+        // replay can miss a strict comparison in the third decimal place.
+        return abs((float)$row[0] - ($seen + $qty)) < 0.0005;
     }
 }
 
