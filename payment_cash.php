@@ -591,8 +591,14 @@ body {
             // reporting bucket survives. tender_parts() replaces is_numeric():
             // a riel-only tender reads "0.00|5500", which is not numeric, and a
             // Bakong reference is neither shape so it still cannot misfire.
+            // The 4 historical payment_method='riel' rows are excluded: their
+            // reference is a raw KHR integer like '20000', which tender_parts()
+            // reads as a bare dollar amount, and this block rendered
+            // "Received $20,000.00". receipt_pdf.php has always had a 'riel'
+            // branch for them; this page has none, so it skips them instead.
             $tender_p = tender_parts($pay['reference']);
-            if ($tender_p !== null && tender_usd_total($pay['reference']) > 0):
+            if ($tender_p !== null && $pay['payment_method'] !== 'riel'
+                && tender_usd_total($pay['reference']) > 0):
                 $received = tender_usd_total($pay['reference']);
                 // Change is measured against what the customer owed. On a
                 // single-row payment that is the order total: a pay-later row is
@@ -601,19 +607,13 @@ body {
                 // $1.34, order totals $19.78). A split's legs are per-method and
                 // genuinely correct.
                 $owed_for_change = count($payments) === 1 ? $total : (float)$pay['amount'];
-                $ch         = tender_change($received, $owed_for_change);
-                $change_usd = round(max(0, $received - $owed_for_change), 2);
-                $change_khr = $ch['khr'];
-                $received_label = ($tender_p['khr'] > 0)
-                    ? ($tender_p['usd'] > 0
-                        ? '$' . number_format($tender_p['usd'], 2) . ' + KHR ' . number_format($tender_p['khr'])
-                        : 'KHR ' . number_format($tender_p['khr']))
-                    : '$' . number_format($received, 2);
-                $change_label = ($ch['khr'] > 0)
-                    ? ($ch['usd'] > 0
-                        ? '$' . $ch['usd'] . ' + KHR ' . number_format($ch['khr'])
-                        : 'KHR ' . number_format($ch['khr']))
-                    : '$' . number_format($change_usd, 2);
+                $ch = tender_change($received, $owed_for_change);
+                // Both labels come from config.php so this screen and the
+                // printed receipt cannot drift. They did: the no-riel branch
+                // used to print the raw received-minus-owed difference, which
+                // misses tender_change()'s carry.
+                $received_label = tender_received_text($tender_p, $received);
+                $change_label   = tender_change_text($ch);
             ?>
             <div class="change-block">
                 <div class="chg-row received">

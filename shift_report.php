@@ -68,7 +68,14 @@ if ($order_ids) {
     }
 }
 
+// The cashier counts the drawer in DOLLARS, and that count is compared against
+// this figure, saved to cash_counts and alerted on by dashboard.php. Riel taken
+// on a cash sale is booked to the cash bucket for revenue but never entered the
+// dollar drawer, so leaving it in would accuse the cashier of a shortage equal
+// to every riel sale of the shift. Subtract what the riel side actually kept.
 $expected_cash = $pay_breakdown['cash'] ?? 0.0;
+$riel_share    = tender_riel_share($conn, $order_ids);
+$expected_cash = max(0.0, round($expected_cash - $riel_share, 2));
 
 // ── Drinks sold by type this shift ──
 $drinks = [];
@@ -276,6 +283,7 @@ a{text-decoration:none;}
 .cash-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .cash-label{font-size:13px;color:#888;}
 .cash-val{font-size:15px;font-weight:700;color:#e8e8e8;}
+.cash-note{font-size:11.5px;line-height:1.5;color:#8a8a8a;margin:-6px 0 14px;}
 .cash-input-wrap{display:flex;gap:10px;align-items:center;}
 .cash-input{
   flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
@@ -465,6 +473,13 @@ $show_cash_step = $has_countdown; // only cashier/staff run the till; barista (d
         <span class="cash-label">Expected cash (from system)</span>
         <span class="cash-val">$<?= number_format($expected_cash, 2) ?></span>
     </div>
+    <?php if ($riel_share > 0): ?>
+    <!-- Shown only when riel was taken, so the deduction is explainable rather
+         than a figure that mysteriously disagrees with the payment breakdown. -->
+    <div class="cash-note">
+        Excludes $<?= number_format($riel_share, 2) ?> taken in riel &mdash; that money is in the riel drawer, not the dollar drawer.
+    </div>
+    <?php endif; ?>
     <div class="cash-input-wrap">
         <input type="number" class="cash-input" id="actualCash" placeholder="0.00" step="0.01" min="0">
         <button class="cash-submit" id="submitBtn" onclick="submitCash()">Submit</button>

@@ -473,18 +473,14 @@ if (!empty($payments)) {
         if ($tendered_usd > 0) {
             // Against the order total, not the payment row — see the note on the
             // split branch below: a single payment row can carry a stale amount.
-            $ch         = tender_change($tendered_usd, $stored_total);
-            $change_usd = round($tendered_usd - $stored_total, 2);
-            $received_label = ($tender_p && $tender_p['khr'] > 0)
-                ? ($tender_p['usd'] > 0
-                    ? '$' . number_format($tender_p['usd'], 2) . ' + KHR ' . number_format($tender_p['khr'])
-                    : 'KHR ' . number_format($tender_p['khr']))
-                : '$' . number_format($tendered_usd, 2);
-            $change_label = $ch['khr'] > 0
-                ? ($ch['usd'] > 0
-                    ? '$' . $ch['usd'] . ' + KHR ' . number_format($ch['khr'])
-                    : 'KHR ' . number_format($ch['khr']))
-                : '$' . number_format(max(0, $change_usd), 2);
+            $ch = tender_change($tendered_usd, $stored_total);
+            // Both labels come from config.php so the receipt and the counter
+            // screen cannot drift. They did: this site used to print the raw
+            // received-minus-owed difference in the no-riel branch, which misses
+            // tender_change()'s carry — $5.33 on a $1.34 bill printed $3.99 here
+            // and $4.00 on screen.
+            $received_label = tender_received_text($tender_p, $tendered_usd);
+            $change_label   = tender_change_text($ch);
             $html .= '
 <div style="margin-top:6px;padding-top:4px;border-top:1px dashed #000;">
     <table width="100%" style="font-size:10px;border:none;border-collapse:collapse;">
@@ -556,19 +552,12 @@ if (!empty($payments)) {
                 // amount — so on a single-row payment the order total is the
                 // truth. A split's legs are per-method and genuinely correct.
                 $owed_for_change = count($payments) === 1 ? $stored_total : $pay_amount;
-                $change_usd     = $tendered_usd > 0 ? round($tendered_usd - $owed_for_change, 2) : 0;
                 if ($tendered_usd > 0) {
                     $ch = tender_change($tendered_usd, $owed_for_change);
-                    $received_label = ($tender_p && $tender_p['khr'] > 0)
-                        ? ($tender_p['usd'] > 0
-                            ? '$' . number_format($tender_p['usd'], 2) . ' + KHR ' . number_format($tender_p['khr'])
-                            : 'KHR ' . number_format($tender_p['khr']))
-                        : '$' . number_format($tendered_usd, 2);
-                    $change_label = $ch['khr'] > 0
-                        ? ($ch['usd'] > 0
-                            ? '$' . $ch['usd'] . ' + KHR ' . number_format($ch['khr'])
-                            : 'KHR ' . number_format($ch['khr']))
-                        : '$' . number_format(max(0, $change_usd), 2);
+                    // Shared with the counter screen — see the note on the
+                    // single-payment branch above.
+                    $received_label = tender_received_text($tender_p, $tendered_usd);
+                    $change_label   = tender_change_text($ch);
                     $change_rows = '
             <tr>
                 <td style="border:none;border-top:1px dashed #bbb;padding-top:3px;padding-left:10px;font-size:9px;color:#666;">Received</td>

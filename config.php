@@ -821,7 +821,7 @@ if (!function_exists('order_payment_method_or')) {
  * the dollars handed over — and receipts read it back to print Received and
  * Change. Taking riel as well needs two numbers in one column.
  *
- * The bare number is kept for a dollars-only tender so the 191 existing rows,
+ * The bare number is kept for a dollars-only tender so the 49 existing rows,
  * and every future dollars-only sale, write and read byte-identically. The
  * two-part form appears only when riel is actually involved.
  *
@@ -862,6 +862,13 @@ if (!function_exists('tender_parts')) {
 
 /**
  * What a stored tender is worth in dollars. Zero for anything that is not one.
+ *
+ * The riel half is converted at the CURRENT KHR_RATE, not at the rate that was
+ * in force when the sale was rung up — the rate is a live setting and nothing
+ * is stamped on the row. If the shop changes the rate between a sale and a
+ * receipt reprint, the reprinted dollar equivalent moves. The raw riel figure
+ * is what the customer actually handed over and stays correct either way, which
+ * is why the reference stores riel and not a converted dollar amount.
  */
 if (!function_exists('tender_usd_total')) {
     function tender_usd_total(?string $ref): float {
@@ -898,6 +905,126 @@ if (!function_exists('tender_change')) {
         $riel    = (int)(round((($change - $dollars) * KHR_RATE) / 100) * 100);
         if ($riel >= KHR_RATE) { $dollars += 1; $riel = 0; }
         return ['usd' => $dollars, 'khr' => $riel, 'short' => false];
+    }
+}
+
+/**
+ * The change line, as one string. The PHP twin of tender.js tenderChangeText().
+ *
+ * This existed three times, hand-copied into receipt_pdf.php twice and
+ * payment_cash.php once, and the copies had already drifted: the dollars-only
+ * branch printed the RAW received-minus-owed difference instead of $ch['usd'],
+ * so a $5.33 tender on a $1.34 bill printed $3.99 on the receipt while the
+ * screen said $4.00. The carry inside tender_change() had promoted the riel
+ * remainder to a whole dollar and the copies never saw it. One function now.
+ *
+ * DELIBERATE DIFFERENCE FROM THE JS TWIN: the currency is spelled 'KHR', not
+ * '៛'. This string goes into dompdf output, whose bundled fonts have no Khmer
+ * glyph, and a missing glyph on a receipt is worse than an ASCII prefix. The
+ * screen keeps the ៛ symbol via tenderChangeText(). The NUMBERS must agree; the
+ * spelling is allowed not to.
+ *
+ * A short tender reads '$0.00' here rather than the JS 'Need $x more': a
+ * receipt is printed after the money has changed hands and has no owed/received
+ * pair to subtract, and telling the customer they still owe money on a settled
+ * bill would be worse than saying nothing.
+ */
+if (!function_exists('tender_change_text')) {
+    function tender_change_text(array $ch): string {
+        $usd = (int)($ch['usd'] ?? 0);
+        $khr = (int)($ch['khr'] ?? 0);
+        if ($khr > 0) {
+            return $usd > 0
+                ? '$' . $usd . ' + KHR ' . number_format($khr)
+                : 'KHR ' . number_format($khr);
+        }
+        return '$' . number_format(max(0, $usd), 2);
+    }
+}
+
+/**
+ * The received line, as one string. Same spelling rule as tender_change_text().
+ *
+ * Takes the parsed parts so the two currencies can be shown as the customer
+ * actually handed them over, and the dollar total as the fallback for a
+ * dollars-only or unparsed tender. Passing null parts is the legacy path: a row
+ * whose reference is not a recognised tender still has a dollar figure to show.
+ */
+if (!function_exists('tender_received_text')) {
+    function tender_received_text(?array $parts, float $usd_total): string {
+        if ($parts !== null && (int)$parts['khr'] > 0) {
+            return (float)$parts['usd'] > 0
+                ? '$' . number_format((float)$parts['usd'], 2) . ' + KHR ' . number_format((int)$parts['khr'])
+                : 'KHR ' . number_format((int)$parts['khr']);
+        }
+        return '$' . number_format($usd_total, 2);
+    }
+}
+
+/**
+ * The dollar-equivalent of riel taken on cash sales, which never entered the
+ * dollar drawer.
+ *
+ * Riel is not its own payment method any more — a riel sale is recorded as
+ * payment_method='cash' with the riel half in the reference. That is right for
+ * revenue (one drawer, one bucket) and wrong for the drawer COUNT, which the
+ * cashier does in dollars: shift_report.php's expected-cash figure is the sum of
+ * cash-method payments, so a $1.34 sale paid entirely in ៛5,500 told the cashier
+ * to expect $1.34 more in dollar notes than the till could possibly hold. That
+ * variance is written to cash_counts and dashboard.php raises a shortage alert
+ * on it — a permanent financial record accusing a cashier of a shortage that is
+ * arithmetic, not money. Before this feature the old payment_method='riel' rows
+ * were excluded from the cash bucket outright and the figure was correct.
+ *
+ * NET of the riel handed back: a customer who gives ៛5,500 for a $1.34 bill and
+ * takes ៛0 back leaves ៛5,500 in the drawer, but one who gives ៛20,000 for the
+ * same bill and takes ៛14,600 back leaves only ៛5,400. The change portion is
+ * measured with tender_change() against the ORDER TOTAL, mirroring
+ * receipt_pdf.php — the payment row's own amount can be stale on a pay-later tab
+ * that grew after it was opened.
+ *
+ * Conversion uses the current KHR_RATE, the same rate the checkout screen used
+ * to accept the tender, so the count and the sale agree on the same shift.
+ *
+ * SCOPE, deliberately: only riel that came IN is counted. A dollars-only tender
+ * whose change goes back as riel (the $5.00 on a $1.34 bill that hands back
+ * $3 + ៛2,700) also moves the two drawers apart, but in the other direction, and
+ * it did so identically before riel was ever a tender field — no US coins
+ * circulate, so that change has always been handed over in riel while the system
+ * called it dollars. Netting that direction too would rewrite the expected-cash
+ * figure for historical dollars-only shifts, which is not what this fix is for.
+ * Rows with no riel tendered contribute exactly zero.
+ */
+if (!function_exists('tender_riel_share')) {
+    function tender_riel_share(mysqli $conn, array $order_ids): float {
+        $ids = array_values(array_unique(array_map('intval', $order_ids)));
+        if (!$ids) { return 0.0; }
+
+        $ph    = implode(',', array_fill(0, count($ids), '?'));
+        $types = str_repeat('i', count($ids));
+        $st = $conn->prepare("
+            SELECT op.reference, o.total
+            FROM order_payments op
+            JOIN orders o ON o.order_id = op.order_id
+            WHERE op.payment_method = 'cash'
+              AND op.order_id IN ($ph)
+        ");
+        if (!$st) { return 0.0; }
+        $st->bind_param($types, ...$ids);
+        $st->execute();
+        $res = $st->get_result();
+
+        $khr_net = 0;
+        while ($r = $res->fetch_assoc()) {
+            $parts = tender_parts($r['reference']);
+            if ($parts === null || $parts['khr'] <= 0) { continue; }
+            $ch = tender_change(tender_usd_total($r['reference']), (float)$r['total']);
+            // Only riel is handed back as riel; the dollar part of the change
+            // comes out of the dollar drawer and is already accounted for by
+            // the cash total this figure is subtracted from.
+            $khr_net += max(0, (int)$parts['khr'] - (int)$ch['khr']);
+        }
+        return round($khr_net / KHR_RATE, 2);
     }
 }
 
