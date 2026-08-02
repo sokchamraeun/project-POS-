@@ -13,6 +13,9 @@ $list_msg = match($_GET['msg'] ?? '') {
     'badtoken'  => ['text'=>'Session expired. Reload and try again.',         'type'=>'danger'],
     'partial'   => ['text'=>'Delivery recorded. Some items are still outstanding.', 'type'=>'info'],
     'stale'     => ['text'=>'This purchase order changed while you were looking at it. Reload and try again.', 'type'=>'danger'],
+    // Not an error: the guard refused a delivery that had already landed. Info,
+    // not danger — nothing is wrong and there is nothing for the user to redo.
+    'replayed'  => ['text'=>'This delivery was already recorded. Nothing was added twice.', 'type'=>'info'],
     'nothing'   => ['text'=>'Nothing was recorded — every quantity was zero.',      'type'=>'info'],
     'badqty'    => ['text'=>'A received quantity cannot be negative.',              'type'=>'danger'],
     'error'     => ['text'=>'The delivery could not be saved. Nothing was changed.','type'=>'danger'],

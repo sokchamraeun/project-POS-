@@ -522,6 +522,49 @@ if (!function_exists('po_receive_line')) {
 }
 
 /**
+ * Was a refused receive a replay of a delivery that already landed?
+ *
+ * po_receive_line() returns a bare false for two different situations, and
+ * reporting both as "this purchase order changed while you were looking at it"
+ * is wrong for the common one. On a double-click, a back-button re-POST or a
+ * bfcache replay nothing changed underneath the user — their own submission
+ * already went through, and the guard did its job.
+ *
+ * That wording has now been misread twice, on 2026-08-01 and again on
+ * 2026-08-02, as "the system will not let me enter a smaller quantity". It does
+ * not: the Receiving now box is a DELTA, so a short delivery is entered by
+ * typing what actually arrived. One sentence made a working feature look broken.
+ *
+ * The test is qty_received >= seen + qty: the line already carries everything
+ * this submission was going to add, so the delivery is accounted for however it
+ * got there. A line that never reached that total is a genuine conflict and
+ * keeps the original wording. An unknown line is a conflict too — a poi_id that
+ * does not resolve is not evidence of anything having landed.
+ *
+ * Read-only, and only ever called after a claim has already been refused, so
+ * the successful path pays nothing for it. It stays separate from
+ * po_receive_line() so that function keeps its bool return: the distinction is
+ * a message concern, and widening the return type would force every caller —
+ * including the test — to care about a difference only the UI uses.
+ */
+if (!function_exists('po_receive_was_replay')) {
+    function po_receive_was_replay(mysqli $conn, int $po_id, int $poi_id,
+                                   float $seen, float $qty): bool {
+        $q = $conn->prepare("SELECT qty_received FROM purchase_order_items
+                             WHERE poi_id = ? AND po_id = ?");
+        $q->bind_param('ii', $poi_id, $po_id);
+        $q->execute();
+        $row = $q->get_result()->fetch_row();
+        if (!$row) { return false; }
+
+        // Tolerance, not equality: qty_received is DECIMAL(10,3) and both
+        // operands arrive as floats, so an exact-total replay can miss a bare
+        // >= by a fraction of the third decimal place.
+        return (float)$row[0] >= ($seen + $qty) - 0.0005;
+    }
+}
+
+/**
  * Who may write off the undelivered part of a purchase order.
  *
  * Closing short abandons goods that were ordered and, on most terms, will still

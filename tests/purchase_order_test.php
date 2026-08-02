@@ -223,6 +223,40 @@ try {
           round($stockAfterAtomic - $stockBeforeAtomic, 3), 0.0);
     check('rolling back a doomed delivery leaves qty_received untouched',
           round($recvAfterAtomic - $recvBeforeAtomic, 3), 0.0);
+
+    // --- Telling a replay apart from a genuine conflict ---
+    // po_receive_line() returns a bare false for both, and reporting both as
+    // "changed while you were looking at it" is wrong for the common one: on a
+    // back-button re-POST or a double-click nothing changed underneath the user,
+    // their own delivery already landed. That wording was read on 2026-08-01 as
+    // "the system will not let me enter a smaller quantity" — a misreading of the
+    // whole feature caused by one sentence, and it happened again on 2026-08-02.
+    //
+    // $testPoi is at 10.0 received by this point (6 + 4, both claimed above).
+    check('a re-POST of a delivery that already landed is a replay',
+          po_receive_was_replay($conn, $testPo, $testPoi, 6.0, 4.0), true);
+    check('a re-POST of the very first delivery is a replay',
+          po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 6.0), true);
+    // Someone else received MORE than this form was ever going to: still a
+    // replay by the >= test, and still the honest message — this delivery is
+    // already accounted for.
+    check('an overtaken line reads as already recorded',
+          po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 1.0), true);
+    // A genuine conflict: the stored value has NOT reached seen + qty, so
+    // something really did move underneath the user.
+    check('a line that never reached seen+qty is a genuine conflict',
+          po_receive_was_replay($conn, $testPo, $testPoi, 10.0, 5.0), false);
+    check('an unknown line is a genuine conflict, not a replay',
+          po_receive_was_replay($conn, $testPo, $testPoi + 99999, 0.0, 1.0), false);
+    // The classifier must never be mistaken for a writer: it runs on the failure
+    // path, after a claim was already refused, and only reads.
+    $recvBeforeClassify = (float)$conn->query(
+        "SELECT qty_received FROM purchase_order_items WHERE poi_id=$testPoi")->fetch_row()[0];
+    po_receive_was_replay($conn, $testPo, $testPoi, 0.0, 6.0);
+    $recvAfterClassify = (float)$conn->query(
+        "SELECT qty_received FROM purchase_order_items WHERE poi_id=$testPoi")->fetch_row()[0];
+    check('classifying a failure writes nothing',
+          round($recvAfterClassify - $recvBeforeClassify, 3), 0.0);
 } finally {
     // Undoes everything in this block in one shot: the scratch PO, its items,
     // the stock move, the stock_refills and ingredient_history rows. Runs even

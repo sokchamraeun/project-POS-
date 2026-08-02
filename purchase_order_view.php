@@ -86,8 +86,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // second clerk. Abandon the whole delivery rather than apply
                 // part of it.
                 if (!po_receive_line($conn, $po_id, (int)$poi_id, $was, $qty, $by, $po_num)) {
+                    // Which of the two it was decides what the user is told. A
+                    // replay is the common case and nothing changed underneath
+                    // them, so "reload and try again" sends them to re-enter a
+                    // delivery that already landed. Classified before the
+                    // rollback, while the line still reads what it claimed.
+                    $why = po_receive_was_replay($conn, $po_id, (int)$poi_id, $was, $qty)
+                         ? 'replayed' : 'stale';
                     $conn->rollback();
-                    po_redirect($from_list, $po_id, 'stale');
+                    po_redirect($from_list, $po_id, $why);
                 }
             }
 
@@ -201,6 +208,9 @@ $msg_text = match($_GET['msg'] ?? '') {
     'badtoken'  => ['text'=>'Session expired. Reload and try again.','type'=>'danger'],
     'partial'   => ['text'=>'Delivery recorded. Some items are still outstanding.', 'type'=>'info'],
     'stale'     => ['text'=>'This purchase order changed while you were looking at it. Reload and try again.', 'type'=>'danger'],
+    // Not an error: the guard refused a delivery that had already landed. Info,
+    // not danger — nothing is wrong and there is nothing for the user to redo.
+    'replayed'  => ['text'=>'This delivery was already recorded. Nothing was added twice.', 'type'=>'info'],
     'nothing'   => ['text'=>'Nothing was recorded — every quantity was zero.',      'type'=>'info'],
     'badqty'    => ['text'=>'A received quantity cannot be negative.',              'type'=>'danger'],
     'error'     => ['text'=>'The delivery could not be saved. Nothing was changed.','type'=>'danger'],
