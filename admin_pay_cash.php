@@ -130,7 +130,12 @@ try {
     $rows->execute();
     $rowCount = (int)$rows->get_result()->fetch_row()[0];
 
-    $tender = $_POST['cash_received'] ?? '';
+    // Re-emitted through tender_ref() so the stored string is canonical whatever
+    // the POST contained, exactly as confirm_order.php does for the checkout leg.
+    $tender = tender_ref(
+        (float)($_POST['cash_received']     ?? 0),
+        (int)  ($_POST['cash_received_khr'] ?? 0)
+    );
     if ($rowCount === 1) {
         // Bring the row up to what was actually collected. A pay-later row is
         // written for the tab's OPENING total and never updated as items are
@@ -143,10 +148,13 @@ try {
         $sync->bind_param("di", $amt, $order_id);
         $sync->execute();
 
-        if (is_numeric($tender) && (float)$tender > 0) {
-            $tenderStr = number_format((float)$tender, 2, '.', '');
+        // Gated on tender_parts(), not is_numeric(): "0.00|5500" is a valid
+        // riel-only tender and is not numeric, so the old gate would have
+        // written NO reference at all — silently — and the receipt would print
+        // with no Received/Change lines, which is the gap this block closes.
+        if (tender_parts($tender) !== null && tender_usd_total($tender) > 0) {
             $rf = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ?");
-            $rf->bind_param("si", $tenderStr, $order_id);
+            $rf->bind_param("si", $tender, $order_id);
             $rf->execute();
         }
     }

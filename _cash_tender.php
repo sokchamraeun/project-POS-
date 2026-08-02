@@ -41,6 +41,7 @@ $tender_fragment = !empty($tender_fragment);
 <title>Cash Payment | Bird's Nest Coffee</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <?php endif; ?>
 <?php
 /* Every rule is scoped to .tender-card in fragment mode. These styles get injected
@@ -187,16 +188,29 @@ body {
 
             <div class="cp-change-calc">
                 <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> Amount Received</label>
-                <!-- oninput only fires for real typing, never for a programmatic .value set,
-                     so this flag reliably marks "the cashier has entered their own amount".
-                     Submitted as cash_received and stored in order_payments.reference —
-                     the same column checkout writes — so the receipt can print
-                     Received / Change. It never changes the amount settled. -->
-                <input type="number" id="cpCashReceived" name="cash_received"
-                       step="0.01" min="0" placeholder="0.00"
-                       oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
-                       onfocus="this.select()">
+
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--text-2);width:16px;">$</span>
+                    <!-- Submitted as cash_received and stored, with the riel below, in
+                         order_payments.reference — the same column checkout writes — so
+                         the receipt can print Received / Change. Never changes the
+                         amount settled: the order is paid in full whatever is typed. -->
+                    <input type="number" id="cpCashReceived" name="cash_received"
+                           step="0.01" min="0" placeholder="0.00"
+                           oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
+                           onfocus="this.select()">
+                </div>
                 <div class="cp-tender-quick" id="cpTenderQuick"></div>
+
+                <div style="display:flex;align-items:center;gap:6px;margin-top:9px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--text-2);width:16px;">&#6107;</span>
+                    <input type="number" id="cpRielCash" name="cash_received_khr"
+                           step="100" min="0" placeholder="0"
+                           oninput="cpOnRielInput(); cpCalcChange()" onfocus="this.select()">
+                    <span id="cpRielCashUsd" style="font-size:11px;color:var(--text-3);white-space:nowrap;">&asymp; $0.00</span>
+                </div>
+                <div class="cp-tender-quick" id="cpRielQuick"></div>
+
                 <div class="cp-change-row">
                     <span class="change-label">Change to give back</span>
                     <span class="change-amount" id="cpChangeAmount">$0.00</span>
@@ -224,22 +238,41 @@ body {
 </div>
 
 <script>
-const CP_OWED = <?= json_encode(round($owed, 2)) ?>;
+const CP_OWED     = <?= json_encode(round($owed, 2)) ?>;
+// tender.js is static and never parsed by PHP, so the rate is passed in.
+const CP_KHR_RATE = <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
+
 function cpOwedInCash() { return CP_OWED; }
 
+/* Arithmetic, the prefill-clear rule and the change wording all live in
+   tender.js, so this screen and the checkout modal cannot drift apart. This
+   file owns only the calls and this screen's own owed amount. */
+function cpCashReceivedUsd() {
+  return tenderCashReceivedUsd('cpCashReceived', 'cpRielCash', CP_KHR_RATE);
+}
+
+/* Keyed on the COMBINED total, not on dollars. With separate fields, zero
+   dollars is the normal riel-only case, and a dollars-only test would leave the
+   change line at $0.00 while the cashier holds 5,500 riel. */
 function cpCalcChange() {
-  var received = parseFloat(document.getElementById('cpCashReceived')?.value) || 0;
-  var change   = received - cpOwedInCash();
-  var el       = document.getElementById('cpChangeAmount');
+  var el = document.getElementById('cpChangeAmount');
   if (!el) return;
+  var received = cpCashReceivedUsd();
+  var owed     = cpOwedInCash();
+  var ch       = tenderChange(received, owed, CP_KHR_RATE);
+
   var warn = document.getElementById('cpShortWarn');
-  // Non-blocking on purpose: a cashier who has already counted the change must not
-  // be stopped by a field they skipped, and the order settles in full either way.
-  if (warn) warn.style.display = (received > 0 && change < 0) ? 'block' : 'none';
+  // Non-blocking on purpose: a cashier who has already counted the change must
+  // not be stopped by a field they skipped, and the order settles in full.
+  if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
 
   if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
-  if (change < 0) { el.textContent = 'Need $' + Math.abs(change).toFixed(2) + ' more'; el.className = 'change-amount not-enough'; }
-  else            { el.textContent = '$' + change.toFixed(2); el.className = 'change-amount'; }
+  el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
+  el.textContent = tenderChangeText(ch, received, owed);
+}
+
+function cpOnRielInput() {
+  tenderOnRielInput('cpCashReceived', 'cpRielCash', 'cpRielCashUsd', CP_KHR_RATE);
 }
 
 /* One tap for the note the customer actually handed over. The prefilled exact
@@ -263,13 +296,16 @@ function cpRenderTenderQuick() {
   };
 
   wrap.appendChild(mk('Exact', owed));
-  // Only notes that actually cover the bill — a $5 button on a $23 order just
-  // produces "Need $18 more".
   [1, 5, 10, 20, 50, 100].filter(function (d) { return d > owed; })
                          .slice(0, 4)
                          .forEach(function (d) { wrap.appendChild(mk('$' + d, d)); });
 
   cpMarkActiveTender(parseFloat(document.getElementById('cpCashReceived').value) || 0);
+}
+
+function cpRenderRielQuick() {
+  tenderRenderRielQuick('cpRielQuick', 'cpRielCash', cpOwedInCash(), CP_KHR_RATE,
+    function () { cpOnRielInput(); cpCalcChange(); });
 }
 
 function cpSetTender(val) {
@@ -295,6 +331,7 @@ function cpMarkActiveTender(val) {
   if (cr && cr.dataset.touched !== '1' && CP_OWED > 0) { cr.value = CP_OWED.toFixed(2); }
   cpCalcChange();
   cpRenderTenderQuick();
+  cpRenderRielQuick();
 })();
 </script>
 <?php if (!$tender_fragment): ?>

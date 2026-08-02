@@ -794,6 +794,7 @@ function cancelOrderFromFind(orderId, btn) {
 
 </script>
 <script src="animations.js?v=<?= @filemtime('animations.js') ?>"></script>
+<script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <script>
 // Shared flag — polling skips reload while any table edit is open
 let tableEditOpen = false;
