@@ -586,38 +586,44 @@ body {
 
             <?php
             // ── Change block, shown whenever a tender was recorded ──
-            // Gated on the tender rather than on the method: a settled pay-later tab
-            // deliberately keeps payment_method='paylater' so the reporting bucket
-            // survives, and would otherwise never show its change. Bakong cannot
-            // misfire here — its reference is never numeric.
-            if (is_numeric($pay['reference']) && (float)$pay['reference'] > 0):
-                $received   = (float)$pay['reference'];
-                // Change is what the customer is owed back, so it is measured
-                // against what they owed. On a single-row payment that is the
-                // order total: a pay-later row is written when the tab opens and
-                // is NOT updated as items are added, so 18 orders here carry a
-                // stale amount (order 1908: row says $1.34, order totals $19.78).
-                // Using the row would have printed $18.66 change on a $0.22
-                // reality. A split's legs are per-method and genuinely correct.
+            // Gated on a recorded tender rather than on the method. A pay-later
+            // tab settled in cash keeps payment_method='paylater' so its
+            // reporting bucket survives. tender_parts() replaces is_numeric():
+            // a riel-only tender reads "0.00|5500", which is not numeric, and a
+            // Bakong reference is neither shape so it still cannot misfire.
+            $tender_p = tender_parts($pay['reference']);
+            if ($tender_p !== null && tender_usd_total($pay['reference']) > 0):
+                $received = tender_usd_total($pay['reference']);
+                // Change is measured against what the customer owed. On a
+                // single-row payment that is the order total: a pay-later row is
+                // written when the tab opens and is NOT updated as items are
+                // added, so 18 orders carry a stale amount (order 1908: row says
+                // $1.34, order totals $19.78). A split's legs are per-method and
+                // genuinely correct.
                 $owed_for_change = count($payments) === 1 ? $total : (float)$pay['amount'];
+                $ch         = tender_change($received, $owed_for_change);
                 $change_usd = round(max(0, $received - $owed_for_change), 2);
-                $change_khr = (int)(round($change_usd * KHR_RATE / 100) * 100);
+                $change_khr = $ch['khr'];
+                $received_label = ($tender_p['khr'] > 0)
+                    ? ($tender_p['usd'] > 0
+                        ? '$' . number_format($tender_p['usd'], 2) . ' + KHR ' . number_format($tender_p['khr'])
+                        : 'KHR ' . number_format($tender_p['khr']))
+                    : '$' . number_format($received, 2);
+                $change_label = ($ch['khr'] > 0)
+                    ? ($ch['usd'] > 0
+                        ? '$' . $ch['usd'] . ' + KHR ' . number_format($ch['khr'])
+                        : 'KHR ' . number_format($ch['khr']))
+                    : '$' . number_format($change_usd, 2);
             ?>
             <div class="change-block">
                 <div class="chg-row received">
                     <span><i class="fa-solid fa-hand-holding-dollar"></i> Received</span>
-                    <span>$<?= number_format($received, 2) ?></span>
+                    <span><?= $received_label ?></span>
                 </div>
                 <div class="chg-row change-amt">
                     <span>Change</span>
-                    <span>$<?= number_format($change_usd, 2) ?></span>
+                    <span><?= $change_label ?></span>
                 </div>
-                <?php if ($change_khr > 0): ?>
-                <div class="chg-row change-khr">
-                    <span>Change (KHR)</span>
-                    <span>KHR <?= number_format($change_khr) ?></span>
-                </div>
-                <?php endif; ?>
             </div>
             <?php endif; ?>
 

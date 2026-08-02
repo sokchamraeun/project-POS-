@@ -462,26 +462,39 @@ if (!empty($payments)) {
     if ($is_solo_cash) {
         // Solo cash: no PAYMENT block — just show change details if cashier entered a received amount
         $ref_val      = (string)($payments[0]['reference'] ?? '');
-        $tendered_usd = is_numeric($ref_val) ? (float)$ref_val : 0.0;
+        // tender_parts() accepts exactly two shapes where is_numeric() would
+        // have taken a bare number written by anything. A riel-only tender
+        // reads "0.00|5500", which is not numeric — the old is_numeric() test
+        // here made $tendered_usd 0 and silently dropped the entire
+        // Received/Change block, which is exactly the path a riel-only cash
+        // sale takes (this is the single most common cash branch).
+        $tender_p     = tender_parts($ref_val);
+        $tendered_usd = tender_usd_total($ref_val);
         if ($tendered_usd > 0) {
             // Against the order total, not the payment row — see the note on the
             // split branch below: a single payment row can carry a stale amount.
+            $ch         = tender_change($tendered_usd, $stored_total);
             $change_usd = round($tendered_usd - $stored_total, 2);
-            $ck         = (int)(round(max(0, $change_usd) * KHR_RATE / 100) * 100);
+            $received_label = ($tender_p && $tender_p['khr'] > 0)
+                ? ($tender_p['usd'] > 0
+                    ? '$' . number_format($tender_p['usd'], 2) . ' + KHR ' . number_format($tender_p['khr'])
+                    : 'KHR ' . number_format($tender_p['khr']))
+                : '$' . number_format($tendered_usd, 2);
+            $change_label = $ch['khr'] > 0
+                ? ($ch['usd'] > 0
+                    ? '$' . $ch['usd'] . ' + KHR ' . number_format($ch['khr'])
+                    : 'KHR ' . number_format($ch['khr']))
+                : '$' . number_format(max(0, $change_usd), 2);
             $html .= '
 <div style="margin-top:6px;padding-top:4px;border-top:1px dashed #000;">
     <table width="100%" style="font-size:10px;border:none;border-collapse:collapse;">
         <tr>
             <td style="border:none;color:#666;">Received</td>
-            <td align="right" style="border:none;color:#666;">$' . number_format($tendered_usd, 2) . '</td>
+            <td align="right" style="border:none;color:#666;">' . $received_label . '</td>
         </tr>
         <tr>
             <td style="border:none;font-weight:700;">Change</td>
-            <td align="right" style="border:none;font-weight:700;">$' . number_format(max(0, $change_usd), 2) . '</td>
-        </tr>
-        <tr>
-            <td style="border:none;font-weight:700;">Change (KHR)</td>
-            <td align="right" style="border:none;font-weight:700;">KHR ' . number_format($ck) . '</td>
+            <td align="right" style="border:none;font-weight:700;">' . $change_label . '</td>
         </tr>
     </table>
 </div>';
@@ -531,7 +544,12 @@ if (!empty($payments)) {
                 // payment_method='paylater' so its reporting bucket survives, and
                 // requiring 'cash' here is why those receipts printed no change
                 // lines. Bakong cannot misfire: its reference is never numeric.
-                $tendered_usd   = is_numeric($ref) ? (float)$ref : 0;
+                // tender_parts() accepts exactly two shapes where is_numeric()
+                // would have taken a bare number written by anything. The riel
+                // branch above still handles the 4 historical payment_method='riel'
+                // rows; this branch now handles riel taken as cash.
+                $tender_p     = tender_parts($ref);
+                $tendered_usd = tender_usd_total($ref);
                 // Change is measured against what the customer owed, not against
                 // this row. A pay-later row is written when the tab opens and is
                 // never updated as items are added — 18 orders carry a stale
@@ -540,19 +558,25 @@ if (!empty($payments)) {
                 $owed_for_change = count($payments) === 1 ? $stored_total : $pay_amount;
                 $change_usd     = $tendered_usd > 0 ? round($tendered_usd - $owed_for_change, 2) : 0;
                 if ($tendered_usd > 0) {
-                    $ck = (int)(round(max(0, $change_usd) * KHR_RATE / 100) * 100);
+                    $ch = tender_change($tendered_usd, $owed_for_change);
+                    $received_label = ($tender_p && $tender_p['khr'] > 0)
+                        ? ($tender_p['usd'] > 0
+                            ? '$' . number_format($tender_p['usd'], 2) . ' + KHR ' . number_format($tender_p['khr'])
+                            : 'KHR ' . number_format($tender_p['khr']))
+                        : '$' . number_format($tendered_usd, 2);
+                    $change_label = $ch['khr'] > 0
+                        ? ($ch['usd'] > 0
+                            ? '$' . $ch['usd'] . ' + KHR ' . number_format($ch['khr'])
+                            : 'KHR ' . number_format($ch['khr']))
+                        : '$' . number_format(max(0, $change_usd), 2);
                     $change_rows = '
             <tr>
                 <td style="border:none;border-top:1px dashed #bbb;padding-top:3px;padding-left:10px;font-size:9px;color:#666;">Received</td>
-                <td align="right" style="border:none;border-top:1px dashed #bbb;padding-top:3px;font-size:9px;color:#666;">$' . number_format($tendered_usd, 2) . '</td>
+                <td align="right" style="border:none;border-top:1px dashed #bbb;padding-top:3px;font-size:9px;color:#666;">' . $received_label . '</td>
             </tr>
             <tr>
                 <td style="border:none;padding-left:10px;font-size:9px;font-weight:700;">Change</td>
-                <td align="right" style="border:none;font-size:9px;font-weight:700;">$' . number_format(max(0, $change_usd), 2) . '</td>
-            </tr>
-            <tr>
-                <td style="border:none;padding-left:10px;font-size:9px;font-weight:700;">Change (KHR)</td>
-                <td align="right" style="border:none;font-size:9px;font-weight:700;">KHR ' . number_format($ck) . '</td>
+                <td align="right" style="border:none;font-size:9px;font-weight:700;">' . $change_label . '</td>
             </tr>';
                 }
             }
