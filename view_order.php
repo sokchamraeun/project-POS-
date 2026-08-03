@@ -1625,32 +1625,21 @@ function showClockToast(msg, isErr) {
 
 <!-- Status Tabs -->
 <div class="status-tabs" id="statusTabs">
-    <?php /* Awaiting-payment orders live in find_order.php, not on this board — so staff
-             now get "All" as their landing tab instead of the removed Pending tab. */ ?>
-    <?php if ($r !== 'barista'): ?>
+    <?php if ($r === 'admin' || $r === 'manager'): ?>
     <button class="status-tab active" data-status="all" onclick="filterStatus('all')">
         📋 All <span class="badge" id="count-all">0</span>
     </button>
     <?php endif; ?>
-    <?php if ($r !== 'staff'): ?>
     <button class="status-tab <?= $r === 'barista' ? 'active' : '' ?>" data-status="Preparing" onclick="filterStatus('Preparing')">
         👨‍🍳 Preparing <span class="badge" id="count-Preparing">0</span>
     </button>
-    <?php endif; ?>
-    <?php /* No Paid tab: 'Paid' is a payment state, and payment is find_order.php's job.
-             boardState() folds it into Preparing (still open, not made) or Completed
-             (settled and closed), so nothing is orphaned and the tabs still sum to All. */ ?>
-    <?php if ($r !== 'barista'): ?>
-    <button class="status-tab" data-status="Completed" onclick="filterStatus('Completed')">
+    <button class="status-tab <?= $r === 'staff' ? 'active' : '' ?>" data-status="Completed" onclick="filterStatus('Completed')">
         ✅ Completed <span class="badge" id="count-Completed">0</span>
     </button>
-    <?php endif; ?>
-    <?php if ($r !== 'barista'): ?>
     <button class="status-tab" data-status="Cancelled" onclick="filterStatus('Cancelled')">
         ❌ Cancelled <span class="badge" id="count-Cancelled">0</span>
     </button>
-    <?php endif; ?>
-    <?php if ($r !== 'barista' && $r !== 'staff'): ?>
+    <?php if ($r === 'admin' || $r === 'manager'): ?>
     <button class="status-tab" data-status="Refunded" onclick="filterStatus('Refunded')">
         🔄 Refunded <span class="badge" id="count-Refunded">0</span>
     </button>
@@ -1773,7 +1762,7 @@ function showClockToast(msg, isErr) {
 <script>
 const tbody = document.getElementById("ordersBody");
 const known = new Set();
-let currentFilter = '<?= ($_SESSION['role'] ?? '') === 'barista' ? 'Preparing' : 'all' ?>';
+let currentFilter = '<?= (in_array($_SESSION['role'] ?? '', ['admin', 'manager'])) ? 'all' : (($_SESSION['role'] ?? '') === 'barista' ? 'Preparing' : 'Completed') ?>';
 let showCompleted = true;
 let searchQuery = '';
 let currentCancelId = 0;
