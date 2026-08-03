@@ -1224,14 +1224,19 @@ tr:last-child td { border-bottom:none; }
 <!-- USER PERMISSIONS OVERRIDES MODAL -->
 <div class="modal-overlay" id="userOverridesModal" onclick="if(event.target===this)closeUserOverridesModal()">
     <div class="modal-box" style="max-width:680px">
-        <div class="modal-accent" style="background:linear-gradient(90deg, #3498db, #5dade2)"></div>
+        <div class="modal-accent" style="background:linear-gradient(90deg, #1a6899, #3498db, #5dade2)"></div>
         <button class="modal-close" onclick="closeUserOverridesModal()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-head">
-            <div class="modal-title"><i class="fa-solid fa-user-gear" style="color:#3498db"></i> Per-User Permission Overrides</div>
+            <div class="modal-title">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(52,152,219,.14);color:#3498db;display:inline-flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">
+                    <i class="fa-solid fa-user-gear"></i>
+                </div>
+                Per-User Permission Overrides
+            </div>
             <div class="modal-sub">Grant or revoke specific permissions for an individual employee without affecting their entire role.</div>
             
-            <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
-                <select id="userOverrideSelect" onchange="onUserOverrideSelectChange()" style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+            <div style="margin-top:16px;display:flex;gap:10px;align-items:center;">
+                <select id="userOverrideSelect" onchange="onUserOverrideSelectChange()" style="flex:1;padding:11px 16px;border-radius:12px;border:1px solid var(--border-hover);background:var(--bg-input);color:var(--text);font-family:'Poppins',sans-serif;font-size:13.5px;font-weight:500;outline:none;transition:all .2s;cursor:pointer;">
                     <option value="0">-- Select Employee --</option>
                     <?php foreach ($all_user_options as $uopt): ?>
                     <option value="<?= (int)$uopt['user_id'] ?>"><?= htmlspecialchars($uopt['emp_name']) ?> (<?= htmlspecialchars($uopt['username']) ?> — <?= htmlspecialchars($uopt['role_name']) ?>)</option>
@@ -1242,15 +1247,15 @@ tr:last-child td { border-bottom:none; }
         </div>
 
         <div class="modal-body" id="userOverridesModalBody" style="padding-top:14px;padding-bottom:20px;">
-            <div style="padding:40px;text-align:center;color:var(--text-muted)">
-                <i class="fa-solid fa-user-check" style="font-size:32px;display:block;margin-bottom:10px;opacity:.3"></i>
+            <div style="padding:48px 20px;text-align:center;color:var(--text-muted)">
+                <i class="fa-solid fa-user-check" style="font-size:36px;display:block;margin-bottom:12px;opacity:.3"></i>
                 Select an employee from the dropdown above to manage their custom permissions.
             </div>
         </div>
 
         <div class="modal-foot">
             <button class="btn-cancel-modal" onclick="closeUserOverridesModal()">Close</button>
-            <button class="btn-save" id="saveUserOverridesBtn" onclick="saveUserOverrides()" disabled style="background:#3498db;color:#fff;">
+            <button class="btn-save" id="saveUserOverridesBtn" onclick="saveUserOverrides()" disabled style="background:linear-gradient(135deg, #1a6899, #3498db);color:#fff;box-shadow:0 4px 16px rgba(52,152,219,.35);">
                 <i class="fa-solid fa-floppy-disk"></i> Save User Overrides
             </button>
         </div>
