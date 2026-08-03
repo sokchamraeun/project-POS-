@@ -592,8 +592,10 @@ if (!empty($payments)) {
 
 // ── LOYALTY SECTION ──
 $points_balance = 0;
-$points_earned = 0;
+$points_earned   = 0;
 $points_redeemed = 0;
+$points_balance  = 0;
+$points_progress = 0;
 
 $stmt = $conn->prepare("SELECT loyalty_card_id FROM orders WHERE order_id = ?");
 $stmt->bind_param("i", $order_id);
@@ -601,11 +603,12 @@ $stmt->execute();
 $order_loyalty = $stmt->get_result()->fetch_assoc();
 
 if ($order_loyalty['loyalty_card_id']) {
-    $stmt = $conn->prepare("SELECT points FROM loyalty_cards WHERE card_id = ?");
+    $stmt = $conn->prepare("SELECT points, points_progress FROM loyalty_cards WHERE card_id = ?");
     $stmt->bind_param("i", $order_loyalty['loyalty_card_id']);
     $stmt->execute();
     $card = $stmt->get_result()->fetch_assoc();
-    $points_balance = (int)($card['points'] ?? 0);
+    $points_balance  = (int)($card['points'] ?? 0);
+    $points_progress = (int)($card['points_progress'] ?? 0);
     
     // Get earned and redeemed points separately for this order
     $stmt = $conn->prepare("
@@ -625,6 +628,9 @@ if ($order_loyalty['loyalty_card_id']) {
 }
 
 if ($order_loyalty['loyalty_card_id']) {
+    $l_mode = LOYALTY_MODE;
+    $l_req  = LOYALTY_POINTS_DRINKS;
+    $l_prog = ($l_mode === 'spend') ? '$' . $points_progress . '/$' . $l_req : $points_progress . '/' . $l_req;
     $html .= '
 <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000;">
     <div style="font-weight: 700; font-size: 10px; text-align: center; margin-bottom: 5px; letter-spacing: 1.5px; text-transform: uppercase;">Loyalty Points</div>
@@ -640,6 +646,10 @@ if ($order_loyalty['loyalty_card_id']) {
     </div>';
     }
     $html .= '
+    <div style="display: flex; justify-content: space-between; font-size: 10px; padding: 2px 0;">
+        <span>Progress</span>
+        <span>' . $l_prog . '</span>
+    </div>
     <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; padding: 4px 0; border-top: 1px solid #000;">
         <span>Points Balance</span>
         <span>' . $points_balance . '</span>
