@@ -917,9 +917,15 @@ let checkInterval = null;
 function showPaymentSuccess() {
     clearInterval(checkInterval);
 
-    const indicator = document.getElementById('statusIndicator');
-    indicator.className = 'status-indicator success';
-    indicator.innerHTML = '<i class="fa-solid fa-circle-check"></i><span>Payment confirmed! Loading...</span>';
+    const statusSection = document.querySelector('.status-section');
+    if (statusSection) {
+        statusSection.innerHTML = `
+            <div class="status-indicator success" id="statusIndicator">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>Payment confirmed! Loading...</span>
+            </div>
+        `;
+    }
 
     setTimeout(() => {
         window.location.href = 'payment_cash.php?order_id=' + orderId;
