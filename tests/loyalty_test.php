@@ -84,6 +84,8 @@ try {
                   VALUES ($ord, 303, 'Free Sample',  0.00, 1, 1)");   // zero price
     check('earning qty counts only the real drink line',
           loyalty_earning_qty($conn, $ord), 2);
+    check('earning units returns earning count or spend',
+          loyalty_earning_units($conn, $ord) >= 2, true);
 
     $cardPoints = function (int $id) use ($conn): array {
         $r = $conn->query("SELECT points, points_progress, total_orders, total_drinks

@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'khr_exchange_rate' => (string)max(100, min(99999, (int)($_POST['khr_exchange_rate'] ?? 4100))),
         ],
         'loyalty' => [
+            'loyalty_mode'          => in_array($_POST['loyalty_mode'] ?? 'drinks', ['drinks', 'spend']) ? $_POST['loyalty_mode'] : 'drinks',
             'loyalty_points_per'    => (string)max(1, min(100, (int)($_POST['loyalty_points_per']    ?? 1))),
             'loyalty_points_drinks' => (string)max(1, min(100, (int)($_POST['loyalty_points_drinks'] ?? 1))),
         ],
@@ -92,6 +93,7 @@ $free_item_pid   = (int)($s['free_item_product_id'] ?? 0);
 $bx_start_date   = $s['buy_x_start_date'] ?? '';
 $bx_end_date     = $s['buy_x_end_date']   ?? '';
 $khr_rate        = (int)($s['khr_exchange_rate']   ?? 4100);
+$loy_mode        = $s['loyalty_mode']              ?? 'drinks';
 $loy_per         = (int)($s['loyalty_points_per']    ?? 1);
 $loy_drinks      = (int)($s['loyalty_points_drinks'] ?? 1);
 $tax_rate        = (float)($s['tax_rate']          ?? 10);
@@ -849,6 +851,15 @@ body::after {
             </div>
 
             <div class="card-inner">
+                <div class="field" style="margin-bottom:16px;">
+                    <label><i class="fa-solid fa-sliders"></i> Earning Mode</label>
+                    <select name="loyalty_mode" id="loyMode" onchange="loyPreview()">
+                        <option value="drinks" <?= $loy_mode === 'drinks' ? 'selected' : '' ?>>☕ Per Drink Quantity (e.g. 1 point per 2 drinks)</option>
+                        <option value="spend" <?= $loy_mode === 'spend' ? 'selected' : '' ?>>💵 Per Dollar Spend ($) (e.g. 1 point per $10 spent)</option>
+                    </select>
+                    <span class="field-hint">Earn by drink count or by total order spend amount</span>
+                </div>
+
                 <div class="fields-grid">
                     <div class="field">
                         <label><i class="fa-solid fa-star"></i> Points earned</label>
@@ -857,10 +868,10 @@ body::after {
                         <span class="field-hint">How many points to award</span>
                     </div>
                     <div class="field">
-                        <label><i class="fa-solid fa-mug-hot"></i> Per how many drinks</label>
+                        <label id="loyUnitsLabel"><i class="fa-solid fa-mug-hot"></i> Per how many drinks</label>
                         <input type="number" name="loyalty_points_drinks" id="loyDrinks"
                                value="<?= $loy_drinks ?>" min="1" max="100">
-                        <span class="field-hint">Leftover drinks carry over to the next visit</span>
+                        <span class="field-hint" id="loyUnitsHint">Leftover drinks carry over to the next visit</span>
                     </div>
                 </div>
 
@@ -1167,14 +1178,28 @@ updateKHRPreview();
 
 // ── Loyalty Earn Rate live preview ──
 function loyPreview() {
+  var mode   = document.getElementById('loyMode') ? document.getElementById('loyMode').value : 'drinks';
   var per    = Math.max(1, parseInt(document.getElementById('loyPer').value, 10)    || 1);
   var drinks = Math.max(1, parseInt(document.getElementById('loyDrinks').value, 10) || 1);
   var el = document.getElementById('loyPreviewText');
+  var lbl = document.getElementById('loyUnitsLabel');
+  var hint = document.getElementById('loyUnitsHint');
   if (!el) return;
-  el.textContent = per + (per === 1 ? ' point' : ' points') + ' per '
-                 + (drinks === 1 ? 'drink' : drinks + ' drinks')
-                 + ' — merch and free gift drinks never earn points'
-                 + (drinks > 1 ? ', and leftover drinks carry to the next visit.' : '.');
+
+  if (mode === 'spend') {
+      if (lbl) lbl.innerHTML = '<i class="fa-solid fa-dollar-sign"></i> Per how many dollars spent ($)';
+      if (hint) hint.textContent = 'Leftover dollars carry over to the next visit';
+      el.textContent = per + (per === 1 ? ' point' : ' points') + ' per $' + drinks + ' spent'
+                     + ' — applies across Cash, Bakong QR, and Pay Later orders'
+                     + (drinks > 1 ? ', and leftover dollars carry to the next visit.' : '.');
+  } else {
+      if (lbl) lbl.innerHTML = '<i class="fa-solid fa-mug-hot"></i> Per how many drinks';
+      if (hint) hint.textContent = 'Leftover drinks carry over to the next visit';
+      el.textContent = per + (per === 1 ? ' point' : ' points') + ' per '
+                     + (drinks === 1 ? 'drink' : drinks + ' drinks')
+                     + ' — merch and free gift drinks never earn points'
+                     + (drinks > 1 ? ', and leftover drinks carry to the next visit.' : '.');
+  }
 }
 ['loyPer', 'loyDrinks'].forEach(function (id) {
   var n = document.getElementById(id);

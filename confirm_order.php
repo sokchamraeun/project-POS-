@@ -566,8 +566,9 @@ try {
     // which card, which order, and how many earning drinks.
     $loyalty_card_id = isset($_SESSION['loyalty_card_id']) ? (int)$_SESSION['loyalty_card_id'] : 0;
     if ($loyalty_card_id > 0) {
-        if ($point_qty > 0) {
-            loyalty_sync($conn, $loyalty_card_id, $order_id, $point_qty, 'Points earned from order');
+        $units = loyalty_earning_units($conn, $order_id);
+        if ($units > 0) {
+            loyalty_sync($conn, $loyalty_card_id, $order_id, $units, 'Points earned from order');
         }
 
         // Link the card to this order even when it earned nothing (e.g. a

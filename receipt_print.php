@@ -270,6 +270,28 @@ body{
         <div>$<?= number_format($total, 2) ?></div>
     </div>
 
+    <?php
+    // Loyalty card summary on receipt
+    $loy_card_stmt = $conn->prepare("SELECT c.card_number, c.points, c.points_progress FROM orders o JOIN loyalty_cards c ON c.card_id = o.loyalty_card_id WHERE o.order_id = ?");
+    if ($loy_card_stmt) {
+        $loy_card_stmt->bind_param('i', $order_id);
+        $loy_card_stmt->execute();
+        $loy_row = $loy_card_stmt->get_result()->fetch_assoc();
+        if ($loy_row) {
+            $l_mode = LOYALTY_MODE;
+            $l_req  = LOYALTY_POINTS_DRINKS;
+            $l_prog = ($l_mode === 'spend') ? '$' . $loy_row['points_progress'] . '/$' . $l_req : $loy_row['points_progress'] . '/' . $l_req;
+            ?>
+            <div class="line"></div>
+            <div class="small center" style="font-weight:bold;">
+                ★ Loyalty Card: <?= htmlspecialchars($loy_row['card_number']) ?><br>
+                Balance: <?= (int)$loy_row['points'] ?> pts (Progress: <?= $l_prog ?>)
+            </div>
+            <?php
+        }
+    }
+    ?>
+
     <div class="line"></div>
 
     <!-- QR CODE -->

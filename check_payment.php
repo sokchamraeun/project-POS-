@@ -187,9 +187,9 @@ function _settle_bakong_order(mysqli $conn, array $order, int $order_id): void {
         if (($order['payment_method'] ?? '') === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
             $lc_id = (int)($order['loyalty_card_id'] ?? 0);
             if ($lc_id > 0) {
-                $qty = loyalty_earning_qty($conn, $order_id);
-                if ($qty > 0) {
-                    loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
+                $units = loyalty_earning_units($conn, $order_id);
+                if ($units > 0) {
+                    loyalty_sync($conn, $lc_id, $order_id, $units, 'Points earned from Pay Later order');
                 }
             }
         }

@@ -68,6 +68,7 @@ if (!defined('PAYLATER_FOLLOWUP_MINUTES')) define('PAYLATER_FOLLOWUP_MINUTES', m
 // old hardcoded behaviour exactly: one point per drink.
 if (!defined('LOYALTY_POINTS_PER'))    define('LOYALTY_POINTS_PER',    max(1, (int)($_cafe_settings['loyalty_points_per']    ?? 1)));
 if (!defined('LOYALTY_POINTS_DRINKS')) define('LOYALTY_POINTS_DRINKS', max(1, (int)($_cafe_settings['loyalty_points_drinks'] ?? 1)));
+if (!defined('LOYALTY_MODE'))          define('LOYALTY_MODE',          in_array($_cafe_settings['loyalty_mode'] ?? 'drinks', ['drinks', 'spend']) ? ($_cafe_settings['loyalty_mode'] ?? 'drinks') : 'drinks');
 unset($_cafe_settings, $_sr, $_today, $_hh_sd, $_hh_ed, $_hh_in_range, $_bx_sd, $_bx_ed, $_bx_in_range);
 
 // ── Schema migrations tracker ──
@@ -707,6 +708,20 @@ if (!function_exists('loyalty_earning_qty')) {
         $q->bind_param('i', $order_id);
         $q->execute();
         return (int)($q->get_result()->fetch_row()[0] ?? 0);
+    }
+}
+
+if (!function_exists('loyalty_earning_units')) {
+    function loyalty_earning_units(mysqli $conn, int $order_id): int {
+        if (LOYALTY_MODE === 'spend') {
+            $q = $conn->prepare("SELECT total FROM orders WHERE order_id = ?");
+            $q->bind_param('i', $order_id);
+            $q->execute();
+            $tot = (float)($q->get_result()->fetch_row()[0] ?? 0);
+            return (int)floor($tot);
+        } else {
+            return loyalty_earning_qty($conn, $order_id);
+        }
     }
 }
 

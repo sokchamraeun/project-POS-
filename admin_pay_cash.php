@@ -163,14 +163,13 @@ try {
     // Regular orders already receive points at confirm_order.php (creation time).
     // Guard: skip if points were already credited (e.g. items added earlier
     // already awarded them via confirm_order.php), mirroring check_payment.php.
-    $lc_id = (int)($order['loyalty_card_id'] ?? 0);
-    if ($lc_id > 0 && ($order['payment_method'] ?? '') === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
-        // Was SUM(quantity) with no filter, which awarded points for merch and
-        // for the free gift drink itself — while the same basket paid up front
-        // awarded neither. loyalty_earning_qty() is the one definition.
-        $qty = loyalty_earning_qty($conn, $order_id);
-        if ($qty > 0) {
-            loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
+    if (($order['payment_method'] ?? '') === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
+        $lc_id = (int)($order['loyalty_card_id'] ?? 0);
+        if ($lc_id > 0) {
+            $units = loyalty_earning_units($conn, $order_id);
+            if ($units > 0) {
+                loyalty_sync($conn, $lc_id, $order_id, $units, 'Points earned from Pay Later order');
+            }
         }
     }
 
