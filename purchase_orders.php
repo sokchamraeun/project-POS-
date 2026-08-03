@@ -31,12 +31,13 @@ if (!in_array($filter, $allowed)) $filter = 'all';
 $stats = [];
 $sres = $conn->query("SELECT status, COUNT(*) AS cnt, IFNULL(SUM(total_cost),0) AS tot
                       FROM purchase_orders GROUP BY status");
-$allTotal = 0; $allCount = 0; $pendingCount = 0;
+$allTotal = 0; $allCount = 0; $pendingCount = 0; $orderedTotal = 0;
 while ($sr = $sres->fetch_assoc()) {
     $stats[$sr['status']] = $sr;
     $allCount += $sr['cnt'];
     $allTotal += $sr['tot'];
     if (in_array($sr['status'], ['Draft','Ordered','Partially Received'])) $pendingCount += $sr['cnt'];
+    if (!in_array($sr['status'], ['Draft', 'Cancelled'])) $orderedTotal += (float)$sr['tot'];
 }
 
 // Money actually spent, not money ordered. Summing total_cost here counted the
@@ -62,7 +63,8 @@ $where_clause = $filter !== 'all' ? "WHERE p.status = '$filter'" : '';
 $pos = [];
 $stmt = $conn->prepare("
     SELECT p.*, s.name AS supplier_name,
-           COUNT(i.poi_id) AS item_count
+           COUNT(i.poi_id) AS item_count,
+           IFNULL(SUM(i.qty_received * i.unit_cost), 0) AS received_cost
     FROM purchase_orders p
     JOIN suppliers s ON s.supplier_id = p.supplier_id
     LEFT JOIN purchase_order_items i ON i.po_id = p.po_id
@@ -243,7 +245,7 @@ tbody tr:hover td{background:rgba(255,255,255,.025);}
         </div>
         <div class="stat-card">
             <div class="stat-icon blue"><i class="fa-solid fa-dollar-sign"></i></div>
-            <div><div class="stat-val">$<?= number_format($allTotal,2) ?></div><div class="stat-lbl">All Time Spend</div></div>
+            <div><div class="stat-val">$<?= number_format($orderedTotal,2) ?></div><div class="stat-lbl">Total Ordered</div></div>
         </div>
     </div>
 
@@ -322,8 +324,14 @@ tbody tr:hover td{background:rgba(255,255,255,.025);}
                     <?php endif; ?>
                 </td>
                 <td><?= (int)$po['item_count'] ?> item<?= $po['item_count'] != 1 ? 's' : '' ?></td>
-                <td style="text-align:right;font-weight:600;color:var(--success)">
-                    $<?= number_format($po['total_cost'],2) ?>
+                <td style="text-align:right;font-weight:600;">
+                    <?php if ($po['status'] === 'Partially Received' || (int)($po['closed_short'] ?? 0) === 1): ?>
+                    <span style="color:var(--text-muted);font-size:12px">$<?= number_format($po['total_cost'],2) ?></span>
+                    <span style="color:var(--text-muted);font-size:11px">&middot;</span>
+                    <span style="color:var(--success)">$<?= number_format((float)($po['received_cost'] ?? 0),2) ?></span>
+                    <?php else: ?>
+                    <span style="color:var(--success)">$<?= number_format($po['total_cost'],2) ?></span>
+                    <?php endif; ?>
                 </td>
                 <td>
                     <?php /* Status-driven actions. The forms POST to purchase_order_view.php,

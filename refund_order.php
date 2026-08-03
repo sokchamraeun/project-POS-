@@ -100,11 +100,25 @@ try {
     //    rolls back with everything else if anything fails) ──
     $card_id = (int)($order['loyalty_card_id'] ?? 0);
     if ($card_id > 0) {
-        // Syncing to zero earning drinks undoes both the points and the
-        // progress, restoring the card to exactly where it stood before this
-        // order — including any part-progress toward the next point, which a
-        // points-only claw-back would silently take from the customer.
+        // 1) Reverse earned points: syncing to zero earning drinks undoes both points and progress
         loyalty_sync($conn, $card_id, $order_id, 0, 'Points reversed — order refunded');
+
+        // 2) Refund points the customer SPENT redeeming rewards on this order
+        $stmt_sp = $conn->prepare("SELECT COALESCE(SUM(-points_change), 0) AS spent FROM loyalty_history WHERE order_id = ? AND type = 'redeemed' AND points_change < 0");
+        $stmt_sp->bind_param("i", $order_id);
+        $stmt_sp->execute();
+        $spent = (int)$stmt_sp->get_result()->fetch_assoc()['spent'];
+        if ($spent > 0) {
+            $target_card_id = loyalty_resolve_card_id($conn, $card_id);
+            if ($target_card_id > 0) {
+                $stmt_ref = $conn->prepare("UPDATE loyalty_cards SET points = points + ?, last_used = NOW() WHERE card_id = ?");
+                $stmt_ref->bind_param("ii", $spent, $target_card_id);
+                $stmt_ref->execute();
+                $stmt_rh = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_add', 'Redeemed points refunded — order refunded')");
+                $stmt_rh->bind_param("iii", $target_card_id, $order_id, $spent);
+                $stmt_rh->execute();
+            }
+        }
     }
 
     $conn->commit();

@@ -101,12 +101,15 @@ try {
         $stmt_sp->execute();
         $spent = (int)$stmt_sp->get_result()->fetch_assoc()['spent'];
         if ($spent > 0) {
-            $stmt_ref = $conn->prepare("UPDATE loyalty_cards SET points = points + ?, last_used = NOW() WHERE card_id = ?");
-            $stmt_ref->bind_param("ii", $spent, $card_id);
-            $stmt_ref->execute();
-            $stmt_rh = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_add', 'Redeemed points refunded — order cancelled')");
-            $stmt_rh->bind_param("iii", $card_id, $order_id, $spent);
-            $stmt_rh->execute();
+            $target_card_id = loyalty_resolve_card_id($conn, $card_id);
+            if ($target_card_id > 0) {
+                $stmt_ref = $conn->prepare("UPDATE loyalty_cards SET points = points + ?, last_used = NOW() WHERE card_id = ?");
+                $stmt_ref->bind_param("ii", $spent, $target_card_id);
+                $stmt_ref->execute();
+                $stmt_rh = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_add', 'Redeemed points refunded — order cancelled')");
+                $stmt_rh->bind_param("iii", $target_card_id, $order_id, $spent);
+                $stmt_rh->execute();
+            }
         }
     }
 

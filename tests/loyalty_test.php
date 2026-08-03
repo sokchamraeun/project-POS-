@@ -138,6 +138,9 @@ try {
     $cardB = (int)$conn->insert_id;
     $conn->query("UPDATE loyalty_cards SET is_active = 0, merged_into = $cardB WHERE card_id = $cardA");
     $bBefore = $cardPoints($cardB);
+
+    check('loyalty_resolve_card_id resolves merged card', loyalty_resolve_card_id($conn, $cardA), $cardB);
+
     loyalty_sync($conn, $cardA, $ord, 2, 'test after merge');
     check('a sync after a merge credits the target card',
           $cardPoints($cardB)['points'] > $bBefore['points'], true);

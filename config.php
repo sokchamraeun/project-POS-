@@ -712,6 +712,31 @@ if (!function_exists('loyalty_earning_qty')) {
 
 /**
  * Reconcile one order's loyalty effect to a given earning quantity.
+/**
+ * Resolve a card ID through any merge chain to its active target card.
+ * Bounded rather than while(true): a cycle in merged_into would hang the
+ * till, and ten hops is far beyond any real merge history.
+ */
+if (!function_exists('loyalty_resolve_card_id')) {
+    function loyalty_resolve_card_id(mysqli $conn, int $card_id): int {
+        if ($card_id <= 0) { return 0; }
+        $seen = 0;
+        while ($seen++ < 10) {
+            $m = $conn->prepare("SELECT merged_into FROM loyalty_cards WHERE card_id = ?");
+            $m->bind_param('i', $card_id);
+            $m->execute();
+            $row = $m->get_result()->fetch_row();
+            if (!$row) { return 0; }                       // card gone entirely
+            $next = (int)($row[0] ?? 0);
+            if ($next <= 0 || $next === $card_id) { break; }
+            $card_id = $next;
+        }
+        return $card_id;
+    }
+}
+
+/**
+ * Reconcile one order's loyalty effect to a given earning quantity.
  *
  * ONE writer for every loyalty movement, because the four sites that used to do
  * this each did it slightly differently. Takes the order's TOTAL earning
@@ -745,19 +770,8 @@ if (!function_exists('loyalty_sync')) {
         $qty_total = max(0, $qty_total);
 
         // Follow a merge chain to the card that actually holds the balance.
-        // Bounded rather than while(true): a cycle in merged_into would hang the
-        // till, and ten hops is far beyond any real merge history.
-        $seen = 0;
-        while ($seen++ < 10) {
-            $m = $conn->prepare("SELECT merged_into FROM loyalty_cards WHERE card_id = ?");
-            $m->bind_param('i', $card_id);
-            $m->execute();
-            $row = $m->get_result()->fetch_row();
-            if (!$row) { return 0; }                       // card gone entirely
-            $next = (int)($row[0] ?? 0);
-            if ($next <= 0 || $next === $card_id) { break; }
-            $card_id = $next;
-        }
+        $card_id = loyalty_resolve_card_id($conn, $card_id);
+        if ($card_id <= 0) { return 0; }
 
         $c = $conn->prepare("SELECT points_progress FROM loyalty_cards WHERE card_id = ?");
         $c->bind_param('i', $card_id);
