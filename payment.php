@@ -858,7 +858,42 @@ function showPaymentSuccess() {
 
 // ── Show a verification error (e.g. expired token) instead of spinning forever ──
 let errorShown = false;
-function showVerifyError(msg) {
+let manualConfirmBtnAdded = false;
+
+function addManualConfirmBtn() {
+    if (manualConfirmBtnAdded) return;
+    manualConfirmBtnAdded = true;
+    const indicator = document.getElementById('statusIndicator');
+    if (!indicator) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText = 'margin: 12px auto 0; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 16px; border-radius: 9px; border: none; cursor: pointer; background: #d1904b; color: #000; font-weight: 600; transition: all .2s ease;';
+    btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Manually Confirm Payment (Bank Verified)';
+    btn.onclick = async function() {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Confirming...';
+        try {
+            const formData = new FormData();
+            formData.append('action', 'manual_confirm');
+            const res = await fetch('check_payment.php?order_id=' + orderId, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.paid) {
+                showPaymentSuccess();
+            } else {
+                alert(data.error || 'Failed to confirm payment.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Manually Confirm Payment (Bank Verified)';
+            }
+        } catch (e) {
+            alert('Network error confirming payment.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Manually Confirm Payment (Bank Verified)';
+        }
+    };
+    indicator.after(btn);
+}
+
+function showVerifyError(msg, errType) {
     const indicator = document.getElementById('statusIndicator');
     indicator.className = 'status-indicator';
     indicator.style.color = '#e74c3c';
@@ -880,25 +915,38 @@ function showVerifyError(msg) {
         hint.textContent = 'Close this (✕) and collect from Find Orders → Pending Payment.';
         indicator.after(hint);
     }
+    if (errType === 'rate_limited' || errType === 'api_error' || errType === 'timeout') {
+        addManualConfirmBtn();
+    }
 }
 
+let pollCount = 0;
+const MAX_POLLS = 24; // 24 attempts @ 5s = 120 seconds (2 minutes) max polling window
+
 async function checkPayment() {
+    pollCount++;
     try {
         const res = await fetch('check_payment.php?order_id=' + orderId, { cache: 'no-store' });
         const data = await res.json();
         if (data.paid) { showPaymentSuccess(); return; }
         if (data.error) {
-            showVerifyError(data.message || 'Payment verification unavailable.');
-            // Server-side errors (expired token, auth) are persistent — stop polling.
+            showVerifyError(data.message || 'Payment verification unavailable.', data.error);
+            // Server-side errors (expired token, rate limit, auth) are persistent — stop polling.
             clearInterval(checkInterval);
+            return;
         }
     } catch (e) {
         console.error('Payment check error:', e);
     }
+
+    if (pollCount >= MAX_POLLS) {
+        clearInterval(checkInterval);
+        showVerifyError('Payment verification window timed out (2 minutes). Check your Bakong app to confirm payment.', 'timeout');
+    }
 }
 
-
-checkInterval = setInterval(checkPayment, 2000);
+// Poll every 5000ms (5 seconds) instead of 2000ms to conserve Bakong daily API quota
+checkInterval = setInterval(checkPayment, 5000);
 checkPayment();
 </script>
 

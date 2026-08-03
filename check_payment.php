@@ -63,6 +63,18 @@ if ($already_settled) {
     exit;
 }
 
+// Handle manual confirmation by staff/manager
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual_confirm') {
+    try {
+        _settle_bakong_order($conn, $order, $order_id);
+        echo json_encode(['paid' => true, 'message' => 'Payment manually confirmed successfully.']);
+        exit;
+    } catch (Throwable $e) {
+        echo json_encode(['paid' => false, 'error' => 'Manual confirmation failed: ' . $e->getMessage()]);
+        exit;
+    }
+}
+
 // ── Bakong API check (no manual override — payments must be verified by Bakong) ──
 try {
     // Guard: catch an expired/invalid token up front so we report it clearly
@@ -84,108 +96,134 @@ try {
     $bakong = new BakongKHQR($config['token']);
     $response = $bakong->checkTransactionByMD5($order['bakong_md5']);
 
+    $resCode = isset($response['responseCode']) ? (int)$response['responseCode'] : null;
+    $resMsg  = (string)($response['responseMessage'] ?? $response['message'] ?? '');
+
     $isPaid =
-        (isset($response['responseCode']) && (int)$response['responseCode'] === 0)
+        ($resCode === 0)
         || (isset($response['data']) && !empty($response['data']));
 
     if ($isPaid) {
-        $conn->begin_transaction();
-
         try {
-            // 1. Mark Bakong payment as paid in order_payments
-            $stmt_payment = $conn->prepare("
-                UPDATE order_payments
-                SET payment_status = 'paid'
-                WHERE order_id = ? AND payment_method = 'bakong'
-            ");
-            $stmt_payment->bind_param("i", $order_id);
-            $stmt_payment->execute();
-
-            // 2. Check if all payments for this order are now paid
-            $stmt_check = $conn->prepare("
-                SELECT COUNT(*) AS pending_count
-                FROM order_payments
-                WHERE order_id = ? AND payment_status != 'paid'
-            ");
-            $stmt_check->bind_param("i", $order_id);
-            $stmt_check->execute();
-            $result = $stmt_check->get_result();
-            $pending = $result->fetch_assoc();
-
-            // 3. If no pending payments, advance order status
-            if ($pending['pending_count'] == 0) {
-                if ($order['payment_method'] === 'paylater') {
-                    // Paylater settled via Bakong → 'Paid' + closed. 'Paid' is the SETTLED
-                    // state; find_order.php treats paylater orders on 'Completed' as still
-                    // owing, so this must not be changed to preserve fulfilment state.
-                    $stmt_status = $conn->prepare("
-                        UPDATE orders SET status = 'Paid', is_open = 0
-                        WHERE order_id = ?
-                    ");
-                } else {
-                    // Regular Bakong order → move to Preparing (kitchen view)
-                    $stmt_status = $conn->prepare("
-                        UPDATE orders SET status = 'Preparing'
-                        WHERE order_id = ? AND status = 'PendingPayment'
-                    ");
-                }
-                $stmt_status->bind_param("i", $order_id);
-                $stmt_status->execute();
-
-                // Award loyalty points for paylater orders settled via Bakong (once).
-                if ($order['payment_method'] === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
-                    $lc_id = (int)($order['loyalty_card_id'] ?? 0);
-                    if ($lc_id > 0) {
-                        // Was SUM(quantity) with no filter — see admin_pay_cash.php.
-                        $qty = loyalty_earning_qty($conn, $order_id);
-                        if ($qty > 0) {
-                            loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
-                        }
-                    }
-                }
-            }
-
-            $conn->commit();
-
-            // Notify Node server
-            $data = json_encode([
-                "type" => "new_order",
-                "payload" => [
-                    "order_id" => $order_id
-                ]
-            ]);
-
-            $ch = curl_init("http://localhost:3000/notify");
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                "Content-Type: application/json",
-                "Content-Length: " . strlen($data)
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-            curl_exec($ch);
-            curl_close($ch);
-
+            _settle_bakong_order($conn, $order, $order_id);
             echo json_encode(['paid' => true]);
             exit;
-
         } catch (Throwable $e) {
-            $conn->rollback();
             echo json_encode(['paid' => false, 'error' => 'Payment confirmation failed. Please try again.']);
+            exit;
+        }
+    }
+
+    // Check if failure is rate-limiting or token/auth issue vs normal "not paid yet"
+    if ($resCode !== null && $resCode !== 0) {
+        if (stripos($resMsg, 'limit') !== false || stripos($resMsg, 'quota') !== false || stripos($resMsg, 'exceeded') !== false) {
+            echo json_encode([
+                'paid' => false,
+                'error' => 'rate_limited',
+                'message' => 'Bakong daily API limit of 100 requests exceeded. Auto-verification is unavailable — please check your Bakong app.'
+            ]);
+            exit;
+        }
+        if (stripos($resMsg, 'token') !== false || stripos($resMsg, 'unauthorized') !== false || stripos($resMsg, 'auth') !== false) {
+            echo json_encode([
+                'paid' => false,
+                'error' => 'token_expired',
+                'message' => 'Bakong token error — ' . ($resMsg ?: 'cannot verify payment.')
+            ]);
             exit;
         }
     }
 
     echo json_encode(['paid' => false]);
 } catch (Throwable $e) {
-    // API rejected the request (bad/expired token, auth or network issue) —
-    // surface that it failed, but keep the raw detail server-side only.
-    error_log('check_payment.php Bakong verify failed (order ' . $order_id . '): ' . $e->getMessage());
+    // API rejected the request (bad/expired token, auth, quota limit, or network issue)
+    $msg = $e->getMessage();
+    error_log('check_payment.php Bakong verify failed (order ' . $order_id . '): ' . $msg);
+    $isRateLimit = stripos($msg, 'limit') !== false || stripos($msg, 'exceeded') !== false;
     echo json_encode([
         'paid' => false,
-        'error' => 'api_error',
-        'message' => 'Could not verify payment with Bakong. Please try again or use another option.'
+        'error' => $isRateLimit ? 'rate_limited' : 'api_error',
+        'message' => $isRateLimit
+            ? 'Bakong daily limit exceeded. Auto-verification is unavailable — check Bakong app.'
+            : 'Could not verify payment with Bakong. Please try again or use another option.'
     ]);
+}
+
+function _settle_bakong_order(mysqli $conn, array $order, int $order_id): void {
+    $conn->begin_transaction();
+    try {
+        // 1. Mark Bakong payment as paid in order_payments
+        $stmt_payment = $conn->prepare("
+            UPDATE order_payments
+            SET payment_status = 'paid'
+            WHERE order_id = ? AND payment_method = 'bakong'
+        ");
+        $stmt_payment->bind_param("i", $order_id);
+        $stmt_payment->execute();
+
+        // 2. Check if all payments for this order are now paid
+        $stmt_check = $conn->prepare("
+            SELECT COUNT(*) AS pending_count
+            FROM order_payments
+            WHERE order_id = ? AND payment_status != 'paid'
+        ");
+        $stmt_check->bind_param("i", $order_id);
+        $stmt_check->execute();
+        $result = $stmt_check->get_result();
+        $pending = $result->fetch_assoc();
+
+        // 3. If no pending payments, advance order status
+        if ($pending['pending_count'] == 0) {
+            if ($order['payment_method'] === 'paylater') {
+                $stmt_status = $conn->prepare("
+                    UPDATE orders SET status = 'Paid', is_open = 0
+                    WHERE order_id = ?
+                ");
+            } else {
+                $stmt_status = $conn->prepare("
+                    UPDATE orders SET status = 'Preparing'
+                    WHERE order_id = ? AND status = 'PendingPayment'
+                ");
+            }
+            $stmt_status->bind_param("i", $order_id);
+            $stmt_status->execute();
+
+            // Award loyalty points for paylater orders settled via Bakong (once).
+            if ($order['payment_method'] === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
+                $lc_id = (int)($order['loyalty_card_id'] ?? 0);
+                if ($lc_id > 0) {
+                    $qty = loyalty_earning_qty($conn, $order_id);
+                    if ($qty > 0) {
+                        loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
+                    }
+                }
+            }
+        }
+
+        $conn->commit();
+
+        // Notify Node server
+        $data = json_encode([
+            "type" => "new_order",
+            "payload" => [
+                "order_id" => $order_id
+            ]
+        ]);
+
+        $ch = curl_init("http://localhost:3000/notify");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "Content-Type: application/json",
+            "Content-Length: " . strlen($data)
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_exec($ch);
+        curl_close($ch);
+    } catch (Throwable $e) {
+        $conn->rollback();
+        throw $e;
+    }
 }
 ?>
