@@ -164,6 +164,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
 ══════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_unreviewed') {
     header('Content-Type: application/json');
+    $is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']) || !empty($_SESSION['is_admin']) || can('manage_roles') || can('report');
+    if (!$is_mgr) {
+        echo json_encode(['ok' => true, 'unreviewed_count' => 0, 'items' => []]);
+        exit;
+    }
     $res = $conn->query("
         SELECT h.id AS history_id, h.ingredient_id, h.amount, h.reference, h.reason_category, h.reviewed, h.created_by, h.created_at,
                i.ingredient_name, i.unit
@@ -198,7 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_unr
 ══════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_reviewed') {
     header('Content-Type: application/json');
-    if (!can('ingredients')) { echo json_encode(['ok' => false, 'message' => 'Permission denied']); exit; }
+    $is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']) || !empty($_SESSION['is_admin']) || can('manage_roles') || can('report');
+    if (!$is_mgr) { echo json_encode(['ok' => false, 'message' => 'Permission denied: Manager review required']); exit; }
 
     $hid = (int)($_POST['history_id'] ?? 0);
     $markAll = (int)($_POST['all'] ?? 0);
@@ -1378,8 +1384,15 @@ function escHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+const IS_MANAGER_OR_ADMIN = <?= (in_array($_SESSION['role'] ?? '', ['admin', 'manager']) || !empty($_SESSION['is_admin']) || can('manage_roles') || can('report')) ? 'true' : 'false' ?>;
+
 /* ── UNREVIEWED AUDIT FUNCTIONS ── */
 async function checkUnreviewedAdjustments() {
+    if (!IS_MANAGER_OR_ADMIN) {
+        const b = document.getElementById('unreviewedBanner');
+        if (b) b.style.display = 'none';
+        return;
+    }
     try {
         const res = await fetch('ingredients.php?action=get_unreviewed');
         const data = await res.json();
