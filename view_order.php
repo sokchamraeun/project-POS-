@@ -1786,7 +1786,7 @@ const userRole = "<?= $_SESSION['role'] ?? 'staff' ?>";
 const OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
 const isAdmin = userRole === 'admin';
 const canManageOrders = userRole === 'admin' || userRole === 'manager';
-const canRemake = userRole === 'admin' || userRole === 'manager' || userRole === 'staff' || userRole === 'barista';
+const canRemake = userRole === 'admin' || userRole === 'manager' || userRole === 'staff';
 
 // ── Play Sound ──
 function play(id) {
@@ -2201,15 +2201,6 @@ function getActionButtons(o) {
         `;
     }
     
-    // Remake button - for Preparing or Completed orders
-    if ((state === 'Preparing' || state === 'Completed') && canRemake) {
-        buttons += `
-            <button class="remake-btn" onclick="showRemakeModal(${Number(o.order_id)}, ${Number(o.daily_order_no)})" title="Log remake">
-                <i class="fa-solid fa-repeat"></i> Remake
-            </button>
-        `;
-    }
-
     if (state === 'Completed') {
         // An open pay-later tab has taken no money — 'Completed' there means made-but-owing.
         // Refunding it would erase the debt and record cash that was never collected.
@@ -2219,6 +2210,13 @@ function getActionButtons(o) {
             buttons += `
                 <button class="refund-btn" onclick="showRefundModal(${Number(o.order_id)}, ${Number(o.daily_order_no)}, ${parseFloat(o.total).toFixed(2)})" title="Refund order">
                     <i class="fa-solid fa-rotate-left"></i> Refund
+                </button>
+            `;
+        }
+        if (canRemake) {
+            buttons += `
+                <button class="remake-btn" onclick="showRemakeModal(${Number(o.order_id)}, ${Number(o.daily_order_no)})" title="Log remake">
+                    <i class="fa-solid fa-repeat"></i> Remake
                 </button>
             `;
         }
