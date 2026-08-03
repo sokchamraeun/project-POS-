@@ -1368,6 +1368,16 @@ async function submitAdjust() {
     finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Deduction'; }
 }
 
+function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 /* ── UNREVIEWED AUDIT FUNCTIONS ── */
 async function checkUnreviewedAdjustments() {
     try {
@@ -1423,15 +1433,15 @@ async function openReviewModal() {
                 <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
                     <div style="flex:1;">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                            <span style="font-weight:700;font-size:14px;color:var(--text);">${esc(it.ingredient_name)}</span>
-                            <span style="${deltaCls}">${deltaStr} ${esc(it.unit)}</span>
+                            <span style="font-weight:700;font-size:14px;color:var(--text);">${escHtml(it.ingredient_name)}</span>
+                            <span style="${deltaCls}">${deltaStr} ${escHtml(it.unit)}</span>
                             ${badge}
                         </div>
                         <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px;">
-                            Reason: <strong style="color:var(--text);">${esc(it.reference || 'No reason provided')}</strong>
+                            Reason: <strong style="color:var(--text);">${escHtml(it.reference || 'No reason provided')}</strong>
                         </div>
                         <div style="font-size:10.5px;color:var(--text-muted);">
-                            By <strong>${esc(it.created_by)}</strong> &bull; ${esc(it.created_at)}
+                            By <strong>${escHtml(it.created_by)}</strong> &bull; ${escHtml(it.created_at)}
                         </div>
                     </div>
                     <button type="button" class="btn-row restock" onclick="markSingleReviewed(${it.history_id}, this)" title="Approve & Mark Reviewed">
@@ -1442,7 +1452,7 @@ async function openReviewModal() {
 
         body.innerHTML = html;
     } catch (e) {
-        body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--danger)">Error loading details</div>`;
+        body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--danger)">Error loading details (${escHtml(e.message)})</div>`;
     }
 }
 
