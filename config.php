@@ -2164,26 +2164,57 @@ if (!function_exists('getAvailableRewards')) {
     }
 }
 
-// ── RBAC: can() — check if current session role has a permission ──
+// ── RBAC: can() — check if current session user / role has a permission ──
 if (!function_exists('can')) {
     function can(string $slug): bool {
         global $conn;
-        static $perms    = null;
-        static $is_admin = null;
+        static $user_overrides = null;
+        static $role_perms     = null;
+        static $is_admin       = null;
+
         if ($is_admin === null) {
             if (session_status() === PHP_SESSION_NONE) session_start();
+            $user_id  = (int)($_SESSION['user_id'] ?? 0);
             $role     = $_SESSION['role'] ?? 'staff';
             $is_admin = ($role === 'admin');
+
             if (!$is_admin) {
-                $perms = [];
+                $user_overrides = [];
+                $role_perms     = [];
+
+                // 1. Fetch user-specific overrides if user_id > 0
+                if ($user_id > 0) {
+                    $uo = $conn->prepare("SELECT p.slug, up.is_granted FROM user_permissions up JOIN permissions p ON p.id = up.permission_id WHERE up.user_id = ?");
+                    if ($uo) {
+                        $uo->bind_param("i", $user_id);
+                        $uo->execute();
+                        $uores = $uo->get_result();
+                        while ($row = $uores->fetch_assoc()) {
+                            $user_overrides[$row['slug']] = (int)$row['is_granted'];
+                        }
+                    }
+                }
+
+                // 2. Fetch base role permissions
                 $r = $conn->prepare("SELECT p.slug FROM permissions p JOIN role_permissions rp ON rp.permission_id=p.id JOIN roles ro ON ro.id=rp.role_id WHERE ro.slug=?");
-                $r->bind_param("s", $role);
-                $r->execute();
-                $res = $r->get_result();
-                while ($row = $res->fetch_assoc()) $perms[$row['slug']] = true;
+                if ($r) {
+                    $r->bind_param("s", $role);
+                    $r->execute();
+                    $res = $r->get_result();
+                    while ($row = $res->fetch_assoc()) $role_perms[$row['slug']] = true;
+                }
             }
         }
-        return $is_admin || isset($perms[$slug]);
+
+        if ($is_admin) return true;
+
+        // User explicit override takes top priority
+        if (isset($user_overrides[$slug])) {
+            return $user_overrides[$slug] === 1;
+        }
+
+        // Fallback to role base permission
+        return isset($role_perms[$slug]);
     }
 }
 ?>

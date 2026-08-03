@@ -147,6 +147,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     exit;
 }
 
+/* ── AJAX: Get User Specific Permissions & Overrides ── */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'user_permissions') {
+    header('Content-Type: application/json');
+    $uid = (int)($_GET['user_id'] ?? 0);
+    if ($uid <= 0) { ob_clean(); echo json_encode(['error' => 'Invalid user ID']); exit; }
+
+    // Fetch user info & role
+    $uq = $conn->prepare("
+        SELECT u.user_id, u.username, r.slug AS role_slug, r.name AS role_name, COALESCE(e.name, u.username) AS emp_name
+        FROM users u
+        JOIN roles r ON r.id = u.role_id
+        LEFT JOIN employees e ON e.user_id = u.user_id
+        WHERE u.user_id = ?
+        LIMIT 1
+    ");
+    $uq->bind_param("i", $uid);
+    $uq->execute();
+    $userInfo = $uq->get_result()->fetch_assoc();
+
+    if (!$userInfo) { ob_clean(); echo json_encode(['error' => 'User not found']); exit; }
+
+    // Fetch base role permissions for this user's role
+    $rolePerms = [];
+    $rpq = $conn->prepare("
+        SELECT rp.permission_id
+        FROM role_permissions rp
+        JOIN roles r ON r.id = rp.role_id
+        WHERE r.slug = ?
+    ");
+    $rpq->bind_param("s", $userInfo['role_slug']);
+    $rpq->execute();
+    $rpres = $rpq->get_result();
+    while ($row = $rpres->fetch_assoc()) {
+        $rolePerms[(int)$row['permission_id']] = true;
+    }
+
+    // Fetch explicit user overrides
+    $userOverrides = [];
+    $uoq = $conn->prepare("SELECT permission_id, is_granted FROM user_permissions WHERE user_id = ?");
+    $uoq->bind_param("i", $uid);
+    $uoq->execute();
+    $uores = $uoq->get_result();
+    while ($row = $uores->fetch_assoc()) {
+        $userOverrides[(int)$row['permission_id']] = (int)$row['is_granted'];
+    }
+
+    // Fetch all available permissions grouped by module
+    $allP = $conn->query("SELECT id, name, slug, module FROM permissions ORDER BY module ASC, sort_order ASC, name ASC");
+    $modules = [];
+    while ($p = $allP->fetch_assoc()) {
+        $pid = (int)$p['id'];
+        $inherited = isset($rolePerms[$pid]);
+        $override  = isset($userOverrides[$pid]) ? $userOverrides[$pid] : null; // 1 = grant, 0 = deny, null = inherit
+        $effective = ($override !== null) ? ($override === 1) : $inherited;
+
+        $modules[$p['module']][] = [
+            'id'        => $pid,
+            'name'      => $p['name'],
+            'slug'      => $p['slug'],
+            'inherited' => $inherited,
+            'override'  => $override,
+            'effective' => $effective
+        ];
+    }
+
+    ob_clean();
+    echo json_encode([
+        'success' => true,
+        'user'    => $userInfo,
+        'modules' => $modules
+    ]);
+    exit;
+}
+
+/* ── AJAX: Save User Specific Permission Overrides ── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_user_permissions') {
+    header('Content-Type: application/json');
+    if (!csrf_ok()) { ob_clean(); echo json_encode(['success' => false, 'message' => 'Invalid session token']); exit; }
+
+    $uid = (int)($_POST['user_id'] ?? 0);
+    if ($uid <= 0) { ob_clean(); echo json_encode(['success' => false, 'message' => 'Invalid user ID']); exit; }
+
+    // Parse overrides map: [ permission_id => 'grant' | 'deny' | 'inherit' ]
+    $overrides = $_POST['overrides'] ?? [];
+    if (!is_array($overrides)) $overrides = [];
+
+    $conn->begin_transaction();
+    try {
+        $del = $conn->prepare("DELETE FROM user_permissions WHERE user_id = ?");
+        $del->bind_param("i", $uid);
+        $del->execute();
+
+        $ins = $conn->prepare("INSERT INTO user_permissions (user_id, permission_id, is_granted, granted_by) VALUES (?, ?, ?, ?)");
+        $admin_id = $_SESSION['user_id'] ?? null;
+
+        $count_grants = 0;
+        $count_denies = 0;
+
+        foreach ($overrides as $pid_str => $state) {
+            $pid = (int)$pid_str;
+            if ($pid <= 0) continue;
+            if ($state === 'grant') {
+                $is_g = 1;
+                $ins->bind_param("iiii", $uid, $pid, $is_g, $admin_id);
+                $ins->execute();
+                $count_grants++;
+            } else if ($state === 'deny') {
+                $is_g = 0;
+                $ins->bind_param("iiii", $uid, $pid, $is_g, $admin_id);
+                $ins->execute();
+                $count_denies++;
+            }
+        }
+
+        $conn->commit();
+
+        audit_log($conn, 'user_permissions_override', 'user#'.$uid, "grants={$count_grants},denies={$count_denies}");
+        ob_clean();
+        echo json_encode(['success' => true, 'grants' => $count_grants, 'denies' => $count_denies]);
+        exit;
+    } catch (Throwable $e) {
+        $conn->rollback();
+        ob_clean();
+        echo json_encode(['success' => false, 'message' => 'Database error saving user permissions']);
+        exit;
+    }
+}
+
 
 /* ── POST: Bulk reassign ── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_reassign') {
@@ -168,6 +296,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
 /* ── DATA ── */
 $all_perms        = [];
 $total_perm_count = 0;
+
+$user_options_query = $conn->query("
+    SELECT u.user_id, u.username, r.name AS role_name, COALESCE(e.name, u.username) AS emp_name
+    FROM users u
+    JOIN roles r ON r.id = u.role_id
+    LEFT JOIN employees e ON e.user_id = u.user_id
+    WHERE r.slug != 'admin'
+    ORDER BY r.name ASC, emp_name ASC
+");
+$all_user_options = $user_options_query ? $user_options_query->fetch_all(MYSQLI_ASSOC) : [];
 $res = $conn->query("SELECT * FROM permissions ORDER BY sort_order ASC");
 while ($r = $res->fetch_assoc()) {
     $all_perms[$r['module']][] = $r;
@@ -512,6 +650,13 @@ tr:last-child td { border-bottom:none; }
 .module-group-hdr .mg-icon { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; flex-shrink:0; }
 .module-group-hdr::after { content:''; flex:1; height:1px; background:var(--border); }
 
+/* User Override Segmented Controls */
+.uo-btn { padding:4px 10px; border-radius:6px; border:none; background:transparent; color:var(--text-muted); font-size:11px; font-weight:600; cursor:pointer; transition:all .15s ease; font-family:inherit; }
+.uo-btn:hover { color:var(--text); }
+.uo-btn.sel-inherit { background:rgba(255,255,255,.1); color:var(--text); font-weight:700; }
+.uo-btn.sel-grant   { background:rgba(85,224,135,.2); color:#55e087; font-weight:700; border:1px solid rgba(85,224,135,.4); }
+.uo-btn.sel-deny    { background:rgba(231,76,60,.2); color:#e74c3c; font-weight:700; border:1px solid rgba(231,76,60,.4); }
+
 .perm-check-list { display:flex; flex-direction:column; gap:6px; }
 .perm-check-item {
     display:flex; align-items:center; gap:12px; padding:10px 14px;
@@ -710,6 +855,9 @@ tr:last-child td { border-bottom:none; }
         </div>
         <div style="display:flex;align-items:center;gap:12px;">
             <span style="font-size:11px;color:var(--text-muted)">Click <strong style="color:var(--text)">Edit Permissions</strong> on a role to configure access</span>
+            <button type="button" class="btn-create-role" onclick="openUserOverridesModal()" style="background:rgba(52,152,219,.12);border-color:rgba(52,152,219,.35);color:#3498db;">
+                <i class="fa-solid fa-user-gear"></i> Per-User Overrides
+            </button>
             <button class="btn-create-role" onclick="document.getElementById('createRoleModal').classList.add('open')">
                 <i class="fa-solid fa-plus"></i> Create Role
             </button>
@@ -1071,6 +1219,39 @@ tr:last-child td { border-bottom:none; }
             <button class="btn-cancel-modal" onclick="closeModal()">Cancel</button>
             <button class="btn-save" id="saveBtn" onclick="savePermissions()">
                 <i class="fa-solid fa-floppy-disk"></i> Save Changes
+            </button>
+        </div>
+<!-- USER PERMISSIONS OVERRIDES MODAL -->
+<div class="modal-overlay" id="userOverridesModal" onclick="if(event.target===this)closeUserOverridesModal()">
+    <div class="modal-box" style="max-width:680px">
+        <div class="modal-accent" style="background:linear-gradient(90deg, #3498db, #5dade2)"></div>
+        <button class="modal-close" onclick="closeUserOverridesModal()"><i class="fa-solid fa-xmark"></i></button>
+        <div class="modal-head">
+            <div class="modal-title"><i class="fa-solid fa-user-gear" style="color:#3498db"></i> Per-User Permission Overrides</div>
+            <div class="modal-sub">Grant or revoke specific permissions for an individual employee without affecting their entire role.</div>
+            
+            <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+                <select id="userOverrideSelect" onchange="onUserOverrideSelectChange()" style="flex:1;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                    <option value="0">-- Select Employee --</option>
+                    <?php foreach ($all_user_options as $uopt): ?>
+                    <option value="<?= (int)$uopt['user_id'] ?>"><?= htmlspecialchars($uopt['emp_name']) ?> (<?= htmlspecialchars($uopt['username']) ?> — <?= htmlspecialchars($uopt['role_name']) ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="modal-divider"></div>
+        </div>
+
+        <div class="modal-body" id="userOverridesModalBody" style="padding-top:14px;padding-bottom:20px;">
+            <div style="padding:40px;text-align:center;color:var(--text-muted)">
+                <i class="fa-solid fa-user-check" style="font-size:32px;display:block;margin-bottom:10px;opacity:.3"></i>
+                Select an employee from the dropdown above to manage their custom permissions.
+            </div>
+        </div>
+
+        <div class="modal-foot">
+            <button class="btn-cancel-modal" onclick="closeUserOverridesModal()">Close</button>
+            <button class="btn-save" id="saveUserOverridesBtn" onclick="saveUserOverrides()" disabled style="background:#3498db;color:#fff;">
+                <i class="fa-solid fa-floppy-disk"></i> Save User Overrides
             </button>
         </div>
     </div>
@@ -1446,7 +1627,160 @@ document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('theme') === 'light')
         document.getElementById('themeIcon').className = 'fa-solid fa-sun';
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeEditMeta(); closeDeleteModal(); closeBulkReassign(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeEditMeta(); closeDeleteModal(); closeBulkReassign(); closeUserOverridesModal(); } });
+
+/* ── PER-USER PERMISSION OVERRIDES MODAL ── */
+let currentOverrideUserId = 0;
+let userOverridesMap = {};
+
+function openUserOverridesModal(userId = 0) {
+    document.getElementById('userOverridesModal').classList.add('open');
+    if (userId > 0) {
+        document.getElementById('userOverrideSelect').value = userId;
+        onUserOverrideSelectChange();
+    }
+}
+
+function closeUserOverridesModal() {
+    document.getElementById('userOverridesModal').classList.remove('open');
+}
+
+function onUserOverrideSelectChange() {
+    const uid = parseInt(document.getElementById('userOverrideSelect').value) || 0;
+    currentOverrideUserId = uid;
+    const saveBtn = document.getElementById('saveUserOverridesBtn');
+    const body = document.getElementById('userOverridesModalBody');
+
+    if (uid <= 0) {
+        saveBtn.disabled = true;
+        body.innerHTML = `
+            <div style="padding:40px;text-align:center;color:var(--text-muted)">
+                <i class="fa-solid fa-user-check" style="font-size:32px;display:block;margin-bottom:10px;opacity:.3"></i>
+                Select an employee from the dropdown above to manage their custom permissions.
+            </div>`;
+        return;
+    }
+
+    body.innerHTML = `
+        <div style="padding:40px;text-align:center;color:var(--text-muted)">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size:28px;display:block;margin-bottom:10px;color:#3498db"></i>
+            Loading custom permissions for employee...
+        </div>`;
+
+    fetch(`manage_roles.php?action=user_permissions&user_id=${uid}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showToast(data.error || 'Failed to load user permissions', false);
+                return;
+            }
+            userOverridesMap = {};
+            renderUserOverridesUI(data.user, data.modules);
+            saveBtn.disabled = false;
+        })
+        .catch(err => {
+            showToast('Network error loading user permissions', false);
+        });
+}
+
+function renderUserOverridesUI(user, modules) {
+    const body = document.getElementById('userOverridesModalBody');
+    let html = `
+        <div style="background:rgba(52,152,219,.08);border:1px solid rgba(52,152,219,.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <div style="font-weight:700;font-size:14px;color:var(--text)">${esc(user.emp_name)}</div>
+                <div style="font-size:11px;color:var(--text-muted)">Username: <strong>${esc(user.username)}</strong> &bull; Base Role: <span class="role-badge" style="background:rgba(52,152,219,.15);color:#3498db;border:1px solid rgba(52,152,219,.3)">${esc(user.role_name)}</span></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);text-align:right">
+                <div><span style="color:#55e087;font-weight:700">Grant</span> = Custom Allow</div>
+                <div><span style="color:#e74c3c;font-weight:700">Deny</span> = Custom Revoke</div>
+            </div>
+        </div>
+    `;
+
+    for (const [module, perms] of Object.entries(modules)) {
+        const meta = MOD_META[module] || { icon:'fa-puzzle-piece', color:'#888' };
+        html += `
+            <div class="module-group">
+                <div class="module-group-hdr">
+                    <div class="mg-icon" style="background:${meta.color}1a;color:${meta.color}">
+                        <i class="fa-solid ${meta.icon}"></i>
+                    </div>
+                    ${esc(module)} (${perms.length})
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+        `;
+
+        perms.forEach(p => {
+            let initialOpt = 'inherit';
+            if (p.override === 1) initialOpt = 'grant';
+            if (p.override === 0) initialOpt = 'deny';
+            userOverridesMap[p.id] = initialOpt;
+
+            const baseStatus = p.inherited
+                ? `<span style="color:var(--success);font-size:11px;font-weight:600;"><i class="fa-solid fa-check"></i> Role Default: Allowed</span>`
+                : `<span style="color:var(--text-muted);font-size:11px;"><i class="fa-solid fa-xmark"></i> Role Default: Denied</span>`;
+
+            html += `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);">
+                    <div>
+                        <div style="font-weight:600;font-size:13px;">${esc(p.name)}</div>
+                        <div style="margin-top:2px;">${baseStatus}</div>
+                    </div>
+                    <div class="override-segmented" data-pid="${p.id}" style="display:flex;background:rgba(255,255,255,.05);border-radius:8px;padding:3px;gap:3px;">
+                        <button type="button" class="uo-btn ${initialOpt==='inherit'?'sel-inherit':''}" onclick="setOverrideState(${p.id}, 'inherit', this)" title="Inherit from role">Inherit</button>
+                        <button type="button" class="uo-btn ${initialOpt==='grant'?'sel-grant':''}" onclick="setOverrideState(${p.id}, 'grant', this)" title="Force allow for this user">Grant</button>
+                        <button type="button" class="uo-btn ${initialOpt==='deny'?'sel-deny':''}" onclick="setOverrideState(${p.id}, 'deny', this)" title="Force deny for this user">Deny</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div></div>`;
+    }
+
+    body.innerHTML = html;
+}
+
+function setOverrideState(pid, state, btn) {
+    userOverridesMap[pid] = state;
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.uo-btn').forEach(b => b.className = 'uo-btn');
+    if (state === 'inherit') btn.classList.add('sel-inherit');
+    if (state === 'grant') btn.classList.add('sel-grant');
+    if (state === 'deny') btn.classList.add('sel-deny');
+}
+
+function saveUserOverrides() {
+    if (currentOverrideUserId <= 0) return;
+    const saveBtn = document.getElementById('saveUserOverridesBtn');
+    saveBtn.disabled = true;
+
+    const fd = new FormData();
+    fd.append('action', 'save_user_permissions');
+    fd.append('csrf_token', CSRF);
+    fd.append('user_id', currentOverrideUserId);
+
+    for (const [pid, state] of Object.entries(userOverridesMap)) {
+        fd.append(`overrides[${pid}]`, state);
+    }
+
+    fetch('manage_roles.php', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(res => {
+            saveBtn.disabled = false;
+            if (res.success) {
+                showToast(`Saved user overrides (${res.grants} granted, ${res.denies} denied)`, true);
+                closeUserOverridesModal();
+            } else {
+                showToast(res.message || 'Failed to save user overrides', false);
+            }
+        })
+        .catch(err => {
+            saveBtn.disabled = false;
+            showToast('Network error saving user permissions', false);
+        });
+}
 </script>
 </body>
 </html>
