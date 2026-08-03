@@ -88,14 +88,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
 ══════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual_adjust') {
     header('Content-Type: application/json');
-    $iid    = (int)($_POST['ingredient_id'] ?? 0);
-    $delta  = (float)($_POST['delta'] ?? 0);
-    $reason = trim($_POST['reason'] ?? '');
+    $iid      = (int)($_POST['ingredient_id'] ?? 0);
+    $delta    = (float)($_POST['delta'] ?? 0);
+    $reason   = trim($_POST['reason'] ?? '');
+    $category = trim($_POST['reason_category'] ?? 'other');
+
     if ($iid <= 0 || $delta == 0) { echo json_encode(['success'=>false,'message'=>'Invalid input']); exit; }
     if (empty($reason))           { echo json_encode(['success'=>false,'message'=>'Reason is required']); exit; }
+
+    if (!in_array($category, ['spoilage','spillage','stock_discrepancy','supplier_return','restock','other'])) {
+        $category = 'other';
+    }
+
     $conn->begin_transaction();
     try {
-        $chk = $conn->prepare("SELECT stock_quantity, minimum_stock FROM ingredients WHERE ingredient_id = ?");
+        $chk = $conn->prepare("SELECT ingredient_name, stock_quantity, minimum_stock, unit FROM ingredients WHERE ingredient_id = ?");
         $chk->bind_param("i", $iid);
         $chk->execute();
         $cur = $chk->get_result()->fetch_assoc();
@@ -110,9 +117,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
         $s1->bind_param("di", $delta, $iid);
         $s1->execute();
         $by = $_SESSION['username'] ?? null;
-        $sh = $conn->prepare("INSERT INTO ingredient_history (ingredient_id, change_type, amount, reference, created_by) VALUES (?, 'manual_adjust', ?, ?, ?)");
-        $sh->bind_param("idss", $iid, $delta, $reason, $by);
+        $sh = $conn->prepare("INSERT INTO ingredient_history (ingredient_id, change_type, amount, reference, reason_category, reviewed, created_by) VALUES (?, 'manual_adjust', ?, ?, ?, 0, ?)");
+        $sh->bind_param("idsss", $iid, $delta, $reason, $category, $by);
         $sh->execute();
+        $history_id = $conn->insert_id;
+
+        // Trigger Notification Bell alert for Loss / High-Risk events
+        if (in_array($category, ['spoilage', 'spillage', 'stock_discrepancy', 'other']) || $delta < 0) {
+            $ingName  = $cur['ingredient_name'] ?? 'Ingredient';
+            $catMap   = [
+                'spoilage'          => 'Spoilage / Expired',
+                'spillage'          => 'Spill / Waste',
+                'stock_discrepancy' => 'Stock Count Discrepancy',
+                'supplier_return'   => 'Supplier Return',
+                'restock'           => 'Quick Restock',
+                'other'             => 'Manual Adjustment'
+            ];
+            $catLabel  = $catMap[$category] ?? 'Manual Adjustment';
+            $notifType = ($category === 'spoilage') ? 'danger' : 'warning';
+            $title     = "Inventory Alert: " . $ingName;
+            $deltaText = ($delta > 0 ? "+$delta" : "$delta") . " " . ($cur['unit'] ?? '');
+            $msg       = ($by ?: 'Staff') . " logged " . $catLabel . " (" . $deltaText . "). Reason: \"" . $reason . "\".";
+
+            $anc = $conn->prepare("INSERT INTO announcements (title, message, type, is_active, created_at) VALUES (?, ?, ?, 1, NOW())");
+            if ($anc) {
+                $anc->bind_param("sss", $title, $msg, $notifType);
+                $anc->execute();
+            }
+        }
+
         $conn->commit();
         $s3 = $conn->prepare("SELECT stock_quantity, minimum_stock FROM ingredients WHERE ingredient_id = ?");
         $s3->bind_param("i", $iid);
@@ -123,6 +156,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
         $conn->rollback();
         echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
     }
+    exit;
+}
+
+/* ══════════════════════════════════════════
+   AJAX: Get Unreviewed Stock Adjustments
+══════════════════════════════════════════ */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_unreviewed') {
+    header('Content-Type: application/json');
+    $res = $conn->query("
+        SELECT h.id AS history_id, h.ingredient_id, h.amount, h.reference, h.reason_category, h.reviewed, h.created_by, h.created_at,
+               i.ingredient_name, i.unit
+        FROM ingredient_history h
+        JOIN ingredients i ON i.ingredient_id = h.ingredient_id
+        WHERE h.reviewed = 0 AND h.change_type IN ('manual_adjust', 'quick_restock')
+        ORDER BY h.created_at DESC
+        LIMIT 50
+    ");
+    $items = [];
+    if ($res) {
+        while ($r = $res->fetch_assoc()) {
+            $items[] = [
+                'history_id'       => (int)$r['history_id'],
+                'ingredient_id'    => (int)$r['ingredient_id'],
+                'ingredient_name'  => $r['ingredient_name'],
+                'unit'             => $r['unit'],
+                'amount'           => (float)$r['amount'],
+                'reference'        => $r['reference'] ?? '',
+                'reason_category'  => $r['reason_category'] ?? 'other',
+                'created_by'       => $r['created_by'] ?? 'Unknown',
+                'created_at'       => $r['created_at']
+            ];
+        }
+    }
+    echo json_encode(['ok' => true, 'unreviewed_count' => count($items), 'items' => $items]);
+    exit;
+}
+
+/* ══════════════════════════════════════════
+   AJAX: Mark Stock Adjustment History Reviewed
+══════════════════════════════════════════ */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_reviewed') {
+    header('Content-Type: application/json');
+    if (!can('ingredients')) { echo json_encode(['ok' => false, 'message' => 'Permission denied']); exit; }
+
+    $hid = (int)($_POST['history_id'] ?? 0);
+    $markAll = (int)($_POST['all'] ?? 0);
+    $reviewer = $_SESSION['username'] ?? 'Manager';
+
+    if ($markAll === 1) {
+        $u = $conn->prepare("UPDATE ingredient_history SET reviewed = 1, reviewed_by = ?, reviewed_at = NOW() WHERE reviewed = 0 AND change_type IN ('manual_adjust', 'quick_restock')");
+        $u->bind_param("s", $reviewer);
+        $u->execute();
+        $count = $u->affected_rows;
+    } else if ($hid > 0) {
+        $u = $conn->prepare("UPDATE ingredient_history SET reviewed = 1, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?");
+        $u->bind_param("si", $reviewer, $hid);
+        $u->execute();
+        $count = $u->affected_rows;
+    } else {
+        echo json_encode(['ok' => false, 'message' => 'Invalid history ID']);
+        exit;
+    }
+
+    echo json_encode(['ok' => true, 'updated_count' => $count]);
     exit;
 }
 
@@ -585,6 +682,15 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 </div>
 <?php endif; ?>
 
+<!-- ── UNREVIEWED AUDIT BANNER (Manager / Admin Only) ── -->
+<div id="unreviewedBanner" class="critical-banner" style="display:none;background:rgba(52,152,219,.1);border-color:rgba(52,152,219,.3);color:#3498db;margin:12px 24px 0;">
+    <i class="fa-solid fa-user-shield"></i>
+    <span>
+        <strong id="unreviewedCount">0</strong> unreviewed stock adjustment(s) / losses logged by staff.
+    </span>
+    <button class="btn-link" onclick="openReviewModal()" style="color:#3498db;font-weight:700;">Review Reasons & Details &rarr;</button>
+</div>
+
 <!-- ── STATS ── -->
 <div class="stats-row">
     <div class="stat-card s-accent" onclick="setFilter(null,'all')" title="Show all">
@@ -852,7 +958,16 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
         <label class="modal-label">Amount to Remove</label>
         <input class="modal-input" type="number" id="adjustAmt" placeholder="Quantity to deduct…" min="0.01" step="any">
 
-        <label class="modal-label">Reason <span style="color:var(--danger);font-weight:400;text-transform:none;letter-spacing:0">* required</span></label>
+        <label class="modal-label">Reason Category <span style="color:var(--danger);font-weight:400;text-transform:none;letter-spacing:0">* required</span></label>
+        <select class="modal-input" id="adjustCategory" style="margin-bottom:10px;cursor:pointer;">
+            <option value="spoilage">⚠️ Spoilage / Expired</option>
+            <option value="spillage">🥛 Spill / Waste</option>
+            <option value="stock_discrepancy" selected>📦 Stock Count Discrepancy</option>
+            <option value="supplier_return">🚚 Supplier Return</option>
+            <option value="other">📝 Other Adjustment</option>
+        </select>
+
+        <label class="modal-label">Detailed Notes <span style="color:var(--danger);font-weight:400;text-transform:none;letter-spacing:0">* required</span></label>
         <input class="modal-input note" type="text" id="adjustReason" placeholder="e.g. Bottle broken, expired, stock count correction…" maxlength="120">
 
         <input type="hidden" id="adjustId">
@@ -862,6 +977,29 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
             <i class="fa-solid fa-check"></i> Confirm Deduction
         </button>
         <button class="btn-cancel" onclick="closeAdjust()">Cancel</button>
+    </div>
+</div>
+
+<!-- ── UNREVIEWED ADJUSTMENTS AUDIT MODAL ── -->
+<div class="modal-overlay" id="reviewModal" onclick="if(event.target===this)closeReviewModal()">
+    <div class="modal-box" style="max-width:620px;">
+        <button class="modal-close" onclick="closeReviewModal()"><i class="fa-solid fa-xmark"></i></button>
+        <div class="modal-title" style="color:#3498db;"><i class="fa-solid fa-user-shield"></i> Audit Unreviewed Adjustments</div>
+        <div class="modal-sub">Review reasons provided by staff for manual stock adjustments and waste.</div>
+
+        <div class="modal-body" id="reviewModalBody" style="max-height:60vh;overflow-y:auto;margin:14px 0;padding-right:4px;">
+            <div style="padding:40px;text-align:center;color:var(--text-muted)">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;display:block;margin-bottom:10px;color:#3498db"></i>
+                Loading adjustments…
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:14px;">
+            <button class="btn-cancel" style="flex:1;margin-top:0;" onclick="closeReviewModal()">Close</button>
+            <button class="btn-confirm" id="btnMarkAllReviewed" style="flex:1.5;background:#3498db;color:#fff;" onclick="markAllReviewed()">
+                <i class="fa-solid fa-circle-check"></i> Approve & Mark All Reviewed
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1200,29 +1338,166 @@ function openAdjust(id, name, stock, unit) {
 function closeAdjust() { document.getElementById('adjustModal').classList.remove('open'); }
 
 async function submitAdjust() {
-    const id     = document.getElementById('adjustId').value;
-    const amt    = parseFloat(document.getElementById('adjustAmt').value);
-    const reason = document.getElementById('adjustReason').value.trim();
-    const unit   = document.getElementById('adjustUnit').value;
+    const id       = document.getElementById('adjustId').value;
+    const amt      = parseFloat(document.getElementById('adjustAmt').value);
+    const category = document.getElementById('adjustCategory').value || 'other';
+    const reason   = document.getElementById('adjustReason').value.trim();
+    const unit     = document.getElementById('adjustUnit').value;
+
     if (!amt || amt <= 0) { showToast('Enter a valid amount', 'error'); return; }
-    if (!reason)           { showToast('Reason is required', 'error'); return; }
+    if (!reason)           { showToast('Reason notes are required', 'error'); return; }
+
     const delta  = -amt;
     const btn    = document.getElementById('adjustBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
     try {
-        const res  = await fetch('ingredients.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`action=manual_adjust&ingredient_id=${id}&delta=${delta}&reason=${encodeURIComponent(reason)}` });
+        const body = `action=manual_adjust&ingredient_id=${id}&delta=${delta}&reason_category=${encodeURIComponent(category)}&reason=${encodeURIComponent(reason)}`;
+        const res  = await fetch('ingredients.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
         const data = await res.json();
         if (data.success) {
             updateRow(parseInt(id), data.new_stock, data.min_stock, unit);
             closeAdjust();
             showToast(`−${fmt(amt)}${unit ? ' '+unit : ''} deducted — ${reason}`, 'error');
+            checkUnreviewedAdjustments();
         } else {
             showToast(data.message || 'Adjustment failed', 'error');
         }
     } catch { showToast('Network error', 'error'); }
     finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Deduction'; }
 }
+
+/* ── UNREVIEWED AUDIT FUNCTIONS ── */
+async function checkUnreviewedAdjustments() {
+    try {
+        const res = await fetch('ingredients.php?action=get_unreviewed');
+        const data = await res.json();
+        if (data.ok && data.unreviewed_count > 0) {
+            document.getElementById('unreviewedCount').textContent = data.unreviewed_count;
+            document.getElementById('unreviewedBanner').style.display = 'flex';
+        } else {
+            document.getElementById('unreviewedBanner').style.display = 'none';
+        }
+    } catch (e) {}
+}
+
+async function openReviewModal() {
+    document.getElementById('reviewModal').classList.add('open');
+    const body = document.getElementById('reviewModalBody');
+    body.innerHTML = `
+        <div style="padding:40px;text-align:center;color:var(--text-muted)">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;display:block;margin-bottom:10px;color:#3498db"></i>
+            Loading adjustments…
+        </div>`;
+
+    try {
+        const res = await fetch('ingredients.php?action=get_unreviewed');
+        const data = await res.json();
+        if (!data.ok || data.items.length === 0) {
+            body.innerHTML = `
+                <div style="padding:40px;text-align:center;color:var(--text-muted)">
+                    <i class="fa-solid fa-circle-check" style="font-size:32px;display:block;margin-bottom:10px;color:var(--ok)"></i>
+                    All stock adjustments have been reviewed!
+                </div>`;
+            document.getElementById('unreviewedBanner').style.display = 'none';
+            return;
+        }
+
+        const catBadge = {
+            'spoilage':          '<span style="background:rgba(255,95,95,.15);color:#ff5f5f;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">⚠️ Spoilage / Expired</span>',
+            'spillage':          '<span style="background:rgba(241,196,15,.15);color:#f1c40f;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">🥛 Spill / Waste</span>',
+            'stock_discrepancy': '<span style="background:rgba(52,152,219,.15);color:#3498db;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">📦 Count Discrepancy</span>',
+            'supplier_return':   '<span style="background:rgba(85,224,135,.15);color:#55e087;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">🚚 Supplier Return</span>',
+            'restock':           '<span style="background:rgba(85,224,135,.15);color:#55e087;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">➕ Restock</span>',
+            'other':             '<span style="background:rgba(209,144,75,.15);color:#d1904b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">📝 Manual Adjustment</span>'
+        };
+
+        let html = '';
+        data.items.forEach(it => {
+            const badge = catBadge[it.reason_category] || catBadge['other'];
+            const deltaCls = it.amount < 0 ? 'color:var(--danger);font-weight:700;' : 'color:var(--ok);font-weight:700;';
+            const deltaStr = it.amount > 0 ? `+${it.amount}` : `${it.amount}`;
+
+            html += `
+                <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                            <span style="font-weight:700;font-size:14px;color:var(--text);">${esc(it.ingredient_name)}</span>
+                            <span style="${deltaCls}">${deltaStr} ${esc(it.unit)}</span>
+                            ${badge}
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px;">
+                            Reason: <strong style="color:var(--text);">${esc(it.reference || 'No reason provided')}</strong>
+                        </div>
+                        <div style="font-size:10.5px;color:var(--text-muted);">
+                            By <strong>${esc(it.created_by)}</strong> &bull; ${esc(it.created_at)}
+                        </div>
+                    </div>
+                    <button type="button" class="btn-row restock" onclick="markSingleReviewed(${it.history_id}, this)" title="Approve & Mark Reviewed">
+                        <i class="fa-solid fa-check"></i> Review
+                    </button>
+                </div>`;
+        });
+
+        body.innerHTML = html;
+    } catch (e) {
+        body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--danger)">Error loading details</div>`;
+    }
+}
+
+function closeReviewModal() {
+    document.getElementById('reviewModal').classList.remove('open');
+}
+
+async function markSingleReviewed(historyId, btn) {
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch('ingredients.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `action=mark_reviewed&history_id=${historyId}`
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('Adjustment marked as reviewed', 'success');
+            openReviewModal();
+            checkUnreviewedAdjustments();
+        } else {
+            showToast(data.message || 'Failed to update', 'error');
+        }
+    } catch (e) {
+        showToast('Network error', 'error');
+    }
+}
+
+async function markAllReviewed() {
+    const btn = document.getElementById('btnMarkAllReviewed');
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch('ingredients.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `action=mark_reviewed&all=1`
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast(`Approved ${data.updated_count} adjustments`, 'success');
+            closeReviewModal();
+            checkUnreviewedAdjustments();
+        } else {
+            showToast(data.message || 'Failed to update', 'error');
+        }
+    } catch (e) {
+        showToast('Network error', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkUnreviewedAdjustments();
+});
 
 /* ── DELETE ── */
 function confirmDelete(id, name) {
