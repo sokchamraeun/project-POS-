@@ -12,7 +12,7 @@ date_default_timezone_set('Asia/Phnom_Penh');
 $servername = "localhost";
 $username   = "root";
 $password   = "";
-$dbname     = "db_coffee";
+$dbname     = "db_coffeeshop_final_v1";
 
 if (is_file(__DIR__ . '/db_config.local.php')) {
     require __DIR__ . '/db_config.local.php';

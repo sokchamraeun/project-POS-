@@ -21,7 +21,7 @@ date_default_timezone_set('Asia/Phnom_Penh');
 function he($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function money($n) { return '$' . number_format((float)$n, 2); }
 
-// Same validation as the screen: regex, real calendar date, never the future.
+// ── Date validation ──
 $today = business_date_today();
 $date  = is_string($_GET['date'] ?? null) ? trim($_GET['date']) : '';
 if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
@@ -29,114 +29,125 @@ if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) || !checkdate((int)$m[
 }
 if ($date > $today) { $date = $today; }
 
-// ── The day's money ──
-$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $date);
+// ── Range mode ──
+$dateFrom = is_string($_GET['date_from'] ?? null) ? trim($_GET['date_from']) : '';
+$dateTo   = is_string($_GET['date_to']   ?? null) ? trim($_GET['date_to'])   : '';
+$isRange  = false;
+if ($dateFrom !== '' && $dateTo !== '') {
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        if ($dateFrom <= $dateTo && $dateTo <= $today) { $isRange = true; }
+    }
+}
+$dateExpr = $isRange ? "business_date BETWEEN '$dateFrom' AND '$dateTo'" : "business_date = '$date'";
+
+// ── The period's money ──
+$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE $dateExpr AND " . paid_orders_where());
 $stmt->execute();
 [$gotToday, $orderCount] = $stmt->get_result()->fetch_row();
 $gotToday   = (float)$gotToday;
 $orderCount = (int)$orderCount;
 
 $ids = [];
-$stmt = $conn->prepare("SELECT order_id FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $date);
+$stmt = $conn->prepare("SELECT order_id FROM orders WHERE $dateExpr AND " . paid_orders_where());
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_row()) { $ids[] = (int)$row[0]; }
 
 $costMap  = ingredient_cost_map($conn);
 $cogs     = order_cogs($conn, $ids, $costMap);
-$itemsSold = cogs_cups($cogs);   // cups poured, loyalty redemptions excluded
+$itemsSold = cogs_cups($cogs);
 $kept      = $gotToday - $cogs['total'];
 $avgOrder  = $orderCount > 0 ? $gotToday / $orderCount : 0.0;
 
-// ── Hour by hour. The trading day runs 06:00 to 05:00, so the table runs that
-//    way too rather than starting at midnight with a dead morning. ──
-$hourRev = array_fill(0, 24, 0.0);
-$hourOrd = array_fill(0, 24, 0);
-$hourIds = array_fill(0, 24, []);
-$stmt = $conn->prepare("
-    SELECT HOUR(order_date) h, order_id, total
-    FROM orders WHERE business_date = ? AND " . paid_orders_where()
-);
-$stmt->bind_param("s", $date);
-$stmt->execute();
-$res = $stmt->get_result();
-while ($r = $res->fetch_assoc()) {
-    $h = (int)$r['h'];
-    $hourRev[$h] += (float)$r['total'];
-    $hourOrd[$h]++;
-    $hourIds[$h][] = (int)$r['order_id'];
-}
+// ── Hour by hour (single day only) ──
 $hourRows = [];
-for ($i = 6; $i < 30; $i++) {
-    $h = $i % 24;
-    if ($hourOrd[$h] === 0) { continue; }
-    $hourRows[] = [
-        'label' => sprintf('%02d:00 to %02d:59', $h, $h),
-        'rev'   => $hourRev[$h],
-        'ord'   => $hourOrd[$h],
-        'items' => cogs_cups(order_cogs($conn, $hourIds[$h], $costMap)),
-    ];
+$topProducts = [];
+$giftCount = 0;
+$byMethod = [];
+$notPaid = 0;
+$notPaidCount = 0;
+$verdict = '';
+
+if ($isRange) {
+    // Range mode: skip hourly and staff sections, just aggregate.
+} else {
+    $hourRev = array_fill(0, 24, 0.0);
+    $hourOrd = array_fill(0, 24, 0);
+    $hourIds = array_fill(0, 24, []);
+    $stmt = $conn->prepare("
+        SELECT HOUR(order_date) h, order_id, total
+        FROM orders WHERE $dateExpr AND " . paid_orders_where()
+    );
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) {
+        $h = (int)$r['h'];
+        $hourRev[$h] += (float)$r['total'];
+        $hourOrd[$h]++;
+        $hourIds[$h][] = (int)$r['order_id'];
+    }
+    for ($i = 6; $i < 30; $i++) {
+        $h = $i % 24;
+        if ($hourOrd[$h] === 0) { continue; }
+        $hourRows[] = [
+            'label' => sprintf('%02d:00 to %02d:59', $h, $h),
+            'rev'   => $hourRev[$h],
+            'ord'   => $hourOrd[$h],
+            'items' => cogs_cups(order_cogs($conn, $hourIds[$h], $costMap)),
+        ];
+    }
 }
 
 // ── Top sellers ──
-// Loyalty redemptions ride in order_items under the product_id=0 sentinel. A
-// shirt handed over for points is not a drink sold, so it has no place in a
-// table headed "top selling drinks". Free promo drinks keep a real product id
-// and stay — they were made and poured like any other.
-//
-// The test is the is_gift flag order_cogs() sets from product_id, not the
-// "[GIFT] " name prefix this used to match: six rows predate that prefix and
-// leaked through as top sellers.
 $byProduct = array_filter($cogs['by_product'], fn($p) => empty($p['is_gift']));
 $giftCount = (int)$cogs['gift_items'];
 uasort($byProduct, fn($a, $b) => $b['qty'] <=> $a['qty']);
 $topProducts = array_slice($byProduct, 0, 10, true);
 
-// ── How it was paid. Anything not cash/bakong/paylater is a legacy row, so the
-//    remainder is derived rather than enumerated — the cards must always sum. ──
+// ── How it was paid ──
 $stmt = $conn->prepare("
     SELECT payment_method, COALESCE(SUM(total),0) amount, COUNT(*) txns
-    FROM orders WHERE business_date = ? AND " . paid_orders_where() . " GROUP BY payment_method
+    FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY payment_method
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
-$byMethod = ['cash' => [0,0], 'bakong' => [0,0], 'paylater' => [0,0], 'other' => [0,0]];
+$byMethod = ['cash' => [0,0], 'bakong' => [0,0], 'paylater' => [0,0], 'riel' => [0,0]];
 $res = $stmt->get_result();
 while ($r = $res->fetch_assoc()) {
     $k = strtolower((string)$r['payment_method']);
-    if (!isset($byMethod[$k])) { $k = 'other'; }
+    if (!isset($byMethod[$k])) { $k = 'riel'; }
     $byMethod[$k][0] += (float)$r['amount'];
     $byMethod[$k][1] += (int)$r['txns'];
 }
-$methodNames = ['cash' => 'Cash', 'bakong' => 'Bakong (KHQR)', 'paylater' => 'Pay later (settled)', 'other' => 'Other / not recorded'];
+$methodNames = ['cash' => 'Cash', 'bakong' => 'Bakong (KHQR)', 'paylater' => 'Pay later (settled)', 'riel' => 'Riel (KHR)'];
 
 // ── Still owed ──
 $stmt = $conn->prepare("
     SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders
-    WHERE business_date = ? AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
+    WHERE $dateExpr AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 [$notPaid, $notPaidCount] = $stmt->get_result()->fetch_row();
 $notPaid = (float)$notPaid;
 
-// ── Against a normal weekday ──
-$base = weekday_baseline($conn, $date);
-$verdict = 'No comparison available yet.';
-if ($orderCount === 0) {
-    $verdict = 'No sales recorded for this day.';
-} elseif ($base['value'] !== null) {
-    $diff = $gotToday - $base['value'];
-    $verdict = abs($diff) < 0.005
-        ? 'The same as ' . $base['label'] . '.'
-        : money(abs($diff)) . ($diff > 0 ? ' more' : ' less') . ' than ' . $base['label']
-          . ' (' . money($base['value']) . ' on average over ' . $base['days'] . ' day' . ($base['days'] === 1 ? '' : 's') . ').';
+// ── Against a normal weekday (single day only) ──
+if ($isRange) {
+    $verdict = '';
+} else {
+    $base = weekday_baseline($conn, $date);
+    $verdict = 'No comparison available yet.';
+    if ($orderCount === 0) {
+        $verdict = 'No sales recorded for this day.';
+    } elseif ($base['value'] !== null) {
+        $diff = $gotToday - $base['value'];
+        $verdict = abs($diff) < 0.005
+            ? 'The same as ' . $base['label'] . '.'
+            : money(abs($diff)) . ($diff > 0 ? ' more' : ' less') . ' than ' . $base['label']
+              . ' (' . money($base['value']) . ' on average over ' . $base['days'] . ' day' . ($base['days'] === 1 ? '' : 's') . ').';
+    }
 }
 
 $generated = date('j/n/Y, g:i:s A');
-$periodLbl = date('l, j F Y', strtotime($date));
+$periodLbl = $isRange ? "$dateFrom to $dateTo" : date('l, j F Y', strtotime($date));
 
 ob_start(); ?>
 <style>
@@ -165,11 +176,11 @@ ob_start(); ?>
 </style>
 
 <div class="band">
-  <h1>DAILY SALES REPORT</h1>
+  <h1><?= $isRange ? 'SALES REPORT (DATE RANGE)' : 'DAILY SALES REPORT' ?></h1>
   <p class="shop">The Bird's Nest Coffee</p>
   <?php // Plain ASCII only in the PDF: DOMPDF renders &nbsp; and &middot; as
         // replacement boxes with this font, so separators are written out. ?>
-  <p class="meta">Trading day: <?= he($periodLbl) ?> (06:00 to 05:00 next morning)</p>
+  <p class="meta"><?= $isRange ? "Period: $periodLbl" : "Trading day: $periodLbl (06:00 to 05:00 next morning)" ?></p>
   <p class="meta">Generated: <?= he($generated) ?></p>
 </div>
 
@@ -183,12 +194,15 @@ ob_start(); ?>
 </table>
 
 <div class="verdict">
+  <?php if ($verdict !== ''): ?>
   <b>Against a normal day:</b> <?= he($verdict) ?><br>
+  <?php endif; ?>
   <b>Money kept after ingredients:</b> <?= money($kept) ?>
   <?= $gotToday > 0 ? '(' . round(($kept / $gotToday) * 100) . ' cents of each $1)' : '' ?>
   <?php if ($notPaid > 0): ?><br><b>Not paid yet:</b> <?= money($notPaid) ?> across <?= (int)$notPaidCount ?> order<?= $notPaidCount == 1 ? '' : 's' ?> - counted only once the customer pays.<?php endif; ?>
 </div>
 
+<?php if (!$isRange): ?>
 <h2>Sales by hour</h2>
 <table class="data">
   <tr><th>Hour</th><th class="num">Revenue</th><th class="num">Orders</th><th class="num">Cups</th><th class="num">Avg order</th></tr>
@@ -210,6 +224,7 @@ ob_start(); ?>
     </tr>
   <?php endif; ?>
 </table>
+<?php endif; ?>
 
 <h2>Top selling drinks</h2>
 <table class="data">
@@ -232,16 +247,37 @@ ob_start(); ?>
 
 <h2>How it was paid</h2>
 <table class="data">
-  <tr><th>Payment method</th><th class="num">Orders</th><th class="num">Amount</th></tr>
-  <?php $i = 0; foreach ($byMethod as $k => [$amt, $txns]):
-      if ($amt <= 0 && $txns === 0) { continue; } $i++; ?>
+  <tr><th>Payment method</th><th class="num">Orders</th><th class="num">Amount (USD)</th><th class="num">Amount (KHR)</th></tr>
+  <?php $i = 0;
+  $khrRate = defined('KHR_RATE') ? KHR_RATE : 4100;
+  $totalUsdSum = 0;
+  $totalKhrSum = 0;
+  foreach ($byMethod as $k => [$amt, $txns]):
+      if ($amt <= 0 && $txns === 0) { continue; } $i++;
+      if ($k === 'riel') {
+          $khrAmt = (int)(round($amt * $khrRate / 100) * 100);
+          $totalKhrSum += $khrAmt;
+          $usdDisplay = '—';
+          $khrDisplay = number_format($khrAmt);
+      } else {
+          $totalUsdSum += $amt;
+          $usdDisplay = money($amt);
+          $khrDisplay = '—';
+      }
+  ?>
     <tr class="<?= $i % 2 === 0 ? 'alt' : '' ?>">
-      <td><?= he($methodNames[$k]) ?></td>
+      <td><?= he($methodNames[$k] ?? $k) ?></td>
       <td class="num"><?= (int)$txns ?></td>
-      <td class="num"><?= money($amt) ?></td>
+      <td class="num"><?= $usdDisplay ?></td>
+      <td class="num" style="color:#d1904b;font-weight:600;"><?= $khrDisplay ?></td>
     </tr>
   <?php endforeach; ?>
-  <tr class="total"><td>TOTAL</td><td class="num"><?= $orderCount ?></td><td class="num"><?= money($gotToday) ?></td></tr>
+  <tr class="total">
+    <td>TOTAL</td>
+    <td class="num"><?= $orderCount ?></td>
+    <td class="num"><?= money($totalUsdSum) ?></td>
+    <td class="num"><?= number_format($totalKhrSum) ?></td>
+  </tr>
 </table>
 
 <p class="note">
@@ -270,4 +306,4 @@ $canvas->page_text($canvas->get_width() - 110, $canvas->get_height() - 28, 'Page
 // manager who wanted paper needs to see the pages before sending them. The
 // browser's PDF viewer carries both a print and a save control, so nothing is
 // lost by not forcing the file to disk.
-$dompdf->stream('daily-report-' . $date . '.pdf', ['Attachment' => false]);
+$dompdf->stream(($isRange ? 'sales-report-' . $dateFrom . '-' . $dateTo : 'daily-report-' . $date) . '.pdf', ['Attachment' => false]);

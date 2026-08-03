@@ -48,8 +48,7 @@ const XL_OUTTX  = '9C2B2B';
 
 const MONEY_FMT = '"$"#,##0.00';
 
-// Same validation as the screen and the PDF: shape, real calendar date, and
-// never the future. ?date[] arrives as an array and used to fatal on trim().
+// ── Date validation ──
 $today = business_date_today();
 $date  = is_string($_GET['date'] ?? null) ? trim($_GET['date']) : '';
 if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
@@ -57,33 +56,41 @@ if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) || !checkdate((int)$m[
 }
 if ($date > $today) { $date = $today; }
 
+// ── Range mode ──
+$dateFrom = is_string($_GET['date_from'] ?? null) ? trim($_GET['date_from']) : '';
+$dateTo   = is_string($_GET['date_to']   ?? null) ? trim($_GET['date_to'])   : '';
+$isRange  = false;
+if ($dateFrom !== '' && $dateTo !== '') {
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        if ($dateFrom <= $dateTo && $dateTo <= $today) { $isRange = true; }
+    }
+}
+$dateExpr = $isRange ? "business_date BETWEEN '$dateFrom' AND '$dateTo'" : "business_date = '$date'";
+
 // ─────────────────────────────────────────────────────────────────────────────
-// The day's figures
+// The period's figures
 // ─────────────────────────────────────────────────────────────────────────────
 
-$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $date);
+$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE $dateExpr AND " . paid_orders_where());
 $stmt->execute();
 [$gotToday, $orderCount] = $stmt->get_result()->fetch_row();
 $gotToday   = (float)$gotToday;
 $orderCount = (int)$orderCount;
 
 $ids  = [];
-$stmt = $conn->prepare("SELECT order_id FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $date);
+$stmt = $conn->prepare("SELECT order_id FROM orders WHERE $dateExpr AND " . paid_orders_where());
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_row()) { $ids[] = (int)$row[0]; }
 
 $costMap   = ingredient_cost_map($conn);
 $cogs      = order_cogs($conn, $ids, $costMap);
-$itemsSold = cogs_cups($cogs);   // cups poured, loyalty redemptions excluded
+$itemsSold = cogs_cups($cogs);
 $kept      = $gotToday - $cogs['total'];
 $avgOrder  = $orderCount > 0 ? $gotToday / $orderCount : 0.0;
 
-// Against a normal same-weekday trading day, not against yesterday — cafe trade
-// is weekly-seasonal, and a Tuesday measured against a Monday says nothing.
-$base = weekday_baseline($conn, $date);
+// Against a normal same-weekday trading day (single day only).
+$base = $isRange ? ['value' => null, 'label' => '', 'dates' => [], 'basis' => 'none', 'days' => 0] : weekday_baseline($conn, $date);
 
 /**
  * The comparison line that sits under each headline figure.
@@ -130,21 +137,30 @@ if (!empty($base['dates'])) {
 // ── Still owed ──
 $stmt = $conn->prepare("
     SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders
-    WHERE business_date = ? AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
+    WHERE $dateExpr AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 [$notPaid, $notPaidCount] = $stmt->get_result()->fetch_row();
 $notPaid      = (float)$notPaid;
 $notPaidCount = (int)$notPaidCount;
 
-// ── Low stock ──
-$low = $conn->query("
-    SELECT ingredient_name, stock_quantity, minimum_stock, unit
-    FROM ingredients
-    WHERE stock_quantity <= minimum_stock
-    ORDER BY (stock_quantity - minimum_stock) ASC
-")->fetch_all(MYSQLI_ASSOC);
+// ── Low stock (single day only) ──
+$low = [];
+$staff = [];
+$unlinkedMoney = 0;
+$orders = [];
+$cupsByOrder = [];
+$giftCount = 0;
+$topProducts = [];
+
+if (!$isRange) {
+    $low = $conn->query("
+        SELECT ingredient_name, stock_quantity, minimum_stock, unit
+        FROM ingredients
+        WHERE stock_quantity <= minimum_stock
+        ORDER BY (stock_quantity - minimum_stock) ASC
+    ")->fetch_all(MYSQLI_ASSOC);
+}
 
 // ── Top sellers ──
 // Loyalty redemptions ride in order_items under the product_id = 0 sentinel. A
@@ -160,43 +176,41 @@ $giftCount = (int)$cogs['gift_items'];
 uasort($byProduct, fn($a, $b) => $b['qty'] <=> $a['qty']);
 $topProducts = array_slice($byProduct, 0, 8, true);
 
-// ── Who was on ──
-// Per-employee aggregates live in their own subquery. Joining orders straight
-// onto a one-row-per-shift attendance table would fan out: a split shift would
-// multiply that person's order rows before GROUP BY ever ran.
-$stmt = $conn->prepare("
-    SELECT e.name AS full_name,
-           COALESCE(MAX(o.orders_served), 0) AS orders_served,
-           COALESCE(MAX(o.money_taken), 0)   AS money_taken
-    FROM attendance a
-    JOIN employees e ON e.user_id = a.user_id
-    LEFT JOIN (
-        SELECT employee_id, COUNT(order_id) AS orders_served, COALESCE(SUM(total),0) AS money_taken
-        FROM orders WHERE business_date = ? AND " . paid_orders_where() . "
-        GROUP BY employee_id
-    ) o ON o.employee_id = e.employee_id
-    WHERE a.date = ?
-    GROUP BY e.employee_id
-    ORDER BY COALESCE(MAX(o.money_taken), 0) DESC, e.name ASC
-");
-$stmt->bind_param("ss", $date, $date);
-$stmt->execute();
-$staff = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$staffMoney = array_sum(array_map(fn($r) => (float)$r['money_taken'], $staff));
-// Most orders in this database carry no employee_id at all. Saying so out loud
-// beats a column of dashes beside a headline figure that says money came in.
-$unlinkedMoney = $gotToday - $staffMoney;
+if (!$isRange) {
+    // ── Who was on ──
+    $stmt = $conn->prepare("
+        SELECT e.name AS full_name,
+               COALESCE(MAX(o.orders_served), 0) AS orders_served,
+               COALESCE(MAX(o.money_taken), 0)   AS money_taken
+        FROM attendance a
+        JOIN employees e ON e.user_id = a.user_id
+        LEFT JOIN (
+            SELECT employee_id, COUNT(order_id) AS orders_served, COALESCE(SUM(total),0) AS money_taken
+            FROM orders WHERE business_date = ? AND " . paid_orders_where() . "
+            GROUP BY employee_id
+        ) o ON o.employee_id = e.employee_id
+        WHERE a.date = ?
+        GROUP BY e.employee_id
+        ORDER BY COALESCE(MAX(o.money_taken), 0) DESC, e.name ASC
+    ");
+    $stmt->bind_param("ss", $date, $date);
+    $stmt->execute();
+    $staff = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $staffMoney = array_sum(array_map(fn($r) => (float)$r['money_taken'], $staff));
+    $unlinkedMoney = $gotToday - $staffMoney;
+}
 
-// ── The day's orders ──
+$dex = $isRange ? str_replace('business_date', 'o.business_date', $dateExpr) : "o.business_date = '$date'";
+
+// ── The period's orders ──
 $stmt = $conn->prepare("
     SELECT o.order_id, o.daily_order_no, o.customer_name, o.total, o.payment_method,
            o.status, o.is_open, o.order_date, e.name AS cashier
     FROM orders o
     LEFT JOIN employees e ON e.employee_id = o.employee_id
-    WHERE o.business_date = ? AND o.status NOT IN ('Cancelled','Void')
+    WHERE $dex AND o.status NOT IN ('Cancelled','Void')
     ORDER BY o.order_date ASC
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 $orders = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -205,10 +219,9 @@ $stmt = $conn->prepare("
     SELECT oi.order_id, COALESCE(SUM(oi.quantity),0) AS cups
     FROM order_items oi
     JOIN orders o ON o.order_id = oi.order_id
-    WHERE o.business_date = ? AND oi.product_id <> 0 AND o.status NOT IN ('Cancelled','Void')
+    WHERE $dex AND oi.product_id <> 0 AND o.status NOT IN ('Cancelled','Void')
     GROUP BY oi.order_id
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 $res = $stmt->get_result();
 while ($r = $res->fetch_assoc()) { $cupsByOrder[(int)$r['order_id']] = (int)$r['cups']; }
@@ -240,9 +253,8 @@ function xl_pay_label(array $o): string {
 // them silently dropped about $430.
 $stmt = $conn->prepare("
     SELECT payment_method, COALESCE(SUM(total),0) AS amount
-    FROM orders WHERE business_date = ? AND " . paid_orders_where() . " GROUP BY payment_method
+    FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY payment_method
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 $rawMethods = [];
 $res = $stmt->get_result();
@@ -253,23 +265,35 @@ $methods = [
     'Cash'                => $rawMethods['cash']     ?? 0.0,
     'Bakong (KHQR)'       => $rawMethods['bakong']   ?? 0.0,
     'Pay later, settled'  => $rawMethods['paylater'] ?? 0.0,
-    'Other, not recorded' => $gotToday - $namedTotal,
+    'Riel (KHR)'          => ($rawMethods['riel'] ?? 0.0) + max(0, $gotToday - $namedTotal - ($rawMethods['riel'] ?? 0.0)),
 ];
 $methods = array_filter($methods, fn($v) => $v > 0.005);
 
-// ── Seven trading days for the trend line ──
-// Days with no takings are filled in rather than skipped, so the line keeps its
-// spacing — a gap-free axis is the whole point of a trend.
+// ── Daily trend ──
+// Single day: last 7 trading days. Range: every day in the range.
 $trend = [];
-for ($i = 6; $i >= 0; $i--) { $trend[date('Y-m-d', strtotime("$date -$i day"))] = 0.0; }
-$from = array_key_first($trend);
-$stmt = $conn->prepare("
-    SELECT business_date, COALESCE(SUM(total),0) rev
-    FROM orders
-    WHERE business_date BETWEEN ? AND ? AND " . paid_orders_where() . "
-    GROUP BY business_date
-");
-$stmt->bind_param("ss", $from, $date);
+if ($isRange) {
+    $d = new DateTime($dateFrom);
+    $end = new DateTime($dateTo);
+    while ($d <= $end) { $trend[$d->format('Y-m-d')] = 0.0; $d->modify('+1 day'); }
+    $stmt = $conn->prepare("
+        SELECT business_date, COALESCE(SUM(total),0) rev
+        FROM orders
+        WHERE business_date BETWEEN ? AND ? AND " . paid_orders_where() . "
+        GROUP BY business_date
+    ");
+    $stmt->bind_param("ss", $dateFrom, $dateTo);
+} else {
+    for ($i = 6; $i >= 0; $i--) { $trend[date('Y-m-d', strtotime("$date -$i day"))] = 0.0; }
+    $from = array_key_first($trend);
+    $stmt = $conn->prepare("
+        SELECT business_date, COALESCE(SUM(total),0) rev
+        FROM orders
+        WHERE business_date BETWEEN ? AND ? AND " . paid_orders_where() . "
+        GROUP BY business_date
+    ");
+    $stmt->bind_param("ss", $from, $date);
+}
 $stmt->execute();
 $res = $stmt->get_result();
 while ($r = $res->fetch_assoc()) { $trend[(string)$r['business_date']] = (float)$r['rev']; }
@@ -285,8 +309,8 @@ $sheetRef = "'Daily Report'";
 
 $book->getProperties()
      ->setCreator("The Bird's Nest Coffee")
-     ->setTitle('Daily report ' . $date)
-     ->setSubject('Trading day ' . $date);
+     ->setTitle(($isRange ? 'Sales report ' . $dateFrom : 'Daily report ' . $date))
+     ->setSubject($isRange ? "Period $dateFrom to $dateTo" : 'Trading day ' . $date);
 
 /** Paint a block of cells as a section heading band. */
 function xl_band($sheet, string $range, string $bg, string $fg, int $size = 10, bool $bold = true): void {
@@ -311,17 +335,20 @@ foreach (['A' => 26, 'B' => 14, 'C' => 15, 'D' => 3, 'E' => 24, 'F' => 10,
 
 // ── Title band ──
 $sheet->mergeCells('A1:K1');
-$sheet->setCellValue('A1', "THE BIRD'S NEST COFFEE  —  DAILY REPORT");
+$sheet->setCellValue('A1', $isRange
+    ? "THE BIRD'S NEST COFFEE  —  SALES REPORT (RANGE)"
+    : "THE BIRD'S NEST COFFEE  —  DAILY REPORT");
 xl_band($sheet, 'A1:K1', XL_INK, 'FFFFFF', 16);
 $sheet->getRowDimension(1)->setRowHeight(34);
 $sheet->getStyle('A1')->getAlignment()->setIndent(1);
 
 $sheet->mergeCells('A2:K2');
-$sheet->setCellValue('A2', sprintf(
-    'Trading day: %s  (06:00 to 05:00 next morning)     |     Generated: %s',
-    date('l, j F Y', strtotime($date)),
-    date('j/n/Y, g:i A')
-));
+$sheet->setCellValue('A2', $isRange
+    ? sprintf('Period: %s to %s     |     Generated: %s', $dateFrom, $dateTo, date('j/n/Y, g:i A'))
+    : sprintf('Trading day: %s  (06:00 to 05:00 next morning)     |     Generated: %s',
+        date('l, j F Y', strtotime($date)),
+        date('j/n/Y, g:i A')
+    ));
 xl_band($sheet, 'A2:K2', XL_AMBER, '1A1207', 10, false);
 $sheet->getRowDimension(2)->setRowHeight(20);
 $sheet->getStyle('A2')->getAlignment()->setIndent(1);
@@ -474,8 +501,8 @@ if ($giftCount > 0) {
 }
 $r += 2;
 
-// ── Every order of the day ──
-$sheet->setCellValue("A$r", 'Orders (this trading day)');
+// ── Every order in the period ──
+$sheet->setCellValue("A$r", $isRange ? "Orders ($dateFrom to $dateTo)" : 'Orders (this trading day)');
 $sheet->getStyle("A$r")->getFont()->setBold(true)->setSize(11)->getColor()->setRGB(XL_INK);
 $r++;
 
@@ -520,7 +547,7 @@ foreach ($orders as $i => $o) {
 }
 if (!$orders) {
     $sheet->mergeCells("A$r:H$r");
-    $sheet->setCellValue("A$r", 'No orders recorded for this day.');
+    $sheet->setCellValue("A$r", $isRange ? 'No orders recorded for this period.' : 'No orders recorded for this day.');
     $sheet->getStyle("A$r")->getFont()->setItalic(true)->getColor()->setRGB(XL_MUTED);
     $sheet->getStyle("A$r")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
     $r++;
@@ -643,7 +670,7 @@ $sheet->freezePane('A3');
 // ── Send it ──
 // Any stray output ahead of this would land inside the zip and corrupt the file.
 if (ob_get_length()) { ob_end_clean(); }
-$filename = 'daily-report-' . $date . '.xlsx';
+$filename = $isRange ? 'sales-report-' . $dateFrom . '-' . $dateTo . '.xlsx' : 'daily-report-' . $date . '.xlsx';
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
 header('Cache-Control: max-age=0');

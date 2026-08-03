@@ -3,16 +3,52 @@ require 'auth.php';
 require 'config.php';
 if (!can('report')) { header("Location: dashboard.php?denied=1"); exit; }
 
-// Which business day are we reading? Defaults to the one in progress.
+// ── View mode: daily, monthly, yearly, range ──
 $today = business_date_today();
+$view  = is_string($_GET['view'] ?? null) ? trim($_GET['view']) : 'daily';
+if (!in_array($view, ['daily','monthly','yearly','range'], true)) { $view = 'daily'; }
+
 $date  = is_string($_GET['date'] ?? null) ? trim($_GET['date']) : '';
-if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
-    $date = $today;
-}
+$dateOk = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) && checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
+if (!$dateOk || $date > $today) { $date = $today; }
 if ($date > $today) { $date = $today; }
-$prevDate = date('Y-m-d', strtotime($date . ' -1 day'));
-$nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
-$isToday  = ($date === $today);
+
+$dateFrom = is_string($_GET['date_from'] ?? null) ? trim($_GET['date_from']) : '';
+$dateTo   = is_string($_GET['date_to']   ?? null) ? trim($_GET['date_to'])   : '';
+$isRange  = ($view === 'range' && $dateFrom !== '' && $dateTo !== '');
+if ($isRange && !(preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo) && $dateFrom <= $dateTo && $dateTo <= $today)) {
+    $isRange = false;
+}
+
+// ── Compute date range and navigation based on view ──
+if ($isRange) {
+    $dateExpr = "business_date BETWEEN '$dateFrom' AND '$dateTo'";
+} elseif ($view === 'monthly') {
+    $monthStart = date('Y-m-01', strtotime($date));
+    $monthEnd   = date('Y-m-t',  strtotime($date));
+    $dateExpr   = "business_date BETWEEN '$monthStart' AND '$monthEnd'";
+} elseif ($view === 'yearly') {
+    $yearStart = date('Y-01-01', strtotime($date));
+    $yearEnd   = date('Y-12-31', strtotime($date));
+    $dateExpr  = "business_date BETWEEN '$yearStart' AND '$yearEnd'";
+} else {
+    $dateExpr = "business_date = '$date'";
+}
+
+switch ($view) {
+    case 'monthly': $prevDate = date('Y-m-d', strtotime($date . ' -1 month')); $nextDate = date('Y-m-d', strtotime($date . ' +1 month')); break;
+    case 'yearly':  $prevDate = date('Y-m-d', strtotime($date . ' -1 year'));  $nextDate = date('Y-m-d', strtotime($date . ' +1 year'));  break;
+    case 'range':   $prevDate = $date; $nextDate = $date; break;
+    default:        $prevDate = date('Y-m-d', strtotime($date . ' -1 day'));   $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));   break;
+}
+$isToday  = ($view === 'daily' && $date === $today);
+
+// Navigation labels
+switch ($view) {
+    case 'monthly': $todayLabel = 'This Month'; $prevLabel = 'Prev Month'; $nextLabel = 'Next Month'; break;
+    case 'yearly':  $todayLabel = 'This Year';  $prevLabel = 'Prev Year';  $nextLabel = 'Next Year';  break;
+    default:        $todayLabel = 'Today';       $prevLabel = 'Yesterday';  $nextLabel = 'Tomorrow';   break;
+}
 
 // ── Live refresh (Task 9): cheap signature, not a data refetch ──
 // dashboard.php re-runs its full KPI queries every 5s for every open browser;
@@ -36,9 +72,8 @@ if (isset($_GET['poll'])) {
                COALESCE(MAX(order_date),''),
                (SELECT COUNT(*) FROM ingredients WHERE stock_quantity <= minimum_stock),
                (SELECT COALESCE(SUM(stock_quantity),0) FROM ingredients)
-        FROM orders WHERE business_date = ?
+        FROM orders WHERE $dateExpr
     ");
-    $stmt->bind_param("s", $date);
     $stmt->execute();
     $sig = implode('|', $stmt->get_result()->fetch_row());
     echo json_encode(['sig' => md5($sig)]);
@@ -47,15 +82,13 @@ if (isset($_GET['poll'])) {
 
 // ── Tab 1: the three verdicts (Task 4) ──
 // Money we got — the app-wide definition of collected, never hand-rolled.
-$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $date);
+$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE $dateExpr AND " . paid_orders_where());
 $stmt->execute();
 [$gotToday, $paidOrderCount] = $stmt->get_result()->fetch_row();
 $gotToday = (float)$gotToday;
 
 $ids = [];
-$stmt = $conn->prepare("SELECT order_id FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $date);
+$stmt = $conn->prepare("SELECT order_id FROM orders WHERE $dateExpr AND " . paid_orders_where());
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_row()) { $ids[] = (int)$row[0]; }
@@ -65,7 +98,7 @@ $cogs     = order_cogs($conn, $ids, $costMap);
 $keptToday = $gotToday - $cogs['total'];
 $centsKept = $gotToday > 0 ? round(($keptToday / $gotToday) * 100) : 0;
 
-$baseGot = weekday_baseline($conn, $date);
+$baseGot = $view !== 'daily' ? ['value' => null, 'basis' => 'none', 'label' => '', 'days' => 0, 'dates' => []] : weekday_baseline($conn, $date);
 
 /**
  * Turn a difference into the sentence a manager reads. Money, never percent —
@@ -185,10 +218,13 @@ if ($paidOrderCount > 0 && $baseGot['basis'] === 'weekday') {
 // Yesterday's figure stays visible regardless of which baseline drove the
 // colour above — a manager glancing at box 1 shouldn't have to open tab 2 to
 // see what yesterday did.
-$stmt = $conn->prepare("SELECT COALESCE(SUM(total),0) FROM orders WHERE business_date = ? AND " . paid_orders_where());
-$stmt->bind_param("s", $prevDate);
-$stmt->execute();
-$gotYesterday = (float)$stmt->get_result()->fetch_row()[0];
+$gotYesterday = 0.0;
+if ($view === 'daily') {
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0) FROM orders WHERE business_date = ? AND " . paid_orders_where());
+    $stmt->bind_param("s", $prevDate);
+    $stmt->execute();
+    $gotYesterday = (float)$stmt->get_result()->fetch_row()[0];
+}
 
 // Stock going DOWN is not bad — it means drinks were sold. Red fires only
 // when something will actually stop service tomorrow.
@@ -209,26 +245,28 @@ $stockValue = (float)$conn->query("SELECT COALESCE(SUM(stock_quantity * cost_per
 // ingredient_history has no business_date column, so match the business day by
 // its 06:00-to-06:00 window. Joining through orders would look tidier but drops
 // the 33 order_deduct rows that carry a NULL order_id.
-$stmt = $conn->prepare("
-    SELECT COALESCE(SUM(ABS(h.amount) * i.cost_per_unit),0)
-    FROM ingredient_history h
-    JOIN ingredients i ON i.ingredient_id = h.ingredient_id
-    WHERE h.change_type = 'order_deduct'
-      AND h.created_at >= CONCAT(?, ' 06:00:00')
-      AND h.created_at <  CONCAT(DATE_ADD(?, INTERVAL 1 DAY), ' 06:00:00')
-");
-$stmt->bind_param("ss", $date, $date);
-$stmt->execute();
-$usedValue = (float)$stmt->get_result()->fetch_row()[0];
+$usedValue = 0.0;
+if ($view === 'daily') {
+    $stmt = $conn->prepare("
+        SELECT COALESCE(SUM(ABS(h.amount) * i.cost_per_unit),0)
+        FROM ingredient_history h
+        JOIN ingredients i ON i.ingredient_id = h.ingredient_id
+        WHERE h.change_type = 'order_deduct'
+          AND h.created_at >= CONCAT(?, ' 06:00:00')
+          AND h.created_at <  CONCAT(DATE_ADD(?, INTERVAL 1 DAY), ' 06:00:00')
+    ");
+    $stmt->bind_param("ss", $date, $date);
+    $stmt->execute();
+    $usedValue = (float)$stmt->get_result()->fetch_row()[0];
+}
 
 // ── Tab 1: the neutral row (Task 5) — how the money came in, facts only ──
 // How the collected money arrived. Pay-later only counts once settled.
 $stmt = $conn->prepare("
     SELECT payment_method, COALESCE(SUM(total),0) AS amount
-    FROM orders WHERE business_date = ? AND " . paid_orders_where() . "
+    FROM orders WHERE $dateExpr AND " . paid_orders_where() . "
     GROUP BY payment_method
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 $byMethod = [];
 $res = $stmt->get_result();
@@ -250,9 +288,8 @@ $gotOther  = $gotToday - ($gotCash + $gotBakong + $gotLater);
 $stmt = $conn->prepare("
     SELECT COALESCE(SUM(total),0), COUNT(*)
     FROM orders
-    WHERE business_date = ? AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
+    WHERE $dateExpr AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
 ");
-$stmt->bind_param("s", $date);
 $stmt->execute();
 [$notPaidYet, $notPaidCount] = $stmt->get_result()->fetch_row();
 $notPaidYet   = (float)$notPaidYet;
@@ -264,8 +301,8 @@ $notPaidCount = (int)$notPaidCount;
 // yet" card reads as a broken page.
 $drAllOnTab = ($paidOrderCount === 0 && $notPaidCount > 0);
 $drZeroLine = $drAllOnTab
-    ? 'nothing paid yet — every order is still on a tab'
-    : 'no sales yet today';
+    ? ($isRange ? 'nothing paid in this period — every order is on a tab' : 'nothing paid yet — every order is still on a tab')
+    : ($isRange ? 'no sales in this period' : 'no sales yet today');
 if ($paidOrderCount === 0) {
     $vGot  = ['tone' => 'flat', 'line' => $drZeroLine, 'sub' => ''];
     $vKept = ['tone' => 'flat', 'line' => $drZeroLine, 'sub' => ''];
@@ -275,22 +312,89 @@ if ($paidOrderCount === 0) {
 // Business days run 06:00 to 06:00, so the axis runs from 6am and wraps past
 // midnight rather than starting at hour 0 with a dead morning.
 $hourRev = array_fill(0, 24, 0.0);
-$stmt = $conn->prepare("
-    SELECT HOUR(order_date) h, COALESCE(SUM(total),0) rev
-    FROM orders WHERE business_date = ? AND " . paid_orders_where() . "
-    GROUP BY HOUR(order_date)
-");
-$stmt->bind_param("s", $date);
-$stmt->execute();
-$res = $stmt->get_result();
-while ($r = $res->fetch_assoc()) { $hourRev[(int)$r['h']] = (float)$r['rev']; }
+$yMax    = 10;
+$yTicks  = [0, 2, 4, 6, 8, 10];
+if ($view === 'monthly') {
+    // Daily revenue bars for the month — every day shown, even $0 days
+    $daysInMonth = (int)date('t', strtotime($date));
+    $periodLabels = range(1, $daysInMonth);
+    $periodData = array_fill(0, $daysInMonth, 0.0);
+    $stmt = $conn->prepare("SELECT business_date d, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY business_date ORDER BY d");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) {
+        $dayNum = (int)substr($r['d'], 8, 2) - 1;
+        $periodData[$dayNum] = (float)$r['rev'];
+    }
+    $periodPeak = $periodData ? max($periodData) : 0.0;
+    $yMax2      = $periodPeak > 0 ? ceil($periodPeak / ($periodPeak > 100 ? 100 : 10)) * ($periodPeak > 100 ? 100 : 10) : 100;
+    $yTicks2    = $yMax2 > 0 ? [$yMax2 * 0.25, $yMax2 * 0.5, $yMax2 * 0.75, $yMax2] : [25, 50, 75, 100];
+    $periodLabel = 'day of month';
+    $periodAxisLabels = $periodLabels;
+    $hourPeakVal = 0.0; $busiestHour = null; $hourOrder = []; $hhData = []; $hhYMax = 100;
+} elseif ($view === 'yearly') {
+    // Monthly revenue bars for the year
+    $periodData = []; $periodLabels = [];
+    $stmt = $conn->prepare("SELECT DATE_FORMAT(business_date,'%Y-%m') ym, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY ym ORDER BY ym");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) { $periodData[] = (float)$r['rev']; $periodLabels[] = date('M', strtotime($r['ym'] . '-01')); }
+    $periodPeak = $periodData ? max($periodData) : 0.0;
+    $yMax2      = $periodPeak > 0 ? ceil($periodPeak / ($periodPeak > 100 ? 100 : 10)) * ($periodPeak > 100 ? 100 : 10) : 100;
+    $yTicks2    = $yMax2 > 0 ? [$yMax2 * 0.25, $yMax2 * 0.5, $yMax2 * 0.75, $yMax2] : [25, 50, 75, 100];
+    $periodLabel = 'month';
+    $periodAxisLabels = $periodLabels;
+    $hourPeakVal = 0.0; $busiestHour = null; $hourOrder = []; $hhData = []; $hhYMax = 100;
+} elseif ($view === 'range') {
+    // Daily revenue bars for the custom range
+    $periodData = []; $periodLabels = [];
+    $stmt = $conn->prepare("SELECT business_date d, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY business_date ORDER BY d");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) { $periodData[] = (float)$r['rev']; $periodLabels[] = $r['d']; }
+    $periodPeak = $periodData ? max($periodData) : 0.0;
+    $yMax2      = $periodPeak > 0 ? ceil($periodPeak / ($periodPeak > 100 ? 100 : 10)) * ($periodPeak > 100 ? 100 : 10) : 100;
+    $yTicks2    = $yMax2 > 0 ? [$yMax2 * 0.25, $yMax2 * 0.5, $yMax2 * 0.75, $yMax2] : [25, 50, 75, 100];
+    $periodLabel = 'date';
+    $n = count($periodLabels); $periodAxisLabels = [];
+    if ($n <= 10) { foreach ($periodLabels as $d) $periodAxisLabels[] = substr($d, 5, 5); }
+    else { $step = max(1, floor($n / 8)); for ($i = 0; $i < $n; $i++) { if ($i === 0 || $i === $n - 1 || $i % $step === 0) $periodAxisLabels[] = substr($periodLabels[$i], 5, 5); else $periodAxisLabels[] = ''; } }
+    $hourPeakVal = 0.0; $busiestHour = null; $hourOrder = []; $hhData = []; $hhYMax = 100;
+} else {
+    $stmt = $conn->prepare("
+        SELECT HOUR(order_date) h, COALESCE(SUM(total),0) rev, COUNT(*) AS cnt
+        FROM orders WHERE $dateExpr AND " . paid_orders_where() . "
+        GROUP BY HOUR(order_date)
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $hourCnt = array_fill(0, 24, 0);
+    while ($r = $res->fetch_assoc()) { $h = (int)$r['h']; $hourRev[$h] = (float)$r['rev']; $hourCnt[$h] = (int)$r['cnt']; }
 
-$hourOrder = [];
-for ($i = 6; $i < 30; $i++) { $hourOrder[] = $i % 24; }          // 06:00 → 05:00
-$hourPeakVal = max($hourRev) ?: 0.0;
-$busiestHour = null;
-if ($hourPeakVal > 0) {
-    foreach ($hourOrder as $h) { if ($hourRev[$h] === $hourPeakVal) { $busiestHour = $h; break; } }
+    $hourOrder = [];
+    for ($i = 6; $i < 30; $i++) { $hourOrder[] = $i % 24; }
+    $hourPeakVal = max($hourRev) ?: 0.0;
+    $busiestHour = null;
+    if ($hourPeakVal > 0) {
+        foreach ($hourOrder as $h) { if ($hourRev[$h] === $hourPeakVal) { $busiestHour = $h; break; } }
+    }
+    // Y-axis intervals for the bar chart — round peak up to a clean breakpoint
+    $yMagnitude = $hourPeakVal > 0 ? pow(10, floor(log10($hourPeakVal)) - 1) : 10;
+    $yMax       = $hourPeakVal > 0 ? ceil($hourPeakVal / $yMagnitude) * $yMagnitude : 10;
+    $yTicks     = $hourPeakVal > 0
+        ? [0, $yMax * 0.25, $yMax * 0.5, $yMax * 0.75, $yMax]
+        : [0, 2, 4, 6, 8, 10];
+    $periodData = []; $periodLabels = []; $periodAxisLabels = []; $periodPeak = 0; $yMax2 = 10; $yTicks2 = [2.5,5,7.5,10]; $periodLabel = '';
+
+    // ── Hourly orders breakdown (06:00 – 22:00) ──
+    $hhData = []; $hhPeakVal = 0;
+    for ($h = 6; $h <= 22; $h++) {
+        $cnt = $hourCnt[$h] ?? 0;
+        $rev = $hourRev[$h] ?? 0.0;
+        $hhData[] = ['hour'=>sprintf('%02d:00',$h), 'cnt'=>$cnt, 'rev'=>$rev];
+        if ($cnt > $hhPeakVal) $hhPeakVal = $cnt;
+    }
+    $hhYMax = $hhPeakVal > 0 ? (ceil($hhPeakVal / 5) * 5) : 10;
 }
 
 // Best seller: $cogs['by_product'] arrives unsorted (insertion order), so sort
@@ -308,6 +412,37 @@ $bestSellerQty  = 0;
 foreach ($byProductSorted as $bpName => $bpRow) { $bestSellerName = $bpName; $bestSellerQty = (int)$bpRow['qty']; break; }
 $cupsToday = cogs_cups($cogs);
 $avgCups   = $paidOrderCount > 0 ? $cupsToday / $paidOrderCount : null;
+
+// ── Add-ons breakdown (Best Add-on Price / Data) ──
+$addonSales = [];
+if ($ids) {
+  $inP = implode(',', array_fill(0, count($ids), '?'));
+  $stmt = $conn->prepare("SELECT oi.addons_snapshot, oi.quantity FROM order_items oi WHERE oi.order_id IN ($inP) AND oi.addons_snapshot IS NOT NULL AND oi.addons_snapshot <> '' AND oi.addons_snapshot <> '[]'");
+  $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
+  $stmt->execute();
+  $res = $stmt->get_result();
+  while ($r = $res->fetch_assoc()) {
+    $addonsArr = json_decode($r['addons_snapshot'] ?? '[]', true) ?: [];
+    $itemQty = (int)$r['quantity'];
+    foreach ($addonsArr as $ad) {
+      $name = trim($ad['name'] ?? '');
+      if ($name === '') continue;
+      $price = (float)($ad['price'] ?? 0);
+      if (!isset($addonSales[$name])) {
+        $addonSales[$name] = [
+          'name' => $name,
+          'price' => $price,
+          'qty' => 0,
+          'revenue' => 0.0
+        ];
+      }
+      $addonSales[$name]['qty'] += $itemQty;
+      $addonSales[$name]['revenue'] += $price * $itemQty;
+    }
+  }
+}
+uasort($addonSales, fn($a, $b) => $b['revenue'] <=> $a['revenue'] ?: $b['qty'] <=> $a['qty']);
+$totalAddonRev = array_sum(array_column($addonSales, 'revenue'));
 
 /**
  * For pay-later, Completed means the drinks were made and the customer still
@@ -353,29 +488,54 @@ function dr_pay_label(array $o): array {
     return [$label, 'ok', $bucket];
 }
 
+/**
+ * Build the date expression inside a fragment from the current request.
+ * Fragments receive their own $_GET params (date, date_from, date_to, view).
+ */
+function dr_date_expr(): string {
+    $d  = $_GET['date'] ?? '';
+    $df = $_GET['date_from'] ?? '';
+    $dt = $_GET['date_to'] ?? '';
+    $v  = $_GET['view'] ?? 'daily';
+    if ($df !== '' && $dt !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $df) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) {
+        return "business_date BETWEEN '$df' AND '$dt'";
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+        if ($v === 'monthly') {
+            $ms = date('Y-m-01', strtotime($d));
+            $me = date('Y-m-t',  strtotime($d));
+            return "business_date BETWEEN '$ms' AND '$me'";
+        }
+        if ($v === 'yearly') {
+            $ys = date('Y-01-01', strtotime($d));
+            $ye = date('Y-12-31', strtotime($d));
+            return "business_date BETWEEN '$ys' AND '$ye'";
+        }
+        return "business_date = '$d'";
+    }
+    return "business_date = '1970-01-01'"; // fallback: no rows
+}
+
 // ── Tab 2: Orders (Task 6) — the day's orders and how each was paid ──
 function dr_fragment_orders(mysqli $conn, string $date): void {
+    $dex = dr_date_expr();
     $stmt = $conn->prepare("
         SELECT order_id, daily_order_no, customer_name, total, payment_method, status, is_open,
                order_date
         FROM orders
-        WHERE business_date = ? AND status NOT IN ('Cancelled','Void')
+        WHERE $dex AND status NOT IN ('Cancelled','Void')
         ORDER BY order_date ASC
     ");
-    $stmt->bind_param("s", $date);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
     // Neutral counts, never a red card — see banned-vocabulary note.
-    $stmt = $conn->prepare("SELECT COUNT(*) FROM order_refunds r JOIN orders o ON o.order_id = r.order_id WHERE o.business_date = ?");
-    $stmt->bind_param("s", $date);
-    $stmt->execute();
-    $givenBackCount = (int)$stmt->get_result()->fetch_row()[0];
+    // Use the raw expression with o. prefix for the refund/remake joins
+    $stmt = $conn->query("SELECT COUNT(*) FROM order_refunds r JOIN orders o ON o.order_id = r.order_id WHERE " . str_replace('business_date', 'o.business_date', $dex));
+    $givenBackCount = (int)$stmt->fetch_row()[0];
 
-    $stmt = $conn->prepare("SELECT COUNT(*) FROM order_remakes r JOIN orders o ON o.order_id = r.order_id WHERE o.business_date = ?");
-    $stmt->bind_param("s", $date);
-    $stmt->execute();
-    $remadeCount = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt = $conn->query("SELECT COUNT(*) FROM order_remakes r JOIN orders o ON o.order_id = r.order_id WHERE " . str_replace('business_date', 'o.business_date', $dex));
+    $remadeCount = (int)$stmt->fetch_row()[0];
 
     // Cups per order, for the per-row data attribute the footer's JS sums
     // over the currently-filtered rows.
@@ -389,10 +549,9 @@ function dr_fragment_orders(mysqli $conn, string $date): void {
         SELECT oi.order_id, COALESCE(SUM(oi.quantity),0) AS cups
         FROM order_items oi
         JOIN orders o ON o.order_id = oi.order_id
-        WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o') . "
+        WHERE " . str_replace('business_date', 'o.business_date', $dex) . " AND oi.product_id <> 0 AND " . paid_orders_where('o') . "
         GROUP BY oi.order_id
     ");
-    $stmt->bind_param("s", $date);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) { $cupsByOrder[(int)$r['order_id']] = (int)$r['cups']; }
@@ -403,8 +562,7 @@ function dr_fragment_orders(mysqli $conn, string $date): void {
     // figure that belongs in a "total" slot; folding in open pay-later tabs
     // here is exactly the confusion that has cost this codebase three money
     // bugs already.
-    $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE business_date = ? AND " . paid_orders_where());
-    $stmt->bind_param("s", $date);
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE $dex AND " . paid_orders_where());
     $stmt->execute();
     [$collectedTotal, $collectedCount] = $stmt->get_result()->fetch_row();
     $collectedTotal = (float)$collectedTotal;
@@ -412,9 +570,8 @@ function dr_fragment_orders(mysqli $conn, string $date): void {
     $stmt = $conn->prepare("
         SELECT COALESCE(SUM(total),0), COUNT(*)
         FROM orders
-        WHERE business_date = ? AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
+        WHERE $dex AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
     ");
-    $stmt->bind_param("s", $date);
     $stmt->execute();
     [$notPaidTotal, $notPaidCount] = $stmt->get_result()->fetch_row();
     $notPaidTotal = (float)$notPaidTotal;
@@ -452,24 +609,27 @@ function dr_fragment_orders(mysqli $conn, string $date): void {
         <?php endif; ?>
       </div>
 
-      <div class="dr-table-wrap">
+      <div class="dr-table-wrap orders-scroll">
         <table class="dr-table" id="ordersTable">
           <thead>
-            <tr><th>Time</th><th>Order</th><th>Customer</th><th>Total</th><th>Paid</th></tr>
+            <tr><th>No.</th><th>Time</th><th>Order</th><th>Customer</th><th>Method</th><th>Total</th><th>Paid</th></tr>
           </thead>
           <tbody>
             <?php if (!$rowData): ?>
-            <tr><td colspan="5" class="dr-note" style="padding:20px 0;text-align:center">no orders this day</td></tr>
+            <tr><td colspan="7" class="dr-note" style="padding:20px 0;text-align:center">no orders this day</td></tr>
             <?php endif; ?>
-            <?php foreach ($rowData as $rd): ?>
+            <?php $i = 0; ?>
+            <?php foreach ($rowData as $rd): $i++; ?>
             <tr class="<?= $rd['state'] === 'open' ? 'is-open' : '' ?>"
                 data-method="<?= htmlspecialchars($rd['bucket']) ?>"
                 data-state="<?= htmlspecialchars($rd['state']) ?>"
                 data-total="<?= htmlspecialchars((string)$rd['total']) ?>"
                 data-cups="<?= (int)$rd['cups'] ?>">
+              <td class="dr-mono-dim"><?= $i ?></td>
               <td class="dr-mono-dim"><?= htmlspecialchars($rd['time']) ?></td>
               <td class="dr-mono"><?= htmlspecialchars($rd['no']) ?></td>
               <td><?= htmlspecialchars($rd['cust']) ?></td>
+              <td><span class="dr-status is-<?= htmlspecialchars($rd['state']) ?>"><?= htmlspecialchars(ucfirst($rd['bucket'])) ?></span></td>
               <td class="dr-mono">$<?= htmlspecialchars(number_format($rd['total'], 2)) ?></td>
               <td><span class="dr-status is-<?= htmlspecialchars($rd['state']) ?>"><?= htmlspecialchars($rd['label']) ?></span></td>
             </tr>
@@ -482,7 +642,6 @@ function dr_fragment_orders(mysqli $conn, string $date): void {
         <span><?= (int)count($rowData) ?> orders</span> &middot; <span><?= (int)$cupsToday ?> cups</span> &middot; <span>$<?= htmlspecialchars(number_format($collectedTotal, 2)) ?> collected</span><?php if ($notPaidCount > 0): ?> &middot; <span>$<?= htmlspecialchars(number_format($notPaidTotal, 2)) ?> not paid yet</span><?php endif; ?>
       </div>
 
-      <div class="pg-wrap" id="ordersPagination" style="display:none"></div>
     </div>
     <?php
 }
@@ -579,19 +738,21 @@ function dr_fragment_stock(mysqli $conn, string $date): void {
         <input type="text" class="dr-search" id="stockSearch" placeholder="Search ingredient…" aria-label="Search ingredients">
       </div>
 
-      <div class="dr-table-wrap">
+      <div class="dr-table-wrap stock-scroll">
         <table class="dr-table" id="stockTable">
           <thead>
-            <tr><th>Item</th><th>We have</th><th>Buy more below</th><th>Used today</th><th>What it costs us (per unit)</th><th>Level</th></tr>
+            <tr><th>No.</th><th>Item</th><th>We have</th><th>Buy more below</th><th>Used today</th><th>What it costs us (per unit)</th><th>Level</th></tr>
           </thead>
           <tbody>
             <?php if (!$rowData): ?>
-            <tr><td colspan="6" class="dr-note" style="padding:20px 0;text-align:center">no ingredients tracked</td></tr>
+            <tr><td colspan="7" class="dr-note" style="padding:20px 0;text-align:center">no ingredients tracked</td></tr>
             <?php endif; ?>
-            <?php foreach ($rowData as $rd): ?>
+            <?php $i = 0; ?>
+            <?php foreach ($rowData as $rd): $i++; ?>
             <tr class="<?= $rd['needBuy'] ? 'needs-buy' : '' ?>"
                 data-bucket="<?= htmlspecialchars($rd['bucket']) ?>"
                 data-name="<?= htmlspecialchars(mb_strtolower($rd['name'])) ?>">
+              <td class="dr-mono-dim"><?= $i ?></td>
               <td><?= htmlspecialchars($rd['name']) ?></td>
               <td class="dr-mono"><?= htmlspecialchars(dr_qty($rd['stock'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
               <td class="dr-mono-dim"><?= htmlspecialchars(dr_qty($rd['min'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
@@ -607,7 +768,6 @@ function dr_fragment_stock(mysqli $conn, string $date): void {
         </table>
       </div>
       <div class="dr-table-foot" id="stockFoot"></div>
-      <div class="pg-wrap" id="stockPagination" style="display:none"></div>
     </div>
     <?php
 }
@@ -639,29 +799,39 @@ function dr_fragment_staff(mysqli $conn, string $date): void {
     // attendance rows that day would multiply their order rows by two before
     // GROUP BY ever runs, doubling both the order count and the money.
     $stmt = $conn->prepare("
-        SELECT e.employee_id, e.name AS full_name,
+        SELECT e.employee_id, MAX(e.name) AS full_name,
                MIN(a.clock_in)                                    AS clock_in,
                MAX(a.clock_out)                                   AS clock_out,
                SUM(a.hours_worked)                                AS hours_worked,
                COUNT(a.id)                                        AS shift_count,
                SUM(a.clock_out IS NULL)                           AS open_shifts,
-               COALESCE(MAX(o.orders_served), 0)                  AS orders_served,
-               COALESCE(MAX(o.money_taken), 0)                    AS money_taken
-        FROM attendance a
-        JOIN employees e ON e.user_id = a.user_id
+               COALESCE(MAX(oe.orders_served), 0)
+                 + COALESCE(MAX(ou.orders_served), 0)            AS orders_served,
+               COALESCE(MAX(oe.money_taken), 0)
+                 + COALESCE(MAX(ou.money_taken), 0)              AS money_taken
+        FROM employees e
+        LEFT JOIN attendance a ON a.user_id = e.user_id AND a.date = ?
         LEFT JOIN (
             SELECT employee_id,
                    COUNT(order_id)          AS orders_served,
                    COALESCE(SUM(total), 0)  AS money_taken
             FROM orders
-            WHERE business_date = ? AND " . paid_orders_where() . "
+            WHERE business_date = ? AND " . paid_orders_where() . " AND employee_id IS NOT NULL
             GROUP BY employee_id
-        ) o ON o.employee_id = e.employee_id
-        WHERE a.date = ?
-        GROUP BY e.employee_id
+        ) oe ON oe.employee_id = e.employee_id
+        LEFT JOIN (
+            SELECT user_id,
+                   COUNT(order_id)          AS orders_served,
+                   COALESCE(SUM(total), 0)  AS money_taken
+            FROM orders
+            WHERE business_date = ? AND " . paid_orders_where() . " AND employee_id IS NULL AND user_id IS NOT NULL
+            GROUP BY user_id
+        ) ou ON ou.user_id = e.user_id
+        WHERE oe.employee_id IS NOT NULL OR ou.user_id IS NOT NULL OR a.id IS NOT NULL
+        GROUP BY e.employee_id, e.name
         ORDER BY MIN(a.clock_in) ASC
     ");
-    $stmt->bind_param("ss", $date, $date);
+    $stmt->bind_param("sss", $date, $date, $date);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -730,8 +900,8 @@ function dr_fragment_staff(mysqli $conn, string $date): void {
                   <?= htmlspecialchars((string)$r['full_name']) ?>
                 </span>
               </td>
-              <td class="dr-mono-dim"><?= htmlspecialchars(date('H:i', strtotime($r['clock_in']))) ?></td>
-              <td class="dr-mono-dim"><?= $stillWorking ? '<span class="dr-status is-ok">still working</span>' : htmlspecialchars(date('H:i', strtotime($r['clock_out']))) ?></td>
+              <td class="dr-mono-dim"><?= $r['clock_in'] ? htmlspecialchars(date('H:i', strtotime($r['clock_in']))) : '<span class="dr-muted">no clock-in</span>' ?></td>
+              <td class="dr-mono-dim"><?= $r['clock_in'] ? ($stillWorking ? '<span class="dr-status is-ok">still working</span>' : htmlspecialchars(date('H:i', strtotime($r['clock_out'])))) : '<span class="dr-muted">—</span>' ?></td>
               <td class="dr-mono"><?= htmlspecialchars($hoursCell) ?></td>
               <td class="dr-mono"><?= $served ? (int)$orders : '—' ?></td>
               <td class="dr-mono"><?= $served ? '$' . htmlspecialchars(number_format($money, 2)) : '—' ?></td>
@@ -859,8 +1029,9 @@ body{
   font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;font-family:'Poppins',sans-serif;
   transition:all .2s;
 }
-.dr-nav:hover{border-color:var(--amber);color:var(--amber)}
+.dr-nav:hover,.dr-nav:focus{outline:none;border-color:var(--amber);color:var(--amber)}
 .dr-nav.is-disabled{pointer-events:none;opacity:.35}
+.dr-range-label{pointer-events:none;background:var(--amber-dim);border-color:var(--amber-border);color:var(--amber)}
 
 /* ── Tabs ── */
 .dr-tabs{
@@ -918,17 +1089,20 @@ body{
 /* ── Headline stats ── the reference's card row, with a comparison line where
    it had a static caption. Colour lives on that line only: it is the one part
    that carries a judgement, so it is the one part allowed to be red or green. */
-.dr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(195px, 1fr)); gap: 14px; }
-.dr-stat  { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.dr-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; grid-auto-rows: 1fr; }
+@media (max-width: 1100px) { .dr-cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px)  { .dr-cards { grid-template-columns: repeat(2, 1fr); } }
+.dr-stat, .dr-cards > .dr-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; transition: all .2s ease; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+.dr-stat:hover, .dr-cards > .dr-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(209,144,75,.12); border-color: rgba(209,144,75,.5); background: rgba(209,144,75,.12); }
 .dr-stat.is-lead { border-left: 3px solid var(--amber); }
-.dr-v-lg  { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 6px 0 8px; letter-spacing: -.5px; }
-.dr-delta { font-size: 12px; font-weight: 600; line-height: 1.5; }
+.dr-v-lg  { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 4px 0 6px; letter-spacing: -.5px; flex: 1; display: flex; align-items: center; }
+.dr-delta { font-size: 12px; font-weight: 600; line-height: 1.5; min-height: 2.5rem; display: flex; align-items: flex-end; }
 .dr-delta.tone-good { color: var(--ok); }
 .dr-delta.tone-bad  { color: var(--stop); }
 .dr-delta.tone-flat { color: var(--text-muted); font-weight: 500; }
 
-/* Stock warning, placed where the reference puts it: a strip under the stats,
-   not a card competing with them. */
+/* Stock warning — always rendered (fixed slot, never shifts layout). */
+.dr-alert-wrap { min-height: 46px; margin-bottom: 18px; }
 .dr-alert {
   display: flex; align-items: flex-start; gap: 10px; margin-top: 14px;
   padding: 12px 16px; border-radius: var(--radius); font-size: 13px; line-height: 1.55;
@@ -939,17 +1113,14 @@ body{
 .dr-alert.is-clear i { color: var(--ok); }
 
 /* ── Tab 1: the neutral row — facts, no colour ── */
-.dr-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px; }
-@media (max-width: 900px) { .dr-facts { grid-template-columns: repeat(2, 1fr); } }
 .dr-k     { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
-.dr-v     { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
-/* Facts sit in cards like the reference's stat row: hairline box, quiet label
-   above, figure below. The lead card takes a rule so the eye starts there. */
-.dr-facts > .dr-card, .dr-facts-inline > .dr-fact {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
-}
-.dr-facts > .dr-card:first-child { border-left: 3px solid var(--amber); }
+.dr-v     { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; flex: 1; display: flex; align-items: center; }
+.dr-card, .dr-fact {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
 .dr-note  { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.6; }
+.dr-muted { color: var(--text-muted); font-size: 11.5px; }
+.dr-note, .dr-delta { min-height: 1.8rem; display: flex; align-items: flex-end; }
+.dr-delta-spacer { min-height: 1.8rem; }
 .dr-wide  { margin-top: 16px; }
 
 .dr-bar   { display: flex; width: 100%; height: 14px; border-radius: 8px; overflow: hidden; background: var(--surface2); margin-top: 10px; }
@@ -966,36 +1137,96 @@ body{
    rather than leave a dead fourth column. */
 .dr-facts-inline { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 12px; }
 
+
+
+
+/* ── Bottom tall row (Best Sellers + Best Category) ── */
+.dr-tall { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 16px; align-items: stretch; }
+.dr-tall > .dr-card { display: flex; flex-direction: column; }
+.dr-tall > .dr-card > .dr-k { flex-shrink: 0; }
+@media (max-width: 1000px) { .dr-tall { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .dr-tall { grid-template-columns: 1fr; } }
+
+.dr-bar-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.dr-bar-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.dr-bar-label { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dr-bar-num  { font-size: 12px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.dr-bar-track { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.dr-bar-fill  { height: 100%; border-radius: 3px; background: var(--amber); transition: width .3s ease; }
+.dr-bar-fill.cat { background: var(--ok); }
+
 /* ── Charts ── drawn by hand in CSS and SVG. No chart library: a CDN that
    fails on venue wifi is a blank chart in front of a judge. */
-.dr-charts { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-top: 16px; }
+.dr-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; align-items: stretch; }
+.dr-charts.dr-charts--full { grid-template-columns: 1fr; }
+.dr-charts > .dr-card { display: flex; flex-direction: column; }
+.dr-charts > .dr-card > .dr-k { flex-shrink: 0; }
+.dr-charts > .dr-card > .dr-note { flex-shrink: 0; }
+.dr-charts > .dr-card .dr-chart-area { flex: 1; min-height: 0; }
 @media (max-width: 900px) { .dr-charts { grid-template-columns: 1fr; } }
 
-.dr-hours { display: flex; align-items: flex-end; gap: 3px; height: 150px; margin-top: 14px; }
-.dr-hour  { flex: 1; height: 100%; display: flex; align-items: flex-end; border-radius: 3px; }
-.dr-hour-fill { display: block; width: 100%; background: var(--amber); opacity: .45; border-radius: 3px; transition: opacity .15s; }
-.dr-hour:hover .dr-hour-fill { opacity: .8; }
-.dr-hour.is-peak .dr-hour-fill { opacity: 1; }
+.dr-chart-area { display: grid; grid-template-columns: 40px 1fr; gap: 8px; margin-top: 14px; }
+.dr-y-axis { height: 150px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; padding-bottom: 0; }
+.dr-y-label { font-family: var(--mono); font-size: 9px; color: var(--muted2); line-height: 1; }
+.dr-chart-body { min-width: 0; }
+.dr-chart-vis { position: relative; }
+.dr-gridlines { position: absolute; inset: 0; pointer-events: none; }
+.dr-gridline { display: block; position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); }
+.dr-hours { display: flex; align-items: flex-end; gap: 3px; height: 150px; }
+.dr-hour  { flex: 1; height: 100%; display: flex; align-items: flex-end; border-radius: 3px; cursor: pointer; position: relative; }
+.dr-hour-fill { display: block; width: 100%; background: linear-gradient(to top, rgba(209,144,75,.25), rgba(209,144,75,.7)); border-radius: 3px 3px 0 0; transition: all .2s ease; }
+.dr-hour:hover .dr-hour-fill { filter: brightness(1.35); box-shadow: 0 0 16px rgba(209,144,75,.35); transform: scaleY(1.06); transform-origin: bottom; }
+.dr-hour.is-peak .dr-hour-fill { background: linear-gradient(to top, rgba(255,193,7,.3), #e8a84c); box-shadow: 0 0 12px rgba(232,168,76,.3); }
+.dr-hour-tip { display: none; position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px;
+  font-size: 10px; font-weight: 600; color: var(--text); white-space: nowrap; z-index: 10; pointer-events: none; }
+
 /* Midnight. Marked because the axis crosses a calendar day mid-chart and a
    reader who doesn't know the 06:00 business day would otherwise read the
    post-midnight bars as an error. */
 .dr-hour.is-daybreak { border-left: 1px dashed var(--border); margin-left: 2px; padding-left: 2px; }
 .dr-hours-axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--muted2); margin-top: 6px; }
 
-.dr-donut-row { display: flex; align-items: center; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.dr-donut-row { display: flex; flex-direction: column; align-items: center; margin-top: 12px; flex: 1; }
+.dr-donut-row .dr-legend { margin-top: auto; }
 .dr-donut { width: 140px; height: 140px; flex: none; transform: rotate(-90deg); }
 .dr-donut-track { fill: none; stroke: var(--surface2); stroke-width: 16; }
-.dr-donut-seg   { fill: none; stroke-width: 16; }
+.dr-donut-seg   { fill: none; stroke-width: 16; cursor: pointer; transition: stroke-width .2s, filter .2s; }
+.dr-donut-seg:hover { stroke-width: 22; filter: brightness(1.2); }
+.dr-donut-group { cursor: pointer; }
+.dr-donut-float-tip { position: fixed; z-index: 999; pointer-events: none; display: none;
+  background: rgba(26,26,30,.94); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 10px; font-size: 11px; font-weight: 600; color: #eaeaea; white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+.dr-donut-float-tip .dr-dot { width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.dr-legend li { display: flex; justify-content: space-between; align-items: center; width: 100%; cursor: pointer; transition: opacity .2s; }
+.dr-legend li:hover { opacity: .8; }
+.dr-legend li:hover .dr-dot { transform: scale(1.35); }
+.dr-legend-left { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.dr-legend b { flex-shrink: 0; margin-left: 0; }
+.dr-dot { transition: transform .2s; }
 .dr-donut-mid, .dr-donut-sub { transform: rotate(90deg); transform-origin: 70px 70px; text-anchor: middle; }
 .dr-donut-mid { font-family: var(--mono); font-size: 15px; font-weight: 700; fill: var(--text); }
 .dr-donut-sub { font-family: var(--mono); font-size: 9px; fill: var(--muted2); letter-spacing: .1em; }
-.dr-legend { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: var(--text-muted); }
+.dr-legend { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-muted); width: 100%; padding: 0; margin-top: 12px; }
 .dr-legend b { color: var(--text); font-family: var(--mono); font-size: 12px; margin-left: 4px; }
 .dr-dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; }
 .dr-dot.seg-cash{background:rgba(209,144,75,1)} .dr-dot.seg-bakong{background:rgba(209,144,75,.65)}
 .dr-dot.seg-later{background:rgba(209,144,75,.4)} .dr-dot.seg-other{background:rgba(209,144,75,.22)}
 .dr-donut-seg.seg-cash{stroke:rgba(209,144,75,1)} .dr-donut-seg.seg-bakong{stroke:rgba(209,144,75,.65)}
 .dr-donut-seg.seg-later{stroke:rgba(209,144,75,.4)} .dr-donut-seg.seg-other{stroke:rgba(209,144,75,.22)}
+.dr-donut-seg.cat0{stroke:#d1904b} .dr-donut-seg.cat1{stroke:#5a9e7e}
+.dr-donut-seg.cat2{stroke:#b87a7a} .dr-donut-seg.cat3{stroke:#7a96b8}
+.dr-donut-seg.cat4{stroke:#a88ab8}
+.dr-dot.cat0{background:#d1904b} .dr-dot.cat1{background:#5a9e7e}
+.dr-dot.cat2{background:#b87a7a} .dr-dot.cat3{background:#7a96b8}
+.dr-dot.cat4{background:#a88ab8}
+.dr-donut-seg.sel0{stroke:#e8a84c} .dr-donut-seg.sel1{stroke:#c97b84}
+.dr-donut-seg.sel2{stroke:#7fb08c} .dr-donut-seg.sel3{stroke:#b58ac4}
+.dr-donut-seg.sel4{stroke:#7a9ec9} .dr-donut-seg.sel5{stroke:#b8a07a}
+.dr-dot.sel0{background:#e8a84c} .dr-dot.sel1{background:#c97b84}
+.dr-dot.sel2{background:#7fb08c} .dr-dot.sel3{background:#b58ac4}
+.dr-dot.sel4{background:#7a9ec9} .dr-dot.sel5{background:#b8a07a}
 .dr-fact  { display: flex; flex-direction: column; }
 .dr-v-sm  { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .dr-v-text{ font-size: 20px; font-weight: 700; font-variant-numeric: initial; letter-spacing: 0; }
@@ -1012,6 +1243,14 @@ body{
 .dr-pill.is-on  { background: var(--amber-dim); border-color: var(--amber-border); color: var(--amber); }
 
 .dr-table-wrap  { overflow-x: auto; }
+.dr-table-wrap.orders-scroll,
+.dr-table-wrap.stock-scroll { max-height: 550px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.dr-table-wrap.orders-scroll::-webkit-scrollbar,
+.dr-table-wrap.stock-scroll::-webkit-scrollbar { display: none; }
+.dr-table-wrap.orders-scroll thead,
+.dr-table-wrap.stock-scroll thead { position: sticky; top: 0; z-index: 2; }
+.dr-table-wrap.orders-scroll thead th,
+.dr-table-wrap.stock-scroll thead th { background: var(--surface2); }
 .dr-table       { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .dr-table th    {
   text-align: left; font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
@@ -1078,6 +1317,44 @@ body{
 .dr-stock-fill.tone-attn   { background: var(--amber); }
 .dr-stock-fill.tone-normal { background: var(--muted2); }
 
+/* ── Date range picker ── */
+.dr-range-form {
+  display: flex; align-items: center; gap: 8px;
+}
+.dr-date-input {
+  font-family:'Poppins',sans-serif; font-size:13px; color:var(--text);
+  background:var(--surface2); border:1px solid var(--border); border-radius:9px;
+  padding:9px 12px; cursor:pointer;
+}
+.dr-date-input:focus { outline:none; border-color:var(--amber); }
+.dr-range-sep { color:var(--muted2); font-size:14px; }
+.dr-range-go { padding:9px 14px !important; }
+
+/* ── View selector ── */
+.dr-view-form { display:flex; align-items:center; }
+.dr-view-select {
+  font-family:'Poppins',sans-serif; font-size:12.5px; color:var(--text);
+  background:var(--surface2); border:1px solid var(--border); border-radius:9px;
+  padding:8px 28px 8px 12px; cursor:pointer; appearance:auto;
+  -webkit-appearance:auto; -moz-appearance:auto;
+}
+.dr-view-select:focus { outline:none; border-color:var(--amber); }
+
+.dr-range-overlay {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.dr-range-modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px; width: 380px; max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.dr-range-modal h3 { font-size:16px; font-weight:700; margin-bottom:18px; }
+.dr-range-modal .dr-range-form { flex-wrap:wrap; }
+.dr-range-modal .dr-date-input { flex:1; min-width:130px; }
+.dr-range-actions { display:flex; gap:8px; margin-top:16px; justify-content:flex-end; }
+
 .dr-foot-bar{
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;
   margin-top:28px;padding-top:14px;border-top:1px solid var(--border);
@@ -1100,7 +1377,7 @@ body{
     <span class="dr-topbar-name">The Bird's Nest Coffee</span>
     <span class="dr-topbar-sep">·</span>
     <span class="dr-topbar-where">Daily Report</span>
-    <span class="dr-topbar-right"><?= $isToday ? '<span class="dr-live"></span>live · ' : '' ?><?= htmlspecialchars(date('F Y', strtotime($date))) ?></span>
+    <span class="dr-topbar-right"><?= $isToday && !$isRange ? '<span class="dr-live"></span>live · ' : '' ?><?php if ($isRange): ?><?= htmlspecialchars($dateFrom) ?> – <?= htmlspecialchars($dateTo) ?><?php elseif ($view === 'monthly'): ?><?= date('F Y', strtotime($date)) ?><?php elseif ($view === 'yearly'): ?><?= date('Y', strtotime($date)) ?><?php else: ?><?= date('F j, Y', strtotime($date)) ?><?php endif; ?></span>
   </div>
 </div>
 
@@ -1110,33 +1387,92 @@ body{
 
     <div class="dr-head">
         <div>
-            <div class="dr-eyebrow">DAILY REPORT</div>
+            <div class="dr-eyebrow"><?php
+                switch ($view) {
+                    case 'monthly': echo 'MONTHLY REPORT'; break;
+                    case 'yearly':  echo 'YEARLY REPORT';  break;
+                    case 'range':   echo 'REPORT RANGE';    break;
+                    default:        echo 'DAILY REPORT';    break;
+                }
+            ?></div>
+            <?php if ($isRange): ?>
+            <h1><?= htmlspecialchars($dateFrom) ?> — <?= htmlspecialchars($dateTo) ?></h1>
+            <div class="dr-head-sub"><?= (new DateTime($dateFrom))->format('M j, Y') ?> – <?= (new DateTime($dateTo))->format('M j, Y') ?> · <?= $paidOrderCount ?> orders</div>
+            <?php elseif ($view === 'monthly'): ?>
+            <h1><?= date('F Y', strtotime($date)) ?></h1>
+            <div class="dr-head-sub"><?= date('M 1', strtotime($date)) ?> – <?= date('M t, Y', strtotime($date)) ?></div>
+            <?php elseif ($view === 'yearly'): ?>
+            <h1><?= date('Y', strtotime($date)) ?></h1>
+            <div class="dr-head-sub"><?= date('Y', strtotime($date)) ?> · full year</div>
+            <?php else: ?>
             <h1><?= date('l, F j, Y', strtotime($date)) ?></h1>
             <div class="dr-head-sub"><?= htmlspecialchars($date) ?><?= $isToday ? ' · today' : '' ?></div>
+            <?php endif; ?>
         </div>
         <div class="dr-head-actions">
-            <a class="dr-nav" href="?date=<?= htmlspecialchars($prevDate) ?>"><i class="fa-solid fa-chevron-left"></i> Yesterday</a>
-            <?php if (!$isToday): /* On today there is no next day to show — drop the
-                    button rather than render a dead one. On a past date it stays, because
-                    it is how a manager walks back forward toward the present. */ ?>
-            <a class="dr-nav" href="?date=<?= htmlspecialchars($nextDate) ?>">Tomorrow <i class="fa-solid fa-chevron-right"></i></a>
+            <?php if ($isRange): ?>
+            <span class="dr-nav dr-range-label"><i class="fa-solid fa-calendar-days"></i> <?= htmlspecialchars($dateFrom) ?> → <?= htmlspecialchars($dateTo) ?></span>
+            <?php else: ?>
+            <a class="dr-nav" href="?date=<?= htmlspecialchars($today) ?>&view=<?= htmlspecialchars($view) ?>"<?= $isToday ? ' style="background:var(--amber-dim);border-color:var(--amber-border);color:var(--amber)"' : '' ?>><i class="fa-solid fa-calendar-day"></i> <?= htmlspecialchars($todayLabel) ?></a>
+            <a class="dr-nav" href="?date=<?= htmlspecialchars($prevDate) ?>&view=<?= htmlspecialchars($view) ?>"><i class="fa-solid fa-chevron-left"></i> <?= htmlspecialchars($prevLabel) ?></a>
+            <?php if (!$isToday): ?>
+            <a class="dr-nav" href="?date=<?= htmlspecialchars($nextDate) ?>&view=<?= htmlspecialchars($view) ?>"><?= htmlspecialchars($nextLabel) ?> <i class="fa-solid fa-chevron-right"></i></a>
             <?php endif; ?>
+            <?php endif; ?>
+            <form method="get" class="dr-view-form" id="drViewForm">
+                <input type="hidden" name="date" value="<?= htmlspecialchars($date) ?>">
+                <select name="view" class="dr-view-select" id="drViewSelect">
+                    <option value="daily"   <?= $view === 'daily'   ? 'selected' : '' ?>>Daily</option>
+                    <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                    <option value="yearly"  <?= $view === 'yearly'  ? 'selected' : '' ?>>Yearly</option>
+                    <option value="range"   <?= $view === 'range'   ? 'selected' : '' ?>>Range</option>
+                </select>
+                <?php if ($isRange): ?>
+                <button type="button" class="dr-nav" id="drReRangeBtn" style="margin-left:6px"><i class="fa-solid fa-pen"></i> Change</button>
+                <?php endif; ?>
+            </form>
             <?php /* Both exports are built on the server from the same shared helpers this
                     page uses, so neither can drift from what is on screen. Print opens the
                     PDF in a new tab rather than printing the page: the browser's own print
                     of a tabbed, lazily-loaded report only ever captured the visible tab. */ ?>
-            <a class="dr-nav" href="daily_report_xlsx.php?date=<?= htmlspecialchars($date) ?>"><i class="fa-solid fa-file-excel"></i> Excel</a>
-            <a class="dr-nav" href="daily_report_pdf.php?date=<?= htmlspecialchars($date) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-print"></i> Print</a>
-            <a class="dr-nav" href="report.php?mode=daily&date=<?= htmlspecialchars($date) ?>">Full analytics <i class="fa-solid fa-arrow-right"></i></a>
+            <a class="dr-nav" href="daily_report_xlsx.php?date=<?= htmlspecialchars($date) ?><?= $isRange ? '&date_from=' . htmlspecialchars($dateFrom) . '&date_to=' . htmlspecialchars($dateTo) : '' ?>&view=<?= htmlspecialchars($view) ?>"><i class="fa-solid fa-file-excel"></i> Excel</a>
+            <a class="dr-nav" href="daily_report_pdf.php?date=<?= htmlspecialchars($date) ?><?= $isRange ? '&date_from=' . htmlspecialchars($dateFrom) . '&date_to=' . htmlspecialchars($dateTo) : '' ?>&view=<?= htmlspecialchars($view) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-print"></i> Print</a>
+            <a class="dr-nav" href="report.php?mode=daily&date=<?= htmlspecialchars($date) ?>&view=<?= htmlspecialchars($view) ?>">Full analytics <i class="fa-solid fa-arrow-right"></i></a>
         </div>
     </div>
 
     <div class="dr-tabs" role="tablist">
-        <button class="dr-tab is-on" data-tab="today"  role="tab"><i class="fa-solid fa-chart-simple"></i> Today</button>
+        <button class="dr-tab is-on" data-tab="today"  role="tab"><i class="fa-solid fa-chart-simple"></i> <?= $view !== 'daily' ? 'Summary' : 'Today' ?></button>
         <button class="dr-tab"       data-tab="orders" role="tab"><i class="fa-solid fa-receipt"></i> Orders</button>
         <button class="dr-tab"       data-tab="stock"  role="tab"><i class="fa-solid fa-boxes-stacked"></i> Stock <span class="dr-badge" id="stockBadge"><?= $lowItems ? (int)$lowItems : '' ?></span></button>
         <button class="dr-tab"       data-tab="staff"  role="tab"><i class="fa-solid fa-user-group"></i> Staff</button>
     </div>
+
+    <div class="dr-alert-wrap" id="drAlertWrap">
+      <?php if ($isRange): ?>
+      <div class="dr-alert is-clear" style="margin-top:0">
+        <i class="fa-solid fa-calendar-range"></i>
+        <span>Range report — stock warnings hidden.</span>
+      </div>
+      <?php elseif (!$isToday): ?>
+      <div class="dr-alert is-clear" style="margin-top:0">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>Historical view — stock warnings hidden.</span>
+      </div>
+      <?php elseif ($lowItems): ?>
+      <div class="dr-alert" style="margin-top:0">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span><b><?= (int)$lowItems ?> item<?= $lowItems === 1 ? '' : 's' ?></b> below the buy-more level<?= $outItems ? ', ' . (int)$outItems . ' already out' : '' ?>.
+        Buy <?= htmlspecialchars(implode(', ', $lowNames)) ?><?= $lowExtra ? " and $lowExtra more" : '' ?> before tomorrow.</span>
+      </div>
+      <?php else: ?>
+      <div class="dr-alert is-clear" style="margin-top:0">
+        <i class="fa-solid fa-circle-check"></i>
+        <span>Every item is above its buy-more level. You can open tomorrow.</span>
+      </div>
+      <?php endif; ?>
+    </div>
+
     <div class="dr-panel" id="panel-today">
         <?php
           // Four headline stats in the reference's card format, each carrying its
@@ -1158,137 +1494,357 @@ body{
           }
           $tip    = $baselineTooltip !== '' ? ' title="' . htmlspecialchars($baselineTooltip) . '"' : '';
         ?>
-        <div class="dr-stats">
-          <div class="dr-stat is-lead">
+        <div class="dr-cards">
+          <div class="dr-stat">
             <div class="dr-k">total sales</div>
             <div class="dr-v-lg">$<?= number_format($gotToday, 2) ?></div>
-            <div class="dr-delta tone-<?= $dGot['tone'] ?>"<?= $tip ?>><?= htmlspecialchars($dGot['text']) ?></div>
+            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dGot['tone'] ?>"<?= $tip ?>><?= htmlspecialchars($dGot['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
           </div>
           <div class="dr-stat">
             <div class="dr-k">money we keep</div>
             <div class="dr-v-lg">$<?= number_format($keptToday, 2) ?></div>
-            <div class="dr-delta tone-<?= $dKept['tone'] ?>"><?= htmlspecialchars($dKept['text']) ?></div>
+            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dKept['tone'] ?>"><?= htmlspecialchars($dKept['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
           </div>
           <div class="dr-stat">
             <div class="dr-k">total orders</div>
             <div class="dr-v-lg"><?= (int)$paidOrderCount ?></div>
-            <div class="dr-delta tone-<?= $dOrd['tone'] ?>"><?= htmlspecialchars($dOrd['text']) ?></div>
+            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dOrd['tone'] ?>"><?= htmlspecialchars($dOrd['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
           </div>
           <div class="dr-stat">
             <div class="dr-k">cups sold</div>
             <div class="dr-v-lg"><?= (int)$cupsToday ?></div>
-            <div class="dr-delta tone-<?= $dCups['tone'] ?>"><?= htmlspecialchars($dCups['text']) ?></div>
+            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dCups['tone'] ?>"><?= htmlspecialchars($dCups['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
           </div>
           <div class="dr-stat">
             <div class="dr-k">avg per order</div>
             <div class="dr-v-lg">$<?= number_format($avgToday, 2) ?></div>
-            <div class="dr-delta tone-<?= $dAvg['tone'] ?>"><?= htmlspecialchars($dAvg['text']) ?></div>
+            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dAvg['tone'] ?>"><?= htmlspecialchars($dAvg['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
           </div>
-        </div>
-
-        <?php if ($isToday && $lowItems): ?>
-          <div class="dr-alert">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <span><b><?= (int)$lowItems ?> item<?= $lowItems === 1 ? '' : 's' ?></b> below the buy-more level<?= $outItems ? ', ' . (int)$outItems . ' already out' : '' ?>.
-            Buy <?= htmlspecialchars(implode(', ', $lowNames)) ?><?= $lowExtra ? " and $lowExtra more" : '' ?> before tomorrow.</span>
-          </div>
-        <?php elseif ($isToday): ?>
-          <div class="dr-alert is-clear">
-            <i class="fa-solid fa-circle-check"></i>
-            <span>Every item is above its buy-more level. You can open tomorrow.</span>
-          </div>
-        <?php endif; ?>
-
-        <div class="dr-facts">
           <div class="dr-card"><div class="dr-k">cash</div><div class="dr-v">$<?= number_format($gotCash, 2) ?></div><div class="dr-note">in the register</div></div>
           <div class="dr-card"><div class="dr-k">bakong</div><div class="dr-v">$<?= number_format($gotBakong, 2) ?></div><div class="dr-note">by phone</div></div>
-          <div class="dr-card"><div class="dr-k">pay later — paid</div><div class="dr-v">$<?= number_format($gotLater, 2) ?></div><div class="dr-note">settled today</div></div>
+          <div class="dr-card"><div class="dr-k">pay later — paid</div><div class="dr-v">$<?= number_format($gotLater, 2) ?></div><div class="dr-note"><?= $isRange ? 'settled' : 'settled today' ?></div></div>
           <div class="dr-card"><div class="dr-k">not paid yet</div><div class="dr-v">$<?= number_format($notPaidYet, 2) ?></div><div class="dr-note"><?= $notPaidCount === 0 ? 'everyone has paid' : ('from ' . $notPaidCount . ' order' . ($notPaidCount === 1 ? '' : 's')) ?></div></div>
-          <?php if ($gotOther > 0.01): ?>
-          <div class="dr-card"><div class="dr-k">other ways</div><div class="dr-v">$<?= number_format($gotOther, 2) ?></div><div class="dr-note">older orders that did not record how they were paid</div></div>
+          <?php if ($gotOther > 0): ?>
+            <div class="dr-card"><div class="dr-k">Riel</div><div class="dr-v">$<?= number_format($gotOther, 2) ?> <span style="font-size: 14px; color: var(--text-muted, #9a8070); font-weight: 500;">~ <?= number_format((int)(round($gotOther * KHR_RATE / 100) * 100)) ?> ៛</span></div><div class="dr-note">total sales − known methods</div></div>
+          <?php else: ?>
+            <div class="dr-card"><div class="dr-k">Riel</div><div class="dr-v">No Order</div><div class="dr-note">total sales − known methods</div></div>
           <?php endif; ?>
         </div>
 
-        <div class="dr-charts">
+        <div class="dr-charts<?= $view !== 'daily' ? ' dr-charts--full' : '' ?>">
           <div class="dr-card">
             <div class="dr-k">when the money came in</div>
-            <?php // The axis runs 06:00 to 05:00 because that is the business day
-                  // (orders.business_date): trade before 06:00 belongs to the night
-                  // before. Said out loud here so nobody reads midnight-after-18:00
-                  // as a broken axis. ?>
+            <?php if ($view !== 'daily'): ?>
+              <div class="dr-note">revenue by <?= htmlspecialchars($periodLabel) ?></div>
+              <div class="dr-chart-area">
+                <div class="dr-y-axis">
+                  <?php foreach (array_reverse($yTicks2) as $yt): ?>
+                  <span class="dr-y-label">$<?= number_format($yt) ?></span>
+                  <?php endforeach; ?>
+                </div>
+                <div class="dr-chart-body">
+                  <div class="dr-chart-vis">
+                    <div class="dr-gridlines">
+                      <?php foreach ($yTicks2 as $yt): ?>
+                      <span class="dr-gridline" style="bottom:<?= $yMax2 > 0 ? $yt / $yMax2 * 100 : 0 ?>%"></span>
+                      <?php endforeach; ?>
+                    </div>
+                    <div class="dr-hours" role="img" aria-label="Revenue by <?= htmlspecialchars($periodLabel) ?>">
+                      <?php foreach ($periodData as $pi => $pv):
+                          $pct = $periodPeak > 0 ? ($pv / $periodPeak) * 100 : 0;
+                          $barDate = date('M j', strtotime(($view === 'monthly' ? substr($date,0,7).'-'.sprintf('%02d',$periodLabels[$pi]) : $periodLabels[$pi])));
+                          $isPeak = $periodPeak > 0 && $pv === $periodPeak; ?>
+                        <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?>">
+                          <span class="dr-hour-fill" style="height:<?= $pv > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
+                          <span class="dr-hour-tip"><?= $barDate ?> · $<?= number_format($pv, 2) ?></span>
+                        </span>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                  <div class="dr-hours-axis dr-period-axis">
+                    <?php foreach ($periodAxisLabels as $pa): ?>
+                    <span><?= $pa !== '' ? htmlspecialchars((string)$pa) : '' ?></span>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+              </div>
+              <?php if ($periodPeak > 0): ?>
+              <p class="dr-note"><?= count($periodData) ?> day<?= count($periodData) === 1 ? '' : 's' ?> · peak $<?= number_format($periodPeak, 2) ?></p>
+              <?php else: ?>
+              <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
+              <?php endif; ?>
+            <?php else: ?>
             <div class="dr-note">the trading day, 06:00 to 05:00 next morning</div>
-            <?php if ($hourPeakVal > 0): ?>
-              <div class="dr-hours" role="img" aria-label="Money taken each hour of the trading day">
-                <?php foreach ($hourOrder as $h):
-                    $v = $hourRev[$h];
-                    $pct = $hourPeakVal > 0 ? ($v / $hourPeakVal) * 100 : 0;
-                    $isPeak = ($busiestHour !== null && $h === $busiestHour); ?>
-                  <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?><?= $h === 0 ? ' is-daybreak' : '' ?>"
-                        title="<?= sprintf('%02d:00', $h) ?> · $<?= number_format($v, 2) ?>">
-                    <span class="dr-hour-fill" style="height:<?= $v > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
-                  </span>
+              <div class="dr-chart-area">
+                <div class="dr-y-axis">
+                  <?php foreach (array_reverse($yTicks) as $yt): ?>
+                  <span class="dr-y-label">$<?= number_format($yt) ?></span>
+                  <?php endforeach; ?>
+                </div>
+                <div class="dr-chart-body">
+                  <div class="dr-chart-vis">
+                    <div class="dr-gridlines">
+                      <?php foreach ($yTicks as $yt): ?>
+                      <span class="dr-gridline" style="bottom:<?= $yMax > 0 ? $yt / $yMax * 100 : 0 ?>%"></span>
+                      <?php endforeach; ?>
+                    </div>
+                    <div class="dr-hours" role="img" aria-label="Money taken each hour of the trading day">
+                      <?php foreach ($hourOrder as $h):
+                          $v = $hourRev[$h] ?? 0.0;
+                          $pct = $hourPeakVal > 0 ? ($v / $hourPeakVal) * 100 : 0;
+                          $isPeak = ($busiestHour !== null && $h === $busiestHour); ?>
+                        <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?><?= $h === 0 ? ' is-daybreak' : '' ?>">
+                          <span class="dr-hour-fill" style="height:<?= $v > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
+                          <span class="dr-hour-tip"><?= sprintf('%02d:00', $h) ?> · $<?= number_format($v, 2) ?></span>
+                        </span>
+                      <?php endforeach; ?>
+                    </div>
+                  </div>
+                  <div class="dr-hours-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span><span>05:00</span></div>
+                </div>
+              </div>
+              <?php if ($hourPeakVal > 0 && $busiestHour !== null): ?>
+                <p class="dr-note">busiest at <?= sprintf('%02d:00', $busiestHour) ?> · $<?= number_format($hourPeakVal, 2) ?></p>
+              <?php else: ?>
+                <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
+              <?php endif; ?>
+            <?php endif; ?>
+          </div>
+
+        <?php if ($view === 'daily' && $hhData): ?>
+        <?php
+          $hhYTicks = [];
+          $hhStep = $hhYMax / 5;
+          for ($k = 0; $k <= 5; $k++) { $hhYTicks[] = $k * $hhStep; }
+          $hhBusiest = null;
+          if ($hhPeakVal > 0) {
+            foreach ($hhData as $hb) {
+              if ($hb['cnt'] === $hhPeakVal) { $hhBusiest = $hb['hour']; break; }
+            }
+          }
+        ?>
+          <div class="dr-card">
+            <div class="dr-k">Orders vs Hour</div>
+            <div class="dr-note">order volume each hour, 06:00 to 22:00</div>
+            <div class="dr-chart-area">
+              <div class="dr-y-axis">
+                <?php foreach (array_reverse($hhYTicks) as $yt): ?>
+                <span class="dr-y-label"><?= (int)$yt ?></span>
                 <?php endforeach; ?>
               </div>
-              <div class="dr-hours-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span><span>05:00</span></div>
-              <?php if ($busiestHour !== null): ?>
-                <p class="dr-note">busiest at <?= sprintf('%02d:00', $busiestHour) ?> · $<?= number_format($hourPeakVal, 2) ?></p>
-              <?php endif; ?>
+              <div class="dr-chart-body">
+                <div class="dr-chart-vis">
+                  <div class="dr-gridlines">
+                    <?php foreach ($hhYTicks as $yt): ?>
+                    <span class="dr-gridline" style="bottom:<?= $hhYMax > 0 ? $yt / $hhYMax * 100 : 0 ?>%"></span>
+                    <?php endforeach; ?>
+                  </div>
+                  <div class="dr-hours" role="img" aria-label="Orders per hour">
+                    <?php foreach ($hhData as $hb):
+                        $pct = $hhYMax > 0 ? ($hb['cnt'] / $hhYMax) * 100 : 0;
+                        $isPeak = $hhPeakVal > 0 && $hb['cnt'] === $hhPeakVal; ?>
+                      <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?>">
+                        <span class="dr-hour-fill" style="height:<?= $hb['cnt'] > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
+                        <span class="dr-hour-tip"><?= $hb['hour'] ?> · <?= $hb['cnt'] ?> order<?= $hb['cnt'] === 1 ? '' : 's' ?></span>
+                      </span>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+                <div class="dr-hours-axis">
+                  <?php foreach ($hhData as $i => $hb): ?>
+                  <span><?= $i % 2 === 0 || $i === count($hhData) - 1 ? $hb['hour'] : '' ?></span>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            </div>
+            <?php if ($hhPeakVal > 0 && $hhBusiest !== null): ?>
+              <p class="dr-note">busiest at <?= $hhBusiest ?> · <?= $hhPeakVal ?> order<?= $hhPeakVal === 1 ? '' : 's' ?></p>
             <?php else: ?>
               <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
             <?php endif; ?>
           </div>
+        <?php endif; ?>
+        </div>
+
+        <div class="dr-tall">
+          <div class="dr-card">
+            <div class="dr-k">best sellers</div>
+            <?php
+                $C2 = 2 * M_PI * 54;
+                $allProductRev = array_sum(array_column($byProductSorted, 'revenue'));
+                $topItems = array_slice($byProductSorted, 0, 5, true);
+                $bpSlices = [];
+                $bpAcc = 0.0;
+                if ($allProductRev > 0 && $topItems) {
+                    foreach ($topItems as $bpName => $bpRow) { $bpSlices[] = ['name'=>$bpName, 'revenue'=>(float)$bpRow['revenue']]; }
+                    $otherRev = $allProductRev - array_sum(array_column($bpSlices, 'revenue'));
+                    if ($otherRev > 0.005) { $bpSlices[] = ['name'=>'Other', 'revenue'=>$otherRev]; }
+                }
+                $bpColors = ['sel0','sel1','sel2','sel3','sel4','sel5']; ?>
+              <div class="dr-donut-row">
+                <svg class="dr-donut" viewBox="0 0 140 140" role="img" aria-label="Revenue share by product">
+                  <circle cx="70" cy="70" r="54" class="dr-donut-track"></circle>
+                  <?php foreach ($bpSlices as $si => $sl):
+                      $frac = $allProductRev > 0 ? $sl['revenue'] / $allProductRev : 0;
+                      $len  = $frac * $C2;
+                      $colCls = $bpColors[$si % count($bpColors)]; ?>
+                    <g class="dr-donut-group">
+                      <circle cx="70" cy="70" r="54" class="dr-donut-seg <?= $colCls ?>"
+                              fill="transparent"
+                              stroke-dasharray="<?= round($len, 2) ?> <?= round($C2 - $len, 2) ?>"
+                              stroke-dashoffset="<?= round(-$bpAcc * $C2, 2) ?>"
+                              data-label="<?= htmlspecialchars($sl['name']) ?>"
+                              data-amt="<?= number_format($sl['revenue'], 2) ?>"
+                              data-pct="<?= round($frac * 100) ?>"
+                              data-cls="<?= $colCls ?>"></circle>
+                    </g>
+                  <?php $bpAcc += $frac; endforeach; ?>
+                  <text x="70" y="66" class="dr-donut-mid">$<?= number_format($allProductRev, 2) ?></text>
+                  <text x="70" y="82" class="dr-donut-sub">revenue</text>
+                </svg>
+                <ul class="dr-legend">
+                  <?php if ($bpSlices): ?>
+                  <?php foreach ($bpSlices as $si => $sl):
+                      $frac = $allProductRev > 0 ? $sl['revenue'] / $allProductRev : 0;
+                      $colCls = $bpColors[$si % count($bpColors)]; ?>
+                    <li>
+                      <span class="dr-legend-left">
+                        <span class="dr-dot <?= $colCls ?>"></span><?= htmlspecialchars($sl['name']) ?>
+                      </span>
+                      <b>$<?= number_format($sl['revenue'], 2) ?> · <?= round($frac * 100) ?>%</b>
+                    </li>
+                  <?php endforeach; ?>
+                  <?php else: ?>
+                    <li class="dr-note"><?= htmlspecialchars($drZeroLine) ?></li>
+                  <?php endif; ?>
+                </ul>
+              </div>
+          </div>
+
+          <div class="dr-card">
+            <div class="dr-k">best add-on price</div>
+            <?php
+                $C = 2 * M_PI * 54;
+                $topAddons = array_slice($addonSales, 0, 5, true);
+                $addonSlices = [];
+                if ($totalAddonRev > 0 && $topAddons) {
+                    foreach ($topAddons as $adName => $adRow) {
+                        $addonSlices[] = [
+                            'name' => $adName,
+                            'price' => (float)$adRow['price'],
+                            'qty' => (int)$adRow['qty'],
+                            'revenue' => (float)$adRow['revenue']
+                        ];
+                    }
+                    $otherAddonRev = $totalAddonRev - array_sum(array_column($addonSlices, 'revenue'));
+                    if ($otherAddonRev > 0.005) {
+                        $addonSlices[] = [
+                            'name' => 'Other',
+                            'price' => 0,
+                            'qty' => 0,
+                            'revenue' => $otherAddonRev
+                        ];
+                    }
+                } elseif ($topAddons) {
+                    foreach ($topAddons as $adName => $adRow) {
+                        $addonSlices[] = [
+                            'name' => $adName,
+                            'price' => (float)$adRow['price'],
+                            'qty' => (int)$adRow['qty'],
+                            'revenue' => 0.0
+                        ];
+                    }
+                }
+                $catAcc = 0.0;
+                $catColors = ['cat0','cat1','cat2','cat3','cat4','cat0']; ?>
+              <div class="dr-donut-row">
+                <svg class="dr-donut" viewBox="0 0 140 140" role="img" aria-label="Share of revenue by add-on">
+                  <circle cx="70" cy="70" r="54" class="dr-donut-track"></circle>
+                  <?php foreach ($addonSlices as $ci => $ad):
+                      $frac = $totalAddonRev > 0 ? $ad['revenue'] / $totalAddonRev : 0;
+                      $len  = $frac * $C;
+                      $colCls = $catColors[$ci % count($catColors)]; ?>
+                    <g class="dr-donut-group">
+                      <circle cx="70" cy="70" r="54" class="dr-donut-seg <?= $colCls ?>"
+                              fill="transparent"
+                              stroke-dasharray="<?= round($len, 2) ?> <?= round($C - $len, 2) ?>"
+                              stroke-dashoffset="<?= round(-$catAcc * $C, 2) ?>"
+                              data-label="<?= htmlspecialchars($ad['name'] . ($ad['price'] > 0 ? ' ($' . number_format($ad['price'], 2) . ')' : '')) ?>"
+                              data-amt="<?= number_format((float)$ad['revenue'], 2) ?>"
+                              data-pct="<?= round($frac * 100) ?>"
+                              data-cls="<?= $colCls ?>"></circle>
+                    </g>
+                  <?php $catAcc += $frac; endforeach; ?>
+                  <text x="70" y="66" class="dr-donut-mid">$<?= number_format($totalAddonRev, 2) ?></text>
+                  <text x="70" y="82" class="dr-donut-sub">addon price</text>
+                </svg>
+                <ul class="dr-legend">
+                  <?php if ($addonSlices): ?>
+                  <?php foreach ($addonSlices as $ci => $ad):
+                      $frac = $totalAddonRev > 0 ? $ad['revenue'] / $totalAddonRev : 0;
+                      $colCls = $catColors[$ci % count($catColors)]; ?>
+                    <li>
+                      <span class="dr-legend-left">
+                        <span class="dr-dot <?= $colCls ?>"></span><?= htmlspecialchars($ad['name']) ?><?php if ($ad['price'] > 0): ?> <small style="color:var(--muted2); font-weight:400;">($<?= number_format($ad['price'], 2) ?>)</small><?php endif; ?>
+                      </span>
+                      <b>$<?= number_format((float)$ad['revenue'], 2) ?><?php if ($totalAddonRev > 0): ?> · <?= round($frac * 100) ?>%<?php else: ?> (<?= (int)$ad['qty'] ?> sold)<?php endif; ?></b>
+                    </li>
+                  <?php endforeach; ?>
+                  <?php else: ?>
+                    <li class="dr-note">no add-ons sold in this period</li>
+                  <?php endif; ?>
+                </ul>
+              </div>
+          </div>
 
           <div class="dr-card">
             <div class="dr-k">how the money came in</div>
-            <?php if ($gotToday > 0):
-                // Donut drawn with stroke-dasharray: each slice is a circle whose
-                // dash covers its share, offset by everything before it. No chart
-                // library — a CDN that fails on venue wifi is a blank chart.
-                $C = 2 * M_PI * 54;
-                $slices = array_values(array_filter([
+            <?php
+                $C3 = 2 * M_PI * 54;
+                $slices = $gotToday > 0 ? array_values(array_filter([
                     ['cash', 'cash', $gotCash], ['bakong', 'bakong', $gotBakong],
-                    ['later', 'pay later', $gotLater], ['other', 'other ways', $gotOther],
-                ], fn($s) => $s[2] > 0.005));
+                    ['later', 'pay later', $gotLater], ['other', 'Riel', $gotOther],
+                ], fn($s) => $s[2] > 0.005)) : [];
                 $acc = 0.0; ?>
               <div class="dr-donut-row">
                 <svg class="dr-donut" viewBox="0 0 140 140" role="img" aria-label="Share of money by how it was paid">
                   <circle cx="70" cy="70" r="54" class="dr-donut-track"></circle>
                   <?php foreach ($slices as [$cls, $lbl, $amt]):
-                      $frac = $amt / $gotToday;
-                      $len  = $frac * $C; ?>
-                    <circle cx="70" cy="70" r="54" class="dr-donut-seg seg-<?= $cls ?>"
-                            stroke-dasharray="<?= round($len, 2) ?> <?= round($C - $len, 2) ?>"
-                            stroke-dashoffset="<?= round(-$acc * $C, 2) ?>"></circle>
+                      $frac = $gotToday > 0 ? $amt / $gotToday : 0;
+                      $len  = $frac * $C3; ?>
+                    <g class="dr-donut-group">
+                      <circle cx="70" cy="70" r="54" class="dr-donut-seg seg-<?= $cls ?>"
+                              fill="transparent"
+                              stroke-dasharray="<?= round($len, 2) ?> <?= round($C3 - $len, 2) ?>"
+                              stroke-dashoffset="<?= round(-$acc * $C3, 2) ?>"
+                              data-label="<?= htmlspecialchars($lbl) ?>"
+                              data-amt="<?= number_format($amt, 2) ?>"
+                              data-pct="<?= round($frac * 100) ?>"
+                              data-cls="seg-<?= $cls ?>"></circle>
+                    </g>
                   <?php $acc += $frac; endforeach; ?>
                   <text x="70" y="66" class="dr-donut-mid">$<?= number_format($gotToday, 2) ?></text>
                   <text x="70" y="82" class="dr-donut-sub">collected</text>
                 </svg>
                 <ul class="dr-legend">
+                  <?php if ($gotToday > 0): ?>
                   <?php foreach ($slices as [$cls, $lbl, $amt]): ?>
-                    <li><span class="dr-dot seg-<?= $cls ?>"></span><?= htmlspecialchars($lbl) ?>
-                        <b>$<?= number_format($amt, 2) ?></b></li>
+                    <li>
+                      <span class="dr-legend-left">
+                        <span class="dr-dot seg-<?= $cls ?>"></span><?= htmlspecialchars($lbl) ?>
+                      </span>
+                      <b>$<?= number_format($amt, 2) ?></b>
+                    </li>
                   <?php endforeach; ?>
+                  <?php else: ?>
+                    <li class="dr-note"><?= htmlspecialchars($drZeroLine) ?></li>
+                  <?php endif; ?>
                 </ul>
               </div>
-            <?php else: ?>
-              <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
-            <?php endif; ?>
-            <?php if ($notPaidYet > 0): ?>
-              <p class="dr-note">$<?= number_format($notPaidYet, 2) ?> not paid yet. We count it only when the customer pays.</p>
+            <?php if ($gotToday > 0 && $notPaidYet > 0): ?>
+              <p class="dr-note">$<?= number_format($notPaidYet, 2) ?> not paid yet<?= $isRange ? '' : '. We count it only when the customer pays' ?>.</p>
             <?php endif; ?>
           </div>
-        </div>
-
-        <div class="dr-card dr-wide">
-          <div class="dr-k">best seller</div>
-          <?php // Orders, cups and the per-order average are headline stats now —
-                // repeating them here would be four more numbers to keep in step. ?>
-          <?php if ($bestSellerName !== null): ?>
-            <div class="dr-v-lg dr-v-text"><?= htmlspecialchars($bestSellerName) ?></div>
-            <div class="dr-note"><?= (int)$bestSellerQty ?> sold<?= $avgCups !== null ? ' · ' . number_format($avgCups, 1) . ' cups per order' : '' ?></div>
-          <?php else: ?>
-            <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
-          <?php endif; ?>
         </div>
     </div>
     <div class="dr-panel" id="panel-orders" hidden></div>
@@ -1305,6 +1861,10 @@ body{
 <script>
 const drLoaded = {};           // tab -> true once its HTML has arrived
 const DR_DATE  = <?= json_encode($date) ?>;
+const DR_IS_RANGE = <?= $isRange ? 'true' : 'false' ?>;
+const DR_DATE_FROM = <?= $isRange ? json_encode($dateFrom) : 'null' ?>;
+const DR_DATE_TO   = <?= $isRange ? json_encode($dateTo) : 'null' ?>;
+const DR_VIEW   = <?= json_encode($view) ?>;
 
 function drShowTab(tab) {
     const btn = document.querySelector('.dr-tab[data-tab="' + tab + '"]');
@@ -1344,7 +1904,12 @@ async function loadFragment(tab) {
     const panel = document.getElementById('panel-' + tab);
     panel.innerHTML = '<div class="dr-loading">Loading…</div>';
     try {
-        const res  = await fetch('daily_report.php?fragment=' + tab + '&date=' + encodeURIComponent(DR_DATE));
+        let url = 'daily_report.php?fragment=' + tab + '&date=' + encodeURIComponent(DR_DATE);
+        if (DR_IS_RANGE) {
+            url += '&date_from=' + encodeURIComponent(DR_DATE_FROM) + '&date_to=' + encodeURIComponent(DR_DATE_TO);
+        }
+        url += '&view=' + encodeURIComponent(DR_VIEW);
+        const res  = await fetch(url);
         if (!res.ok) throw new Error(res.status);
         panel.innerHTML = await res.text();
         drLoaded[tab] = true;
@@ -1405,41 +1970,29 @@ function drRenderPager(wrap, page, totalPages, info, onGo) {
     });
 }
 
-// ── Tab 2: Orders — filter pills + client-side pagination ──
+// ── Tab 2: Orders — filter pills + scrollable list ──
 // Run once per fragment load (loadFragment calls this after innerHTML is set,
 // since <script> tags inside injected HTML never execute).
 function drInit_orders() {
     const panel = document.getElementById('panel-orders');
     const table = panel && panel.querySelector('#ordersTable');
     if (!table) return;
-    const pageSize = 10;
     const allRows  = Array.from(table.querySelectorAll('tbody tr[data-method]'));
-    const pager    = panel.querySelector('#ordersPagination');
     const foot     = panel.querySelector('#ordersFoot');
     let filtered = allRows.slice();
-    let page = 1;
 
     function render() {
         allRows.forEach(r => { r.style.display = 'none'; });
-        const start = (page - 1) * pageSize;
-        filtered.slice(start, start + pageSize).forEach(r => { r.style.display = ''; });
-        renderPager();
+        filtered.forEach(r => { r.style.display = ''; });
         renderFoot();
     }
 
-    // Describes the currently-filtered set (all matching rows, not just the
-    // page on screen) — clicking a pill must change what the footer says, or
-    // it silently contradicts the table exactly like the "$X total" bug did.
     function renderFoot() {
         if (!foot) return;
         let cups = 0, collected = 0, notPaid = 0, notPaidCount = 0;
         filtered.forEach(r => {
             cups += parseInt(r.dataset.cups || '0', 10);
             const total = parseFloat(r.dataset.total || '0');
-            // 'refunded' rows read "money given back" in the Paid column, but
-            // this total must still agree with tab 1's card and the PHP-
-            // rendered footer below, both of which bucket Refunded under
-            // NOT (paid_orders_where()) — i.e. everything that isn't 'ok'.
             if (r.dataset.state !== 'ok') { notPaid += total; notPaidCount++; }
             else { collected += total; }
         });
@@ -1451,21 +2004,11 @@ function drInit_orders() {
         foot.innerHTML = html;
     }
 
-    function renderPager() {
-        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-        const start = (page - 1) * pageSize;
-        const end   = Math.min(start + pageSize, filtered.length);
-        drRenderPager(pager, page, totalPages,
-            'showing ' + (start + 1) + '–' + end + ' of ' + filtered.length,
-            p => { page = p; render(); });
-    }
-
     panel.querySelectorAll('.dr-pill').forEach(btn => {
         btn.addEventListener('click', () => {
             panel.querySelectorAll('.dr-pill').forEach(b => b.classList.toggle('is-on', b === btn));
             const f = btn.dataset.filter;
             filtered = (f === 'all') ? allRows.slice() : allRows.filter(r => r.dataset.method === f);
-            page = 1;
             render();
         });
     });
@@ -1478,55 +2021,31 @@ function drInit_stock() {
     const panel = document.getElementById('panel-stock');
     const table = panel && panel.querySelector('#stockTable');
     if (!table) return;
-    const pageSize = 10;
     const allRows = Array.from(table.querySelectorAll('tbody tr[data-bucket]'));
     const search  = panel.querySelector('#stockSearch');
-    const pager   = panel.querySelector('#stockPagination');
     const foot    = panel.querySelector('#stockFoot');
     let activeFilter = 'all';
     let filtered = allRows.slice();
-    let page = 1;
 
-    // Filter and search decide WHICH rows; the pager decides how many of them
-    // are on screen. Any change to the first two resets to page 1 — leaving a
-    // filtered set showing "page 4 of 1" is how paginated tables go blank.
-    function apply(resetPage) {
+    function apply() {
         const q = (search && search.value || '').trim().toLowerCase();
         filtered = allRows.filter(r =>
             (activeFilter === 'all' || r.dataset.bucket === activeFilter) &&
             (!q || r.dataset.name.includes(q))
         );
-        if (resetPage !== false) page = 1;
-        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-        if (page > totalPages) page = totalPages;
         render();
     }
 
     function render() {
         allRows.forEach(r => { r.style.display = 'none'; });
-        const start = (page - 1) * pageSize;
-        filtered.slice(start, start + pageSize).forEach(r => { r.style.display = ''; });
+        filtered.forEach(r => { r.style.display = ''; });
         renderFoot();
-        renderPager();
     }
 
-    // Only speaks when the pager is silent. Once there is more than one page the
-    // pager's own info line carries the count, and two of them would be two
-    // numbers to keep in agreement.
     function renderFoot() {
         if (!foot) return;
         if (filtered.length === 0)      foot.innerHTML = '<span>nothing matches</span>';
-        else if (filtered.length <= pageSize) foot.innerHTML = '<span>' + filtered.length + ' item' + (filtered.length === 1 ? '' : 's') + '</span>';
-        else                            foot.innerHTML = '';
-    }
-
-    function renderPager() {
-        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-        const start = (page - 1) * pageSize;
-        const end   = Math.min(start + pageSize, filtered.length);
-        drRenderPager(pager, page, totalPages,
-            'showing ' + (start + 1) + '–' + end + ' of ' + filtered.length,
-            p => { page = p; render(); });
+        else                            foot.innerHTML = '<span>' + filtered.length + ' item' + (filtered.length === 1 ? '' : 's') + '</span>';
     }
 
     panel.querySelectorAll('.dr-pill').forEach(btn => {
@@ -1544,7 +2063,7 @@ function drInit_stock() {
 
 // ── Live refresh (Task 9) — poll a cheap signature, today only. A past date
 // is settled history and must never repeat a network request for it.
-const DR_IS_TODAY = <?= $isToday ? 'true' : 'false' ?>;
+const DR_IS_TODAY = <?= ($isToday && !$isRange) ? 'true' : 'false' ?>;
 let drSig = null;
 if (DR_IS_TODAY) {
     setInterval(async () => {
@@ -1568,6 +2087,100 @@ if (DR_IS_TODAY) {
     }, 30000);
 }
 
+// ── Range picker modal (triggered by selecting "Range" in view dropdown) ──
+function drOpenRangeModal() {
+    const today = <?= json_encode($today) ?>;
+    const overlay = document.createElement('div');
+    overlay.className = 'dr-range-overlay';
+    overlay.innerHTML = `<div class="dr-range-modal">
+      <h3>Select date range</h3>
+      <form method="get" class="dr-range-form">
+        <input type="hidden" name="view" value="range">
+        <input type="date" name="date_from" value="${today}" class="dr-date-input" required max="${today}">
+        <span class="dr-range-sep">→</span>
+        <input type="date" name="date_to"   value="${today}" class="dr-date-input" required max="${today}">
+        <div class="dr-range-actions">
+          <button type="button" class="dr-nav" id="drRangeCancel">Cancel</button>
+          <button type="submit" class="dr-nav" style="background:var(--amber);color:#1a1207;border-color:var(--amber)">View report</button>
+        </div>
+      </form>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#drRangeCancel').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', function (ev) { if (ev.target === overlay) overlay.remove(); });
+}
+document.getElementById('drViewSelect')?.addEventListener('change', function (e) {
+    if (this.value === 'range') {
+        this.value = <?= json_encode($view) ?>;
+        drOpenRangeModal();
+    } else {
+        this.form.submit();
+    }
+});
+document.getElementById('drReRangeBtn')?.addEventListener('click', function () {
+    drOpenRangeModal();
+});
+
+// ── Donut chart floating tooltip (cursor-follows) ──
+document.addEventListener('DOMContentLoaded', function () {
+    var tip = document.createElement('div');
+    tip.className = 'dr-donut-float-tip';
+    tip.id = 'drDonutTip';
+    document.body.appendChild(tip);
+    var segs = document.querySelectorAll('.dr-donut-seg');
+    var activeSeg = null;
+    function show(seg, x, y) {
+        var label = seg.getAttribute('data-label') || '';
+        var amt   = seg.getAttribute('data-amt') || '0.00';
+        var pct   = seg.getAttribute('data-pct') || '0';
+        var cls   = seg.getAttribute('data-cls') || '';
+        tip.innerHTML = '<span class="dr-dot ' + cls + '"></span> ' + label + ' \u00B7 $' + amt + ' (' + pct + '%)';
+        tip.style.display = 'block';
+        position(tip, x, y);
+    }
+    function position(el, mx, my) {
+        el.style.left = (mx + 15) + 'px';
+        el.style.top  = (my - 35) + 'px';
+    }
+    function hide() {
+        tip.style.display = 'none';
+    }
+    segs.forEach(function (seg) {
+        seg.addEventListener('mouseenter', function (e) {
+            activeSeg = this;
+            show(this, e.clientX, e.clientY);
+        });
+        seg.addEventListener('mousemove', function (e) {
+            if (activeSeg === this) position(tip, e.clientX, e.clientY);
+        });
+        seg.addEventListener('mouseleave', function () {
+            if (activeSeg === this) { activeSeg = null; hide(); }
+        });
+    });
+
+    // ── Bar chart floating tooltip (cursor-follows) ──
+    var bars = document.querySelectorAll('.dr-hour');
+    var activeBar = null;
+    function barShow(el, x, y) {
+        var tipText = el.querySelector('.dr-hour-tip');
+        tip.innerHTML = tipText ? tipText.textContent : '';
+        tip.style.display = 'block';
+        position(tip, x, y);
+    }
+    bars.forEach(function (bar) {
+        bar.addEventListener('mouseenter', function (e) {
+            activeBar = this;
+            barShow(this, e.clientX, e.clientY);
+        });
+        bar.addEventListener('mousemove', function (e) {
+            if (activeBar === this) position(tip, e.clientX, e.clientY);
+        });
+        bar.addEventListener('mouseleave', function () {
+            if (activeBar === this) { activeBar = null; hide(); }
+        });
+    });
+});
+
 // follows shared theme key (toggled elsewhere)
 window.addEventListener('storage', function (e) {
     if (e.key === 'theme') {
@@ -1576,5 +2189,6 @@ window.addEventListener('storage', function (e) {
     }
 });
 </script>
+
 </body>
 </html>
