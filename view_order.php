@@ -1630,15 +1630,19 @@ function showClockToast(msg, isErr) {
         📋 All <span class="badge" id="count-all">0</span>
     </button>
     <?php endif; ?>
+    <?php if ($r !== 'staff'): ?>
     <button class="status-tab <?= $r === 'barista' ? 'active' : '' ?>" data-status="Preparing" onclick="filterStatus('Preparing')">
         👨‍🍳 Preparing <span class="badge" id="count-Preparing">0</span>
     </button>
+    <?php endif; ?>
     <button class="status-tab <?= $r === 'staff' ? 'active' : '' ?>" data-status="Completed" onclick="filterStatus('Completed')">
         ✅ Completed <span class="badge" id="count-Completed">0</span>
     </button>
+    <?php if ($r !== 'staff' && $r !== 'barista'): ?>
     <button class="status-tab" data-status="Cancelled" onclick="filterStatus('Cancelled')">
         ❌ Cancelled <span class="badge" id="count-Cancelled">0</span>
     </button>
+    <?php endif; ?>
     <?php if ($r === 'admin' || $r === 'manager'): ?>
     <button class="status-tab" data-status="Refunded" onclick="filterStatus('Refunded')">
         🔄 Refunded <span class="badge" id="count-Refunded">0</span>
