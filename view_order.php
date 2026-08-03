@@ -1627,25 +1627,25 @@ function showClockToast(msg, isErr) {
 <div class="status-tabs" id="statusTabs">
     <?php if ($r === 'admin' || $r === 'manager'): ?>
     <button class="status-tab active" data-status="all" onclick="filterStatus('all')">
-        📋 All <span class="badge" id="count-all">0</span>
+        <i class="fa-solid fa-layer-group"></i> All <span class="badge" id="count-all">0</span>
     </button>
     <?php endif; ?>
     <?php if ($r !== 'staff'): ?>
     <button class="status-tab <?= $r === 'barista' ? 'active' : '' ?>" data-status="Preparing" onclick="filterStatus('Preparing')">
-        👨‍🍳 Preparing <span class="badge" id="count-Preparing">0</span>
+        <i class="fa-solid fa-fire-burner"></i> Preparing <span class="badge" id="count-Preparing">0</span>
     </button>
     <?php endif; ?>
     <button class="status-tab <?= $r === 'staff' ? 'active' : '' ?>" data-status="Completed" onclick="filterStatus('Completed')">
-        ✅ Completed <span class="badge" id="count-Completed">0</span>
+        <i class="fa-solid fa-circle-check"></i> Completed <span class="badge" id="count-Completed">0</span>
     </button>
     <?php if ($r !== 'staff' && $r !== 'barista'): ?>
     <button class="status-tab" data-status="Cancelled" onclick="filterStatus('Cancelled')">
-        ❌ Cancelled <span class="badge" id="count-Cancelled">0</span>
+        <i class="fa-solid fa-circle-xmark"></i> Cancelled <span class="badge" id="count-Cancelled">0</span>
     </button>
     <?php endif; ?>
     <?php if ($r === 'admin' || $r === 'manager'): ?>
     <button class="status-tab" data-status="Refunded" onclick="filterStatus('Refunded')">
-        🔄 Refunded <span class="badge" id="count-Refunded">0</span>
+        <i class="fa-solid fa-rotate-left"></i> Refunded <span class="badge" id="count-Refunded">0</span>
     </button>
     <?php endif; ?>
 </div>
@@ -1827,11 +1827,11 @@ function buildItems(items) {
     let html = '<div class="items-list">';
     items.forEach(i => {
         const chips = [];
-        if (i.size)      chips.push(`<span class="item-chip">📏 Size: ${escapeHtml(i.size)}</span>`);
-        if (i.sweetness) chips.push(`<span class="item-chip">🍬 ${escapeHtml(i.sweetness)}</span>`);
-        if (i.ice)       chips.push(`<span class="item-chip">🧊 ${escapeHtml(i.ice)}</span>`);
-        if (i.milk)      chips.push(`<span class="item-chip">🥛 ${escapeHtml(i.milk)}</span>`);
-        if (i.addons && i.addons.length) chips.push(`<span class="item-chip">➕ Add-ons: ${escapeHtml(i.addons.join(', '))}</span>`);
+        if (i.size)      chips.push(`<span class="item-chip"><i class="fa-solid fa-ruler-combined"></i> Size: ${escapeHtml(i.size)}</span>`);
+        if (i.sweetness) chips.push(`<span class="item-chip"><i class="fa-solid fa-cube"></i> ${escapeHtml(i.sweetness)}</span>`);
+        if (i.ice)       chips.push(`<span class="item-chip"><i class="fa-solid fa-cubes-stacked"></i> ${escapeHtml(i.ice)}</span>`);
+        if (i.milk)      chips.push(`<span class="item-chip"><i class="fa-solid fa-glass-water"></i> ${escapeHtml(i.milk)}</span>`);
+        if (i.addons && i.addons.length) chips.push(`<span class="item-chip"><i class="fa-solid fa-puzzle-piece"></i> Add-ons: ${escapeHtml(i.addons.join(', '))}</span>`);
 
         html += `<div class="item-line">
             <div class="item-qty-badge">×${escapeHtml(String(i.quantity))}</div>
@@ -1864,17 +1864,17 @@ function getStatusBadge(status) {
     let statusText = status;
 
     if (status === 'PendingPayment') {
-        statusText = '⏳ Pending';
+        statusText = '<i class="fa-solid fa-clock"></i> Pending';
     } else if (status === 'Paid') {
-        statusText = '💵 Paid';
+        statusText = '<i class="fa-solid fa-dollar-sign"></i> Paid';
     } else if (status === 'Preparing') {
-        statusText = '👨‍🍳 Preparing';
+        statusText = '<i class="fa-solid fa-fire-burner"></i> Preparing';
     } else if (status === 'Completed') {
-        statusText = '✅ Completed';
+        statusText = '<i class="fa-solid fa-circle-check"></i> Completed';
     } else if (status === 'Cancelled') {
-        statusText = '❌ Cancelled';
+        statusText = '<i class="fa-solid fa-circle-xmark"></i> Cancelled';
     } else if (status === 'Refunded') {
-        statusText = '🔄 Refunded';
+        statusText = '<i class="fa-solid fa-rotate-left"></i> Refunded';
     }
     
     return `<span class="status ${statusClass}">${statusText}</span>`;

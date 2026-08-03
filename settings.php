@@ -854,8 +854,8 @@ body::after {
                 <div class="field" style="margin-bottom:16px;">
                     <label><i class="fa-solid fa-sliders"></i> Earning Mode</label>
                     <select name="loyalty_mode" id="loyMode" onchange="loyPreview()">
-                        <option value="drinks" <?= $loy_mode === 'drinks' ? 'selected' : '' ?>>☕ Per Drink Quantity (e.g. 1 point per 2 drinks)</option>
-                        <option value="spend" <?= $loy_mode === 'spend' ? 'selected' : '' ?>>💵 Per Dollar Spend ($) (e.g. 1 point per $10 spent)</option>
+                        <option value="drinks" <?= $loy_mode === 'drinks' ? 'selected' : '' ?>>Per Drink Quantity (e.g. 1 point per 2 drinks)</option>
+                        <option value="spend" <?= $loy_mode === 'spend' ? 'selected' : '' ?>>Per Dollar Spend ($) (e.g. 1 point per $10 spent)</option>
                     </select>
                     <span class="field-hint">Earn by drink count or by total order spend amount</span>
                 </div>
