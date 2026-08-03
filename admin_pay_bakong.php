@@ -932,17 +932,28 @@ function showVerifyError(msg, errType) {
                 try {
                     const formData = new FormData();
                     formData.append('action', 'manual_confirm');
+                    formData.append('order_id', orderId);
                     const res = await fetch('check_payment.php?order_id=' + orderId, { method: 'POST', body: formData });
+                    const contentType = res.headers.get('content-type') || '';
+                    if (!res.ok || !contentType.includes('application/json')) {
+                        const rawText = await res.text();
+                        console.error('Manual confirm response error:', res.status, rawText);
+                        alert('Confirmation error (HTTP ' + res.status + '). Please try again or check Find Orders.');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Manually Confirm Payment (Bank Verified)</span>';
+                        return;
+                    }
                     const data = await res.json();
                     if (data.paid) {
                         showPaymentSuccess();
                     } else {
-                        alert(data.error || 'Failed to confirm payment.');
+                        alert(data.error || data.message || 'Failed to confirm payment.');
                         btn.disabled = false;
                         btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Manually Confirm Payment (Bank Verified)</span>';
                     }
                 } catch (e) {
-                    alert('Network error confirming payment.');
+                    console.error('Manual confirm exception:', e);
+                    alert('Error: ' + (e.message || 'Network error confirming payment.'));
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Manually Confirm Payment (Bank Verified)</span>';
                 }

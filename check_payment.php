@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require 'config.php';
 require __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
 
@@ -14,7 +16,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $config = require __DIR__ . '/bakong_config.php';
 
-$order_id = (int)($_GET['order_id'] ?? 0);
+$order_id = (int)($_REQUEST['order_id'] ?? $_GET['order_id'] ?? $_POST['order_id'] ?? 0);
 
 if ($order_id <= 0) {
     echo json_encode(['paid' => false, 'error' => 'Invalid order id']);
@@ -33,7 +35,24 @@ $stmt->bind_param("i", $order_id);
 $stmt->execute();
 $order = $stmt->get_result()->fetch_assoc();
 
-if (!$order || empty($order['bakong_md5'])) {
+if (!$order) {
+    echo json_encode(['paid' => false, 'error' => 'Order not found']);
+    exit;
+}
+
+// Handle manual confirmation by staff/manager (allowed even if bakong_md5 is empty)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual_confirm') {
+    try {
+        _settle_bakong_order($conn, $order, $order_id);
+        echo json_encode(['paid' => true, 'message' => 'Payment manually confirmed successfully.']);
+        exit;
+    } catch (Throwable $e) {
+        echo json_encode(['paid' => false, 'error' => 'Manual confirmation failed: ' . $e->getMessage()]);
+        exit;
+    }
+}
+
+if (empty($order['bakong_md5'])) {
     echo json_encode(['paid' => false]);
     exit;
 }
@@ -61,18 +80,6 @@ $already_settled = $is_paylater
 if ($already_settled) {
     echo json_encode(['paid' => true]);
     exit;
-}
-
-// Handle manual confirmation by staff/manager
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual_confirm') {
-    try {
-        _settle_bakong_order($conn, $order, $order_id);
-        echo json_encode(['paid' => true, 'message' => 'Payment manually confirmed successfully.']);
-        exit;
-    } catch (Throwable $e) {
-        echo json_encode(['paid' => false, 'error' => 'Manual confirmation failed: ' . $e->getMessage()]);
-        exit;
-    }
 }
 
 // ── Bakong API check (no manual override — payments must be verified by Bakong) ──
@@ -152,75 +159,68 @@ try {
 function _settle_bakong_order(mysqli $conn, array $order, int $order_id): void {
     $conn->begin_transaction();
     try {
-        // 1. Mark Bakong payment as paid in order_payments
+        // 1. Mark payment as paid in order_payments
         $stmt_payment = $conn->prepare("
             UPDATE order_payments
             SET payment_status = 'paid'
-            WHERE order_id = ? AND payment_method = 'bakong'
+            WHERE order_id = ?
         ");
         $stmt_payment->bind_param("i", $order_id);
         $stmt_payment->execute();
 
-        // 2. Check if all payments for this order are now paid
-        $stmt_check = $conn->prepare("
-            SELECT COUNT(*) AS pending_count
-            FROM order_payments
-            WHERE order_id = ? AND payment_status != 'paid'
-        ");
-        $stmt_check->bind_param("i", $order_id);
-        $stmt_check->execute();
-        $result = $stmt_check->get_result();
-        $pending = $result->fetch_assoc();
+        // 2. Advance order status
+        if (($order['payment_method'] ?? '') === 'paylater') {
+            $stmt_status = $conn->prepare("
+                UPDATE orders SET status = 'Paid', is_open = 0
+                WHERE order_id = ?
+            ");
+        } else {
+            $stmt_status = $conn->prepare("
+                UPDATE orders SET status = 'Preparing'
+                WHERE order_id = ? AND status = 'PendingPayment'
+            ");
+        }
+        $stmt_status->bind_param("i", $order_id);
+        $stmt_status->execute();
 
-        // 3. If no pending payments, advance order status
-        if ($pending['pending_count'] == 0) {
-            if ($order['payment_method'] === 'paylater') {
-                $stmt_status = $conn->prepare("
-                    UPDATE orders SET status = 'Paid', is_open = 0
-                    WHERE order_id = ?
-                ");
-            } else {
-                $stmt_status = $conn->prepare("
-                    UPDATE orders SET status = 'Preparing'
-                    WHERE order_id = ? AND status = 'PendingPayment'
-                ");
-            }
-            $stmt_status->bind_param("i", $order_id);
-            $stmt_status->execute();
-
-            // Award loyalty points for paylater orders settled via Bakong (once).
-            if ($order['payment_method'] === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
-                $lc_id = (int)($order['loyalty_card_id'] ?? 0);
-                if ($lc_id > 0) {
-                    $qty = loyalty_earning_qty($conn, $order_id);
-                    if ($qty > 0) {
-                        loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
-                    }
+        // Award loyalty points for paylater orders settled via Bakong (once).
+        if (($order['payment_method'] ?? '') === 'paylater' && (int)($order['points_earned'] ?? 0) === 0) {
+            $lc_id = (int)($order['loyalty_card_id'] ?? 0);
+            if ($lc_id > 0) {
+                $qty = loyalty_earning_qty($conn, $order_id);
+                if ($qty > 0) {
+                    loyalty_sync($conn, $lc_id, $order_id, $qty, 'Points earned from Pay Later order');
                 }
             }
         }
 
         $conn->commit();
 
-        // Notify Node server
-        $data = json_encode([
-            "type" => "new_order",
-            "payload" => [
-                "order_id" => $order_id
-            ]
-        ]);
+        // Notify Node server (non-fatal if offline)
+        try {
+            $data = json_encode([
+                "type" => "new_order",
+                "payload" => [
+                    "order_id" => $order_id
+                ]
+            ]);
 
-        $ch = curl_init("http://localhost:3000/notify");
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            "Content-Type: application/json",
-            "Content-Length: " . strlen($data)
-        ]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-        curl_exec($ch);
-        curl_close($ch);
+            $ch = curl_init("http://localhost:3000/notify");
+            if ($ch !== false) {
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    "Content-Type: application/json",
+                    "Content-Length: " . strlen($data)
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 1);
+                curl_exec($ch);
+                curl_close($ch);
+            }
+        } catch (Throwable $e) {
+            // Node server notification is optional
+        }
     } catch (Throwable $e) {
         $conn->rollback();
         throw $e;
