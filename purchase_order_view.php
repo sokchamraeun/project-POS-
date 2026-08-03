@@ -614,10 +614,33 @@ $vals = po_line_values($conn, $po_id);
         </div>
         </form>
         <?php endif; ?>
+        <?php /* Ordered AND received, never one replacing the other.
+                 total_cost is the order as placed and is what the supplier will
+                 invoice — it is the number a manager checks the invoice against,
+                 so dropping it to show only the delivered value would remove the
+                 means of catching an overbill. Showing only the ordered value is
+                 the opposite failure: on a short delivery the largest figure on
+                 the page overstates what actually arrived.
+                 RECEIVED is the derived $vals['received'], the same figure the
+                 Cost Summary uses, so the two cannot disagree. */ ?>
         <div class="total-bar">
             <div class="total-bar-inner">
+                <?php if ($po['status'] === 'Partially Received' || $po['closed_short']): ?>
+                <div class="total-bar-label">Ordered &middot; Received</div>
+                <div class="total-bar-value">
+                    <span style="color:var(--text-muted);font-size:20px">$<?= number_format($po['total_cost'],2) ?></span>
+                    <span style="color:var(--text-muted);font-size:18px">&middot;</span>
+                    $<?= number_format($vals['received'],2) ?>
+                </div>
+                <?php if ($vals['outstanding'] > 0.005): ?>
+                <div style="font-size:12px;color:var(--warning,#e0a955);margin-top:2px">
+                    $<?= number_format($vals['outstanding'],2) ?> not delivered<?= $po['closed_short'] ? ' &mdash; written off' : '' ?>
+                </div>
+                <?php endif; ?>
+                <?php else: ?>
                 <div class="total-bar-label">Total Cost (ordered)</div>
                 <div class="total-bar-value">$<?= number_format($po['total_cost'],2) ?></div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
