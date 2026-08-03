@@ -28,6 +28,14 @@ function qs(array $overrides = []): string {
     return 'attendance_history.php?' . http_build_query($p);
 }
 
+function format_attendance_hours(?float $hours): string {
+    if ($hours === null) return '—';
+    $val = (float)$hours;
+    if ($val < 0.01) return '< 1m';
+    if ($val < 0.1) return max(1, (int)round($val * 60)) . 'm';
+    return number_format($val, 2) . 'h';
+}
+
 // ── CSV export (must run before any HTML output) ──
 if (($_GET['export'] ?? '') === 'csv') {
     $csv_stmt = $conn->prepare(
@@ -58,7 +66,7 @@ if (($_GET['export'] ?? '') === 'csv') {
             $r['username'],
             $r['clock_in'],
             $r['clock_out'] ?? '',
-            is_null($r['hours_worked']) ? '' : number_format((float)$r['hours_worked'], 2),
+            is_null($r['hours_worked']) ? '' : format_attendance_hours((float)$r['hours_worked']),
             is_null($r['clock_out']) ? 'Active' : 'Complete',
         ]));
     }
@@ -336,6 +344,14 @@ tbody td { padding:13px 20px; font-size:13px; vertical-align:middle; }
 .pg-disabled { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; border:1px solid var(--border); color:var(--text-muted); font-size:13px; opacity:.35; cursor:default; }
 .pg-ellipsis { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; color:var(--text-muted); font-size:13px; }
 .pg-info { font-size:12px; color:var(--text-muted); }
+
+/* Table Column Sorting */
+th.sortable { cursor: pointer; user-select: none; transition: color .15s ease; }
+th.sortable:hover { color: var(--accent); }
+th.sortable .sort-icon { font-size: 10px; margin-left: 6px; opacity: 0.35; transition: opacity .15s; }
+th.sortable:hover .sort-icon { opacity: 0.75; }
+th.sortable.asc .sort-icon,
+th.sortable.desc .sort-icon { opacity: 1; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -428,8 +444,12 @@ tbody td { padding:13px 20px; font-size:13px; vertical-align:middle; }
         <table>
             <thead>
                 <tr>
-                    <th>Date</th><th>Employee</th><th>Clock In</th>
-                    <th>Clock Out</th><th>Hours</th><th>Status</th>
+                    <th class="sortable" onclick="sortTable(0, 'date')">Date <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable" onclick="sortTable(1, 'text')">Employee <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable" onclick="sortTable(2, 'time')">Clock In <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable" onclick="sortTable(3, 'time')">Clock Out <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable" onclick="sortTable(4, 'number')">Hours <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable" onclick="sortTable(5, 'text')">Status <i class="fa-solid fa-sort sort-icon"></i></th>
                 </tr>
             </thead>
             <tbody>
@@ -450,7 +470,7 @@ tbody td { padding:13px 20px; font-size:13px; vertical-align:middle; }
                 </td>
                 <td><?= date('g:i A', strtotime($r['clock_in'])) ?></td>
                 <td><?= $working ? '<span style="color:var(--text-muted)">—</span>' : date('g:i A', strtotime($r['clock_out'])) ?></td>
-                <td><?= $working ? '<span style="color:var(--text-muted)">—</span>' : number_format((float)$r['hours_worked'], 2) . 'h' ?></td>
+                <td><?= $working ? '<span style="color:var(--text-muted)">—</span>' : format_attendance_hours((float)$r['hours_worked']) ?></td>
                 <td>
                     <?php if ($working): ?>
                     <span class="badge badge-working"><span class="live-dot" style="width:6px;height:6px"></span> Active</span>
@@ -534,6 +554,68 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.getElementById('empDD')?.classList.remove('open');
 });
+
+// ── Client-side Table Column Sorting ──
+let sortState = { col: -1, dir: 'asc' };
+
+function parseCellVal(tr, colIdx, type) {
+    const td = tr.children[colIdx];
+    if (!td) return '';
+    const text = td.innerText.trim();
+    if (type === 'time') {
+        if (text === '—' || !text) return 0;
+        const dummyDate = '2026-01-01';
+        const parsed = Date.parse(`${dummyDate} ${text}`);
+        return isNaN(parsed) ? text : parsed;
+    }
+    if (type === 'number') {
+        if (text === '—' || !text) return -1;
+        if (text.startsWith('<')) return 0.001;
+        if (text.endsWith('m')) return parseFloat(text) / 60;
+        return parseFloat(text) || 0;
+    }
+    if (type === 'date') {
+        const parsed = Date.parse(text);
+        return isNaN(parsed) ? text : parsed;
+    }
+    return text.toLowerCase();
+}
+
+function sortTable(colIdx, type) {
+    const tbody = document.querySelector('table tbody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length <= 1) return;
+
+    let dir = 'asc';
+    if (sortState.col === colIdx && sortState.dir === 'asc') {
+        dir = 'desc';
+    }
+    sortState = { col: colIdx, dir };
+
+    document.querySelectorAll('th.sortable').forEach((th, idx) => {
+        th.classList.remove('asc', 'desc');
+        const icon = th.querySelector('.sort-icon');
+        if (icon) {
+            if (idx === colIdx) {
+                th.classList.add(dir);
+                icon.className = `fa-solid fa-sort-${dir === 'asc' ? 'up' : 'down'} sort-icon`;
+            } else {
+                icon.className = 'fa-solid fa-sort sort-icon';
+            }
+        }
+    });
+
+    rows.sort((a, b) => {
+        const vA = parseCellVal(a, colIdx, type);
+        const vB = parseCellVal(b, colIdx, type);
+        if (vA < vB) return dir === 'asc' ? -1 : 1;
+        if (vA > vB) return dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
 </script>
 </body>
 </html>
