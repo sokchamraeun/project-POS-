@@ -1273,10 +1273,15 @@ const MOD_META   = <?= json_encode($module_meta, JSON_UNESCAPED_UNICODE) ?>;
 const ROLES_INFO = <?= json_encode($roles_js, JSON_UNESCAPED_UNICODE) ?>;
 /* Role names, descriptions and employee names are free text. Anything from those
    columns must go through this before it touches innerHTML. */
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
-    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
-));
-
+function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 let currentRole      = null;
 let currentRoleColor = '#888888';
 let currentRoleCls   = 'for-role';
