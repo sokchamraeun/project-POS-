@@ -703,6 +703,7 @@ if ($action === ""):
     .pill-opt.selected { background: #3498db; border-color: #3498db; color: #fff; font-weight: 600; }
     #remakeAdjustments { max-height: 280px; overflow-y: auto; margin-bottom: 4px; }
     .badge-remade { display:inline-flex; align-items:center; gap:4px; background:rgba(52,152,219,.15); color:#3498db; border:1px solid rgba(52,152,219,.3); border-radius:6px; font-size:10px; font-weight:600; padding:2px 7px; margin-left:6px; }
+    .bcard-badge.remade { background:rgba(52,152,219,.18); color:#3498db; border:1px solid rgba(52,152,219,.35); }
     .age-badge { display:inline-flex; align-items:center; gap:3px; border-radius:20px; font-size:10px; font-weight:600; padding:2px 7px; }
     .age-badge:empty { display:none; }
     .age-badge.age-warn  { background:rgba(255,193,7,.18); color:#f0ad4e; border:1px solid rgba(255,193,7,.35); }
@@ -1785,7 +1786,7 @@ const userRole = "<?= $_SESSION['role'] ?? 'staff' ?>";
 const OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
 const isAdmin = userRole === 'admin';
 const canManageOrders = userRole === 'admin' || userRole === 'manager';
-const canRemake = userRole === 'admin' || userRole === 'manager' || userRole === 'staff';
+const canRemake = userRole === 'admin' || userRole === 'manager' || userRole === 'staff' || userRole === 'barista';
 
 // ── Play Sound ──
 function play(id) {
@@ -2019,6 +2020,7 @@ function buildBaristaCardInner(o) {
         <div class="bcard-top">
             <span class="bcard-num">#${escapeHtml(String(o.daily_order_no))}</span>
             ${badge}
+            ${o.remake_count > 0 ? `<span class="bcard-badge remade"><i class="fa-solid fa-repeat" style="font-size:9px"></i> Remade${o.remake_count > 1 ? ` ×${o.remake_count}` : ''}</span>` : ''}
             ${o.is_returning ? '<span class="bcard-badge returning"><i class="fa-solid fa-rotate-right"></i> Returning tab</span>' : ''}
         </div>
         <div class="bcard-sub">
@@ -2029,6 +2031,11 @@ function buildBaristaCardInner(o) {
         <div class="card-footer" style="margin-top:8px">
             <div class="card-employee"><span style="opacity:.6;font-size:10px">Taken by:</span> ${escapeHtml(o.employee_name || 'Unknown')}</div>
         </div>
+        ${o.remake_count > 0 && o.remake_reasons && o.remake_reasons.length > 0 ? `<div class="card-reason remake-reason" style="margin:6px 0 2px;"><i class="fa-solid fa-repeat"></i>${
+            o.remake_reasons.length === 1
+                ? `<span>${escapeHtml(truncReason(o.remake_reasons[0]))}</span>`
+                : `<ul class="reason-list">${o.remake_reasons.map(r => `<li>${escapeHtml(truncReason(r))}</li>`).join('')}</ul>`
+        }</div>` : ''}
         <div class="card-actions">${getActionButtons(o)}</div>
     `;
 }
@@ -2194,6 +2201,15 @@ function getActionButtons(o) {
         `;
     }
     
+    // Remake button - for Preparing or Completed orders
+    if ((state === 'Preparing' || state === 'Completed') && canRemake) {
+        buttons += `
+            <button class="remake-btn" onclick="showRemakeModal(${Number(o.order_id)}, ${Number(o.daily_order_no)})" title="Log remake">
+                <i class="fa-solid fa-repeat"></i> Remake
+            </button>
+        `;
+    }
+
     if (state === 'Completed') {
         // An open pay-later tab has taken no money — 'Completed' there means made-but-owing.
         // Refunding it would erase the debt and record cash that was never collected.
@@ -2203,13 +2219,6 @@ function getActionButtons(o) {
             buttons += `
                 <button class="refund-btn" onclick="showRefundModal(${Number(o.order_id)}, ${Number(o.daily_order_no)}, ${parseFloat(o.total).toFixed(2)})" title="Refund order">
                     <i class="fa-solid fa-rotate-left"></i> Refund
-                </button>
-            `;
-        }
-        if (canRemake) {
-            buttons += `
-                <button class="remake-btn" onclick="showRemakeModal(${Number(o.order_id)}, ${Number(o.daily_order_no)})" title="Log remake">
-                    <i class="fa-solid fa-repeat"></i> Remake
                 </button>
             `;
         }
