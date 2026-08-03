@@ -384,9 +384,79 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urle
         /* ── Status ── */
         .status-section {
             display: flex;
-            justify-content: center;
-            margin-top: 10px;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 420px;
+            margin: 14px auto 0;
             animation: fadeInUp 0.7s ease 0.5s both;
+        }
+
+        .verify-error-card {
+            width: 100%;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 14px;
+            padding: 16px 18px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            animation: fadeInUp 0.3s ease both;
+        }
+        .verify-error-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #ef4444;
+            font-size: 13.5px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .verify-error-title i {
+            font-size: 15px;
+        }
+        .verify-error-msg {
+            color: var(--text, #f8fafc);
+            font-size: 12.5px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        .btn-manual-confirm {
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 11px 18px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #d1904b, #e8b87a);
+            color: #000;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(209, 144, 75, 0.25);
+            transition: all 0.2s cubic-bezier(.4,0,.2,1);
+            margin-bottom: 8px;
+        }
+        .btn-manual-confirm:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(209, 144, 75, 0.38);
+            filter: brightness(1.06);
+        }
+        .btn-manual-confirm:active {
+            transform: translateY(0);
+        }
+        .btn-manual-confirm:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .verify-error-hint {
+            font-size: 11.5px;
+            color: var(--text-muted, #888);
+            margin-top: 4px;
         }
 
         .status-indicator {
@@ -822,66 +892,62 @@ function showPaymentSuccess() {
 }
 
 // ── Show a verification error (e.g. expired token) instead of spinning forever ──
-let errorShown = false;
-let manualConfirmBtnAdded = false;
-
-function addManualConfirmBtn() {
-    if (manualConfirmBtnAdded) return;
-    manualConfirmBtnAdded = true;
-    const indicator = document.getElementById('statusIndicator');
-    if (!indicator) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.style.cssText = 'margin: 12px auto 0; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 16px; border-radius: 9px; border: none; cursor: pointer; background: #d1904b; color: #000; font-weight: 600; transition: all .2s ease;';
-    btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Manually Confirm Payment (Bank Verified)';
-    btn.onclick = async function() {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Confirming...';
-        try {
-            const formData = new FormData();
-            formData.append('action', 'manual_confirm');
-            const res = await fetch('check_payment.php?order_id=' + orderId, { method: 'POST', body: formData });
-            const data = await res.json();
-            if (data.paid) {
-                showPaymentSuccess();
-            } else {
-                alert(data.error || 'Failed to confirm payment.');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Manually Confirm Payment (Bank Verified)';
-            }
-        } catch (e) {
-            alert('Network error confirming payment.');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Manually Confirm Payment (Bank Verified)';
-        }
-    };
-    indicator.after(btn);
+function he(str) {
+    const d = document.createElement('div');
+    d.textContent = (str || '');
+    return d.innerHTML;
 }
 
 function showVerifyError(msg, errType) {
-    const indicator = document.getElementById('statusIndicator');
-    indicator.className = 'status-indicator';
-    indicator.style.color = '#e74c3c';
-    indicator.style.background = 'rgba(231,76,60,0.08)';
-    indicator.style.borderColor = 'rgba(231,76,60,0.25)';
-    // Build with textContent (not innerHTML) so the message can't inject markup.
-    indicator.textContent = '';
-    const icon = document.createElement('i');
-    icon.className = 'fa-solid fa-triangle-exclamation';
-    const span = document.createElement('span');
-    span.textContent = msg;
-    indicator.append(icon, span);
-    if (!errorShown) {
-        errorShown = true;
-        // Auto-check can't confirm this payment — close (✕) and settle it from
-        // Find Orders → Pending Payment (Cash or Bakong) instead.
-        const hint = document.createElement('div');
-        hint.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center;';
-        hint.textContent = 'Close this (✕) and collect from Find Orders → Pending Payment.';
-        indicator.after(hint);
-    }
-    if (errType === 'rate_limited' || errType === 'api_error' || errType === 'timeout') {
-        addManualConfirmBtn();
+    const statusSection = document.querySelector('.status-section');
+    if (!statusSection) return;
+
+    const showManualBtn = (errType === 'rate_limited' || errType === 'api_error' || errType === 'timeout');
+
+    statusSection.innerHTML = `
+        <div class="verify-error-card">
+            <div class="verify-error-title">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span>Payment Verification Unavailable</span>
+            </div>
+            <div class="verify-error-msg">${he(msg)}</div>
+            ${showManualBtn ? `
+                <button type="button" class="btn-manual-confirm" id="btnManualConfirm">
+                    <i class="fa-solid fa-check-double"></i>
+                    <span>Manually Confirm Payment (Bank Verified)</span>
+                </button>
+            ` : ''}
+            <div class="verify-error-hint">
+                Close this (&times;) and collect from Find Orders &rarr; Pending Payment.
+            </div>
+        </div>
+    `;
+
+    if (showManualBtn) {
+        const btn = document.getElementById('btnManualConfirm');
+        if (btn) {
+            btn.onclick = async function() {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Confirming...</span>';
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'manual_confirm');
+                    const res = await fetch('check_payment.php?order_id=' + orderId, { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.paid) {
+                        showPaymentSuccess();
+                    } else {
+                        alert(data.error || 'Failed to confirm payment.');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Manually Confirm Payment (Bank Verified)</span>';
+                    }
+                } catch (e) {
+                    alert('Network error confirming payment.');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Manually Confirm Payment (Bank Verified)</span>';
+                }
+            };
+        }
     }
 }
 
