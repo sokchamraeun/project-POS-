@@ -378,9 +378,17 @@ tr.row-match{box-shadow:inset 3px 0 0 var(--green)}
                 <td style="color:var(--muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                     <?= htmlspecialchars($scr['notes'] ?? '') ?>
                 </td>
-                <td>
+                <td style="white-space:nowrap">
                     <a href="stock_count.php?date=<?= $scr['business_date'] ?>" class="inv-view-btn">
                         View <i class="fa-solid fa-arrow-right" style="font-size:10px"></i>
+                    </a>
+                    <?php /* Keyed on count_id rather than the date: a date can carry more
+                             than one count row, and the manager filing this needs the sheet
+                             they are looking at, not whichever one sorts last. */ ?>
+                    <a href="stock_count_pdf.php?count_id=<?= (int)$scr['count_id'] ?>"
+                       target="_blank" rel="noopener" class="inv-view-btn"
+                       title="Export this count as PDF" style="margin-left:6px">
+                        <i class="fa-solid fa-file-pdf" style="font-size:10px"></i> PDF
                     </a>
                 </td>
             </tr>

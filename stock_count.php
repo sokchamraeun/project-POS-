@@ -498,7 +498,17 @@ a{text-decoration:none;}
             </div>
         </div>
     </div>
-    <div style="font-size:12px;color:var(--muted)"><?= h($date_fmt) ?></div>
+    <div style="display:flex;align-items:center;gap:12px">
+        <?php /* Prints whatever has been entered for this date. Offered on a draft
+                 too, because a clerk counting a long shelf reasonably wants the
+                 sheet in hand — the PDF stamps DRAFT across it so nobody approves
+                 a write-off from an unfinished count. */ ?>
+        <a href="stock_count_pdf.php?date=<?= h($bdate) ?>" target="_blank" rel="noopener"
+           class="back-btn" title="Export this count as PDF">
+            <i class="fa-solid fa-file-pdf"></i> PDF
+        </a>
+        <div style="font-size:12px;color:var(--muted)"><?= h($date_fmt) ?></div>
+    </div>
 </div>
 
 <div class="wrap">

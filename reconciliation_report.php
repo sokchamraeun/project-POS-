@@ -700,6 +700,14 @@ tr.row-match td:first-child{border-left:3px solid var(--green)}
         </div>
         <button type="submit" class="btn-filter"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
         <a href="reconciliation_report.php" class="btn-reset"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+        <?php /* Carries the three filters through so the PDF matches what is on
+                 screen. No page parameter on purpose — the screen paginates, the
+                 PDF prints the whole range, or its total would not match its own
+                 rows. */ ?>
+        <a href="reconciliation_pdf.php?from=<?= urlencode($filter_from) ?>&to=<?= urlencode($filter_to) ?>&user_id=<?= (int)$filter_user ?>"
+           target="_blank" rel="noopener" class="btn-reset" title="Export this period as PDF">
+            <i class="fa-solid fa-file-pdf"></i> Export PDF
+        </a>
     </form>
 
     <!-- Results box (AJAX target) -->
