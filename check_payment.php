@@ -41,7 +41,7 @@ if (!$order) {
 }
 
 // Handle manual confirmation by staff/manager (allowed even if bakong_md5 is empty)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manual_confirm') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'manual_confirm') {
     try {
         _settle_bakong_order($conn, $order, $order_id);
         echo json_encode(['paid' => true, 'message' => 'Payment manually confirmed successfully.']);
