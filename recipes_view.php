@@ -612,6 +612,13 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
             <i class="fa-solid fa-magnifying-glass"></i>
             <input id="search" placeholder="Drink or ingredient…" autocomplete="off">
         </div>
+        <select class="sort-select" id="sizeSelect" title="Scale recipe measurements by cup size" style="border-color:var(--accent);color:var(--accent);font-weight:600;">
+            <option value="1.0" selected>Size: Regular (1.0×)</option>
+            <option value="1.25">Size: Medium (1.25×)</option>
+            <option value="1.5">Size: Large (1.5×)</option>
+            <option value="1.75">Size: Extra Large (1.75×)</option>
+            <option value="2.0">Size: Double (2.0×)</option>
+        </select>
         <select class="sort-select" id="sortSelect">
             <option value="name">A → Z</option>
             <option value="name_desc">Z → A</option>
@@ -781,10 +788,10 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
             <div class="card-meta">
                 <span class="meta-pill orange"><i class="fa-solid fa-flask"></i> <?= count($r['items']) ?> ingredients</span>
                 <?php if ($r['cogs'] > 0): ?>
-                <span class="meta-pill orange"><i class="fa-solid fa-dollar-sign"></i> Cost $<?= number_format($r['cogs'], 2) ?></span>
+                <span class="meta-pill orange cogs-pill" data-base-cogs="<?= round($r['cogs'], 4) ?>"><i class="fa-solid fa-dollar-sign"></i> Cost $<span class="cogs-val"><?= number_format($r['cogs'], 2) ?></span></span>
                 <?php endif; ?>
                 <?php if ($r['price'] > 0 && $margin > 0): ?>
-                <span class="meta-pill green"><i class="fa-solid fa-percent"></i> <?= number_format($margin, 0) ?>% margin</span>
+                <span class="meta-pill green margin-pill" data-price="<?= $r['price'] ?>" data-base-cogs="<?= round($r['cogs'], 4) ?>"><i class="fa-solid fa-percent"></i> <span class="margin-val"><?= number_format($margin, 0) ?></span>% margin</span>
                 <?php endif; ?>
             </div>
 
@@ -805,8 +812,8 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
                                 <?= h($it['ingredient_name']) ?>
                             </div>
                         </td>
-                        <td class="<?= $it['low_stock'] ? 'ing-low' : '' ?>">
-                            <?= number_format($it['amount_used'], 0) ?> <?= h($it['unit']) ?>
+                        <td class="ing-amount-cell <?= $it['low_stock'] ? 'ing-low' : '' ?>" data-base-amount="<?= (float)$it['amount_used'] ?>" data-unit="<?= h($it['unit']) ?>">
+                            <span class="amount-val"><?= number_format($it['amount_used'], 0) ?></span> <?= h($it['unit']) ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -1170,6 +1177,50 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('themeIcon').className = 'fa-solid fa-sun';
     }
 });
+
+// ── Dynamic Cup Size Scaling ──
+const sizeSelect = document.getElementById('sizeSelect');
+if (sizeSelect) {
+    sizeSelect.addEventListener('change', function() {
+        const factor = parseFloat(this.value) || 1.0;
+        scaleRecipeSizes(factor);
+    });
+}
+
+function scaleRecipeSizes(factor) {
+    document.querySelectorAll('.card:not(#emptySearch)').forEach(card => {
+        // 1. Scale ingredient amounts
+        card.querySelectorAll('.ing-amount-cell').forEach(cell => {
+            const baseAmount = parseFloat(cell.dataset.baseAmount) || 0;
+            const unit = cell.dataset.unit || '';
+            const scaled = baseAmount * factor;
+            const formatted = (scaled % 1 === 0) ? scaled : scaled.toFixed(1);
+            const valSpan = cell.querySelector('.amount-val');
+            if (valSpan) valSpan.textContent = formatted;
+        });
+
+        // 2. Scale COGS
+        const cogsPill = card.querySelector('.cogs-pill');
+        if (cogsPill) {
+            const baseCogs = parseFloat(cogsPill.dataset.baseCogs) || 0;
+            const scaledCogs = baseCogs * factor;
+            const cogsVal = cogsPill.querySelector('.cogs-val');
+            if (cogsVal) cogsVal.textContent = scaledCogs.toFixed(2);
+            card.dataset.cogs = scaledCogs;
+        }
+
+        // 3. Scale Margin
+        const marginPill = card.querySelector('.margin-pill');
+        if (marginPill) {
+            const price = parseFloat(marginPill.dataset.price) || 0;
+            const baseCogs = parseFloat(marginPill.dataset.baseCogs) || 0;
+            const scaledCogs = baseCogs * factor;
+            const margin = price > 0 ? (((price - scaledCogs) / price) * 100) : 0;
+            const marginVal = marginPill.querySelector('.margin-val');
+            if (marginVal) marginVal.textContent = Math.max(0, Math.round(margin));
+        }
+    });
+}
 
 // initial pagination render (paginate the full set on first load)
 applyFilters();
