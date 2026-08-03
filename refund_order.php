@@ -96,20 +96,18 @@ try {
         _restore_stock($conn, $order_id);
     }
 
-    $conn->commit();
-
-    // ── Reverse loyalty points earned on this order ──
-    $card_id    = (int)($order['loyalty_card_id'] ?? 0);
-    $pts_earned = (int)($order['points_earned']   ?? 0);
-    if ($card_id > 0 && $pts_earned > 0) {
-        $stmt_pts = $conn->prepare("UPDATE loyalty_cards SET points = GREATEST(0, points - ?), last_used = NOW() WHERE card_id = ?");
-        $stmt_pts->bind_param("ii", $pts_earned, $card_id);
-        $stmt_pts->execute();
-        $neg = -$pts_earned;
-        $stmt_hist = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, 'adjusted_deduct', 'Points reversed — order refunded')");
-        $stmt_hist->bind_param("iii", $card_id, $order_id, $neg);
-        $stmt_hist->execute();
+    // ── LOYALTY: reverse points for this order (inside the transaction so it
+    //    rolls back with everything else if anything fails) ──
+    $card_id = (int)($order['loyalty_card_id'] ?? 0);
+    if ($card_id > 0) {
+        // Syncing to zero earning drinks undoes both the points and the
+        // progress, restoring the card to exactly where it stood before this
+        // order — including any part-progress toward the next point, which a
+        // points-only claw-back would silently take from the customer.
+        loyalty_sync($conn, $card_id, $order_id, 0, 'Points reversed — order refunded');
     }
+
+    $conn->commit();
 
     echo json_encode(["ok" => 1, "message" => "Order #{$order['daily_order_no']} refunded $" . number_format($refund_amount, 2) . " successfully"]);
 
