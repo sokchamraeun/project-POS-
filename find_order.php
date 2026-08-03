@@ -34,15 +34,9 @@ $search_type  = $_GET['search_type']  ?? 'all';
 $search_value = $_GET['search_value'] ?? '';
 $filter_tab   = $_GET['tab']          ?? 'all';
 
-// Cashiers only manage pay-later orders; force the tab and restrict the query
 $is_cashier = (($_SESSION['role'] ?? '') === 'staff');
-if ($is_cashier) {
-    $filter_tab = 'paylater';
-}
 
-// The tab the cashier is looking at, carried into the settle links so they come
-// back to it instead of always landing on Pending Payment. Read after the cashier
-// override so a forced paylater tab returns to paylater.
+// The tab the cashier is looking at, carried into the settle links
 $card_tab = pay_return_tab($filter_tab);
 
 $perPage = 10;
