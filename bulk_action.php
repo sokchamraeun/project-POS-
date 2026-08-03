@@ -39,6 +39,29 @@ if ($action === 'delete') {
     }
     echo json_encode(['ok' => true, 'states' => $states]);
 
+} elseif ($action === 'clear_promo') {
+    // Ends a promotion across a selection in one go. Clearing them one product at
+    // a time through edit_product.php is the pain this exists to remove.
+    //
+    // Only products that actually carry a promo are counted, so the confirmation
+    // can say what really changed rather than echoing the selection size — a
+    // manager who selects all 53 products should be told 6 were cleared, not 53.
+    //
+    // products.promo_percent is the CURRENT price rule. order_items.promo_percent
+    // is a separate column holding what each past sale was actually charged, and
+    // is deliberately untouched: clearing a promotion must not rewrite the history
+    // of what customers already paid.
+    $sel = $conn->prepare("SELECT COUNT(*) FROM products WHERE product_id IN ($ph) AND promo_percent > 0");
+    $sel->bind_param($types, ...$ids);
+    $sel->execute();
+    $had = (int)$sel->get_result()->fetch_row()[0];
+
+    $upd = $conn->prepare("UPDATE products SET promo_percent = 0 WHERE product_id IN ($ph) AND promo_percent > 0");
+    $upd->bind_param($types, ...$ids);
+    $upd->execute();
+
+    echo json_encode(['ok' => true, 'cleared' => $had, 'ids' => $ids]);
+
 } else {
     echo json_encode(['ok' => false, 'error' => 'Unknown action']);
 }

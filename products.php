@@ -953,6 +953,9 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 .bulk-btn:hover       { border-color: var(--accent); color: var(--accent); }
 .bulk-btn.all         { border-color: rgba(209,144,75,0.3); }
 .bulk-btn.toggle-avail:hover { border-color: var(--success); color: var(--success); }
+/* Amber on hover, not red: clearing a promo is a pricing decision, not a
+   deletion, and it must not read as dangerous as Delete sitting beside it. */
+.bulk-btn.clear-promo:hover { border-color: var(--warning, #e0a955); color: var(--warning, #e0a955); }
 .bulk-btn.bulk-delete-btn:hover { border-color: var(--danger); color: var(--danger); }
 .bulk-btn.cancel-bulk { color: var(--text-muted); }
 .bulk-btn.cancel-bulk:hover { border-color: var(--border-hover); color: var(--text); }
@@ -1663,6 +1666,9 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
         <button class="bulk-btn toggle-avail" onclick="bulkToggle()">
             <i class="fa-solid fa-eye"></i> Toggle
         </button>
+        <button class="bulk-btn clear-promo" onclick="bulkClearPromo()">
+            <i class="fa-solid fa-tag"></i> Clear promo
+        </button>
         <button class="bulk-btn bulk-delete-btn" onclick="bulkDelete()">
             <i class="fa-solid fa-trash-can"></i> Delete
         </button>
@@ -1981,6 +1987,31 @@ function bulkToggle() {
         });
         showToast(`${selectedIds.size} product${selectedIds.size !== 1 ? 's' : ''} updated`);
         clearSelection();
+    })
+    .catch(() => showToast('Request failed', 'error'));
+}
+
+/* Ends a promotion across the selection. The percentages are not recoverable
+   afterwards, so this confirms first — and reports how many products actually
+   carried a promo rather than how many were selected, because selecting all 53
+   and being told "53 cleared" would misdescribe what happened. */
+function bulkClearPromo() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Clear the promotion on ${selectedIds.size} selected product${selectedIds.size !== 1 ? 's' : ''}?\n\nThe discount percentages are removed and cannot be restored. Past orders keep the price they were charged.`)) return;
+    fetch('bulk_action.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=clear_promo&ids=' + [...selectedIds].join(',')
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) { showToast('Error clearing promotions', 'error'); return; }
+        if (data.cleared === 0) { showToast('No promotions to clear in that selection'); clearSelection(); return; }
+        showToast(`${data.cleared} promotion${data.cleared !== 1 ? 's' : ''} cleared`);
+        // The cards carry promo badges and struck-through prices rendered
+        // server-side; a reload is the honest way to show the new prices rather
+        // than patching each card and risking the two drifting.
+        setTimeout(() => location.reload(), 700);
     })
     .catch(() => showToast('Request failed', 'error'));
 }
