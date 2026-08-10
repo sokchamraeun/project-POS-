@@ -1,8 +1,8 @@
 let product = {};
 const csrfToken = (window.MENU_CONFIG && window.MENU_CONFIG.csrfToken) ? window.MENU_CONFIG.csrfToken : '';
 
-// ── Toast container ──
-document.addEventListener('DOMContentLoaded', function () {
+// ── Initialization Hook ──
+function initMenu() {
     if (!document.getElementById('toast-container')) {
         const el = document.createElement('div');
         el.id = 'toast-container';
@@ -11,18 +11,36 @@ document.addEventListener('DOMContentLoaded', function () {
     _bindModalDismiss();
     _bindProductCards();
     _bindChatInput();
+}
+
+window.initMenuEvents = function() {
+    initMenu();
+};
+window.initMenu = initMenu;
+
+document.addEventListener('DOMContentLoaded', initMenu);
+document.addEventListener('pageLoaded', function(e) {
+    if (e.detail && e.detail.href && e.detail.href.includes('menu.php')) {
+        initMenu();
+    }
 });
 
 // ─────────────────────────────────────────────
 //  MODAL
 // ─────────────────────────────────────────────
-function openModal(id, name, price, img, cat, desc) {
-    product = { id, name, price: Number(price) || 0, cat };
+function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addons, promo) {
+    product = { id, name, price: Number(price) || 0, cat, promo: promo || 0 };
 
-    document.getElementById('modalImage').src            = img;
-    document.getElementById('modalName').textContent     = name;
-    document.getElementById('modalDesc').textContent     = desc || '';
-    document.getElementById('modalPrice').textContent    = '$' + product.price.toFixed(2);
+    const modalImg   = document.getElementById('modalImg')   || document.getElementById('modalImage');
+    const modalName  = document.getElementById('modalName');
+    const modalDesc  = document.getElementById('modalDesc');
+    const modalPrice = document.getElementById('modalPrice');
+    const modalEl    = document.getElementById('modal')      || document.getElementById('product-modal') || document.getElementById('customModal');
+
+    if (modalImg)   modalImg.src            = img || '';
+    if (modalName)  modalName.textContent  = name || '';
+    if (modalDesc)  modalDesc.textContent  = desc || '';
+    if (modalPrice) modalPrice.textContent = '$' + (Number(price) || 0).toFixed(2);
 
     const isJuice = cat === 'Juice';
     const isHot   = cat === 'Hot';
@@ -31,20 +49,28 @@ function openModal(id, name, price, img, cat, desc) {
     _show('iceGroup',       !isJuice && !isHot);
     _show('milkGroup',      !isJuice);
 
-    document.getElementById('customModal').style.display = 'flex';
-    document.getElementById('customModal').setAttribute('aria-hidden', 'false');
+    if (modalEl) {
+        modalEl.style.display = 'flex';
+        modalEl.setAttribute('aria-hidden', 'false');
+    }
 }
 
 function closeModal() {
-    document.getElementById('customModal').style.display = 'none';
-    document.getElementById('customModal').setAttribute('aria-hidden', 'true');
+    const modalEl = document.getElementById('modal') || document.getElementById('product-modal') || document.getElementById('customModal');
+    if (modalEl) {
+        modalEl.style.display = 'none';
+        modalEl.setAttribute('aria-hidden', 'true');
+    }
 }
 
+let _modalDismissBound = false;
 function _bindModalDismiss() {
-    const modal = document.getElementById('customModal');
-    if (!modal) return;
-    modal.addEventListener('click', function (e) {
-        if (e.target === this) closeModal();
+    if (_modalDismissBound) return;
+    _modalDismissBound = true;
+
+    document.addEventListener('click', function (e) {
+        const modal = document.getElementById('modal') || document.getElementById('product-modal') || document.getElementById('customModal');
+        if (modal && e.target === modal) closeModal();
     });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') closeModal();
@@ -84,7 +110,7 @@ function addToCart() {
 //  QUICK ADD (no customisation)
 // ─────────────────────────────────────────────
 function quickAdd(productId, event) {
-    if (event) event.stopPropagation(); // prevent card click → modal
+    if (event && event.stopPropagation) event.stopPropagation();
 
     const params = new URLSearchParams({ id: productId, csrf_token: csrfToken });
 
@@ -132,7 +158,6 @@ function _updateCartCount(count) {
             cartIcon.appendChild(badge);
         }
     }
-    // ── FIX: Hide badge when cart is empty, show when not ──
     if (badge) badge.style.display = (parseInt(count, 10) === 0) ? 'none' : '';
 }
 
@@ -140,8 +165,12 @@ function _updateCartCount(count) {
 //  TOAST
 // ─────────────────────────────────────────────
 function showToast(message, type = 'success') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -157,26 +186,131 @@ function showToast(message, type = 'success') {
 }
 
 // ─────────────────────────────────────────────
-//  PRODUCT CARDS
+//  DYNAMIC EVENT DELEGATION (Drink Cards & Quick Add)
 // ─────────────────────────────────────────────
+let _menuDelegationBound = false;
 function _bindProductCards() {
-    document.querySelectorAll('.js-open-product').forEach(card => {
-        card.addEventListener('click', () => openModal(
-            card.dataset.productId,
-            card.dataset.productName    || '',
-            Number(card.dataset.productPrice || 0),
-            card.dataset.productImage   || '',
-            card.dataset.productCategory || '',
-            card.dataset.productDesc    || ''
-        ));
-        card.addEventListener('keydown', e => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                card.click();
+    if (_menuDelegationBound) return;
+    _menuDelegationBound = true;
+
+    // Delegated click listener on document for dynamically swapped drink cards
+    document.addEventListener('click', function (e) {
+        // Quick Add button check
+        const quickBtn = e.target.closest('.quick-add-btn, [data-quick-add]');
+        if (quickBtn) {
+            e.stopPropagation();
+            const pid = quickBtn.dataset.productId || quickBtn.dataset.quickAdd || quickBtn.dataset.id;
+            if (pid && typeof quickAdd === 'function') quickAdd(pid, e);
+            return;
+        }
+
+        // Open Product modal check for cart items or grid drink cards
+        const cartItem = e.target.closest('.cp-item, .js-cart-item-open');
+        if (cartItem && !e.target.closest('button, a, input, select, .cp-qty, .cp-remove')) {
+            const pid = cartItem.dataset.productId || cartItem.closest('[data-product-id]')?.dataset.productId;
+            if (pid) {
+                const matchingCard = document.querySelector('.product-card[data-product-id="' + pid + '"], .seller-card[data-product-id="' + pid + '"], [data-product-id="' + pid + '"]');
+                if (matchingCard && typeof openModalFromCard === 'function') {
+                    openModalFromCard(matchingCard);
+                    return;
+                }
             }
-        });
+        }
+
+        // Open Product modal check for drink cards
+        const card = e.target.closest('.js-open-product, .product-card, .seller-card, .drink-card, [data-product-id], [data-id]');
+        if (card && !e.target.closest('button, a, input, select, .quick-add-btn, [data-quick-add]')) {
+            if (typeof openModalFromCard === 'function') {
+                openModalFromCard(card);
+            } else if (typeof openModal === 'function') {
+                var sizes = [], addons = [];
+                try { sizes = JSON.parse(card.dataset.productSizes || card.dataset.sizes || '[]'); } catch (_) {}
+                try { addons = JSON.parse(card.dataset.productAddons || card.dataset.addons || '[]'); } catch (_) {}
+                openModal(
+                    card.dataset.productId || card.dataset.id,
+                    card.dataset.productName || card.dataset.name || '',
+                    Number(card.dataset.productPrice || card.dataset.price || 0),
+                    card.dataset.productImage || card.dataset.image || '',
+                    card.dataset.productCategory || card.dataset.category || '',
+                    card.dataset.productDesc || card.dataset.description || '',
+                    card.dataset.productBadge || card.dataset.badge || '',
+                    card.dataset.productHasSizes === '1' || card.dataset.hasSizes === '1',
+                    sizes,
+                    addons,
+                    Number(card.dataset.productPromo || card.dataset.promo || 0)
+                );
+            }
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            const card = e.target.closest('.js-open-product, .product-card, .seller-card, .drink-card');
+            if (card) {
+                e.preventDefault();
+                if (typeof openModalFromCard === 'function') {
+                    openModalFromCard(card);
+                }
+            }
+        }
     });
 }
+
+// ─────────────────────────────────────────────
+//  CART SIDEBAR TOGGLE & EVENT DELEGATION
+// ─────────────────────────────────────────────
+function openCartSidebar() {
+    const sidebar = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+    if (!sidebar) return;
+    sidebar.classList.remove('hidden');
+    sidebar.style.setProperty('display', 'flex', 'important');
+    localStorage.setItem('cart_sidebar_closed', 'false');
+}
+
+function closeCartSidebar() {
+    const sidebar = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+    if (!sidebar) return;
+    sidebar.classList.add('hidden');
+    sidebar.style.setProperty('display', 'none', 'important');
+    localStorage.setItem('cart_sidebar_closed', 'true');
+}
+
+function toggleCartSidebar() {
+    const sidebar = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+    if (!sidebar) return;
+    const isHidden = sidebar.classList.contains('hidden') || sidebar.style.display === 'none' || window.getComputedStyle(sidebar).display === 'none';
+    if (isHidden) {
+        openCartSidebar();
+    } else {
+        closeCartSidebar();
+    }
+}
+
+function closeCart() {
+    closeCartSidebar();
+}
+
+window.openCartSidebar = openCartSidebar;
+window.closeCartSidebar = closeCartSidebar;
+window.toggleCartSidebar = toggleCartSidebar;
+window.closeCart = closeCart;
+
+// Global Event Delegation for Cart Toggle (#cart-toggle-btn) & Close (#close-cart-btn)
+document.addEventListener('click', function(e) {
+    const toggleBtn = e.target.closest('#cart-toggle-btn, #cartToggleBtn, [data-cart-toggle]');
+    if (toggleBtn) {
+        e.preventDefault();
+        toggleCartSidebar();
+        return;
+    }
+
+    const closeBtn = e.target.closest('#close-cart-btn, .cp-close-btn, [data-close-cart]');
+    if (closeBtn) {
+        e.preventDefault();
+        closeCartSidebar();
+        return;
+    }
+});
 
 // ─────────────────────────────────────────────
 //  CHAT
@@ -191,7 +325,8 @@ function toggleChat() {
 
 function sendChat() {
     const input = document.getElementById('chatInput');
-    const msg   = input.value.trim();
+    if (!input) return;
+    const msg = input.value.trim();
     if (!msg) return;
 
     const chat    = document.getElementById('chatMessages');
@@ -219,12 +354,12 @@ function sendChat() {
 }
 
 function _appendChatBubble(container, text, role) {
+    if (!container) return;
     const wrap = document.createElement('div');
     wrap.className = `chat-bubble-wrap chat-${role}`;
 
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble';
-    // Use textContent to prevent XSS
     bubble.textContent = text;
 
     const icon = document.createElement('div');
@@ -245,8 +380,13 @@ function _appendChatBubble(container, text, role) {
     container.scrollTop = container.scrollHeight;
 }
 
+let _chatInputBound = false;
 function _bindChatInput() {
-    document.getElementById('chatInput')?.addEventListener('keypress', e => {
+    if (_chatInputBound) return;
+    const chatInput = document.getElementById('chatInput');
+    if (!chatInput) return;
+    _chatInputBound = true;
+    chatInput.addEventListener('keypress', e => {
         if (e.key === 'Enter') sendChat();
     });
 }

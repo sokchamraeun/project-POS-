@@ -200,7 +200,7 @@ body {
                            oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
                            onfocus="this.select()">
                 </div>
-                <div class="cp-tender-quick" id="cpTenderQuick"></div>
+                <div class="cp-tender-quick" id="cpTenderQuick" style="display:none;"></div>
 
                 <div style="display:flex;align-items:center;gap:6px;margin-top:9px;">
                     <span style="font-size:12px;font-weight:700;color:var(--text-2);width:16px;">&#6107;</span>
@@ -209,7 +209,7 @@ body {
                            oninput="cpOnRielInput(); cpCalcChange()" onfocus="this.select()">
                     <span id="cpRielCashUsd" style="font-size:11px;color:var(--text-3);white-space:nowrap;">&asymp; $0.00</span>
                 </div>
-                <div class="cp-tender-quick" id="cpRielQuick"></div>
+                <div class="cp-tender-quick" id="cpRielQuick" style="display:none;"></div>
 
                 <div class="cp-change-row">
                     <span class="change-label">Change to give back</span>
@@ -240,7 +240,7 @@ body {
 <script>
 const CP_OWED     = <?= json_encode(round($owed, 2)) ?>;
 // tender.js is static and never parsed by PHP, so the rate is passed in.
-const CP_KHR_RATE = <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
+var CP_KHR_RATE = window.CP_KHR_RATE || <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
 
 function cpOwedInCash() { return CP_OWED; }
 

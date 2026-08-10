@@ -100,6 +100,7 @@ if ($action === ""):
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     
     <style>
@@ -371,6 +372,724 @@ if ($action === ""):
         animation: pulse-dot 2s infinite;
     }
 
+    /* ── Header Stat Boxes ── */
+    .vo-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 24px 0;
+        padding: 0;
+    }
+
+    @media (max-width: 1200px) {
+        .vo-stats-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .vo-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 576px) {
+        .vo-stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .vo-stat-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 16px;
+        min-height: 92px;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .vo-stat-box:hover {
+        transform: translateY(-3px);
+        border-color: rgba(255, 255, 255, 0.18);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .vo-stat-box.active {
+        border-color: var(--accent);
+        background: rgba(209, 144, 75, 0.12);
+        box-shadow: 0 0 20px rgba(209, 144, 75, 0.15), inset 0 1px 0 rgba(209, 144, 75, 0.2);
+    }
+
+    .vo-stat-content {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .vo-stat-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .vo-stat-value {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .vo-stat-sub {
+        font-size: 11.5px;
+        color: var(--text-muted);
+        font-weight: 400;
+        opacity: 0.85;
+    }
+
+    .vo-stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 21px;
+        flex-shrink: 0;
+        transition: transform 0.25s ease;
+    }
+
+    .vo-stat-box:hover .vo-stat-icon {
+        transform: scale(1.08);
+    }
+
+    .vo-stat-icon.all-orders {
+        background: rgba(139, 92, 246, 0.22);
+        color: #a78bfa;
+        border: 1px solid rgba(139, 92, 246, 0.4);
+    }
+
+    .vo-stat-icon.new-orders {
+        background: rgba(59, 130, 246, 0.22);
+        color: #60a5fa;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+
+    .vo-stat-icon.pending-orders {
+        background: rgba(245, 158, 11, 0.22);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .vo-stat-icon.complete-orders {
+        background: rgba(16, 185, 129, 0.22);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .vo-stat-icon.overdue-orders {
+        background: rgba(239, 68, 68, 0.22);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    @keyframes pulse-overdue {
+        0% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border-color: rgba(239, 68, 68, 0.9);
+        }
+        70% {
+            box-shadow: 0 0 0 14px rgba(239, 68, 68, 0), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border-color: rgba(239, 68, 68, 0.9);
+        }
+    }
+
+    .vo-stat-box.has-overdue-alert {
+        background: rgba(239, 68, 68, 0.18) !important;
+        border-color: rgba(239, 68, 68, 0.9) !important;
+    }
+
+    .vo-stat-icon.total-price {
+        background: rgba(245, 158, 11, 0.22);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .vo-stat-icon.total-orders {
+        background: rgba(209, 144, 75, 0.15);
+        color: #d1904b;
+        border: 1px solid rgba(209, 144, 75, 0.25);
+    }
+
+    /* ── View Toggle Switcher ── */
+    .view-toggle-group {
+        display: inline-flex;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .view-btn {
+        padding: 8px 16px;
+        border-radius: 9px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .view-btn:hover {
+        color: var(--text);
+        background: rgba(255,255,255,0.05);
+    }
+
+    .view-btn.active {
+        background: var(--accent);
+        color: #000;
+        box-shadow: 0 2px 8px rgba(209, 144, 75, 0.3);
+    }
+
+    [data-theme="light"] .view-toggle-group {
+        background: #FFFFFF;
+        border-color: #E2E5EA;
+    }
+    [data-theme="light"] .view-btn {
+        color: #5A6373;
+    }
+    [data-theme="light"] .view-btn.active {
+        background: var(--accent);
+        color: #000;
+    }
+
+    /* ── Teal Table View Layout ── */
+    .vo-table-wrapper {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        box-sizing: border-box;
+        overflow-x: auto;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    .vo-table {
+        width: 100% !important;
+        min-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 13.5px;
+    }
+
+    .vo-table thead tr {
+        background: #16161a;
+        color: var(--accent, #d1904b);
+    }
+
+    .vo-table th {
+        padding: 14px 16px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        color: var(--accent, #d1904b);
+        background: #16161a;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .vo-table th:first-child {
+        border-top-left-radius: 15px;
+    }
+
+    .vo-table th:last-child {
+        border-top-right-radius: 15px;
+    }
+
+    .vo-table tbody tr {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        transition: background 0.2s ease;
+    }
+
+    .vo-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .vo-table td {
+        padding: 14px 16px;
+        color: var(--text);
+        vertical-align: middle;
+    }
+
+    .vo-table .vo-col-order {
+        font-weight: 800;
+        font-size: 15px;
+        color: var(--accent);
+    }
+
+    .vo-table .vo-col-stand {
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .vo-table .vo-col-items {
+        max-width: 320px;
+    }
+
+    .vo-table .vo-col-total {
+        font-weight: 800;
+        font-size: 15px;
+        color: var(--success, #55e087);
+    }
+
+    .vo-table .vo-col-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    /* View Detail Button & Badges */
+    .btn-view-detail {
+        padding: 7px 16px;
+        border-radius: 9px;
+        border: 1px solid rgba(209, 144, 75, 0.35);
+        background: rgba(209, 144, 75, 0.12);
+        color: var(--accent, #d1904b);
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .btn-view-detail:hover {
+        background: rgba(209, 144, 75, 0.25);
+        border-color: var(--accent, #d1904b);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(209, 144, 75, 0.2);
+    }
+
+    .btn-reprint {
+        padding: 7px 16px;
+        border-radius: 9px;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        background: rgba(59, 130, 246, 0.12);
+        color: #60a5fa;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .btn-reprint:hover {
+        background: rgba(59, 130, 246, 0.25);
+        border-color: #60a5fa;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Date Filter Pills */
+    .vo-date-pill {
+        padding: 8px 18px;
+        border-radius: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        color: #a1a1aa;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: 'Poppins', sans-serif;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .vo-date-pill:hover {
+        background: rgba(209, 144, 75, 0.15);
+        color: #d1904b;
+        border-color: rgba(209, 144, 75, 0.35);
+        transform: translateY(-1px);
+    }
+
+    .vo-date-pill.active {
+        background: #d1904b;
+        color: #000000;
+        border-color: #d1904b;
+        font-weight: 700;
+        box-shadow: 0 4px 14px rgba(209, 144, 75, 0.3);
+    }
+
+    .complete-btn {
+        padding: 7px 16px;
+        min-width: 110px;
+        border-radius: 9px;
+        border: 1px solid rgba(85, 224, 135, 0.35);
+        background: rgba(85, 224, 135, 0.14);
+        color: #55e087;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .complete-btn:hover {
+        background: rgba(85, 224, 135, 0.28);
+        border-color: #55e087;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(85, 224, 135, 0.2);
+    }
+
+    .take-btn {
+        padding: 7px 16px;
+        min-width: 110px;
+        border-radius: 9px;
+        border: 1px solid rgba(241, 196, 15, 0.4);
+        background: rgba(241, 196, 15, 0.14);
+        color: #f1c40f;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .take-btn:hover {
+        background: rgba(241, 196, 15, 0.28);
+        border-color: #f1c40f;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(241, 196, 15, 0.2);
+    }
+
+    .vo-items-count-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        font-weight: 600;
+        font-size: 13px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        border-radius: 50px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .status-pill.status-new {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .status-pill.status-making {
+        background: rgba(230, 126, 34, 0.15);
+        color: #e67e22;
+        border: 1px solid rgba(230, 126, 34, 0.3);
+    }
+
+    .status-pill.status-complete {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-pill.status-pending {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .status-pill.status-cancelled {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .status-pill.status-refunded {
+        background: rgba(168, 85, 247, 0.15);
+        color: #a855f7;
+        border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    /* ── Order Detail Modal ── */
+    .detail-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 9998;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+
+    .detail-modal.active {
+        display: flex !important;
+        opacity: 1;
+    }
+
+    .detail-modal-content {
+        background: #18181b !important;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 24px;
+        width: 100%;
+        max-width: 680px;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 32px 36px;
+        color: #ffffff !important;
+        box-shadow: 0 25px 70px rgba(0,0,0,0.75);
+        animation: modalPop 0.25s ease;
+    }
+
+    .receipt-btn:hover {
+        background: rgba(52, 152, 219, 0.25);
+        border-color: #3498db;
+        transform: translateY(-1px);
+    }
+
+    .print-btn {
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+        background: rgba(155, 89, 182, 0.12);
+        color: #9b59b6;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .print-btn:hover {
+        background: rgba(155, 89, 182, 0.25);
+        border-color: #9b59b6;
+        transform: translateY(-1px);
+    }
+
+    /* Light Theme Table Overrides */
+    [data-theme="light"] .vo-table-wrapper {
+        background: #FFFFFF;
+        border-color: #E2E5EA;
+    }
+    [data-theme="light"] .vo-table thead tr {
+        background: #0d9488;
+        color: #FFFFFF;
+    }
+    [data-theme="light"] .vo-table tbody tr {
+        border-bottom-color: #ECEEF2;
+    }
+    [data-theme="light"] .vo-table tbody tr:hover {
+        background: #F5F7FA;
+    }
+    [data-theme="light"] .vo-col-stand {
+        color: #5A6373;
+    }
+
+    /* ── Receipt Modal Styling ── */
+    .receipt-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(10px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+
+    .receipt-modal.active {
+        display: flex !important;
+        opacity: 1;
+    }
+
+    .receipt-modal-content {
+        background: #111111;
+        border: 1px solid #2a2a2a;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 440px;
+        padding: 24px 28px;
+        color: #f5f5f5;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        animation: modalPop 0.25s ease;
+    }
+
+    .receipt-header {
+        text-align: center;
+        padding-bottom: 16px;
+        border-bottom: 1px dashed rgba(255,255,255,0.15);
+        margin-bottom: 16px;
+    }
+
+    .receipt-brand {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .receipt-sub {
+        font-size: 12px;
+        color: #888888;
+        margin-top: 4px;
+    }
+
+    .receipt-info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 16px;
+        font-size: 12.5px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px dashed rgba(255,255,255,0.15);
+    }
+
+    .receipt-items-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+        margin-bottom: 16px;
+    }
+
+    .receipt-items-table th {
+        text-align: left;
+        padding-bottom: 8px;
+        color: #888;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        font-size: 11px;
+        text-transform: uppercase;
+    }
+
+    .receipt-items-table td {
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .receipt-totals {
+        border-top: 1px dashed rgba(255,255,255,0.2);
+        padding-top: 12px;
+        font-size: 13px;
+    }
+
+    .receipt-total-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+
+    .receipt-total-row.grand {
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--accent);
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .receipt-footer-msg {
+        text-align: center;
+        font-size: 12px;
+        color: #888;
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px dashed rgba(255,255,255,0.15);
+    }
+
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #printableReceipt, #printableReceipt * {
+            visibility: visible;
+        }
+        #printableReceipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm;
+            padding: 10px;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: monospace, sans-serif !important;
+            font-size: 12px !important;
+        }
+        #printableReceipt .receipt-brand { color: #000 !important; }
+        #printableReceipt .receipt-total-row.grand { color: #000 !important; }
+        #printableReceipt border, #printableReceipt td, #printableReceipt th { border-color: #000 !important; }
+    }
+
     @keyframes pulse-dot {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.5; transform: scale(0.8); }
@@ -465,10 +1184,36 @@ if ($action === ""):
         box-shadow: var(--shadow-accent);
     }
 
-    /* ── Container ── */
-    .container {
-        max-width: 1400px;
-        margin: auto;
+    /* ── Page Wrapper & Sidebar Gap ── */
+    .vo-page-wrapper {
+        padding: 40px 36px 40px 36px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .app-main, .main-content-container, main, .bmain {
+        padding-top: 40px !important;
+        padding-left: 36px !important;
+        padding-right: 36px !important;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 768px) {
+        .vo-page-wrapper {
+            padding: 16px;
+        }
+        .app-main, .main-content-container, main, .bmain {
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+        }
+    }
+
+    /* ── Container Overrides for 100% Full Width ── */
+    .container, .vo-table-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
         position: relative;
         z-index: 1;
     }
@@ -478,6 +1223,11 @@ if ($action === ""):
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 18px;
+    }
+
+    .orders-table-wrapper-container {
+        display: block !important;
+        width: 100% !important;
     }
 
     /* ── Order Card ── */
@@ -525,7 +1275,8 @@ if ($action === ""):
 
     .order-card[data-status="PendingPayment"] { --sc: #d1904b; }
     .order-card[data-status="Paid"]           { --sc: #3498db; }
-    .order-card[data-status="Preparing"]      { --sc: #f1c40f; }
+    .order-card[data-status="New"]            { --sc: #f1c40f; }
+    .order-card[data-status="Making"]         { --sc: #e67e22; }
     .order-card[data-status="Completed"]      { --sc: #55e087; }
     .order-card[data-status="Cancelled"]      { --sc: #ff5c5c; }
     .order-card[data-status="Refunded"]       { --sc: #9b59b6; }
@@ -668,6 +1419,7 @@ if ($action === ""):
 
     .card-actions .call-btn   { background: rgba(209,144,75,.12); color: var(--accent); border-color: rgba(209,144,75,.2); }
     .card-actions .paid-btn   { background: rgba(52,152,219,.12); color: #3498db; border-color: rgba(52,152,219,.2); }
+    .card-actions .take-btn   { background: rgba(241,196,15,.12); color: #f1c40f; border-color: rgba(241,196,15,.2); }
     .card-actions .prepare-btn{ background: rgba(241,196,15,.12); color: #f1c40f; border-color: rgba(241,196,15,.2); }
     .card-actions .complete-btn{background: rgba(85,224,135,.12); color: var(--success); border-color: rgba(85,224,135,.2);}
     .card-actions .cancel-btn { background: rgba(255,92,92,.12);  color: var(--danger); border-color: rgba(255,92,92,.2); }
@@ -682,7 +1434,7 @@ if ($action === ""):
     .card-reason.refund-reason  { background: rgba(155,89,182,.08);  color: #b07fd4; border-left: 2px solid rgba(155,89,182,.3); }
     .card-reason.remake-reason  { background: rgba(241,196,15,.08);  color: #e8c63a; border-left: 2px solid rgba(241,196,15,.3); }
     /* ── Remade card highlight (Preparing only) ── */
-    .order-card.is-remade[data-status="Preparing"] {
+    .order-card.is-remade[data-status="New"] {
         border-color: rgba(241,196,15,.6) !important;
         animation: remade-glow 2s ease-in-out infinite;
     }
@@ -816,6 +1568,18 @@ if ($action === ""):
         background: rgba(241, 196, 15, 0.2);
         color: #f1c40f;
         border: 1px solid rgba(241, 196, 15, 0.2);
+    }
+
+    .status.New {
+        background: rgba(241, 196, 15, 0.2);
+        color: #f1c40f;
+        border: 1px solid rgba(241, 196, 15, 0.2);
+    }
+
+    .status.Making {
+        background: rgba(230, 126, 34, 0.2);
+        color: #e67e22;
+        border: 1px solid rgba(230, 126, 34, 0.2);
     }
 
     .status.Completed {
@@ -1330,10 +2094,194 @@ body.barista-mode { padding: 0; }
 .bcat { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; padding:2px 8px; border-radius:5px; background:rgba(209,144,75,.14); color:var(--accent); flex-shrink:0; }
 .bchips { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
 .bchip { font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.06); color:var(--text-muted); }
-.bchip-more { background:transparent; border-style:dashed; font-style:normal; opacity:.7; }
+/* ══ MODAL OVERLAYS & DIALOG STYLES ══ */
+.call-modal,
+.cancel-modal,
+.refund-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.call-modal.active,
+.cancel-modal.active,
+.refund-modal.active {
+    display: flex !important;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.call-modal-content,
+.cancel-modal-content,
+.refund-modal-content {
+    background: #111111;
+    border: 1px solid #2a2a2a;
+    border-radius: 16px;
+    padding: 28px 32px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    color: #f5f5f5;
+    animation: modalPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes modalPop {
+    from { opacity: 0; transform: scale(0.92) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.call-modal-content h2,
+.cancel-modal-content h2,
+.refund-modal-content h2 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.order-number {
+    font-family: var(--font-mono, monospace);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--amber, #d1904b);
+    margin-bottom: 12px;
+}
+
+/* Dark Theme Form Inputs & Textareas */
+.call-modal-content input,
+.call-modal-content textarea,
+.cancel-modal-content input,
+.cancel-modal-content textarea,
+.refund-modal-content input,
+.refund-modal-content textarea,
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    background: #181818 !important;
+    border: 1px solid #2a2a2a !important;
+    border-radius: 10px !important;
+    padding: 12px 14px !important;
+    color: #f5f5f5 !important;
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 14px !important;
+    outline: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+    box-sizing: border-box !important;
+}
+
+.call-modal-content input:focus,
+.call-modal-content textarea:focus,
+.cancel-modal-content input:focus,
+.cancel-modal-content textarea:focus,
+.refund-modal-content input:focus,
+.refund-modal-content textarea:focus,
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    border-color: var(--amber, #d1904b) !important;
+    box-shadow: 0 0 0 3px rgba(209, 144, 75, 0.2) !important;
+}
+
+.call-modal-content textarea,
+.cancel-modal-content textarea,
+.refund-modal-content textarea,
+.form-group textarea {
+    min-height: 90px;
+    resize: vertical;
+}
+
+.form-group {
+    margin-bottom: 16px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #888888;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Modal Action Buttons */
+.btn-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 22px;
+    justify-content: flex-end;
+}
+
+.btn-dismiss,
+.btn-cancel-yes,
+.btn-cancel-no,
+.btn-refund-yes,
+.btn-refund-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.btn-dismiss {
+    background: var(--amber, #d1904b);
+    color: #000;
+    width: 100%;
+    margin-top: 16px;
+}
+
+.btn-cancel-yes,
+.btn-refund-yes {
+    background: #ff6b6b;
+    color: #ffffff;
+}
+
+.btn-cancel-yes:hover,
+.btn-refund-yes:hover {
+    background: #ff5252;
+    transform: translateY(-1px);
+}
+
+.btn-cancel-no,
+.btn-refund-no {
+    background: #242424;
+    border: 1px solid #333333;
+    color: #cccccc;
+}
+
+.btn-cancel-no:hover,
+.btn-refund-no:hover {
+    background: #2e2e2e;
+    color: #ffffff;
+}
     </style>
 </head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<div class="app-main flex-1 h-full overflow-y-auto">
 
 <!-- Coffee Steam Animation -->
 <div class="steam-container">
@@ -1504,7 +2452,7 @@ function showClockToast(msg, isErr) {
         <div class="bstat-row" id="stat-avg-row"><span class="k"><i class="fa-regular fa-clock"></i> Avg Wait</span><span class="v" id="stat-avgwait">—</span></div>
      </div>
      <nav class="bnav">
-        <a href="recipes_view.php"><i class="fa-solid fa-book-open"></i> Drink Recipes</a>
+        <a href="products.php"><i class="fa-solid fa-cube"></i> Products</a>
         <?php if (can('my_profile')): ?><a href="profile.php"><i class="fa-solid fa-circle-user"></i> Profile</a><?php endif; ?>
         <button id="clockBtn" data-clocked="<?= $_is_clocked_in ? '1':'0' ?>" onclick="toggleClock()">
            <i class="fa-solid fa-<?= $_is_clocked_in ? 'right-from-bracket':'fingerprint' ?>"></i> <?= $_is_clocked_in ? 'Clock Out':'Clock In' ?>
@@ -1540,137 +2488,84 @@ function showClockToast(msg, isErr) {
   </main>
 </div>
 <?php else: ?>
-<!-- Top-left: Nav + Identity -->
-<div style="position:fixed;top:24px;left:24px;display:flex;flex-direction:column;gap:18px;z-index:100;">
-    <div style="display:flex;gap:10px;">
-        <?php if (($_SESSION['role'] ?? '') !== 'barista'): ?>
-        <a href="menu.php" class="back" style="position:static;">
-            <i class="fa-solid fa-mug-hot"></i> Menu
-        </a>
-        <?php endif; ?>
-        <?php if (($_SESSION['role'] ?? '') === 'barista'): ?>
-        <a href="recipes_view.php" class="back" style="position:static;">
-            <i class="fa-solid fa-book-open"></i> Drink Recipe
-        </a>
-        <?php else: ?>
-        <a href="dashboard.php" class="back" style="position:static;">
-            <i class="fa-solid fa-gauge"></i> Dashboard
-        </a>
-        <?php endif; ?>
-    </div>
-    <div style="padding-left:4px;">
-        <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:3px;">
-            <?= $_greeting ?>, <span style="color:var(--accent);"><?= $_vo_username ?></span>
+<div class="vo-page-wrapper">
+<?php $page_title = __('nav_orders', 'Orders'); require __DIR__ . '/header_bar.php'; ?>
+
+<!-- Header Stat Boxes -->
+<div class="vo-stats-grid">
+    <div class="vo-stat-box" id="statCard-all" onclick="filterStatus('all')">
+        <div class="vo-stat-icon all-orders">
+            <i class="fa-solid fa-layer-group"></i>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;margin-bottom:7px;">
-            <i class="fa-regular fa-calendar" style="font-size:11px;"></i> <?= $_date_str ?>
-        </div>
-        <div style="display:inline-flex;align-items:center;gap:6px;
-                    padding:4px 12px;border-radius:50px;font-size:12px;font-weight:600;
-                    color:<?= $_role_color ?>;
-                    background:<?= $_role_color ?>18;
-                    border:1px solid <?= $_role_color ?>40;
-                    letter-spacing:.3px;">
-            <span style="width:7px;height:7px;border-radius:50%;background:<?= $_role_color ?>;
-                         box-shadow:0 0 5px <?= $_role_color ?>;
-                         animation:pulse-dot 2s infinite;display:inline-block;"></span>
-            <?= $_role_label ?>
+        <div class="vo-stat-content">
+            <span class="vo-stat-title"><?= __('all_orders', 'All Order') ?></span>
+            <span class="vo-stat-value" id="stat-count-all-orders">0</span>
+            <span class="vo-stat-sub"><?= __('show_all_orders', 'Show all orders') ?></span>
         </div>
     </div>
-</div>
 
-<!-- Top-right: Clock + Profile + Logout -->
-<div style="position:fixed;top:24px;right:24px;display:flex;gap:8px;z-index:100;">
-    <?php
-    $clocked = $_is_clocked_in;
-    $clkBg    = $clocked ? 'rgba(255,95,95,.08)'   : 'rgba(85,224,135,.08)';
-    $clkBr    = $clocked ? 'rgba(255,95,95,.25)'   : 'rgba(85,224,135,.25)';
-    $clkColor = $clocked ? '#ff6b6b'               : '#55e087';
-    $clkIcon  = $clocked ? 'right-from-bracket'    : 'fingerprint';
-    $clkLabel = $clocked ? 'Clock Out'             : 'Clock In';
-    $clkTitle = $clocked ? 'Clocked in at ' . $_clock_since : 'Not clocked in';
-    ?>
-    <button id="clockBtn" data-clocked="<?= $clocked ? '1' : '0' ?>"
-        onclick="toggleClock()"
-        title="<?= htmlspecialchars($clkTitle) ?>"
-        style="position:static;display:inline-flex;align-items:center;gap:7px;
-               padding:7px 14px;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;font-weight:500;cursor:pointer;
-               background:<?= $clkBg ?>;border:1px solid <?= $clkBr ?>;color:<?= $clkColor ?>;transition:all .2s;">
-        <i class="fa-solid fa-<?= $clkIcon ?>"></i> <?= $clkLabel ?>
-    </button>
-    <?php if (can('my_profile')): ?>
-    <a href="profile.php" class="back" style="position:static;" title="My Profile">
-        <i class="fa-solid fa-circle-user"></i> Profile
-    </a>
-    <?php endif; ?>
-    <a href="shift_report.php" class="back" style="position:static;background:rgba(255,95,95,.08);border-color:rgba(255,95,95,.25);color:#ff6b6b;" title="View shift report &amp; log out">
-        <i class="fa-solid fa-right-from-bracket"></i> Logout
-    </a>
-</div>
-
-<!-- Header -->
-<div style="text-align:center;padding-top:28px;margin-bottom:32px;">
-    <h1 style="color:var(--accent);font-size:28px;font-weight:800;display:inline-flex;align-items:center;
-               gap:10px;margin:0 0 8px;text-shadow:0 0 24px rgba(209,144,75,.2);">
-        <i class="fa-solid fa-receipt"></i> Orders
-    </h1>
-    <br>
-    <div class="vo-live-badge" style="display:inline-flex;">
-        <span class="dot"></span> Live
+    <div class="vo-stat-box" id="statCard-total-price" onclick="filterStatus('all')">
+        <div class="vo-stat-icon total-price">
+            <i class="fa-solid fa-dollar-sign"></i>
+        </div>
+        <div class="vo-stat-content">
+            <span class="vo-stat-title"><?= __('total_price', 'Total Price') ?></span>
+            <span class="vo-stat-value" id="stat-count-total-price">$0.00</span>
+            <span class="vo-stat-sub"><?= __('total_sales_today', 'Total sales today') ?></span>
+        </div>
     </div>
-</div>
-
-<!-- Announcements -->
-<div id="annContainer" style="max-width:900px;margin:0 auto 0;padding:0 20px;"></div>
-
-<!-- Status Tabs -->
-<div class="status-tabs" id="statusTabs">
-    <?php if ($r === 'admin' || $r === 'manager'): ?>
-    <button class="status-tab active" data-status="all" onclick="filterStatus('all')">
-        <i class="fa-solid fa-layer-group"></i> All <span class="badge" id="count-all">0</span>
-    </button>
-    <?php endif; ?>
-    <?php if ($r !== 'staff'): ?>
-    <button class="status-tab <?= $r === 'barista' ? 'active' : '' ?>" data-status="Preparing" onclick="filterStatus('Preparing')">
-        <i class="fa-solid fa-fire-burner"></i> Preparing <span class="badge" id="count-Preparing">0</span>
-    </button>
-    <?php endif; ?>
-    <button class="status-tab <?= $r === 'staff' ? 'active' : '' ?>" data-status="Completed" onclick="filterStatus('Completed')">
-        <i class="fa-solid fa-circle-check"></i> Completed <span class="badge" id="count-Completed">0</span>
-    </button>
-    <?php if ($r !== 'staff' && $r !== 'barista'): ?>
-    <button class="status-tab" data-status="Cancelled" onclick="filterStatus('Cancelled')">
-        <i class="fa-solid fa-circle-xmark"></i> Cancelled <span class="badge" id="count-Cancelled">0</span>
-    </button>
-    <?php endif; ?>
-    <?php if ($r === 'admin' || $r === 'manager'): ?>
-    <button class="status-tab" data-status="Refunded" onclick="filterStatus('Refunded')">
-        <i class="fa-solid fa-rotate-left"></i> Refunded <span class="badge" id="count-Refunded">0</span>
-    </button>
-    <?php endif; ?>
 </div>
 
 <!-- Search Bar -->
-<div class="search-bar" style="display:flex; justify-content:center; gap:12px; margin-bottom:20px; align-items:center; flex-wrap:wrap;">
-    <input type="text" id="searchInput" placeholder="Search by customer name, order #, or status..."
+<div class="search-bar" style="display:flex; gap:12px; margin-bottom:16px; align-items:center; width:100%; flex-wrap:wrap;">
+    <input type="text" id="searchInput" placeholder="<?= __('search_orders_ph', 'Search by customer name, order #, or status...') ?>"
            oninput="searchOrders()" onkeydown="if(event.key==='Escape')clearSearch()"
-           style="width:300px; padding:10px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.09); background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--text); font-family:'Poppins',sans-serif; font-size:14px; outline:none; transition:var(--transition); box-shadow:0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);">
+           style="flex:1; width:100%; min-width:240px; padding:11px 18px; border-radius:10px; border:1px solid rgba(255,255,255,0.09); background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--text); font-family:'Poppins',sans-serif; font-size:14px; outline:none; transition:var(--transition); box-shadow:0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);">
     <button class="btn" onclick="searchOrders()" 
-            style="padding:10px 20px; border-radius:10px; border:none; background:var(--accent); color:#000; font-weight:600; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
-        <i class="fa-solid fa-magnifying-glass"></i> Search
+            style="padding:11px 22px; border-radius:10px; border:none; background:var(--accent); color:#000; font-weight:600; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-magnifying-glass"></i> <?= __('search', 'Search') ?>
     </button>
     <button class="btn-clear" onclick="clearSearch()" 
-            style="padding:10px 20px; border-radius:10px; border:1px solid var(--border); background:rgba(18, 18, 18, 0.5); backdrop-filter:blur(10px); color:var(--text); font-weight:500; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
-        <i class="fa-solid fa-xmark"></i> Clear
+            style="padding:11px 22px; border-radius:10px; border:1px solid var(--border); background:rgba(18, 18, 18, 0.5); backdrop-filter:blur(10px); color:var(--text); font-weight:500; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
+        <i class="fa-solid fa-xmark"></i> <?= __('clear', 'Clear') ?>
     </button>
 </div>
 
+<!-- Quick Date Filter Pills -->
+<div class="vo-date-filter-bar" style="display:flex; gap:8px; margin-bottom:24px; align-items:center; flex-wrap:wrap;">
+    <button type="button" class="vo-date-pill active" onclick="filterDateRange('all', this)">
+        <i class="fa-solid fa-layer-group"></i> <?= __('range_all', 'All Time') ?>
+    </button>
+    <button type="button" class="vo-date-pill" onclick="filterDateRange('today', this)">
+        <i class="fa-solid fa-calendar-day"></i> <?= __('range_today', 'Today') ?>
+    </button>
+    <button type="button" class="vo-date-pill" onclick="filterDateRange('week', this)">
+        <i class="fa-solid fa-calendar-week"></i> <?= __('range_this_week', 'This Week') ?>
+    </button>
+    <button type="button" class="vo-date-pill" onclick="filterDateRange('month', this)">
+        <i class="fa-solid fa-calendar-days"></i> <?= __('range_this_month', 'This Month') ?>
+    </button>
+    <button type="button" class="vo-date-pill" onclick="filterDateRange('year', this)">
+        <i class="fa-regular fa-calendar-check"></i> <?= __('range_this_year', 'This Year') ?>
+    </button>
+</div>
 
-<!-- Orders Grid -->
-<div class="container">
-    <div class="orders-grid" id="ordersBody"></div>
+<!-- Orders Container -->
+<div class="vo-table-container" style="width:100% !important; max-width:100% !important; margin:0 !important; padding:0 !important;">
+    <div id="ordersBody" class="orders-grid" style="width:100% !important; max-width:100% !important;"></div>
+</div>
 </div>
 <?php endif; ?>
+
+<!-- Printable 80mm thermal receipt container -->
+<div id="printableReceipt" style="display:none;"></div>
+
+<!-- Order Detail Modal -->
+<div class="detail-modal" id="orderDetailModal">
+    <div class="detail-modal-content">
+        <div id="orderDetailContent"></div>
+    </div>
+</div>
 
 <!-- Call Notification Modal -->
 <div class="call-modal" id="callModal">
@@ -1766,7 +2661,7 @@ function showClockToast(msg, isErr) {
 <script>
 const tbody = document.getElementById("ordersBody");
 const known = new Set();
-let currentFilter = '<?= (in_array($_SESSION['role'] ?? '', ['admin', 'manager'])) ? 'all' : (($_SESSION['role'] ?? '') === 'barista' ? 'Preparing' : 'Completed') ?>';
+let currentFilter = '<?= (in_array($_SESSION['role'] ?? '', ['admin', 'manager'])) ? 'all' : (($_SESSION['role'] ?? '') === 'barista' ? 'New' : 'Completed') ?>';
 let showCompleted = true;
 let searchQuery = '';
 let currentCancelId = 0;
@@ -1775,11 +2670,11 @@ let currentRemakeId = 0;
 let allOrders = [];
 
 // ── Get user role from PHP ──
-const userRole = "<?= $_SESSION['role'] ?? 'staff' ?>";
-const OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
-const isAdmin = userRole === 'admin';
-const canManageOrders = userRole === 'admin' || userRole === 'manager';
-const canRemake = userRole === 'admin' || userRole === 'manager' || userRole === 'staff';
+var userRole = "<?= $_SESSION['role'] ?? 'staff' ?>";
+var OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
+var isAdmin = userRole === 'admin';
+var canManageOrders = userRole === 'admin' || userRole === 'manager';
+var canRemake = userRole === 'admin' || userRole === 'manager' || userRole === 'staff';
 
 // ── Play Sound ──
 function play(id) {
@@ -1850,11 +2745,15 @@ function buildItems(items) {
 // mixes both concerns, so 'Paid' would otherwise surface as a money-word tab here.
 // Translate it into what it means for making drinks:
 //   Paid + is_open=0 → settled and closed, nothing left to do  → Completed
-//   Paid + is_open=1 → paid, tab still open, not yet made      → Preparing (work queue)
+//   Paid + is_open=1 → paid, tab still open, not yet made      → New (work queue)
+//   'Preparing'      → legacy queue rows also read as New
+//   'Making'         → taken by a barista, being made
 // Everything else already names a fulfilment state. Action buttons deliberately keep
 // using the REAL o.status — only display/filtering is translated.
 function boardState(o) {
-    if (o.status === 'Paid') return Number(o.is_open) === 1 ? 'Preparing' : 'Completed';
+    if (o.status === 'Paid') return Number(o.is_open) === 1 ? 'New' : 'Completed';
+    if (o.status === 'Preparing') return 'New';
+    if (o.status === 'Making') return 'Making';
     return o.status;
 }
 
@@ -1867,8 +2766,10 @@ function getStatusBadge(status) {
         statusText = '<i class="fa-solid fa-clock"></i> Pending';
     } else if (status === 'Paid') {
         statusText = '<i class="fa-solid fa-dollar-sign"></i> Paid';
-    } else if (status === 'Preparing') {
-        statusText = '<i class="fa-solid fa-fire-burner"></i> Preparing';
+    } else if (status === 'New' || status === 'Preparing') {
+        statusText = '<i class="fa-solid fa-mug-hot"></i> New';
+    } else if (status === 'Making') {
+        statusText = '<i class="fa-solid fa-fire-burner"></i> Making';
     } else if (status === 'Completed') {
         statusText = '<i class="fa-solid fa-circle-check"></i> Completed';
     } else if (status === 'Cancelled') {
@@ -1934,7 +2835,7 @@ function buildCardInner(o) {
             <div class="card-order-num">#${escapeHtml(String(o.daily_order_no))}</div>
             <div class="card-header-right">
                 ${getStatusBadge(boardState(o))}
-                ${ageBadgeHtml(o.order_date, o.status)}
+                ${ageBadgeHtml(o.order_date, boardState(o))}
                 ${o.remake_count > 0 ? `<span class="badge-remade"><i class="fa-solid fa-repeat" style="font-size:9px"></i> Remade${o.remake_count > 1 ? ` ×${o.remake_count}` : ''}</span>` : ''}
                 <div class="card-total">$${parseFloat(o.total || 0).toFixed(2)}</div>
             </div>
@@ -1983,10 +2884,10 @@ function buildBaristaCardInner(o) {
     // Board state throughout: the badge already used it, so reading the raw status
     // for the overdue test could have shown a "Preparing" badge on a card the same
     // function decided was Preparing by a different rule.
-    const isQueued = boardState(o) === 'Preparing';
+    const isQueued = boardState(o) === 'New';
     const overdue = isQueued && age >= OVERDUE_MINUTES;
     const badge = isQueued
-        ? `<span class="bcard-badge ${overdue ? 'overdue' : 'prep'}">${overdue ? '<i class="fa-solid fa-circle-exclamation"></i> Overdue' : '<i class="fa-solid fa-hourglass-half"></i> Preparing'}</span>`
+        ? `<span class="bcard-badge ${overdue ? 'overdue' : 'prep'}">${overdue ? '<i class="fa-solid fa-circle-exclamation"></i> Overdue' : '<i class="fa-solid fa-mug-hot"></i> New'}</span>`
         : getStatusBadge(boardState(o));
     // Barista sees only UNMADE drinks — made ones are hidden so the queue shows just what's
     // left to make (baristas don't triage new-vs-old, they only make what's shown). On a
@@ -2097,7 +2998,7 @@ function updateBaristaStats() {
            and under-reported the day's work. Symmetrically, a paid-but-still-open
            order belongs in the queue. */
         const st = boardState(o);
-        if (st === 'Preparing') {
+        if (st === 'New') {
             queue++;
             if (orderAgeMin(o) >= OVERDUE_MINUTES) overdue++;
         } else if (st === 'Completed') {
@@ -2123,16 +3024,16 @@ function addRow(o) {
     card.className = "order-card" + (o.remake_count > 0 ? " is-remade" : "");
     card.dataset.status = boardState(o);
     card.dataset.orderId = o.order_id;
-    if (userRole === 'barista') {
-        card.classList.add('bcard');
-        // Board state: a paid-but-open order is still work to make, so it can go
-        // overdue like anything else in the queue.
-        if (boardState(o) === 'Preparing') {
-            const age = orderAgeMin(o);
-            if (age >= OVERDUE_MINUTES) card.classList.add('is-overdue');
-            else if (age >= Math.floor(OVERDUE_MINUTES * 0.7)) card.classList.add('is-warn');
+        if (userRole === 'barista') {
+            card.classList.add('bcard');
+            // Board state: a paid-but-open order is still work to make, so it can go
+            // overdue like anything else in the queue.
+            if (boardState(o) === 'New') {
+                const age = orderAgeMin(o);
+                if (age >= OVERDUE_MINUTES) card.classList.add('is-overdue');
+                else if (age >= Math.floor(OVERDUE_MINUTES * 0.7)) card.classList.add('is-warn');
+            }
         }
-    }
     /* Hide what the card SAYS it is. On the raw status a settled order reads 'Paid'
        and survived the toggle, so 191 cards labelled "Completed" stayed on screen
        with "show completed" off — the filter disagreeing with its own badges. */
@@ -2153,15 +3054,6 @@ function getActionButtons(o) {
        with Refund and Remake — the ones actually wanted — never rendering. */
     const state = boardState(o);
 
-    // Call button - only for an order still in the queue
-    if (state === 'Preparing') {
-        buttons += `
-            <button class="call-btn" onclick="callOrder(${Number(o.order_id)}, '${escapeHtml(o.customer_name)}', ${Number(o.daily_order_no)})" title="Call customer">
-                <i class="fa-solid fa-bell"></i> Call
-            </button>
-        `;
-    }
-    
     // Paid button - only for PendingPayment, and not for barista (cashier/manager job)
     if (o.status === 'PendingPayment' && userRole !== 'barista') {
         buttons += `
@@ -2171,48 +3063,22 @@ function getActionButtons(o) {
         `;
     }
     
-    // Complete button - only for an order still being made
-    if (state === 'Preparing') {
+    // Take button - a New (queued) order is picked up into Making
+    if (state === 'New') {
+        buttons += `
+            <button class="take-btn" onclick="takeOrder(${Number(o.order_id)})" title="Take order into making">
+                <i class="fa-solid fa-hand"></i> Take
+            </button>
+        `;
+    }
+
+    // Complete button - only for an order being made
+    if (state === 'Making') {
         buttons += `
             <button class="complete-btn" onclick="completeOrder(${Number(o.order_id)})" title="Complete order">
                 <i class="fa-solid fa-check"></i> Complete
             </button>
         `;
-    }
-    
-    // Cancel button - staff(cashier): Pending only; others: anything except Completed/Cancelled/Refunded
-    // Never on a settled sale: cancel_order.php refuses it, because cancelling a paid
-    // order records no refund and drops it out of revenue with the cash still taken.
-    const canCancel = state !== 'Completed' && o.status !== 'Paid'
-        && o.status !== 'Cancelled' && o.status !== 'Refunded' && userRole !== 'barista'
-        && (userRole !== 'staff' || o.status === 'PendingPayment');
-    if (canCancel) {
-        buttons += `
-            <button class="cancel-btn" onclick="showCancelModal(${Number(o.order_id)}, ${Number(o.daily_order_no)})" title="Cancel order">
-                <i class="fa-solid fa-ban"></i> Cancel
-            </button>
-        `;
-    }
-    
-    if (state === 'Completed') {
-        // An open pay-later tab has taken no money — 'Completed' there means made-but-owing.
-        // Refunding it would erase the debt and record cash that was never collected.
-        const unpaidTab = o.payment_method === 'paylater' && Number(o.is_open) === 1;
-        // Refund only for admin/manager, and only if not already remade
-        if (canManageOrders && !o.is_remade && !unpaidTab) {
-            buttons += `
-                <button class="refund-btn" onclick="showRefundModal(${Number(o.order_id)}, ${Number(o.daily_order_no)}, ${parseFloat(o.total).toFixed(2)})" title="Refund order">
-                    <i class="fa-solid fa-rotate-left"></i> Refund
-                </button>
-            `;
-        }
-        if (canRemake) {
-            buttons += `
-                <button class="remake-btn" onclick="showRemakeModal(${Number(o.order_id)}, ${Number(o.daily_order_no)})" title="Log remake">
-                    <i class="fa-solid fa-repeat"></i> Remake
-                </button>
-            `;
-        }
     }
     
     // Delete button - only for PendingPayment or Cancelled (admin only)
@@ -2224,6 +3090,13 @@ function getActionButtons(o) {
         `;
     }
     
+    // Print Receipt Button
+    buttons += `
+        <button class="print-btn" onclick="printReceipt(${Number(o.order_id)})" title="Print Receipt">
+            <i class="fa-solid fa-print"></i> Print
+        </button>
+    `;
+
     return buttons || `<span style="color:var(--text-muted);font-size:12px;padding:4px 0;">—</span>`;
 }
 
@@ -2232,9 +3105,9 @@ function updateExistingRow(o) {
     const card = document.getElementById("row-" + o.order_id);
     if (!card) return;
 
-    // Play bell when a remade order transitions back to Preparing. dataset.status
+    // Play bell when a remade order transitions back to New. dataset.status
     // already holds the BOARD state, so compare like with like.
-    if (boardState(o) === 'Preparing' && o.remake_count > 0 && card.dataset.status !== 'Preparing') {
+    if (boardState(o) === 'New' && o.remake_count > 0 && card.dataset.status !== 'New') {
         play('bell');
     }
 
@@ -2248,7 +3121,7 @@ function updateExistingRow(o) {
     card.className = "order-card" + (o.remake_count > 0 ? " is-remade" : "");
     if (userRole === 'barista') {
         card.classList.add('bcard');
-        if (boardState(o) === 'Preparing') {
+        if (boardState(o) === 'New') {
             const age = orderAgeMin(o);
             if (age >= OVERDUE_MINUTES) card.classList.add('is-overdue');
             else if (age >= Math.floor(OVERDUE_MINUTES * 0.7)) card.classList.add('is-warn');
@@ -2264,17 +3137,26 @@ function applyFilters() {
 
     cards.forEach(card => {
         const cardStatus = card.dataset.status;
+        const orderId = card.dataset.orderId;
+        const o = (allOrders || []).find(item => Number(item.order_id) === Number(orderId));
         let visible = true;
 
-        if (query) {
+        if (o && !isOrderInDateRange(o, currentDateRange)) {
+            visible = false;
+        } else if (query) {
             // While searching, cross all tabs — match on text content
             const text = card.textContent.toLowerCase();
             visible = text.includes(query);
-            // Barista queue is Preparing-only: search must not resurrect Completed/Cancelled cards
-            if (userRole === 'barista' && cardStatus !== 'Preparing') visible = false;
+            // Barista queue is New+Making-only: search must not resurrect Completed/Cancelled cards
+            if (userRole === 'barista' && !['New', 'Making'].includes(cardStatus)) visible = false;
         } else {
             // Normal tab + showCompleted filtering
-            if (currentFilter !== 'all' && cardStatus !== currentFilter) visible = false;
+            if (userRole === 'barista') {
+                // Barista station has no tabs: show the whole New+Making queue.
+                visible = ['New', 'Making'].includes(cardStatus);
+            } else if (currentFilter !== 'all' && cardStatus !== currentFilter) {
+                visible = false;
+            }
             if ((cardStatus === 'Completed' || cardStatus === 'Refunded') && !showCompleted) visible = false;
         }
 
@@ -2305,40 +3187,579 @@ function filterStatus(status) {
     document.querySelectorAll('.status-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.status === status);
     });
+
+    // Update active header stat box
+    document.querySelectorAll('.vo-stat-box').forEach(box => {
+        box.classList.remove('active');
+    });
+    const activeBox = document.getElementById('statCard-' + status);
+    if (activeBox) activeBox.classList.add('active');
     
+    if (currentViewMode === 'table') {
+        renderTableView();
+    } else {
+        applyFilters();
+    }
+}
+
+// ── I18N Translation Object for Orders Table ──
+window.I18N = {
+    no: '<?= __('col_no', 'No.') ?>',
+    item: '<?= __('col_item', 'ITEM') ?>',
+    total_price: '<?= __('col_total_price', 'Total Price') ?>',
+    time: '<?= __('col_time', 'TIME') ?>',
+    status: '<?= __('col_status', 'Status') ?>',
+    place_by: '<?= __('col_place_by', 'Place By') ?>',
+    action: '<?= __('col_action', 'Action') ?>',
+    view_detail: '<?= __('view_detail', 'View Detail') ?>',
+    reprint: '<?= __('reprint', 'Reprint') ?>',
+    item_single: '<?= __('item_single', 'Item') ?>',
+    item_plural: '<?= __('item_plural', 'Items') ?>',
+    no_orders_found: '<?= __('no_orders_found', 'No orders found') ?>',
+    try_changing_search: '<?= __('try_changing_search', 'Try changing search query or header filter card.') ?>',
+    status_new: '<?= __('new_order', 'New') ?>',
+    status_completed: '<?= __('status_completed', 'Complete') ?>',
+    status_preparing: '<?= __('making', 'Making') ?>',
+    status_pending: '<?= __('status_pending', 'Pending') ?>',
+    status_cancelled: '<?= __('status_cancelled', 'Cancelled') ?>',
+    status_refunded: '<?= __('status_refunded', 'Refunded') ?>'
+};
+
+// ── Table Status Badge Renderer (New / Making / Complete) ──
+function getTableStatusBadge(boardSt) {
+    if (boardSt === 'New' || boardSt === 'Preparing') {
+        return `<span class="status-pill status-new"><i class="fa-solid fa-mug-hot"></i> ${window.I18N.status_new}</span>`;
+    } else if (boardSt === 'Making') {
+        return `<span class="status-pill status-making"><i class="fa-solid fa-fire-burner"></i> ${window.I18N.status_preparing}</span>`;
+    } else if (boardSt === 'Completed') {
+        return `<span class="status-pill status-complete"><i class="fa-solid fa-circle-check"></i> ${window.I18N.status_completed}</span>`;
+    } else if (boardSt === 'PendingPayment') {
+        return `<span class="status-pill status-pending"><i class="fa-solid fa-clock"></i> ${window.I18N.status_pending}</span>`;
+    } else if (boardSt === 'Cancelled') {
+        return `<span class="status-pill status-cancelled"><i class="fa-solid fa-ban"></i> ${window.I18N.status_cancelled}</span>`;
+    } else if (boardSt === 'Refunded') {
+        return `<span class="status-pill status-refunded"><i class="fa-solid fa-rotate-left"></i> ${window.I18N.status_refunded}</span>`;
+    }
+    return `<span class="status-pill status-pending">${escapeHtml(boardSt)}</span>`;
+}
+
+// ── Format Date & Time (YYYY-MM-DD hh:mm AM/PM) ──
+function formatDateTime(dtStr) {
+    if (!dtStr) return '—';
+    const d = new Date(dtStr.replace(/-/g, '/'));
+    if (isNaN(d.getTime())) return dtStr;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const strHours = String(hours).padStart(2, '0');
+    return `${year}-${month}-${day} ${strHours}:${minutes} ${ampm}`;
+}
+
+// ── Quick Date Range Filtering Logic ──
+let currentDateRange = 'all';
+
+function isOrderInDateRange(o, range) {
+    if (!range || range === 'all') return true;
+    if (!o || !o.order_date) return true;
+
+    const dt = new Date(String(o.order_date).replace(/-/g, '/'));
+    if (isNaN(dt.getTime())) return true;
+
+    const now = new Date();
+    const orderYear = dt.getFullYear();
+    const orderMonth = dt.getMonth();
+    const orderDate = dt.getDate();
+
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth();
+    const nowDate = now.getDate();
+
+    if (range === 'today') {
+        return orderYear === nowYear && orderMonth === nowMonth && orderDate === nowDate;
+    }
+
+    if (range === 'week') {
+        const startOfWeek = new Date(nowYear, nowMonth, nowDate);
+        const day = now.getDay();
+        const diffToMon = nowDate - day + (day === 0 ? -6 : 1);
+        startOfWeek.setDate(diffToMon);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+
+        return dt >= startOfWeek && dt <= endOfWeek;
+    }
+
+    if (range === 'month') {
+        return orderYear === nowYear && orderMonth === nowMonth;
+    }
+
+    if (range === 'year') {
+        return orderYear === nowYear;
+    }
+
+    return true;
+}
+
+function updateCounts(orders) {
+    let countAll = 0;
+    let totalPrice = 0;
+
+    (orders || []).forEach(o => {
+        if (isOrderInDateRange(o, currentDateRange)) {
+            countAll++;
+            totalPrice += parseFloat(o.total || 0);
+        }
+    });
+
+    const elAll = document.getElementById('stat-count-all-orders');
+    if (elAll) elAll.textContent = countAll;
+
+    const elPrice = document.getElementById('stat-count-total-price');
+    if (elPrice) elPrice.textContent = '$' + totalPrice.toFixed(2);
+}
+
+function filterDateRange(range, btn) {
+    currentDateRange = range;
+
+    document.querySelectorAll('.vo-date-pill').forEach(b => b.classList.remove('active'));
+    if (btn) {
+        btn.classList.add('active');
+    }
+
+    renderTableView();
     applyFilters();
 }
 
-// ── Update Counts ──
-function updateCounts(data) {
-    const counts = { 
-        all: 0, 
-        PendingPayment: 0, 
-        Paid: 0, 
-        Preparing: 0, 
-        Completed: 0, 
-        Cancelled: 0,
-        Refunded: 0
-    };
+// ── Teal Table View Renderer ──
+function renderTableView() {
+    const container = document.getElementById('ordersBody');
+    if (!container) return;
+    container.className = 'orders-table-wrapper-container';
+    updateCounts(allOrders);
+
+    const query = searchQuery.toLowerCase().trim();
+    const now = new Date();
+    const filteredOrders = (allOrders || []).filter(o => {
+        if (!isOrderInDateRange(o, currentDateRange)) return false;
+        const boardSt = boardState(o);
+        if (query) {
+            const text = (o.daily_order_no + ' ' + (o.customer_name||'') + ' ' + boardSt + ' ' + (o.employee_name||'')).toLowerCase();
+            if (!text.includes(query)) return false;
+            if (userRole === 'barista' && !['New', 'Making'].includes(boardSt)) return false;
+        } else {
+            if (userRole === 'barista') {
+                if (!['New', 'Making'].includes(boardSt)) return false;
+            } else if (currentFilter !== 'all' && boardSt !== currentFilter) {
+                return false;
+            }
+            if ((boardSt === 'Completed' || o.status === 'Refunded') && !showCompleted && currentFilter !== 'Completed') return false;
+        }
+        return true;
+    });
+
+    if (filteredOrders.length === 0) {
+        container.innerHTML = `
+            <div class="vo-table-wrapper">
+                <table class="vo-table">
+                    <thead>
+                        <tr>
+                            <th style="width:10%;">${window.I18N.no}</th>
+                            <th style="width:22%;">${window.I18N.item}</th>
+                            <th style="width:15%;">${window.I18N.total_price}</th>
+                            <th style="width:18%;">${window.I18N.time}</th>
+                            <th style="width:15%;">${window.I18N.place_by}</th>
+                            <th style="width:20%;">${window.I18N.action}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+                                <div style="width:56px;height:56px;border-radius:50%;background:rgba(15,118,110,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:#0f766e;font-size:22px;">
+                                    <i class="fa-solid fa-mug-hot"></i>
+                                </div>
+                                <div style="font-weight:700;color:var(--text);margin-bottom:4px;font-size:15px;">${window.I18N.no_orders_found}</div>
+                                <div style="font-size:12.5px;">${window.I18N.try_changing_search}</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+        return;
+    }
+
+    const rowsHtml = filteredOrders.map(o => {
+        const boardSt = boardState(o);
+        const totalItemsQty = (o.items || []).reduce((sum, item) => sum + parseInt(item.quantity || 1, 10), 0);
+        const itemLabel = totalItemsQty === 1 ? window.I18N.item_single : window.I18N.item_plural;
+        const itemsSummary = `<span class="vo-items-count-badge" title="${escapeHtml((o.items || []).map(i => i.quantity + 'x ' + i.product_name).join(', '))}"><i class="fa-solid fa-box"></i> ${totalItemsQty} ${itemLabel}</span>`;
+        const dtFormatted = formatDateTime(o.order_date);
+        const timeDisplay = `
+            <span class="vo-date-time-badge" style="font-size:12px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);color:var(--text);display:inline-flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap;">
+                <i class="fa-regular fa-clock" style="color:var(--accent);font-size:12px;"></i> ${escapeHtml(dtFormatted)}
+            </span>
+        `;
+
+        const completeBtnHtml = (boardSt === 'Making') ? `
+            <button class="complete-btn" onclick="completeOrder(${Number(o.order_id)})" title="Complete Order">
+                <i class="fa-solid fa-check"></i> Complete
+            </button>
+        ` : '';
+
+        const orderNoPadded = String(o.daily_order_no || '').padStart(3, '0');
+
+        return `
+            <tr id="row-${o.order_id}" data-status="${boardSt}">
+                <td class="vo-col-order">#${escapeHtml(orderNoPadded)}</td>
+                <td class="vo-col-items">${itemsSummary}</td>
+                <td class="vo-col-total">$${parseFloat(o.total || 0).toFixed(2)}</td>
+                <td class="vo-col-date" title="${escapeHtml(o.order_date || '')}">${timeDisplay}</td>
+                <td class="vo-col-placed">${escapeHtml(o.employee_name || 'Staff')}</td>
+                <td class="vo-col-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <button class="btn-view-detail" onclick="openOrderDetailModal(${Number(o.order_id)})" title="View Order Details">
+                        <i class="fa-solid fa-eye"></i> ${window.I18N.view_detail}
+                    </button>
+                    <button class="btn-reprint" onclick="printReceipt(${Number(o.order_id)})" title="Reprint Receipt">
+                        <i class="fa-solid fa-print"></i> ${window.I18N.reprint}
+                    </button>
+                    ${completeBtnHtml}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="vo-table-wrapper">
+            <table class="vo-table">
+                <thead>
+                    <tr>
+                        <th style="width:10%;">${window.I18N.no}</th>
+                        <th style="width:22%;">${window.I18N.item}</th>
+                        <th style="width:15%;">${window.I18N.total_price}</th>
+                        <th style="width:18%;">${window.I18N.time}</th>
+                        <th style="width:15%;">${window.I18N.place_by}</th>
+                        <th style="width:20%;">${window.I18N.action}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// ── View Toggle ──
+let currentViewMode = localStorage.getItem('orders_view_mode') || 'table';
+
+function setOrdersView(mode) {
+    currentViewMode = mode;
+    localStorage.setItem('orders_view_mode', mode);
+
+    const btnGrid = document.getElementById('btnViewGrid');
+    const btnList = document.getElementById('btnViewList');
+    if (btnGrid) btnGrid.classList.toggle('active', mode === 'grid');
+    if (btnList) btnList.classList.toggle('active', mode === 'table' || mode === 'list');
+
+    const container = document.getElementById('ordersBody');
+    if (container) {
+        if (mode === 'table' || mode === 'list') {
+            container.className = 'orders-table-wrapper-container';
+            renderTableView();
+        } else {
+            container.className = 'orders-grid';
+            known.clear();
+            container.innerHTML = '';
+            (allOrders || []).forEach(o => addRow(o));
+            applyFilters();
+        }
+    }
+}
+
+// Update applyFilters to support Table View
+const _oldApplyFilters = applyFilters;
+applyFilters = function() {
+    if (currentViewMode === 'table' || currentViewMode === 'list') {
+        renderTableView();
+    } else {
+        _oldApplyFilters();
+    }
+};
+
+let currentModalOrderId = null;
+
+// ── View Order Detail Modal Functions ──
+function openOrderDetailModal(orderId) {
+    const o = (allOrders || []).find(item => Number(item.order_id) === Number(orderId));
+    if (!o) return;
+    currentModalOrderId = Number(orderId);
+
+    const modal = document.getElementById('orderDetailModal');
+    const content = document.getElementById('orderDetailContent');
+    if (!modal || !content) return;
+
+    const boardSt = boardState(o);
+    const itemsRows = (o.items || []).map(i => {
+        const unitPrice = parseFloat(i.price || 0) || (parseFloat(o.total || 0) / (o.items.length || 1));
+        const lineTotal = unitPrice * parseInt(i.quantity, 10);
+        const sub = [i.sweetness, i.ice, i.milk].filter(Boolean).join(', ');
+        return `
+            <tr>
+                <td style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+                    <div style="font-weight:700;font-size:15px;color:#ffffff;">${escapeHtml(i.product_name)}</div>
+                    ${sub ? `<div style="font-size:12.5px;color:#a1a1aa;margin-top:2px;">${escapeHtml(sub)}</div>` : ''}
+                </td>
+                <td style="text-align:center;padding:12px;border-bottom:1px solid rgba(255,255,255,0.07);font-weight:700;font-size:15px;color:#ffffff;">×${i.quantity}</td>
+                <td style="text-align:right;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.07);font-weight:700;font-size:15px;color:#d1904b;">$${lineTotal.toFixed(2)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    let modalTimeBadge = '';
+    if (boardSt === 'New' && o.order_date) {
+        const orderTime = new Date(o.order_date.replace(/-/g, '/'));
+        const diffMs = Math.max(0, new Date() - orderTime);
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffSecs = Math.floor((diffMs % 60000) / 1000);
+        const formattedDiff = diffMins > 0 ? `${diffMins}m ${diffSecs}s` : `${diffSecs}s`;
+        const isLate = diffMins >= 10;
+        modalTimeBadge = `
+            <span class="vo-time-elapsed-badge" style="font-size:12px;padding:3px 10px;border-radius:8px;background:${isLate ? 'rgba(239, 68, 68, 0.2)' : 'rgba(15, 118, 110, 0.2)'};color:${isLate ? '#ef4444' : '#0f766e'};display:inline-flex;align-items:center;gap:5px;font-weight:700;margin-left:6px;">
+                <i class="fa-regular fa-clock"></i> ${formattedDiff}
+            </span>
+        `;
+    }
+
+    const orderNoPaddedModal = String(o.daily_order_no || '').padStart(3, '0');
+
+    content.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:20px;">
+            <h3 style="font-size:22px;font-weight:800;color:#ffffff;margin:0;display:flex;align-items:center;gap:12px;">
+                <i class="fa-solid fa-receipt" style="color:#d1904b"></i> Order #${escapeHtml(orderNoPaddedModal)} Details
+            </h3>
+            <button onclick="closeOrderDetailModal()" style="background:none;border:none;color:#a1a1aa;font-size:22px;cursor:pointer;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;background:rgba(255,255,255,0.04);padding:18px 20px;border-radius:14px;font-size:14px;border:1px solid rgba(255,255,255,0.08);">
+            <div><span style="color:#a1a1aa;">Placed By:</span> <strong style="color:#ffffff;">${escapeHtml(o.employee_name || 'Staff')}</strong></div>
+            <div><span style="color:#a1a1aa;">Payment:</span> <strong style="color:#ffffff;text-transform:uppercase;">${escapeHtml(o.payment_method || 'Cash')}</strong></div>
+            <div style="grid-column: span 2; display:flex;align-items:center;flex-wrap:wrap;"><span style="color:#a1a1aa;margin-right:4px;">Date & Time:</span> <strong style="color:#ffffff;">${escapeHtml(o.order_date || '')}</strong></div>
+        </div>
+
+        <h4 style="font-size:13px;font-weight:700;color:#a1a1aa;text-transform:uppercase;margin-bottom:10px;letter-spacing:0.04em;">Order Items</h4>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px;color:#ffffff;">
+            <thead>
+                <tr style="text-align:left;color:#a1a1aa;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;text-transform:uppercase;">
+                    <th style="padding-bottom:8px;color:#a1a1aa;">Item</th>
+                    <th style="text-align:center;padding-bottom:8px;color:#a1a1aa;">Qty</th>
+                    <th style="text-align:right;padding-bottom:8px;color:#a1a1aa;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${itemsRows}
+            </tbody>
+        </table>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:16px;border-top:1px dashed rgba(255,255,255,0.15);margin-bottom:24px;">
+            <span style="font-size:16px;font-weight:700;color:#ffffff;">TOTAL AMOUNT</span>
+            <span style="font-size:24px;font-weight:800;color:#d1904b;">$${parseFloat(o.total || 0).toFixed(2)}</span>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);">
+            <button onclick="printReceipt(${Number(o.order_id)})" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(155,89,182,0.4);background:rgba(155,89,182,0.2);color:#c87bd9;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;display:flex;align-items:center;gap:6px;">
+                <i class="fa-solid fa-print"></i> Print
+            </button>
+            <button onclick="closeOrderDetailModal()" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#ffffff;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;">
+                Close
+            </button>
+        </div>
+    `;
+
+    modal.classList.add('active');
+}
+
+function closeOrderDetailModal() {
+    currentModalOrderId = null;
+    const modal = document.getElementById('orderDetailModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function closeReceiptModal() {}
+
+function printReceipt(orderId) {
+    const o = (allOrders || []).find(item => Number(item.order_id) === Number(orderId));
+    const targetId = o ? o.order_id : orderId;
+    if (!targetId) return;
+
+    const url = 'receipt_print.php?order_id=' + Number(targetId) + '&auto_print=1';
     
-    // Count by BOARD state, not raw status, so the tabs always sum to All.
+    // Open receipt print window (allowed by browser on direct user click)
+    var win = window.open(url, 'receipt_win', 'width=450,height=700,scrollbars=yes');
+    if (win) {
+        try { win.focus(); } catch(e) {}
+    } else {
+        // Fallback to hidden iframe if popups are blocked
+        var existingFrame = document.getElementById('receiptPrintFrame');
+        if (existingFrame) existingFrame.remove();
+
+        var iframe = document.createElement('iframe');
+        iframe.id = 'receiptPrintFrame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '10px';
+        iframe.style.height = '10px';
+        iframe.style.opacity = '0';
+        iframe.style.pointerEvents = 'none';
+        iframe.style.border = '0';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+
+        setTimeout(function() {
+            if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        }, 60000);
+    }
+}
+
+function buildReceiptHtml(o) {
+    const itemsHtml = (o.items || []).map(i => {
+        const unitPrice = parseFloat(i.price || 0) || (parseFloat(o.total || 0) / (o.items.length || 1));
+        const lineTotal = unitPrice * parseInt(i.quantity, 10);
+        const sub = [
+            i.sweetness ? 'Sweet: ' + i.sweetness : '',
+            i.ice ? 'Ice: ' + i.ice : '',
+            i.milk ? 'Milk: ' + i.milk : ''
+        ].filter(Boolean).join(', ');
+        return `
+            <tr>
+                <td style="padding:6px 0;vertical-align:top">
+                    <div style="font-weight:700;color:var(--text, #000)">${escapeHtml(i.product_name)}</div>
+                    ${sub ? `<div style="font-size:10.5px;opacity:.7">${escapeHtml(sub)}</div>` : ''}
+                </td>
+                <td style="text-align:center;padding:6px;vertical-align:top">×${i.quantity}</td>
+                <td style="text-align:right;padding:6px 0;vertical-align:top">$${lineTotal.toFixed(2)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <div class="receipt-header">
+            <div class="receipt-brand"><i class="fa-solid fa-mug-hot"></i> Bird's Nest Coffee</div>
+            <div class="receipt-sub">Phnom Penh, Cambodia · Official Receipt</div>
+        </div>
+
+        <div class="receipt-info-grid">
+            <div><strong>Order #:</strong> #${escapeHtml(String(o.daily_order_no))}</div>
+            <div><strong>Date:</strong> ${escapeHtml(o.order_date || '')}</div>
+            <div><strong>Status:</strong> ${escapeHtml(boardState(o))}</div>
+            <div><strong>Cashier:</strong> ${escapeHtml(o.employee_name || 'Staff')}</div>
+        </div>
+
+        <table class="receipt-items-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th style="text-align:center">Qty</th>
+                    <th style="text-align:right">Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${itemsHtml}
+            </tbody>
+        </table>
+
+        <div class="receipt-totals">
+            <div class="receipt-total-row">
+                <span>Payment Method</span>
+                <span style="font-weight:600;text-transform:uppercase">${escapeHtml(o.payment_method || 'Cash')}</span>
+            </div>
+            <div class="receipt-total-row grand">
+                <span>TOTAL</span>
+                <span>$${parseFloat(o.total || 0).toFixed(2)}</span>
+            </div>
+        </div>
+
+        <div class="receipt-footer-msg">
+            Thank you for visiting Bird's Nest Coffee!<br>
+            Please come again ☕
+        </div>
+    `;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setOrdersView(currentViewMode);
+    setInterval(() => {
+        if (currentViewMode === 'table') {
+            renderTableView();
+        }
+        if (currentModalOrderId) {
+            openOrderDetailModal(currentModalOrderId);
+        }
+    }, 1000);
+});
+
+let lastOverdueCount = 0;
+
+function playOverdueAlertSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.35, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+    } catch(e) {}
+}
+
+function updateCounts(data) {
+    if (!data) data = allOrders || [];
+    const counts = { all: 0, PendingPayment: 0, New: 0, Making: 0, Completed: 0, Cancelled: 0, Refunded: 0 };
+    let totalPrice = 0;
+
     data.forEach(o => {
         counts.all++;
         const s = boardState(o);
         if (counts[s] !== undefined) {
             counts[s]++;
         }
+        if (o.status !== 'Cancelled' && o.status !== 'Refunded') {
+            totalPrice += parseFloat(o.total || 0);
+        }
     });
 
     const setCount = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     setCount('count-all', counts.all);
-    // No PendingPayment tab (worked in find_order.php) and no Paid tab (a money word on a
-    // fulfilment board) — boardState folds Paid into Preparing/Completed.
-    setCount('count-Preparing', counts.Preparing);
+    setCount('count-PendingPayment', counts.PendingPayment);
+    setCount('count-New', counts.New);
+    setCount('count-Making', counts.Making);
     setCount('count-Completed', counts.Completed);
     setCount('count-Cancelled', counts.Cancelled);
     setCount('count-Refunded', counts.Refunded);
+
+    // Populate 5 Header Box Counts
+    setCount('stat-count-all-orders', counts.all);
+    setCount('stat-count-new', counts.New);
+    setCount('stat-count-making', counts.Making);
+    setCount('stat-count-complete', counts.Completed);
+    setCount('stat-count-total-price', '$' + totalPrice.toFixed(2));
 }
+function updateHeaderStats(data) { updateCounts(data); }
 
 
 // ── Load Orders ──
@@ -2400,6 +3821,7 @@ async function loadOrders() {
         
         // Apply filters after loading
         applyFilters();
+        setOrdersView(currentViewMode);
         updateBaristaStats();
     } catch (err) {
         console.error("Fetch failed:", err);
@@ -2784,60 +4206,49 @@ async function markPrepare(id) {
     }
 }
 
+// ── Take Order (New → Making) ──
+async function takeOrder(id) {
+    const btn = document.querySelector(`#row-${id} .take-btn`);
+    if (btn) btn.disabled = true;
+
+    try {
+        const r = await fetch(`view_order.php?action=take&id=${id}`, { cache: "no-store" });
+        const res = await r.json();
+
+        if (res.ok) {
+            await loadOrders();
+            showToast("✅ Order taken — making now");
+        } else {
+            showToast("❌ Failed: " + (res.error || "Unknown error"), 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("❌ Request failed", 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // ── Complete Order ──
 async function completeOrder(id) {
     const btn = document.querySelector(`#row-${id} .complete-btn`);
-    if (btn) {
-        if (btn.dataset.confirming === 'true') {
-            // Second click — confirm
-            btn.dataset.confirming = 'false';
-            btn.innerHTML = '<i class="fa-solid fa-check"></i> Complete';
-            btn.style.background = 'rgba(85, 224, 135, 0.15)';
-            btn.style.color = 'var(--success)';
-            btn.style.border = '1px solid rgba(85, 224, 135, 0.2)';
-            
-            btn.disabled = true;
+    if (btn) btn.disabled = true;
 
-            try {
-                const r = await fetch(`view_order.php?action=complete&id=${id}`, { cache: "no-store" });
-                const res = await r.json();
+    try {
+        const r = await fetch(`view_order.php?action=complete&id=${id}`, { cache: "no-store" });
+        const res = await r.json();
 
-                if (res.ok) {
-                    const _o = (allOrders || []).find(x => Number(x.order_id) === Number(id));
-                    const orderNumber = _o ? _o.daily_order_no : id;
-                    const customerName = _o ? (_o.customer_name || 'Guest') : 'Customer';
-                    callOrder(id, customerName, orderNumber);
-                    await loadOrders();
-                    showToast("✅ Order completed");
-                } else {
-                    showToast("❌ Failed: " + (res.error || "Unknown error"), 'error');
-                }
-            } catch (err) {
-                console.error(err);
-                showToast("❌ Request failed", 'error');
-            } finally {
-                if (btn) btn.disabled = false;
-            }
-            return;
+        if (res.ok) {
+            await loadOrders();
+            showToast("✅ Order completed");
+        } else {
+            showToast("❌ Failed: " + (res.error || "Unknown error"), 'error');
         }
-        
-        // First click — show confirmation
-        btn.dataset.confirming = 'true';
-        btn.textContent = '⚠️ Confirm?';
-        btn.style.background = 'var(--danger)';
-        btn.style.color = '#fff';
-        btn.style.border = '1px solid var(--danger)';
-        
-        // Auto-cancel after 3 seconds
-        setTimeout(() => {
-            if (btn.dataset.confirming === 'true') {
-                btn.dataset.confirming = 'false';
-                btn.innerHTML = '<i class="fa-solid fa-check"></i> Complete';
-                btn.style.background = 'rgba(85, 224, 135, 0.15)';
-                btn.style.color = 'var(--success)';
-                btn.style.border = '1px solid rgba(85, 224, 135, 0.2)';
-            }
-        }, 3000);
+    } catch (err) {
+        console.error(err);
+        showToast("❌ Request failed", 'error');
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -2918,7 +4329,7 @@ loadOrders().then(() => {
     const highlight = params.get('highlight');
 
     if (tab) filterStatus(tab);
-    else if (userRole === 'barista') filterStatus('Preparing');
+    else if (userRole === 'barista') filterStatus('New');
 
     if (highlight) {
         const el = document.getElementById('row-' + highlight);
@@ -2977,7 +4388,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ── Order age badge helpers ──
-const AGE_ACTIVE = new Set(['Pending','Processing','Preparing','PendingPayment']);
+const AGE_ACTIVE = new Set(['Pending','Processing','Preparing','PendingPayment','New','Making']);
 
 function ageMinutes(ts) {
     return Math.floor((Date.now() - new Date(ts)) / 60000);
@@ -3023,6 +4434,153 @@ setInterval(() => {
 <?php if ($_flash_welcome): ?>
 <script>document.addEventListener('DOMContentLoaded',()=>showToast('Welcome back, <?= htmlspecialchars($_SESSION['username'] ?? 'User', ENT_QUOTES) ?>!','success'));</script>
 <?php endif; ?>
+<?php 
+$_print_order_no = '';
+if (isset($_GET['print_order_id'])) {
+    $_p_id = (int)$_GET['print_order_id'];
+    $_stmt_p = $conn->prepare("SELECT daily_order_no FROM orders WHERE order_id = ?");
+    if ($_stmt_p) {
+        $_stmt_p->bind_param("i", $_p_id);
+        $_stmt_p->execute();
+        $_res_p = $_stmt_p->get_result()->fetch_assoc();
+        if ($_res_p && !empty($_res_p['daily_order_no'])) {
+            $_print_order_no = sprintf('%03d', (int)$_res_p['daily_order_no']);
+        }
+        $_stmt_p->close();
+    }
+}
+?>
+<?php if (isset($_GET['print_order_id'])): ?>
+<style>
+.order-toast-right {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 999999;
+    background: #18181b;
+    border: 1px solid rgba(85, 224, 135, 0.4);
+    border-left: 5px solid #55e087;
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+    animation: slideInRight 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    min-width: 300px;
+    max-width: 90vw;
+}
+@keyframes slideInRight {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.order-toast-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(85, 224, 135, 0.15);
+    color: #55e087;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.order-toast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.order-toast-title {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+}
+.order-toast-msg {
+    color: #a1a1aa;
+    font-size: 13px;
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+}
+.order-toast-close {
+    background: none;
+    border: none;
+    color: #71717a;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+.order-toast-close:hover {
+    color: #ffffff;
+}
+</style>
+
+<div class="order-toast-right" id="orderSuccessAlert">
+    <div class="order-toast-icon">
+        <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <div class="order-toast-content">
+        <h4 class="order-toast-title">Order #<?= htmlspecialchars($_print_order_no ?: '001') ?></h4>
+        <p class="order-toast-msg">Done! Sent to printer 🖨️</p>
+    </div>
+    <button type="button" class="order-toast-close" onclick="closeOrderSuccessAlert()" title="Close">
+        <i class="fa-solid fa-xmark"></i>
+    </button>
+</div>
+
+<script>
+function closeOrderSuccessAlert() {
+    var el = document.getElementById('orderSuccessAlert');
+    if (el) el.remove();
+}
+
+setTimeout(closeOrderSuccessAlert, 5000);
+
+document.addEventListener("DOMContentLoaded", function() {
+    var printOrderId = <?= (int)($_GET['print_order_id'] ?? 0) ?>;
+    if (printOrderId > 0) {
+        var existingFrame = document.getElementById('receiptPrintFrame');
+        if (existingFrame) existingFrame.remove();
+
+        var iframe = document.createElement('iframe');
+        iframe.id = 'receiptPrintFrame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '10px';
+        iframe.style.height = '10px';
+        iframe.style.opacity = '0';
+        iframe.style.pointerEvents = 'none';
+        iframe.style.border = '0';
+        iframe.onload = function() {
+            try {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+            } catch(e) {
+                console.error("Auto print error:", e);
+            }
+            setTimeout(function() {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 60000);
+        };
+        iframe.src = 'receipt_print.php?order_id=' + printOrderId + '&auto_print=1';
+        document.body.appendChild(iframe);
+    }
+
+    if (window.history && window.history.replaceState) {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('print_order_id');
+        window.history.replaceState({}, document.title, url.toString());
+    }
+});
+</script>
+<?php endif; ?>
+</div></div>
 </body>
 </html>
 <?php
@@ -3034,6 +4592,37 @@ endif;
 ================================ */
 if ($action === "fetch") {
     header('Content-Type: application/json');
+
+    $req_range = trim($_GET['range'] ?? 'today');
+    $where_sql = "";
+    $bind_types = "";
+    $bind_params = [];
+
+    if ($req_range === 'all') {
+        $where_sql = "1=1";
+    } else if ($req_range === 'week') {
+        $w_start = date('Y-m-d', strtotime('monday this week'));
+        $w_end   = date('Y-m-d', strtotime('sunday this week'));
+        $where_sql = "(o.business_date BETWEEN ? AND ? OR DATE(o.completed_at) BETWEEN ? AND ?)";
+        $bind_types = "ssss";
+        $bind_params = [$w_start, $w_end, $w_start, $w_end];
+    } else if ($req_range === 'month') {
+        $m_start = date('Y-m-01');
+        $m_end   = date('Y-m-t');
+        $where_sql = "(o.business_date BETWEEN ? AND ? OR DATE(o.completed_at) BETWEEN ? AND ?)";
+        $bind_types = "ssss";
+        $bind_params = [$m_start, $m_end, $m_start, $m_end];
+    } else if ($req_range === 'year') {
+        $y_start = date('Y-01-01');
+        $y_end   = date('Y-12-31');
+        $where_sql = "(o.business_date BETWEEN ? AND ? OR DATE(o.completed_at) BETWEEN ? AND ?)";
+        $bind_types = "ssss";
+        $bind_params = [$y_start, $y_end, $y_start, $y_end];
+    } else {
+        $where_sql = "( o.business_date = ? OR DATE(o.completed_at) = ? OR DATE(oc.cancelled_at) = ? OR DATE(orr.refunded_at) = ? )";
+        $bind_types = "ssss";
+        $bind_params = [$business_date, $business_date, $business_date, $business_date];
+    }
 
     $stmt = $conn->prepare("
         SELECT
@@ -3082,31 +4671,14 @@ if ($action === "fetch") {
         LEFT JOIN products p ON p.product_id = oi.product_id
         LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id
         LEFT JOIN order_refunds orr ON orr.order_id = o.order_id
-        -- Show today's orders, PLUS any order whose terminal action happened today
-        -- (a pay-later tab opened days ago but completed/cancelled/refunded today still
-        --  belongs on today's board — otherwise it silently never appears).
-        -- PendingPayment is deliberately excluded: awaiting-payment orders are worked in
-        -- find_order.php (its own 'pending' tab). This board is for fulfilment. Leaving
-        -- them in would put them in the All list with no tab to filter by.
-        WHERE o.status <> 'PendingPayment'
-          AND ( o.business_date = ?
-             OR DATE(o.completed_at)  = ?
-             OR DATE(oc.cancelled_at) = ?
-             OR DATE(orr.refunded_at) = ? )
+        WHERE {$where_sql}
         GROUP BY o.order_id, oi.item_id, oi.product_name, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category
-        ORDER BY
-            CASE o.status
-                WHEN 'PendingPayment' THEN 1
-                WHEN 'Paid' THEN 2
-                WHEN 'Preparing' THEN 3
-                WHEN 'Completed' THEN 4
-                WHEN 'Cancelled' THEN 5
-                WHEN 'Refunded' THEN 6
-            END,
-            o.order_id ASC
+        ORDER BY o.order_id DESC
     ");
 
-    $stmt->bind_param("ssss", $business_date, $business_date, $business_date, $business_date);
+    if ($bind_types !== "") {
+        $stmt->bind_param($bind_types, ...$bind_params);
+    }
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -3123,6 +4695,7 @@ if ($action === "fetch") {
                 "total" => $r['total'],
                 "status" => $r['status'],
                 "order_date" => $r['order_date'],
+                "completed_at" => $r['completed_at'] ?? '',
                 "token_number" => $r['token_number'],
                 "employee_id" => $r['employee_id'],
                 "employee_name" => $r['employee_name'],
@@ -3231,8 +4804,31 @@ if ($action === "paid") {
 }
 
 /* ===============================
+   TAKE ORDER (New -> Making)
+=============================== */
+if ($action === "take") {
+    header('Content-Type: application/json');
+
+    $order_id = (int)($_GET['id'] ?? 0);
+    if ($order_id <= 0) {
+        echo json_encode(["ok" => 0, "error" => "Invalid order id"]);
+        exit;
+    }
+
+    $stmt = $conn->prepare("UPDATE orders SET status = 'Making', started_at = IFNULL(started_at, NOW()) WHERE order_id = ?");
+    $stmt->bind_param("i", $order_id);
+
+    if ($stmt->execute()) {
+        echo json_encode(["ok" => 1]);
+    } else {
+        echo json_encode(["ok" => 0, "error" => "Failed to update status"]);
+    }
+    exit;
+}
+
+/* ===============================
    MARK AS PREPARE
-================================ */
+=============================== */
 if ($action === "prepare") {
     header('Content-Type: application/json');
 

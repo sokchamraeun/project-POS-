@@ -164,6 +164,26 @@ $stmt_items->bind_param("s", $business_date);
 $stmt_items->execute();
 $items_sold = $stmt_items->get_result()->fetch_assoc()['total_items'];
 
+// ── Profit Today calculation ──
+$stmt_cogs = $conn->prepare("
+    SELECT IFNULL(SUM(
+        oi.quantity * (
+            SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
+            FROM product_ingredients pi
+            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
+            WHERE pi.product_id = oi.product_id
+        )
+    ), 0) AS total_cogs
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.order_id
+    WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o')
+);
+$stmt_cogs->bind_param("s", $business_date);
+$stmt_cogs->execute();
+$cogs_today = (float)($stmt_cogs->get_result()->fetch_assoc()['total_cogs'] ?? 0);
+$profit_today = $sales - $cogs_today;
+$margin_today = $sales > 0 ? round(($profit_today / $sales) * 100, 1) : 0;
+
 $stmt_kitchen = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, order_date, token_number FROM orders WHERE business_date=? AND status='Preparing' ORDER BY order_date ASC LIMIT 8");
 $stmt_kitchen->bind_param("s", $business_date);
 $stmt_kitchen->execute();
@@ -189,6 +209,111 @@ if ($filter_status) {
 // Flash toasts — only show once (right after login), then clear
 $_flash_welcome     = !empty($_SESSION['flash_welcome']);     unset($_SESSION['flash_welcome']);
 $_flash_stock_alert = !empty($_SESSION['flash_stock_alert']); unset($_SESSION['flash_stock_alert']);
+
+// ── CHART DATA INITIALIZATION ──
+$chart_7days_labels  = [];
+$chart_7days_revenue = [];
+$chart_7days_profit  = [];
+for ($i = 6; $i >= 0; $i--) {
+    $d_date = (new DateTime($business_date))->modify("-$i days")->format("Y-m-d");
+    $d_label = (new DateTime($d_date))->format("D (j/n)");
+    
+    $st_rev = $conn->prepare("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date=? AND " . paid_orders_where());
+    $st_rev->bind_param("s", $d_date);
+    $st_rev->execute();
+    $d_rev = (float)$st_rev->get_result()->fetch_assoc()['rev'];
+    
+    $st_cogs = $conn->prepare("
+        SELECT IFNULL(SUM(
+            oi.quantity * (
+                SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
+                FROM product_ingredients pi
+                JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
+                WHERE pi.product_id = oi.product_id
+            )
+        ), 0) AS total_cogs
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.order_id
+        WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o')
+    );
+    $st_cogs->bind_param("s", $d_date);
+    $st_cogs->execute();
+    $d_cogs = (float)$st_cogs->get_result()->fetch_assoc()['total_cogs'];
+    
+    $chart_7days_labels[]  = $d_label;
+    $chart_7days_revenue[] = round($d_rev, 2);
+    $chart_7days_profit[]  = round(max(0, $d_rev - $d_cogs), 2);
+}
+
+$chart_cat_labels = [];
+$chart_cat_sales  = [];
+$st_cat = $conn->query("
+    SELECT COALESCE(NULLIF(p.category, ''), 'Other') AS cat_name, IFNULL(SUM(oi.quantity), 0) AS total_qty
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.order_id
+    JOIN products p ON oi.product_id = p.product_id
+    WHERE " . paid_orders_where('o') . " AND o.business_date = '{$business_date}' AND oi.product_id <> 0
+    GROUP BY cat_name
+    ORDER BY total_qty DESC
+    LIMIT 6
+");
+while ($r_cat = $st_cat->fetch_assoc()) {
+    if ((int)$r_cat['total_qty'] > 0) {
+        $chart_cat_labels[] = $r_cat['cat_name'];
+        $chart_cat_sales[]  = (int)$r_cat['total_qty'];
+    }
+}
+if (empty($chart_cat_labels)) {
+    $st_cat_all = $conn->query("
+        SELECT DISTINCT COALESCE(NULLIF(category, ''), 'Other') AS cat_name
+        FROM products
+        ORDER BY cat_name ASC
+        LIMIT 5
+    ");
+    while ($r_cat = $st_cat_all->fetch_assoc()) {
+        $chart_cat_labels[] = $r_cat['cat_name'];
+        $chart_cat_sales[]  = 0;
+    }
+}
+if (empty($chart_cat_labels)) {
+    $chart_cat_labels = ['Coffee', 'Tea', 'Frappe', 'Bakery'];
+    $chart_cat_sales  = [0, 0, 0, 0];
+}
+
+// ── HOURLY ORDERS BREAKDOWN ──
+$hour_slots = [];
+for ($h = 6; $h < 24; $h++) {
+    $hour_slots[$h] = ['cnt' => 0, 'sales' => 0.0, 'label' => date('g A', mktime($h, 0))];
+}
+for ($h = 0; $h < 6; $h++) {
+    $hour_slots[$h] = ['cnt' => 0, 'sales' => 0.0, 'label' => date('g A', mktime($h, 0))];
+}
+
+$stmt_hr = $conn->prepare("
+    SELECT HOUR(order_date) AS hr, COUNT(*) AS cnt, IFNULL(SUM(total), 0) AS total_sales
+    FROM orders
+    WHERE business_date = ? AND " . paid_orders_where() . "
+    GROUP BY hr
+");
+$stmt_hr->bind_param("s", $business_date);
+$stmt_hr->execute();
+$res_hr = $stmt_hr->get_result();
+while ($r_hr = $res_hr->fetch_assoc()) {
+    $h = (int)$r_hr['hr'];
+    if (isset($hour_slots[$h])) {
+        $hour_slots[$h]['cnt']   = (int)$r_hr['cnt'];
+        $hour_slots[$h]['sales'] = round((float)$r_hr['total_sales'], 2);
+    }
+}
+
+$chart_hourly_labels = [];
+$chart_hourly_counts = [];
+$chart_hourly_sales  = [];
+foreach ($hour_slots as $slot) {
+    $chart_hourly_labels[] = $slot['label'];
+    $chart_hourly_counts[] = $slot['cnt'];
+    $chart_hourly_sales[]  = $slot['sales'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -196,9 +321,89 @@ $_flash_stock_alert = !empty($_SESSION['flash_stock_alert']); unset($_SESSION['f
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Bird's Nest Coffee</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
+/* ── DASHBOARD CHARTS GRID ── */
+.dash-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 18px;
+}
+@media (max-width: 900px) {
+    .dash-charts-grid { grid-template-columns: 1fr; }
+}
+
+.chart-panel {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+}
+.chart-panel:hover {
+    border-color: var(--border-hi);
+    background: var(--glass-hi);
+}
+
+.period-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--glass);
+    border: 1px solid var(--border);
+    padding: 3px 9px;
+    border-radius: 50px;
+}
+
+.pnl-val-header {
+    display: flex;
+    flex-direction: column;
+}
+.pnl-amount {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+}
+.pnl-sub {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--text-muted);
+}
+
+.dash-tab-buttons {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 3px;
+    border-radius: 8px;
+}
+.dash-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all .15s var(--ease);
+}
+.dash-tab-btn:hover {
+    color: var(--text);
+}
+.dash-tab-btn.active {
+    background: var(--glass-hi);
+    color: var(--amber);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
 /* ── TOKENS ── */
 :root {
     --bg:           #0b0b0b;
@@ -281,7 +486,7 @@ $_flash_stock_alert = !empty($_SESSION['flash_stock_alert']); unset($_SESSION['f
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
 html{background:var(--bg);scroll-behavior:smooth;}
 body{
-    font-family:'Poppins',sans-serif;
+    font-family:'Poppins','Kantumruy Pro',sans-serif;
     background:var(--bg);
     color:var(--text);
     min-height:100vh;
@@ -322,138 +527,9 @@ button{font-family:inherit;cursor:pointer;}
 /* collapses the reserved sidebar width for roles without a sidebar */
 body.no-sidebar{--sidebar-w:0px;}
 
-/* ── SIDEBAR ── */
-.sidebar{
-    position:fixed;
-    inset:0 auto 0 0;
-    width:var(--sidebar-w);
-    background:var(--surface);
-    border-right:1px solid var(--border);
-    display:flex;
-    flex-direction:column;
-    z-index:100;
-    overflow-y:auto;
-    overflow-x:hidden;
-    scrollbar-width:none;
-    transition:transform .3s var(--ease);
-}
-.sidebar::-webkit-scrollbar{display:none;}
+/* ── MAIN ── */
 
-.sidebar-profile{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:14px;
-    margin:12px 12px 4px;
-    border-radius:var(--r-sm);
-    background:var(--glass);
-    border:1px solid var(--border);
-    color:var(--text);
-    transition:.2s var(--ease);
-}
-.sidebar-profile:hover{background:var(--glass-hi);border-color:var(--border-hi);}
-
-.profile-avatar{
-    width:34px;height:34px;
-    background:var(--amber-dim);
-    border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    color:var(--amber);font-size:14px;flex-shrink:0;
-}
-.profile-info{flex:1;min-width:0;}
-.profile-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.profile-role{
-    display:flex;align-items:center;gap:5px;
-    font-size:10.5px;font-weight:500;
-    color:var(--text-muted);
-    margin-top:2px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.profile-role::before{
-    content:'';flex-shrink:0;
-    width:6px;height:6px;border-radius:50%;
-    background:var(--role-color,var(--amber));
-    box-shadow:0 0 6px var(--role-color,var(--amber));
-}
-.sidebar-clock{font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.06em;flex-shrink:0;}
-
-.sidebar-header{
-    display:flex;align-items:center;gap:9px;
-    padding:10px 20px 14px;
-}
-.sidebar-header i{color:var(--amber);font-size:17px;}
-.sidebar-header h2{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.02em;}
-
-.sidebar-quick-btn{
-    display:flex;align-items:center;gap:8px;
-    margin:0 12px 6px;
-    padding:9px 15px;
-    background:var(--amber);
-    color:#000;
-    border-radius:var(--r-sm);
-    font-size:12px;font-weight:700;
-    transition:.2s var(--ease);
-    box-shadow:0 2px 14px var(--amber-glow);
-}
-.sidebar-quick-btn:hover{background:var(--amber-light);transform:translateY(-1px);box-shadow:0 4px 18px var(--amber-glow);}
-
-.sidebar-nav{flex:1;padding:6px 12px;}
-
-.nav-group-label{
-    font-size:11px;font-weight:700;
-    letter-spacing:.08em;text-transform:uppercase;
-    color:var(--text-muted);
-    padding:14px 10px 6px;
-    opacity:.85;
-    display:flex;align-items:center;justify-content:space-between;
-    cursor:pointer;user-select:none;
-    border-radius:var(--r-xs);
-    transition:opacity .2s,color .2s;
-}
-.nav-group-label:hover{opacity:1;color:var(--text);}
-.nav-group-label.open{opacity:1;color:var(--amber);}
-.nav-chevron{font-size:9px;flex-shrink:0;margin-left:4px;transition:transform .28s var(--ease);}
-.nav-group-label.open .nav-chevron{transform:rotate(90deg);}
-.nav-group-items{overflow:hidden;max-height:400px;transition:max-height .32s var(--ease),opacity .22s var(--ease);opacity:1;}
-.nav-group-items.collapsed{max-height:0!important;opacity:0;pointer-events:none;}
-
-.nav-item{
-    display:flex;align-items:center;gap:10px;
-    padding:9px 12px;
-    border-radius:var(--r-sm);
-    color:var(--text-muted);
-    font-size:13.5px;font-weight:500;
-    transition:background .18s var(--ease),color .18s var(--ease),box-shadow .18s var(--ease),border-color .18s var(--ease);
-    margin-bottom:2px;
-    border:1px solid transparent;
-    position:relative;
-}
-.nav-item:hover{
-    background:linear-gradient(90deg,rgba(209,144,75,.13) 0%,rgba(209,144,75,.04) 100%);
-    color:var(--amber);
-    border-color:rgba(209,144,75,.22);
-    box-shadow:0 2px 16px rgba(209,144,75,.18),inset 0 0 16px rgba(209,144,75,.05);
-}
-.nav-item.active{
-    background:linear-gradient(90deg,rgba(209,144,75,.18) 0%,rgba(209,144,75,.06) 100%);
-    color:var(--amber);
-    font-weight:600;
-    border-color:rgba(209,144,75,.3);
-    box-shadow:0 2px 20px rgba(209,144,75,.25),inset 0 0 20px rgba(209,144,75,.07);
-}
-.nav-item.active i,.nav-item:hover i{color:inherit;}
-.nav-item i{width:16px;text-align:center;font-size:13px;flex-shrink:0;}
-.nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-
-.order-badge{
-    margin-left:auto;flex-shrink:0;
-    background:var(--amber);color:#000;
-    font-size:9.5px;font-weight:800;
-    padding:1px 7px;border-radius:50px;
-    min-width:18px;text-align:center;
-}
-
-.sidebar-footer{padding:10px 12px;border-top:1px solid var(--border);}
+/* ── MAIN ── */
 .sidebar-stats{display:flex;gap:6px;margin-bottom:8px;}
 .stat-pill{
     flex:1;display:flex;align-items:center;gap:5px;
@@ -544,7 +620,7 @@ body.no-sidebar{--sidebar-w:0px;}
 /* ── KPI ROW ── */
 .kpi-row{
     display:grid;
-    grid-template-columns:repeat(3,1fr);
+    grid-template-columns:repeat(4,1fr);
     gap:16px;
     margin-bottom:18px;
 }
@@ -585,6 +661,7 @@ body.no-sidebar{--sidebar-w:0px;}
 .kpi-card.c-amber { --kc:var(--amber);   --kg:var(--amber-dim);   }
 .kpi-card.c-green { --kc:var(--emerald); --kg:var(--emerald-dim); }
 .kpi-card.c-blue  { --kc:var(--blue);    --kg:var(--blue-dim);    }
+.kpi-card.c-purple{ --kc:var(--purple);  --kg:var(--purple-dim);  }
 
 /* KPI cards are links to the records behind the number — the figure is never a
    dead end, you can always open the orders it was computed from. */
@@ -1152,294 +1229,14 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
 <?php endif; ?>
 <div class="toast-container" id="toastContainer"></div>
 
-<div class="layout">
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] layout app-layout">
 
-<?php if ($_is_mgr): ?>
 <!-- ═══ SIDEBAR ═══ -->
-<div class="sidebar" id="sidebar">
-
-    <?php if (can('my_profile')): ?>
-    <a href="profile.php" class="sidebar-profile" title="My Profile">
-    <?php else: ?>
-    <div class="sidebar-profile" style="cursor:default">
-    <?php endif; ?>
-        <div class="profile-avatar"><?php $__ph = current_user_photo($conn); if ($__ph): ?><img src="<?= htmlspecialchars($__ph) ?>" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"><?php else: ?><i class="fa-solid fa-user"></i><?php endif; ?></div>
-        <div class="profile-info">
-            <div class="profile-name"><?= htmlspecialchars($admin_name) ?></div>
-            <div class="profile-role" style="--role-color:<?= $_cur_role_color ?>;">
-                <?= htmlspecialchars($_cur_role_name) ?>
-            </div>
-        </div>
-        <div class="sidebar-clock" id="sidebarClock">--:--</div>
-    <?php if (can('my_profile')): ?>
-    </a>
-    <?php else: ?>
-    </div>
-    <?php endif; ?>
-
-    <div class="sidebar-header">
-        <i class="fa-solid fa-mug-hot"></i>
-        <h2>Bird's Nest</h2>
-    </div>
-
-    <?php if (can('find_orders')): ?>
-    <a href="menu.php" class="sidebar-quick-btn">
-        <i class="fa-solid fa-plus"></i> Take New Order
-    </a>
-    <?php endif; ?>
-
-    <div class="sidebar-nav" id="sidebarNav">
-
-        <!-- OVERVIEW — open by default (active page) -->
-        <div class="nav-group-label open" onclick="toggleGroup(this)" data-group="overview">
-            <span>Overview</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items" id="grp-overview">
-            <a class="nav-item active" href="dashboard.php">
-                <i class="fa-solid fa-chart-pie"></i>
-                <span class="nav-label">Dashboard</span>
-                <?php if ($pending_count + $preparing_count > 0): $_active_n = $pending_count + $preparing_count; ?>
-                <span class="order-badge" title="<?= $_active_n ?> active order<?= $_active_n != 1 ? 's' : '' ?> (unpaid or preparing)"><?= $_active_n ?></span>
-                <?php endif; ?>
-            </a>
-        </div>
-
-        <!-- ORDERS -->
-        <?php if (can('find_orders') || can('view_orders')): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="orders">
-            <span>Orders</span>
-            <i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-orders">
-            <?php if (can('find_orders')): ?>
-            <a class="nav-item" href="find_order.php">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <span class="nav-label">Find Unpaid Orders</span>
-                <?php if ($_SESSION['role'] === 'staff' && $paylater_count > 0): ?>
-                <span class="order-badge" style="background:var(--purple);"><?= $paylater_count ?></span>
-                <?php elseif ($unpaid_count > 0): ?>
-                <span class="order-badge" style="background:var(--purple);"><?= $unpaid_count ?></span>
-                <?php endif; ?>
-            </a>
-            <?php endif; ?>
-            <?php if (can('view_orders')): ?>
-            <a class="nav-item" href="view_order.php">
-                <i class="fa-solid fa-receipt"></i>
-                <span class="nav-label">Orders</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- OPERATIONS -->
-        <?php $_can_stands = in_array($_SESSION['role'] ?? '', ['admin','manager','staff'], true); ?>
-        <?php if (can('barista_station') || can('customer_display') || $_can_stands): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="operations">
-            <span>Operations</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-operations">
-            <?php if (can('barista_station')): ?>
-            <a class="nav-item" href="barista_display.php">
-                <i class="fa-solid fa-mug-hot"></i>
-                <span class="nav-label">Barista Station</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('customer_display')): ?>
-            <a class="nav-item" href="customer_display.php">
-                <i class="fa-solid fa-display"></i>
-                <span class="nav-label">Customer Display</span>
-            </a>
-            <?php endif; ?>
-            <?php if ($_can_stands): ?>
-            <a class="nav-item" href="stands.php">
-                <i class="fa-solid fa-table-cells-large"></i>
-                <span class="nav-label">Stand Numbers</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- LOYALTY -->
-        <?php if (can('loyalty')): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="loyalty">
-            <span>Loyalty</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-loyalty">
-            <a class="nav-item" href="loyalty_dashboard.php">
-                <i class="fa-solid fa-star"></i>
-                <span class="nav-label">Loyalty Card</span>
-            </a>
-        </div>
-        <?php endif; ?>
-
-        <!-- INVENTORY -->
-        <?php if (can('products') || can('ingredients') || can('recipes')): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="inventory">
-            <span>Inventory</span>
-            <i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-inventory">
-            <?php if (can('products')): ?>
-            <a class="nav-item" href="products.php">
-                <i class="fa-solid fa-cube"></i>
-                <span class="nav-label">Products</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('ingredients')): ?>
-            <a class="nav-item" href="ingredients.php">
-                <i class="fa-solid fa-boxes-stacked"></i>
-                <span class="nav-label">Ingredients</span>
-                <?php if ($low_stock > 0): ?><span class="order-badge" style="background:var(--red);margin-left:auto"><?= $low_stock ?></span><?php endif; ?>
-            </a>
-            <?php endif; ?>
-            <?php if (can('recipes')): ?>
-            <a class="nav-item" href="recipes_view.php">
-                <i class="fa-solid fa-utensils"></i>
-                <span class="nav-label">Drink Recipe</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- RECONCILIATION -->
-        <?php if (can('cash_reconciliation') || can('stock_count')): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="reconciliation">
-            <span>Reconciliation</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-reconciliation">
-            <?php if (can('cash_reconciliation')): ?>
-            <a class="nav-item" href="reconciliation_report.php">
-                <i class="fa-solid fa-cash-register"></i>
-                <span class="nav-label">Cash Count</span>
-                <?php if ($_recon_alerts > 0): ?><span class="order-badge" style="background:var(--red);margin-left:auto"><?= $_recon_alerts ?></span><?php endif; ?>
-            </a>
-            <?php endif; ?>
-            <?php if (can('stock_count')): ?>
-            <a class="nav-item<?= basename($_SERVER['PHP_SELF']) === 'stock_count.php' ? ' active' : '' ?>" href="stock_count.php">
-                <i class="fa-solid fa-clipboard-list"></i>
-                <span class="nav-label">Stock Count</span>
-            </a>
-            <a class="nav-item<?= basename($_SERVER['PHP_SELF']) === 'inventory_count.php' ? ' active' : '' ?>" href="inventory_count.php">
-                <i class="fa-solid fa-boxes-stacked"></i>
-                <span class="nav-label">Inventory Count</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- PROCUREMENT -->
-        <?php if (can('suppliers') || can('purchase_orders')): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="procurement">
-            <span>Procurement</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-procurement">
-            <?php if (can('suppliers')): ?>
-            <a class="nav-item" href="suppliers.php">
-                <i class="fa-solid fa-truck-ramp-box"></i>
-                <span class="nav-label">Suppliers</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('purchase_orders')): ?>
-            <a class="nav-item" href="purchase_orders.php">
-                <i class="fa-solid fa-file-invoice"></i>
-                <span class="nav-label">Purchase Orders</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- ANALYTICS -->
-        <?php if (can('report') || in_array($_SESSION['role'] ?? '', ['admin','manager'])): ?>
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="analytics">
-            <span>Analytics</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-analytics">
-            <?php if (can('report')): ?>
-            <a class="nav-item" href="daily_report.php">
-                <i class="fa-solid fa-chart-simple"></i>
-                <span class="nav-label">Daily Report</span>
-            </a>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- STAFF -->
-        <div class="nav-group-label" onclick="toggleGroup(this)" data-group="staff">
-            <span>Staff</span><i class="fa-solid fa-chevron-right nav-chevron"></i>
-        </div>
-        <div class="nav-group-items collapsed" id="grp-staff">
-            <?php if (can('employees')): ?>
-            <a class="nav-item" href="employees.php">
-                <i class="fa-solid fa-user-tie"></i>
-                <span class="nav-label">Employees</span>
-            </a>
-            <?php endif; ?>
-            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
-            <a class="nav-item" href="manage_roles.php">
-                <i class="fa-solid fa-shield-halved"></i>
-                <span class="nav-label">Manage Roles</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('reset_password')): ?>
-            <a class="nav-item" href="admin_reset_password.php">
-                <i class="fa-solid fa-key"></i>
-                <span class="nav-label">Reset Password</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('announcements')): ?>
-            <a class="nav-item" href="announcements.php">
-                <i class="fa-solid fa-bullhorn"></i>
-                <span class="nav-label">Announcements</span>
-                <?php if ($_unread_ann > 0): ?><span class="order-badge" style="background:var(--red);margin-left:auto"><?= $_unread_ann ?></span><?php endif; ?>
-            </a>
-            <?php endif; ?>
-            <?php if (can('attendance')): ?>
-            <a class="nav-item" href="attendance.php">
-                <i class="fa-solid fa-fingerprint"></i>
-                <span class="nav-label">Attendance</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('promotions')): ?>
-            <a class="nav-item" href="settings.php">
-                <i class="fa-solid fa-sliders"></i>
-                <span class="nav-label">Promotions</span>
-            </a>
-            <?php endif; ?>
-            <?php if (can('my_profile')): ?>
-            <a class="nav-item" href="profile.php">
-                <i class="fa-solid fa-circle-user"></i>
-                <span class="nav-label">My Profile</span>
-            </a>
-            <?php endif; ?>
-        </div>
-
-    </div>
-
-    <div class="sidebar-footer">
-        <?php if ($_is_mgr): ?>
-        <div class="sidebar-stats">
-            <div class="stat-pill">
-                <i class="fa-solid fa-dollar-sign"></i>
-                <span>$<?= number_format($sales, 2) ?></span>
-            </div>
-            <div class="stat-pill">
-                <i class="fa-solid fa-receipt"></i>
-                <span><?= (int)$total_orders ?> orders</span>
-            </div>
-        </div>
-        <?php endif; ?>
-        <a class="nav-item nav-logout" href="shift_report.php">
-            <i class="fa-solid fa-right-from-bracket"></i>
-            <span class="nav-label">Logout</span>
-        </a>
-    </div>
-
-</div>
+<?php require_once __DIR__ . '/sidebar.php'; ?>
 <!-- end sidebar -->
-<?php endif; ?>
 
 <!-- ═══ MAIN ═══ -->
-<div class="main">
+<main class="flex-1 h-full overflow-y-auto p-6 main app-main">
 
     <?php if (isset($_GET['denied'])): ?>
     <script>
@@ -1471,7 +1268,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         <div class="header-actions">
             <button class="theme-toggle" onclick="toggleTheme()">
                 <i class="fa-solid fa-moon" id="themeIcon"></i>
-                <span id="themeText">Dark</span>
+                <span id="themeText"><?= __('dark_mode', 'Dark') ?></span>
             </button>
             <?php if (!$_is_mgr): ?>
             <?php
@@ -1480,7 +1277,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             $clkBr    = $clocked ? 'rgba(255,95,95,.25)'   : 'rgba(85,224,135,.25)';
             $clkColor = $clocked ? '#ff6b6b'               : '#55e087';
             $clkIcon  = $clocked ? 'right-from-bracket'    : 'fingerprint';
-            $clkLabel = $clocked ? 'Clock Out'             : 'Clock In';
+            $clkLabel = $clocked ? __('clock_out', 'Clock Out') : __('clock_in', 'Clock In');
             $clkTitle = $clocked ? 'Clocked in at ' . $_clock_since : 'Not clocked in';
             ?>
             <button id="clockBtn" data-clocked="<?= $clocked ? '1' : '0' ?>"
@@ -1493,228 +1290,159 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             </button>
             <a href="shift_report.php" class="logout-btn" title="View shift report &amp; log out">
                 <i class="fa-solid fa-right-from-bracket"></i>
-                <span>Logout</span>
+                <span><?= __('logout', 'Logout') ?></span>
             </a>
             <?php endif; ?>
         </div>
     </div>
 
-    <!-- ALERT STRIP -->
-    <?php if (($low_stock > 0 && can('ingredients')) || ($_is_mgr && $unpaid_count > 0 && can('find_orders'))): ?>
-    <div class="alert-strip fu" style="animation-delay:.06s">
-        <?php if ($low_stock > 0 && can('ingredients')): ?>
-        <a href="ingredients.php" class="alert-pill danger">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <?= $low_stock ?> item<?= $low_stock != 1 ? 's' : '' ?> low on stock — restock needed
-        </a>
-        <?php endif; ?>
-        <?php if ($_is_mgr && $unpaid_count > 0 && can('find_orders')): ?>
-        <a href="find_order.php" class="alert-pill warning">
-            <i class="fa-solid fa-clock"></i>
-            <?= $unpaid_count ?> unpaid order<?= $unpaid_count != 1 ? 's' : '' ?> pending
-        </a>
-        <?php endif; ?>
-    </div>
-    <?php endif; ?>
-    <?php endif; ?>
+
 
     <?php if ($_is_mgr): ?>
     <!-- KPI ROW -->
     <div class="kpi-row fu" style="animation-delay:.1s">
 
-        <!-- Revenue → the day's report (payment breakdown + the orders it sums).
-             daily_report.php, not report.php: the daily report is the Report
-             destination everywhere else in the app, and report.php answers a
-             different question ("Full analytics", reachable from inside it). -->
+        <!-- Revenue Today -->
         <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-amber" title="Open today's sales report">
             <i class="kpi-watermark fa-solid fa-dollar-sign"></i>
-            <span class="kpi-drill">View report <i class="fa-solid fa-arrow-right"></i></span>
-            <div class="kpi-label">Today's Revenue</div>
+            <span class="kpi-drill"><?= __('view_report', 'View report') ?> <i class="fa-solid fa-arrow-right"></i></span>
+            <div class="kpi-label"><?= __('revenue_today', 'Revenue Today') ?></div>
             <div class="kpi-value">$<span id="kpiRevenue"><?= number_format($sales, 2) ?></span></div>
             <?php if ($sales <= 0): ?>
-            <span class="kpi-pill flat"><i class="fa-solid fa-hourglass-start"></i> No sales yet today</span>
+            <span class="kpi-pill flat"><i class="fa-solid fa-hourglass-start"></i> <?= __('no_sales_today', 'No sales yet today') ?></span>
             <?php elseif ($sales_trend != 0): ?>
             <span class="kpi-pill <?= $trend_class ?>">
                 <i class="fa-solid <?= $trend_icon ?>"></i>
-                <?= abs($sales_trend) ?>% vs yesterday
+                <?= abs($sales_trend) ?>% <?= __('vs_yesterday', 'vs yesterday') ?>
             </span>
             <?php else: ?>
-            <span class="kpi-pill flat"><i class="fa-solid fa-minus"></i> No data yesterday</span>
+            <span class="kpi-pill flat"><i class="fa-solid fa-minus"></i> <?= __('no_data_yesterday', 'No data yesterday') ?></span>
             <?php endif; ?>
         </a>
 
-        <!-- Orders → the order board holding these orders.
-             ?tab=all is stated rather than left to the default: the board opens
-             on whatever tab the role last implies, so a manager clicking a card
-             headed "Orders Today" could land on a filtered, possibly empty list
-             and think the link was broken. view_order.php reads ?tab= on load. -->
-        <a href="view_order.php?tab=all" class="kpi-card c-green" title="Open the orders board">
+        <!-- Profit Today -->
+        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-green" title="Open today's profit breakdown">
+            <i class="kpi-watermark fa-solid fa-sack-dollar"></i>
+            <span class="kpi-drill"><?= __('view_breakdown', 'View breakdown') ?> <i class="fa-solid fa-arrow-right"></i></span>
+            <div class="kpi-label"><?= __('profit_today', 'Profit Today') ?></div>
+            <div class="kpi-value">$<span id="kpiProfit"><?= number_format($profit_today, 2) ?></span></div>
+            <span class="kpi-pill <?= $profit_today >= 0 ? 'up' : 'down' ?>" id="kpiMarginPill">
+                <i class="fa-solid <?= $profit_today >= 0 ? 'fa-chart-line' : 'fa-arrow-down' ?>"></i>
+                <span id="kpiMargin"><?= $margin_today ?></span>% <?= __('margin', 'margin') ?>
+            </span>
+        </a>
+
+        <!-- Orders Today -->
+        <a href="view_order.php?tab=all" class="kpi-card c-blue" title="Open the order board">
             <i class="kpi-watermark fa-solid fa-receipt"></i>
-            <span class="kpi-drill">View orders <i class="fa-solid fa-arrow-right"></i></span>
-            <div class="kpi-label">Orders Today</div>
+            <span class="kpi-drill"><?= __('view_orders', 'View orders') ?> <i class="fa-solid fa-arrow-right"></i></span>
+            <div class="kpi-label"><?= __('orders_today', 'Orders Today') ?></div>
             <div class="kpi-value"><span id="kpiOrders"><?= (int)$total_orders ?></span></div>
             <span class="kpi-pill flat">
                 <i class="fa-solid fa-circle-check"></i>
-                <?= $completed_count ?> completed
+                <?= $completed_count ?> <?= __('completed', 'completed') ?>
             </span>
         </a>
 
-        <!-- Items Sold → the day's report, which carries the best seller and the
-             per-order cup counts. The old link went to report.php#kv-items, an
-             anchor on a single inline <span> that scrolled nowhere useful. -->
-        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-blue" title="Open the item breakdown">
+        <!-- Items Sold -->
+        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-purple" title="Open the item breakdown">
             <i class="kpi-watermark fa-solid fa-mug-hot"></i>
-            <span class="kpi-drill">View breakdown <i class="fa-solid fa-arrow-right"></i></span>
-            <div class="kpi-label">Items Served</div>
+            <span class="kpi-drill"><?= __('view_items', 'View items') ?> <i class="fa-solid fa-arrow-right"></i></span>
+            <div class="kpi-label"><?= __('items_sold', 'Items Sold') ?></div>
             <div class="kpi-value"><span id="kpiItems"><?= (int)$items_sold ?></span></div>
             <span class="kpi-pill flat">
                 <i class="fa-solid fa-box-open"></i>
-                from completed orders
+                <?= __('from_completed_orders', 'from completed orders') ?>
             </span>
         </a>
-
     </div>
 
-    <!-- MID GRID -->
-    <div class="mid-grid fu" style="animation-delay:.15s">
+    <!-- ═══ 4-CARD ANALYTICS CHARTS GRID (Image 2 style) ═══ -->
+    <div class="dash-charts-grid fu" style="animation-delay:.15s">
 
-        <!-- KITCHEN QUEUE / ACTIVE ORDERS -->
-        <div class="panel">
-            <div class="panel-head">
-                <h3>
-                    <span class="live-dot"></span>
-                    <i class="fa-solid fa-fire-burner"></i>
-                    Active Orders
-                </h3>
-                <div style="display:flex;align-items:center;gap:8px">
-                    <span class="cnt-badge <?= mysqli_num_rows($kitchen_result) > 0 ? 'on' : '' ?>" id="kitchenCount">
-                        <?= mysqli_num_rows($kitchen_result) ?> preparing
-                    </span>
-                    <button class="refresh-btn" onclick="fetchDashboardData()">
-                        <i class="fa-solid fa-rotate"></i>
-                    </button>
-                </div>
+        <!-- Panel 1: Profit and Loss (Horizontal Comparison Bar Graph) -->
+        <div class="panel chart-panel">
+            <div class="panel-head flex items-center justify-between">
+                <h3><i class="fa-solid fa-scale-balanced text-amber-400"></i> <?= __('profit_loss', 'Profit & Loss') ?></h3>
+                <span class="period-badge"><?= __('today', 'Today') ?></span>
             </div>
-
-            <div class="kitchen-body" id="kitchenList">
-            <?php
-            mysqli_data_seek($kitchen_result, 0);
-            $krows = [];
-            while ($kr = mysqli_fetch_assoc($kitchen_result)) { $krows[] = $kr; }
-            if (count($krows) > 0):
-                foreach ($krows as $kr):
-                    $mins = floor((time() - strtotime($kr['order_date'])) / 60);
-                    $_warn_at = max(1, (int)floor(OVERDUE_MINUTES * 0.7));
-                    $tc   = $mins >= OVERDUE_MINUTES ? 'urgent' : ($mins >= $_warn_at ? 'warn' : 'ok');
-            ?>
-            <div class="k-item">
-                <div class="k-no">#<?= (int)$kr['daily_order_no'] ?></div>
-                <div class="k-name"><?= htmlspecialchars($kr['customer_name']) ?></div>
-                <div class="k-total">$<?= number_format((float)$kr['total'], 2) ?></div>
-                <div class="k-timer <?= $tc ?>"><?= $mins ?>m</div>
-                <span class="k-status-pill">
-                    <i class="fa-solid fa-fire-burner"></i> Preparing
-                </span>
-            </div>
-            <?php endforeach; else: ?>
-            <div class="k-empty">
-                <i class="fa-solid fa-circle-check"></i>
-                <span>All clear — no orders preparing</span>
-            </div>
-            <?php endif; ?>
-            </div>
-
-            <div class="panel-foot">
-                <span>Auto-refreshes every 5 s</span>
-                <span id="lastUpdated"><?= date("g:i A") ?></span>
-            </div>
-        </div>
-
-        <!-- TOP SELLERS -->
-        <div class="panel">
-            <div class="panel-head">
-                <h3><i class="fa-solid fa-trophy"></i> Top Sellers</h3>
-                <span style="font-size:11px;color:var(--text-muted)">All time</span>
-            </div>
-            <div class="sellers-body">
-            <?php
-            $srows = [];
-            while ($sr = mysqli_fetch_assoc($top_selling_result)) { $srows[] = $sr; }
-            $maxs = count($srows) > 0 ? (int)max(array_column($srows, 'total_sold')) : 1;
-            if (count($srows) > 0):
-                foreach ($srows as $si => $sr):
-                    $pct = $maxs > 0 ? round($sr['total_sold'] / $maxs * 100) : 0;
-            ?>
-            <div class="seller-row">
-                <div class="s-rank <?= $si === 0 ? 'gold' : '' ?>"><?= $si + 1 ?></div>
-                <img class="s-img"
-                     src="<?= htmlspecialchars($sr['image']) ?>"
-                     alt=""
-                     onerror="this.style.visibility='hidden'">
-                <div class="s-info">
-                    <div class="s-name"><?= htmlspecialchars($sr['name']) ?></div>
-                    <div class="s-track"><div class="s-bar" style="width:<?= $pct ?>%"></div></div>
-                </div>
-                <div class="s-count"><?= (int)$sr['total_sold'] ?></div>
-            </div>
-            <?php endforeach; else: ?>
-            <div class="k-empty">
-                <i class="fa-regular fa-chart-bar"></i>
-                <span>No sales data yet</span>
-            </div>
-            <?php endif; ?>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- RECENT ORDERS -->
-    <div class="panel fu" style="animation-delay:.2s">
-        <div class="panel-head">
-            <h3><i class="fa-solid fa-clock-rotate-left"></i> Recent Orders</h3>
-            <div style="display:flex;gap:14px;align-items:center;">
-                <?php if ($_is_mgr): ?>
-                <a href="order_audit.php" class="panel-link" title="Who changed an order after it was placed">Change log <i class="fa-solid fa-shield-halved"></i></a>
-                <?php endif; ?>
-                <a href="view_order.php" class="panel-link">View all <i class="fa-solid fa-arrow-right"></i></a>
-            </div>
-        </div>
-        <table class="orders-tbl">
-            <thead>
-                <tr>
-                    <th style="width:72px">Order</th>
-                    <th>Customer</th>
-                    <th style="width:100px;text-align:right">Total</th>
-                    <th style="width:155px">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php if (mysqli_num_rows($recent_orders) > 0): ?>
-            <?php while ($ro = mysqli_fetch_assoc($recent_orders)):
-                $sc = strtolower(str_replace(['payment',' '], '', $ro['status']));
-                if (!in_array($sc, ['pending','paid','preparing','completed','cancelled','refunded','pendingpayment'])) $sc = 'pending';
-            ?>
-            <tr>
-                <td><span class="o-no">#<?= (int)$ro['daily_order_no'] ?></span></td>
-                <td>
-                    <div class="cust-cell">
-                        <div class="cust-av"><i class="fa-regular fa-user"></i></div>
-                        <?= htmlspecialchars($ro['customer_name']) ?>
+            <div class="chart-body p-5">
+                <div class="pnl-val-header flex items-baseline justify-between">
+                    <div>
+                        <span class="pnl-amount block text-2xl font-extrabold tracking-tight" id="pnlAmount">$<?= number_format($profit_today, 2) ?></span>
                     </div>
-                </td>
-                <td style="text-align:right;font-weight:700">$<?= number_format((float)$ro['total'], 2) ?></td>
-                <td><span class="badge <?= $sc ?>"><?= htmlspecialchars($ro['status']) ?></span></td>
-            </tr>
-            <?php endwhile; ?>
-            <?php else: ?>
-            <tr><td colspan="4"><div class="tbl-empty">
-                <i class="fa-regular fa-rectangle-list"></i>
-                <span>No orders today yet</span>
-            </div></td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
+                </div>
+                <div class="pnl-bars-container mt-4 space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1.5">
+                            <span class="text-emerald-400 flex items-center gap-1.5"><i class="fa-solid fa-arrow-trend-up"></i> <?= __('revenue_income', 'REVENUE / INCOME') ?></span>
+                            <span class="text-slate-100 font-bold" id="pnlIncome">$<?= number_format($sales, 2) ?></span>
+                        </div>
+                        <div class="h-2.5 rounded-full bg-slate-800/80 overflow-hidden shadow-inner">
+                            <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-700 shadow-sm" style="width: 100%;"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1.5">
+                            <span class="text-cyan-400 flex items-center gap-1.5"><i class="fa-solid fa-receipt"></i> <?= __('cogs_ingredient_cost', 'COGS / INGREDIENT COST') ?></span>
+                            <span class="text-slate-100 font-bold" id="pnlCogs">$<?= number_format($cogs_today, 2) ?></span>
+                        </div>
+                        <div class="h-2.5 rounded-full bg-slate-800/80 overflow-hidden shadow-inner">
+                            <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-700 shadow-sm" id="pnlCogsBar" style="width: <?= $sales > 0 ? min(100, round(($cogs_today / $sales) * 100)) : 0 ?>%;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                    <span><?= __('margin_rate', 'Margin Rate') ?>: <strong class="text-emerald-400 font-bold" id="pnlMarginRate"><?= $margin_today ?>%</strong></span>
+                    <span><?= __('gross_margin', 'Gross Profit') ?>: <strong class="text-amber-400 font-bold" id="pnlGross">$<?= number_format($profit_today, 2) ?></strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel 2: Expenses / Category Sales (Donut Chart) -->
+        <div class="panel chart-panel">
+            <div class="panel-head flex items-center justify-between">
+                <h3><i class="fa-solid fa-chart-pie text-cyan-400"></i> <?= __('category_sales', 'Category Sales') ?></h3>
+                <span class="period-badge"><?= __('today', 'Today') ?></span>
+            </div>
+            <div class="chart-body p-4 flex flex-col sm:flex-row items-center justify-center gap-4 min-h-[220px]">
+                <div class="relative w-[150px] h-[150px] flex-shrink-0 flex items-center justify-center">
+                    <canvas id="chartCategory"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                        <span class="text-[9px] uppercase font-bold tracking-wider text-slate-400" id="catTotalLabel">Items Sold</span>
+                        <span class="text-sm font-black text-slate-100" id="catTotalVal">0 items</span>
+                    </div>
+                </div>
+                <div class="cat-legend space-y-1.5 flex-1 w-full text-xs">
+                    <!-- Dynamic legend injected by Chart JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel 3: Hourly Orders (Bar Chart) -->
+        <div class="panel chart-panel">
+            <div class="panel-head flex items-center justify-between">
+                <h3><i class="fa-solid fa-clock text-blue-400"></i> <?= __('hourly_orders', 'Hourly Orders') ?></h3>
+                <span class="period-badge"><?= __('today', 'Today') ?></span>
+            </div>
+            <div class="chart-body p-4 min-h-[220px] relative">
+                <canvas id="chartStatus" height="180"></canvas>
+            </div>
+        </div>
+
+        <!-- Panel 4: Sales Trend (Line Chart) -->
+        <div class="panel chart-panel">
+            <div class="panel-head flex items-center justify-between">
+                <h3><i class="fa-solid fa-chart-column text-emerald-400"></i> <?= __('sales_trend', 'Sales Trend') ?></h3>
+                <span class="period-badge"><?= __('last_7_days', 'Last 7 Days') ?></span>
+            </div>
+            <div class="chart-body p-4 min-h-[220px] relative">
+                <canvas id="chartSalesTrend" height="180"></canvas>
+            </div>
+        </div>
     </div>
+
+
 
     <?php else: /* non-admin/manager: role-aware focus + quick-access tiles */ ?>
     <?php if (($_SESSION['role'] ?? '') === 'inventory_clerk'): ?>
@@ -1752,37 +1480,6 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
           </div>
           <div class="inv-hcluster">
             <button class="inv-iconbtn" id="invThemeBtn" title="Toggle theme"><i class="fa-solid fa-sun"></i></button>
-            <div class="inv-bellwrap">
-              <button class="inv-iconbtn" id="invBell"><i class="fa-solid fa-bell"></i>
-                <?php if ($_unread_ann > 0): ?><span class="inv-bellcount" id="invBellCount"><?= $_unread_ann ?></span><?php endif; ?>
-              </button>
-              <div class="inv-notifpanel" id="invNotifPanel">
-                <div class="inv-notif-head"><span>Notifications</span><button class="inv-notif-clear" onclick="invMarkAllRead()">Mark all read</button></div>
-                <div class="inv-notif-list" id="invNotifList">
-                  <?php
-                  $nres = $conn->query("SELECT id, title, message, type, created_at FROM announcements
-                     WHERE is_active=1 AND (expires_at IS NULL OR expires_at>=CURDATE())
-                       AND (starts_at IS NULL OR starts_at<=CURDATE())
-                     ORDER BY created_at DESC LIMIT 6");
-                  if (!$nres || !$nres->num_rows): ?>
-                    <div class="inv-empty" style="padding:14px">You're all caught up.</div>
-                  <?php else: while ($n=$nres->fetch_assoc()):
-                    $tc = $n['type']==='urgent'?'#ff6b6b':($n['type']==='warning'?'#f0b429':'#5b9bd5'); ?>
-                    <div class="inv-notif-item"><span class="inv-actdot" style="background:<?= $tc ?>"></span>
-                      <div><div class="inv-acttext"><?= htmlspecialchars($n['title']) ?></div>
-                      <div class="inv-notif-msg"><?= htmlspecialchars($n['message']) ?></div></div></div>
-                  <?php endwhile; endif; ?>
-                </div>
-                <a class="inv-notif-foot" href="announcements.php">View all notifications</a>
-              </div>
-            </div>
-            <?php
-            $_invClocked  = $_is_clocked_in;
-            $_invClkIcon  = $_invClocked ? 'right-from-bracket' : 'fingerprint';
-            $_invClkLabel = $_invClocked ? 'Clock Out' : 'Clock In';
-            $_invClkTitle = $_invClocked ? 'Clocked in at ' . $_clock_since : 'Not clocked in';
-            ?>
-            <button class="inv-clockbtn" id="clockBtn" onclick="toggleClock()" data-clocked="<?= $_invClocked ? '1' : '0' ?>" title="<?= htmlspecialchars($_invClkTitle) ?>"><i class="fa-solid fa-<?= $_invClkIcon ?>"></i> <?= $_invClkLabel ?></button>
             <a class="inv-logoutbtn" href="logout.php"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
           </div>
         </header>
@@ -1837,10 +1534,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
               <a class="inv-tile" href="stock_count.php"><span class="inv-tile-ico" style="color:#e0b34a"><i class="fa-solid fa-clipboard-list"></i></span>
                 <span><span class="inv-tile-t">Stock Count</span><span class="inv-tile-d">Physical inventory count</span></span><i class="fa-solid fa-chevron-right inv-tile-arw"></i></a>
               <?php endif; ?>
-              <?php if (can('recipes')): ?>
-              <a class="inv-tile" href="recipes_view.php"><span class="inv-tile-ico" style="color:#b98add"><i class="fa-solid fa-utensils"></i></span>
-                <span><span class="inv-tile-t">Drink Recipes<?php if ($low_recipe_count>0): ?> <span class="inv-tile-badge"><?= (int)$low_recipe_count ?> low</span><?php endif; ?></span><span class="inv-tile-d">Beverage formulations</span></span><i class="fa-solid fa-chevron-right inv-tile-arw"></i></a>
-              <?php endif; ?>
+
             </div>
             <?php endif; ?>
 
@@ -2074,6 +1768,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
     <?php endif; ?>
 
     <?php endif; /* end admin/manager vs employee view */ ?>
+    <?php endif; /* end inventory_clerk outer check */ ?>
 
 </div><!-- /main -->
 </div><!-- /layout -->
@@ -2102,14 +1797,7 @@ setInterval(updateSidebarClock,1000);
 })();
 
 
-/* ── Mobile sidebar (absent for roles without sidebar access) ── */
-function toggleSidebar(){
-    const sb = document.getElementById('sidebar');
-    const ov = document.querySelector('.overlay');
-    if (!sb || !ov) return;
-    sb.classList.toggle('open');
-    ov.classList.toggle('active');
-}
+/* ── Mobile sidebar overlay helper ── */
 function closeSidebar(){
     const sb = document.getElementById('sidebar');
     const ov = document.querySelector('.overlay');
@@ -2214,9 +1902,298 @@ async function toggleClock(){
 }
 <?php /* Low-stock toast removed — already surfaced by the red alert banner up top (no duplicate). */ ?>
 
+/* ── TAB SWITCHING ── */
+function switchDashTab(tabName, btn) {
+    document.querySelectorAll('.dash-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    
+    const tk = document.getElementById('tabKitchenContent');
+    const tr = document.getElementById('tabRecentContent');
+    if (tk) tk.style.display = tabName === 'kitchen' ? 'block' : 'none';
+    if (tr) tr.style.display = tabName === 'recent' ? 'block' : 'none';
+}
+
+/* ── CHART INITIALIZATION & UPDATES ── */
+var chartCategoryObj = null;
+var chartStatusObj = null;
+var chartSalesTrendObj = null;
+
+var initChartData = {
+    trendLabels: <?= json_encode($chart_7days_labels) ?>,
+    trendRevenue: <?= json_encode($chart_7days_revenue) ?>,
+    trendProfit: <?= json_encode($chart_7days_profit) ?>,
+    catLabels: <?= json_encode($chart_cat_labels) ?>,
+    catSales: <?= json_encode($chart_cat_sales) ?>,
+    hourlyLabels: <?= json_encode($chart_hourly_labels) ?>,
+    hourlyCounts: <?= json_encode($chart_hourly_counts) ?>,
+    hourlySales: <?= json_encode($chart_hourly_sales) ?>
+};
+
+function initCharts() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const textColor = isLight ? '#64748b' : '#94a3b8';
+    const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)';
+    const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.95)';
+    const tooltipText = isLight ? '#0f172a' : '#f8fafc';
+    const tooltipSub = isLight ? '#475569' : '#cbd5e1';
+    const tooltipBorder = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)';
+
+    // Cleanup existing charts if re-initializing on theme toggle
+    if (chartCategoryObj) { chartCategoryObj.destroy(); chartCategoryObj = null; }
+    if (chartStatusObj) { chartStatusObj.destroy(); chartStatusObj = null; }
+    if (chartSalesTrendObj) { chartSalesTrendObj.destroy(); chartSalesTrendObj = null; }
+    
+    // 1. Donut Chart (Categories)
+    const ctxCat = document.getElementById('chartCategory');
+    if (ctxCat) {
+        const catColors = ['#d1904b', '#3498db', '#55e087', '#9b59b6', '#ff6b6b', '#f1c40f'];
+        chartCategoryObj = new Chart(ctxCat, {
+            type: 'doughnut',
+            data: {
+                labels: initChartData.catLabels,
+                datasets: [{
+                    data: initChartData.catSales,
+                    backgroundColor: catColors,
+                    borderWidth: 3,
+                    borderColor: isLight ? '#ffffff' : '#111111',
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: tooltipBg,
+                        titleColor: tooltipText,
+                        bodyColor: tooltipSub,
+                        borderColor: tooltipBorder,
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.parsed || 0;
+                                return ` ${context.label}: ${val} item${val === 1 ? '' : 's'}`;
+                            }
+                        }
+                    }
+                },
+                cutout: '72%'
+            }
+        });
+        renderCatLegend(initChartData.catLabels, initChartData.catSales, catColors);
+    }
+    
+    // 2. Bar Chart (Hourly Orders)
+    const ctxStat = document.getElementById('chartStatus');
+    if (ctxStat) {
+        const ctx2d = ctxStat.getContext('2d');
+        const barGradient = ctx2d.createLinearGradient(0, 0, 0, 180);
+        barGradient.addColorStop(0, 'rgba(52, 152, 219, 0.90)');
+        barGradient.addColorStop(1, 'rgba(52, 152, 219, 0.20)');
+
+        chartStatusObj = new Chart(ctxStat, {
+            type: 'bar',
+            data: {
+                labels: initChartData.hourlyLabels,
+                datasets: [{
+                    label: 'Orders',
+                    data: initChartData.hourlyCounts,
+                    salesData: initChartData.hourlySales,
+                    backgroundColor: barGradient,
+                    hoverBackgroundColor: '#3498db',
+                    borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
+                    borderSkipped: false,
+                    maxBarThickness: 26
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: tooltipBg,
+                        titleColor: tooltipText,
+                        bodyColor: tooltipSub,
+                        borderColor: tooltipBorder,
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        displayColors: false,
+                        callbacks: {
+                            title: function(items) {
+                                return `Hour: ${items[0].label}`;
+                            },
+                            label: function(context) {
+                                const count = context.parsed.y || 0;
+                                const sales = (context.dataset.salesData && context.dataset.salesData[context.dataIndex]) || 0;
+                                return `Orders: ${count}  •  Sales: $${parseFloat(sales).toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: textColor,
+                            font: { family: 'Poppins', size: 10, weight: '500' },
+                            maxRotation: 0,
+                            minRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 12
+                        },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: textColor,
+                            font: { family: 'Poppins', size: 10 },
+                            precision: 0,
+                            stepSize: 1
+                        },
+                        grid: { color: gridColor, borderDash: [3, 3] },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    // 3. Bar Chart (Sales Trend)
+    const ctxTrend = document.getElementById('chartSalesTrend');
+    if (ctxTrend) {
+        chartSalesTrendObj = new Chart(ctxTrend, {
+            type: 'bar',
+            data: {
+                labels: initChartData.trendLabels,
+                datasets: [
+                    {
+                        label: 'Revenue ($)',
+                        data: initChartData.trendRevenue,
+                        backgroundColor: '#d1904b',
+                        borderColor: '#d1904b',
+                        borderRadius: 4,
+                        maxBarThickness: 20
+                    },
+                    {
+                        label: 'Profit ($)',
+                        data: initChartData.trendProfit,
+                        backgroundColor: '#55e087',
+                        borderColor: '#55e087',
+                        borderRadius: 4,
+                        maxBarThickness: 20
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: {
+                            color: textColor,
+                            font: { family: 'Poppins', size: 11, weight: '500' },
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            boxWidth: 7,
+                            padding: 12
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: tooltipBg,
+                        titleColor: tooltipText,
+                        bodyColor: tooltipSub,
+                        borderColor: tooltipBorder,
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.dataset.label}: $${parseFloat(context.parsed.y).toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: textColor, font: { family: 'Poppins', size: 10 } },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: textColor,
+                            font: { family: 'Poppins', size: 10 },
+                            callback: function(val) { return '$' + val; }
+                        },
+                        grid: { color: gridColor, borderDash: [3, 3] },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderCatLegend(labels, data, colors) {
+    const el = document.querySelector('.cat-legend');
+    const totalEl = document.getElementById('catTotalVal');
+    if (!el) return;
+    const total = data.reduce((a, b) => a + b, 0);
+    if (totalEl) totalEl.textContent = total + (total === 1 ? ' item' : ' items');
+
+    el.innerHTML = labels.map((l, i) => {
+        const val = data[i] || 0;
+        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+        return `<div class="flex items-center justify-between gap-2 p-1 rounded-lg transition-colors hover:bg-white/5">
+            <span class="flex items-center gap-2 truncate">
+                <span class="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0 shadow-sm" style="background:${colors[i % colors.length]}"></span>
+                <span class="truncate text-slate-300 font-medium text-xs">${l}</span>
+            </span>
+            <span class="font-bold text-slate-100 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                ${val} ${val === 1 ? 'item' : 'items'}
+                <span class="text-[10px] font-semibold text-slate-400 bg-white/5 px-1.5 py-0.5 rounded-full">${pct}%</span>
+            </span>
+        </div>`;
+    }).join('');
+}
+
+function updateChartsFromAjax(chartsData) {
+    if (!chartsData) return;
+    
+    if (chartCategoryObj && chartsData.cat_labels) {
+        chartCategoryObj.data.labels = chartsData.cat_labels;
+        chartCategoryObj.data.datasets[0].data = chartsData.cat_sales;
+        chartCategoryObj.update();
+        const catColors = ['#d1904b', '#3498db', '#55e087', '#9b59b6', '#ff6b6b', '#f1c40f'];
+        renderCatLegend(chartsData.cat_labels, chartsData.cat_sales, catColors);
+    }
+    
+    if (chartStatusObj && chartsData.hourly_labels) {
+        chartStatusObj.data.labels = chartsData.hourly_labels;
+        chartStatusObj.data.datasets[0].data = chartsData.hourly_counts;
+        chartStatusObj.data.datasets[0].salesData = chartsData.hourly_sales;
+        chartStatusObj.update();
+    }
+    
+    if (chartSalesTrendObj && chartsData.trend_labels) {
+        chartSalesTrendObj.data.labels = chartsData.trend_labels;
+        chartSalesTrendObj.data.datasets[0].data = chartsData.trend_revenue;
+        chartSalesTrendObj.data.datasets[1].data = chartsData.trend_profit;
+        chartSalesTrendObj.update();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+
 /* ── AJAX polling (kitchen + KPIs) ── */
-const OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
-const WARN_MINUTES    = Math.max(1, Math.floor(OVERDUE_MINUTES * 0.7));
+var OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
+var WARN_MINUTES    = Math.max(1, Math.floor(OVERDUE_MINUTES * 0.7));
 function fetchDashboardData(){
     fetch('dashboard_data.php')
         .then(r=>r.json())
@@ -2225,11 +2202,32 @@ function fetchDashboardData(){
             if(lu) lu.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 
             const rev=document.getElementById('kpiRevenue');
+            const prf=document.getElementById('kpiProfit');
             const ord=document.getElementById('kpiOrders');
             const itm=document.getElementById('kpiItems');
+            const mgn=document.getElementById('kpiMargin');
             if(rev) rev.textContent=parseFloat(d.sales).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+            if(prf && d.profit_today!==undefined) prf.textContent=parseFloat(d.profit_today).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
             if(ord) ord.textContent=d.total_orders;
             if(itm && d.items_sold!==undefined) itm.textContent=d.items_sold;
+            if(mgn && d.margin_today!==undefined) mgn.textContent=d.margin_today;
+
+            const pnlAmt = document.getElementById('pnlAmount');
+            const pnlInc = document.getElementById('pnlIncome');
+            const pnlCogs = document.getElementById('pnlCogs');
+            const pnlMarg = document.getElementById('pnlMarginRate');
+            const pnlMargTop = document.getElementById('pnlMarginRateTop');
+            const pnlGross = document.getElementById('pnlGross');
+            const pnlCogsBar = document.getElementById('pnlCogsBar');
+            if(pnlAmt && d.profit_today!==undefined) pnlAmt.textContent = '$' + parseFloat(d.profit_today).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+            if(pnlInc && d.sales!==undefined) pnlInc.textContent = '$' + parseFloat(d.sales).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+            if(pnlCogs && d.cogs_today!==undefined) pnlCogs.textContent = '$' + parseFloat(d.cogs_today).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+            if(pnlMarg && d.margin_today!==undefined) pnlMarg.textContent = d.margin_today + '%';
+            if(pnlMargTop && d.margin_today!==undefined) pnlMargTop.textContent = d.margin_today + '% Margin';
+            if(pnlGross && d.profit_today!==undefined) pnlGross.textContent = '$' + parseFloat(d.profit_today).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+            if(pnlCogsBar && d.sales>0 && d.cogs_today!==undefined) {
+                pnlCogsBar.style.width = Math.min(100, Math.round((parseFloat(d.cogs_today)/parseFloat(d.sales))*100)) + '%';
+            }
 
             const kc=document.getElementById('kitchenCount');
             const kl=document.getElementById('kitchenList');
@@ -2256,33 +2254,15 @@ function fetchDashboardData(){
                     kl.innerHTML='<div class="k-empty"><i class="fa-solid fa-circle-check"></i><span>All clear — no orders preparing</span></div>';
                 }
             }
+
+            if(d.charts) updateChartsFromAjax(d.charts);
         })
         .catch(()=>{});
 }
 setInterval(fetchDashboardData,5000);
 fetchDashboardData();
 
-/* ── Collapsible sidebar groups ── */
-function toggleGroup(label) {
-    const items = label.nextElementSibling;
-    if (!items || !items.classList.contains('nav-group-items')) return;
-    const isOpen = label.classList.contains('open');
-    label.classList.toggle('open', !isOpen);
-    items.classList.toggle('collapsed', isOpen);
-    const g = label.dataset.group;
-    if (g) localStorage.setItem('nav_' + g, isOpen ? '0' : '1');
-}
-function initNavGroups() {
-    document.querySelectorAll('.nav-group-label[data-group]').forEach(label => {
-        const stored = localStorage.getItem('nav_' + label.dataset.group);
-        if (stored === null) return; // keep PHP default (overview open, rest collapsed)
-        const items = label.nextElementSibling;
-        if (!items) return;
-        label.classList.toggle('open', stored === '1');
-        items.classList.toggle('collapsed', stored !== '1');
-    });
-}
-document.addEventListener('DOMContentLoaded', initNavGroups);
+
 
 /* ── Idle auto-logout (30 min, warn at 25) ── */
 (function(){

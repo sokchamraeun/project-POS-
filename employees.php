@@ -105,9 +105,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
     $photo = null;
     if (!empty($_FILES['photo']['name']) && $_FILES['photo']['error'] === 0) {
         $ext    = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
-        $okExt  = in_array($ext, ['jpg','jpeg','png','gif','webp']);
-        $okSize = $_FILES['photo']['size'] > 0 && $_FILES['photo']['size'] <= 5 * 1024 * 1024; // 5MB cap
-        if ($okExt && $okSize && @getimagesize($_FILES['photo']['tmp_name']) !== false) {
+        $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif','heic','heif','jfif','pjpeg','pjp','apng','cur','dng'];
+        $isImageMime = false;
+        if (function_exists('finfo_open') && !empty($_FILES['photo']['tmp_name'])) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime  = finfo_file($finfo, $_FILES['photo']['tmp_name']);
+            finfo_close($finfo);
+            $isImageMime = (strpos($mime, 'image/') === 0);
+        }
+        $okExt  = in_array($ext, $allowedExts) || $isImageMime;
+        $okSize = $_FILES['photo']['size'] > 0 && $_FILES['photo']['size'] <= 15 * 1024 * 1024; // 15MB cap
+        if ($okExt && $okSize) {
             if (!is_dir('uploads')) mkdir('uploads', 0755, true);
             $photo = 'uploads/' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
             move_uploaded_file($_FILES['photo']['tmp_name'], $photo);
@@ -330,6 +338,7 @@ function avatarColor($name) {
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');}());</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
 /* ── VARS ── */
 :root {
@@ -401,30 +410,42 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 .btn-nav.icon-only { padding:7px 10px; }
 
 /* ── STATS ── */
-.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:16px 24px 0; }
+.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; padding:16px 24px 0; }
 .stat-card {
-    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:16px 18px; display:flex; align-items:center; gap:12px;
-    transition:var(--transition); position:relative; overflow:hidden;
+    background: var(--bg-card, #131313);
+    border: 1px solid var(--border, #222);
+    border-radius: var(--radius, 14px);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    min-height: 92px;
+    position: relative;
+    overflow: hidden;
 }
-.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:var(--radius) var(--radius) 0 0; }
-.stat-card.s-a::before { background:linear-gradient(90deg,var(--accent-dark),var(--accent-light)); }
-.stat-card.s-b::before { background:linear-gradient(90deg,#2471a3,var(--blue)); }
-.stat-card.s-c::before { background:linear-gradient(90deg,#d4ac0d,var(--gold)); }
-.stat-card.s-d::before { background:linear-gradient(90deg,#27ae60,var(--ok)); }
-.stat-card:hover { border-color:var(--border-hover); box-shadow:var(--shadow-md); transform:translateY(-1px); }
-.stat-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
-.si-a { background:rgba(209,144,75,.12); color:var(--accent); }
-.si-b { background:rgba(52,152,219,.12);  color:var(--blue); }
-.si-c { background:rgba(241,196,15,.12);  color:var(--gold); }
-.si-d { background:rgba(85,224,135,.12);  color:var(--ok); }
-.stat-label { font-size:10px; color:var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:.5px; }
-.stat-num   { font-size:21px; font-weight:800; line-height:1.2; }
-.stat-hint  { font-size:10px; color:var(--text-muted); margin-top:1px; }
-.s-a .stat-num { color:var(--text-light); }
-.s-b .stat-num { color:var(--blue); }
-.s-c .stat-num { color:var(--gold); }
-.s-d .stat-num { color:var(--ok); }
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+    flex-shrink: 0;
+}
+.si-a { background: rgba(139, 92, 246, 0.22); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); }
+.si-b { background: rgba(59, 130, 246, 0.22); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+.si-c { background: rgba(245, 158, 11, 0.22); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+.si-d { background: rgba(16, 185, 129, 0.22); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+
+.stat-label { font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-muted); }
+.stat-num   { font-size:24px; font-weight:800; line-height:1.2; color:var(--text-light); }
+.stat-hint  { font-size:11.5px; color:var(--text-muted); opacity:0.85; margin-top:2px; }
+.s-a .stat-num { color: #f5f5f5; }
+.s-b .stat-num { color: #60a5fa; }
+.s-c .stat-num { color: #fbbf24; }
+.s-d .stat-num { color: #34d399; }
 
 /* ── LEADERBOARD ── */
 .section-label { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.8px; display:flex; align-items:center; gap:8px; padding:16px 24px 0; }
@@ -662,7 +683,7 @@ tbody tr:hover .avatar, tbody tr:hover .avatar-img { border-color:var(--accent);
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
 
 /* ── SHIFT BADGE ── */
-.shift-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; color:var(--sb-c,#888); margin-top:3px; }
+.shift-badge { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:700; color:#ffffff; }
 .shift-badge i { font-size:9px; }
 .shift-pill i { color:inherit; }
 .filter-pill.shift-active { background:var(--sb-active,var(--accent)); color:#000; border-color:var(--sb-active,var(--accent)); }
@@ -724,10 +745,10 @@ textarea.em-input { resize:vertical; min-height:62px; line-height:1.5; }
 .em-photo-pill { display:none; align-items:center; gap:6px; font-size:11px; font-weight:500; color:var(--accent); background:rgba(209,144,75,.1); border:1px solid rgba(209,144,75,.2); padding:3px 10px; border-radius:20px; margin-top:6px; }
 
 /* ── ELEVATION / DEPTH (subtle floating cards) ── */
-.stat-card, .lead-card, .table-card { box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 3px 14px rgba(0,0,0,.28); }
-.stat-card:hover, .lead-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 8px 26px rgba(0,0,0,.42); }
-[data-theme="light"] .stat-card, [data-theme="light"] .lead-card, [data-theme="light"] .table-card { box-shadow: 0 1px 2px rgba(16,24,40,.05), 0 6px 18px rgba(16,24,40,.06); }
-[data-theme="light"] .stat-card:hover, [data-theme="light"] .lead-card:hover { box-shadow: 0 2px 6px rgba(16,24,40,.08), 0 12px 28px rgba(16,24,40,.10); }
+.lead-card, .table-card { box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 3px 14px rgba(0,0,0,.28); }
+.lead-card:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 8px 26px rgba(0,0,0,.42); }
+[data-theme="light"] .lead-card, [data-theme="light"] .table-card { box-shadow: 0 1px 2px rgba(16,24,40,.05), 0 6px 18px rgba(16,24,40,.06); }
+[data-theme="light"] .lead-card:hover { box-shadow: 0 2px 6px rgba(16,24,40,.08), 0 12px 28px rgba(16,24,40,.10); }
 
 /* ── TOP PERFORMERS STRIP (compact leaderboard) ── */
 .lead-strip { margin:16px 24px 0; }
@@ -780,191 +801,80 @@ textarea.em-input { resize:vertical; min-height:62px; line-height:1.5; }
 </style>
 </head>
 <body>
-
-<!-- ── TOPBAR ── -->
-<div class="topbar">
-    <div class="topbar-brand">
-        <a href="dashboard.php" class="btn-nav icon-only" title="Back to dashboard"><i class="fa-solid fa-arrow-left"></i></a>
-        <div class="brand-icon"><i class="fa-solid fa-users"></i></div>
-        <div class="brand-text">
-            <span class="brand-title">Employee Management</span>
-            <span class="brand-sub">Bird's Nest Coffee &rsaquo; Admin</span>
-        </div>
-    </div>
-    <div class="topbar-sep"></div>
-    <div class="topbar-center">
-        <div class="search-wrap">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input id="searchInput" placeholder="Search by name or job title…" autocomplete="off">
-            <button id="clearSearch" onclick="clearSearch()" title="Clear"><i class="fa-solid fa-xmark"></i></button>
-            <span class="kbd">/</span>
-        </div>
-    </div>
-    <div class="topbar-right">
-        <button class="btn-nav" onclick="exportCSV()" title="Export to CSV"><i class="fa-solid fa-file-csv"></i> Export</button>
-        <a href="employee_add.php" class="btn-nav primary"><i class="fa-solid fa-plus"></i> Add Employee</a>
-        <button class="btn-nav icon-only" onclick="toggleTheme()" id="themeBtn" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
-    </div>
-</div>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto p-6">
+<?php $page_title = __('nav_employees', 'Employees'); require __DIR__ . '/header_bar.php'; ?>
 
 <!-- ── STATS ── -->
 <div class="stats-row">
     <div class="stat-card s-a">
         <div class="stat-icon si-a"><i class="fa-solid fa-users"></i></div>
         <div>
-            <div class="stat-label">Total Staff</div>
+            <div class="stat-label"><?= __('total_staff', 'Total Staff') ?></div>
             <div class="stat-num" data-target="<?= $total_staff ?>"><?= $total_staff ?></div>
-            <div class="stat-hint">Employees on record</div>
+            <div class="stat-hint"><?= __('employees_on_record', 'Employees on record') ?></div>
         </div>
     </div>
     <div class="stat-card s-b">
         <div class="stat-icon si-b"><i class="fa-solid fa-receipt"></i></div>
         <div>
-            <div class="stat-label">Orders This Month</div>
+            <div class="stat-label"><?= __('orders_this_month', 'Orders This Month') ?></div>
             <div class="stat-num" data-target="<?= $total_this_month ?>"><?= $total_this_month ?></div>
-            <div class="stat-hint"><?= fmtnum($total_orders_all) ?> all-time</div>
+            <div class="stat-hint"><?= fmtnum($total_orders_all) ?> <?= __('all_time', 'all-time') ?></div>
         </div>
     </div>
     <div class="stat-card s-c">
         <div class="stat-icon si-c"><i class="fa-solid fa-trophy"></i></div>
         <div>
-            <div class="stat-label">Top This Month</div>
+            <div class="stat-label"><?= __('top_this_month', 'Top This Month') ?></div>
             <div class="stat-num" style="font-size:14px;font-weight:700;line-height:1.4;margin-top:2px">
                 <?= $top_month ? h($top_month['name']) : '—' ?>
             </div>
-            <div class="stat-hint"><?= $top_month ? fmtnum($top_month['orders_this_month']) . ' orders' : 'No data yet' ?></div>
+            <div class="stat-hint"><?= $top_month ? fmtnum($top_month['orders_this_month']) . ' ' . __('orders', 'orders') : __('no_data_yet', 'No data yet') ?></div>
         </div>
     </div>
     <?php if ($sess_role === 'admin'): ?>
     <div class="stat-card s-d">
         <div class="stat-icon si-d"><i class="fa-solid fa-dollar-sign"></i></div>
         <div>
-            <div class="stat-label">Revenue Served</div>
+            <div class="stat-label"><?= __('revenue_served', 'Revenue Served') ?></div>
             <div class="stat-num" data-target="<?= round($total_revenue, 2) ?>" data-prefix="$" data-dec="0">$<?= fmtnum($total_revenue) ?></div>
-            <div class="stat-hint">All-time, all staff</div>
+            <div class="stat-hint"><?= __('all_time_all_staff', 'All-time, all staff') ?></div>
         </div>
     </div>
     <?php else: ?>
     <div class="stat-card s-d">
         <div class="stat-icon si-d"><i class="fa-solid fa-mug-hot"></i></div>
         <div>
-            <div class="stat-label">All-Time Orders</div>
+            <div class="stat-label"><?= __('all_time_orders', 'All-Time Orders') ?></div>
             <div class="stat-num" data-target="<?= $total_orders_all ?>"><?= fmtnum($total_orders_all) ?></div>
-            <div class="stat-hint">By all staff</div>
+            <div class="stat-hint"><?= __('by_all_staff', 'By all staff') ?></div>
         </div>
     </div>
     <?php endif; ?>
 </div>
 
-<?php if (!empty($leaderboard) && $total_orders_all > 0): ?>
-<!-- ── TOP PERFORMERS (compact strip) ── -->
-<div class="lead-strip">
-    <div class="lead-strip-hd"><i class="fa-solid fa-ranking-star"></i> Top Performers <span style="font-weight:500;text-transform:none;letter-spacing:0;opacity:.65;margin-left:2px">· ranked by all-time orders</span></div>
-    <div class="lead-cards">
-<?php
-$rmeta = [['fa-crown','var(--gold)'], ['fa-medal','var(--silver)'], ['fa-medal','var(--bronze)']];
-foreach ($leaderboard as $i => $emp):
-    if ((int)$emp['total_orders'] === 0) continue;
-    $color = avatarColor($emp['name']);
-    $hasPhoto = !empty($emp['photo']) && file_exists($emp['photo']);
-    [$ric, $rcol] = $rmeta[$i] ?? ['fa-hashtag', 'var(--text-muted)'];
-?>
-        <div class="lead-card" data-podium-eid="<?= (int)$emp['employee_id'] ?>" style="--lc:<?= $rcol ?>">
-            <span class="lead-rank"><i class="fa-solid <?= $ric ?>"></i></span>
-            <?php if ($hasPhoto): ?>
-                <img src="<?= h($emp['photo']) ?>" class="lead-av" alt="<?= h($emp['name']) ?>">
-            <?php else: ?>
-                <div class="lead-av lead-av-fb" style="background:<?= $color ?>"><?= initials($emp['name']) ?></div>
-            <?php endif; ?>
-            <div class="lead-info">
-                <span class="lead-name"><?= h($emp['name']) ?></span>
-                <?php
-                $shiftMeta = ['morning'=>['#f39c12','fa-sun','Morning'],'afternoon'=>['#3498db','fa-cloud-sun','Afternoon'],'night'=>['#9b59b6','fa-moon','Night']];
-                if (!empty($emp['shift']) && isset($shiftMeta[$emp['shift']])):
-                    [$sc,$si,$sl] = $shiftMeta[$emp['shift']];
-                ?>
-                <span class="lead-sub podium-title"><?= h($emp['job_title'] ?? '—') ?> · <span style="color:<?= $sc ?>"><?= $sl ?></span></span>
-                <?php else: ?>
-                <span class="lead-sub podium-title"><?= h($emp['job_title'] ?? '—') ?></span>
-                <?php endif; ?>
-            </div>
-            <div class="lead-metrics">
-                <span class="lead-m"><b class="ps-orders"><?= fmtnum($emp['total_orders']) ?></b><small>orders</small></span>
-                <?php if ($sess_role === 'admin'): ?>
-                <span class="lead-m ps-rev-wrap" <?= $emp['total_revenue'] <= 0 ? 'style="display:none"' : '' ?>><b class="ps-revenue" style="color:var(--ok)">$<?= fmtnum($emp['total_revenue']) ?></b><small>revenue</small></span>
-                <?php endif; ?>
-                <span class="lead-m hide-mob"><b class="ps-month" style="color:var(--blue)"><?= fmtnum($emp['orders_this_month']) ?></b><small>this mo.</small></span>
-            </div>
-        </div>
-<?php endforeach; ?>
+<!-- ── TOOLBAR ── -->
+<div class="emp-toolbar" style="display:flex; align-items:center; gap:12px; margin:16px 24px 12px; flex-wrap:wrap;">
+    <div class="search-wrap" style="display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:12px; border:1px solid var(--border); background:var(--bg-card,#131313); flex:1; max-width:500px; width:100%; transition:all 0.2s;">
+        <i class="fa-solid fa-magnifying-glass" style="color:var(--text-muted);font-size:13px;flex-shrink:0;"></i>
+        <input id="searchInput" placeholder="<?= __('search_emp_ph', 'Search by name or job title…') ?>" autocomplete="off" style="border:none;background:transparent;outline:none;color:var(--text);font-size:13px;font-family:inherit;width:100%;">
+        <button id="clearSearch" onclick="clearSearch()" title="Clear search" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;display:none;align-items:center;padding:0;"><i class="fa-solid fa-xmark"></i></button>
     </div>
-</div>
-<?php endif; ?>
-
-<!-- ── CONTROLS BAR ── -->
-<div class="controls-bar">
-    <div class="filter-group">
-    <span class="fg-label">Status</span>
-    <button class="filter-pill active" data-filter="all" onclick="setFilter(this,'all')">
-        <i class="fa-solid fa-layer-group"></i> All <span class="pill-count"><?= $total_staff ?></span>
-    </button>
-    <button class="filter-pill" data-filter="top" onclick="setFilter(this,'top')">
-        <i class="fa-solid fa-fire"></i> Active <span class="pill-count"><?= count(array_filter($employees, fn($e) => (int)$e['total_orders'] > 0)) ?></span>
-    </button>
-    <button class="filter-pill" data-filter="idle" onclick="setFilter(this,'idle')">
-        <i class="fa-solid fa-moon"></i> No Orders <span class="pill-count"><?= count(array_filter($employees, fn($e) => (int)$e['total_orders'] === 0)) ?></span>
-    </button>
+    <div class="role-filter-wrap" style="position:relative; display:inline-flex; align-items:center;">
+        <select id="roleFilter" onchange="applyFilters()" style="appearance:none; -webkit-appearance:none; padding:10px 36px 10px 16px; border-radius:12px; border:1px solid var(--border); background:var(--bg-card,#131313); color:var(--text); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; outline:none; transition:all 0.2s;">
+            <option value="all"><?= __('all_roles', 'All Roles') ?></option>
+            <?php foreach ($_roles_db as $_rs => $_ri): ?>
+            <option value="<?= h($_rs) ?>"><?= h($_ri['name']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <i class="fa-solid fa-chevron-down" style="position:absolute; right:14px; color:var(--text-muted); font-size:11px; pointer-events:none;"></i>
     </div>
-    <div class="fg-sep"></div>
-    <?php
-    // Non-POS staff count + distinct positions, for the Role/Position dropdowns.
-    $general_count = 0; $general_positions = [];
-    foreach ($employees as $_ge) {
-        if (($_ge['emp_role'] ?? '') === 'general') {
-            $general_count++;
-            $jt = trim($_ge['job_title'] ?? '') ?: '—';
-            $general_positions[$jt] = ($general_positions[$jt] ?? 0) + 1;
-        }
-    }
-    ksort($general_positions);
-    ?>
-    <div class="filter-group">
-    <span class="fg-label">Role</span>
-    <select class="filter-select" id="roleFilter" onchange="roleFilterChange(this)" aria-label="Filter by role">
-        <option value="__allroles__">All roles (<?= $total_staff ?>)</option>
-        <?php foreach ($_roles_db as $rslug => $rdata): $rc = $role_counts_emp[$rslug] ?? 0; ?>
-        <option value="<?= h($rslug) ?>"><?= htmlspecialchars($rdata['name']) ?> (<?= $rc ?>)</option>
-        <?php endforeach; ?>
-        <option value="general">General &mdash; non-POS (<?= $general_count ?>)</option>
-    </select>
-    <select class="filter-select" id="posFilter" onchange="setPosition(this.value)" aria-label="Filter by position" style="display:none;margin-left:8px">
-        <option value="">All positions (<?= $general_count ?>)</option>
-        <?php foreach ($general_positions as $pt => $pc): ?>
-        <option value="<?= h(strtolower($pt)) ?>"><?= htmlspecialchars($pt) ?> (<?= (int)$pc ?>)</option>
-        <?php endforeach; ?>
-    </select>
-    </div>
-    <div class="fg-sep"></div>
-    <div class="filter-group">
-    <span class="fg-label">Shift</span>
-    <button class="filter-pill shift-pill active-shift shift-active" data-shift-filter="" onclick="setShiftFilter(this,'')">
-        <i class="fa-solid fa-clock-rotate-left"></i> All Shifts
-    </button>
-    <button class="filter-pill shift-pill" data-shift-filter="morning" onclick="setShiftFilter(this,'morning')" style="--sb-active:#f39c12">
-        <i class="fa-solid fa-sun"></i> Morning <span class="pill-count"><?= $shift_counts['morning'] ?></span>
-    </button>
-    <button class="filter-pill shift-pill" data-shift-filter="afternoon" onclick="setShiftFilter(this,'afternoon')" style="--sb-active:#3498db">
-        <i class="fa-solid fa-cloud-sun"></i> Afternoon <span class="pill-count"><?= $shift_counts['afternoon'] ?></span>
-    </button>
-    <button class="filter-pill shift-pill" data-shift-filter="night" onclick="setShiftFilter(this,'night')" style="--sb-active:#9b59b6">
-        <i class="fa-solid fa-moon"></i> Night <span class="pill-count"><?= $shift_counts['night'] ?></span>
-    </button>
-    </div>
-    <div class="ctrl-right">
-        <span class="row-count" id="rowCount">Showing <?= $total_staff ?> of <?= $total_staff ?></span>
-        <button class="compact-btn" id="compactBtn" onclick="toggleCompact()">
-            <i class="fa-solid fa-bars"></i> Compact
-        </button>
+    <div style="display:flex; align-items:center; gap:10px; margin-left:auto;">
+        <a href="employee_add.php" class="btn-nav primary" style="display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:10px 28px; min-width:220px; border-radius:12px; background:var(--accent,#d1904b); color:#000; font-size:14px; font-weight:800; text-decoration:none; transition:all 0.2s; box-shadow:0 4px 16px rgba(209,144,75,0.25);">
+            <i class="fa-solid fa-plus" style="font-size:15px"></i> <?= __('add_new_employee', 'Add New Employee') ?>
+        </a>
     </div>
 </div>
 
@@ -974,166 +884,87 @@ foreach ($leaderboard as $i => $emp):
         <table id="empTable">
             <thead>
                 <tr>
-                    <th style="width:44px;text-align:center;cursor:default">#</th>
-                    <th onclick="sortTable(1)">Employee <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(2)">Role <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(3)">All-Time Orders <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(4)">This Month <i class="fa-solid fa-sort si"></i></th>
-                    <?php if ($sess_role === 'admin'): ?>
-                    <th onclick="sortTable(5)" class="hide-mob">Revenue <i class="fa-solid fa-sort si"></i></th>
-                    <?php endif; ?>
-                    <th onclick="sortTable(<?= $sess_role==='admin'?6:5 ?>)" class="hide-mob">Tenure <i class="fa-solid fa-sort si"></i></th>
-                    <th>Actions</th>
+                    <th style="width:40px;text-align:center"><?= __('col_no', 'No') ?></th>
+                    <th onclick="sortTable(1)"><?= __('col_staff_id', 'Staff ID') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th style="width:52px"><?= __('image', 'Image') ?></th>
+                    <th onclick="sortTable(3)"><?= __('col_name', 'Name') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(4)"><?= __('col_role', 'Role') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(5)"><?= __('col_phone', 'Phone') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(6)"><?= __('col_shift', 'Shift') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th style="text-align:right"><?= __('actions', 'Actions') ?></th>
                 </tr>
             </thead>
             <tbody id="tableBody">
 <?php
-$currentGroup = null;
 foreach ($sorted_employees as $idx => $emp):
     $color   = avatarColor($emp['name']);
     $hasPhoto = !empty($emp['photo']) && file_exists($emp['photo']);
-    $rankCls  = $idx === 0 ? 'r1' : ($idx === 1 ? 'r2' : ($idx === 2 ? 'r3' : ''));
-    $pct      = $max_orders > 0 ? min(100, round((int)$emp['total_orders'] / $max_orders * 100)) : 0;
     $empRole  = $emp['emp_role'] ?? 'staff';
     $eid      = (int)$emp['employee_id'];
-    $hasOrders = (int)$emp['total_orders'] > 0;
-    if ($currentGroup !== $empRole):
-        $currentGroup = $empRole;
-        $_grInfo = $_roles_db[$empRole] ?? ['icon' => 'fa-user', 'name' => ucfirst($empRole), 'color' => $empRole === 'general' ? '#14b8a6' : '#888'];
-        $gIcon   = $_grInfo['icon'];
-        $gName   = $_grInfo['name'];
-        $gColor  = $_grInfo['color'] ?? '#888';
-        $gCount  = $role_counts_emp[$empRole] ?? 0;
 ?>
-                <tr class="group-sep" data-group="<?= $empRole ?>">
-                    <td colspan="99" style="--gs-color:<?= $gColor ?>">
-                        <span class="gc">
-                            <i class="fa-solid <?= $gIcon ?>"></i>
-                            <?= htmlspecialchars($gName) ?>
-                            <span class="gcnt"><?= $gCount ?></span>
-                        </span>
-                    </td>
-                </tr>
-<?php endif; ?>
                 <tr data-name="<?= h(strtolower($emp['name'])) ?>"
                     data-title="<?= h(strtolower($emp['job_title'] ?? '')) ?>"
-                    data-orders="<?= (int)$emp['total_orders'] ?>"
                     data-role="<?= h($empRole) ?>"
-                    data-shift="<?= h($emp['shift'] ?? '') ?>"
                     data-id="<?= $eid ?>">
-                    <td class="cell-rank">
-                        <div class="rank-cell <?= $rankCls ?>">
-                            <?php if ($idx < 3 && $hasOrders): ?>
-                                <i class="fa-solid fa-medal"></i>
-                            <?php else: ?>
-                                <?= $idx + 1 ?>
-                            <?php endif; ?>
-                        </div>
+                    <td style="text-align:center;font-weight:700;color:var(--text-muted);font-size:12px">
+                        <?= $idx + 1 ?>
+                    </td>
+                    <td data-val="<?= $eid ?>" style="font-weight:700;font-size:12px;color:var(--accent)">
+                        #STF-<?= $eid ?>
+                    </td>
+                    <td style="width:52px">
+                        <?php if ($hasPhoto): ?>
+                            <img src="<?= h($emp['photo']) ?>" class="avatar-img" alt="<?= h($emp['name']) ?>">
+                        <?php else: ?>
+                            <div class="avatar" style="background:<?= $color ?>"><?= initials($emp['name']) ?></div>
+                        <?php endif; ?>
                     </td>
                     <td data-val="<?= h($emp['name']) ?>" class="cell-emp">
-                        <div class="emp-cell">
-                            <?php if ($hasPhoto): ?>
-                                <img src="<?= h($emp['photo']) ?>" class="avatar-img" alt="<?= h($emp['name']) ?>">
-                            <?php else: ?>
-                                <div class="avatar" style="background:<?= $color ?>"><?= initials($emp['name']) ?></div>
-                            <?php endif; ?>
-                            <div>
-                                <div class="emp-name"><?= h($emp['name']) ?></div>
-                                <div class="emp-title">
-                                    <?= h($emp['job_title'] ?? '—') ?>
-                                    <?php if (!empty($emp['shift'])):
-                                        $shiftMeta = ['morning'=>['#f39c12','fa-sun','Morning'],'afternoon'=>['#3498db','fa-cloud-sun','Afternoon'],'night'=>['#9b59b6','fa-moon','Night']];
-                                        [$sc,$si,$sl] = $shiftMeta[$emp['shift']] ?? ['#888','fa-clock',ucfirst($emp['shift'])];
-                                    ?>
-                                    <span class="shift-inline" style="color:<?= $sc ?>;font-size:9px;margin-left:4px;opacity:.9"><i class="fa-solid <?= $si ?>"></i> <?= $sl ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
+                        <div>
+                            <div class="emp-name"><?= h($emp['name']) ?></div>
                         </div>
                     </td>
                     <td data-val="<?= h($empRole) ?>" class="cell-role" data-label="Role">
                         <?php
-                            $_role_exists = isset($_roles_db[$empRole]);
                             $_rinfo  = $_roles_db[$empRole] ?? ['name' => ucfirst($empRole), 'icon' => 'fa-user', 'color' => '#888'];
                             $_rbcol  = $_rinfo['color'] ?? '#888';
+                            if ((int)($emp['is_pos'] ?? 1) === 0) {
+                                $_rinfo['name'] = 'General';
+                                $_rbcol = '#14b8a6';
+                            }
                         ?>
-                        <?php if ((int)($emp['is_pos'] ?? 1) === 0): ?>
-                        <span class="role-wrap" style="--rb-bg:#14b8a61a;--rb-color:#14b8a6;--rb-border:#14b8a633" title="Display-only staff — no POS login or role">
-                            <span class="role-dot"></span>
-                            General
-                        </span>
-                        <?php elseif (!$_role_exists && $empRole !== 'admin'): ?>
-                        <div class="role-wrap editable" data-eid="<?= $eid ?>" data-current="<?= h($empRole) ?>"
-                             style="--rb-bg:#e74c3c1a;--rb-color:#e74c3c;--rb-border:#e74c3c33" title="Role '<?= h($empRole) ?>' no longer exists — please reassign">
-                            <span class="role-dot"></span>
-                            <select class="role-select" onchange="updateRole(<?= $eid ?>, this)" title="Reassign role" style="color:#e74c3c">
-                                <option value="" disabled selected>Reassign…</option>
-                                <?php foreach ($_roles_db as $_rs => $_ri): if ($_rs === 'admin' && ($_SESSION['role'] ?? '') !== 'admin') continue; ?>
-                                <option value="<?= h($_rs) ?>"><?= h($_ri['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <?php elseif ($empRole === 'admin'): ?>
                         <span class="role-wrap" style="--rb-bg:<?= $_rbcol ?>1a;--rb-color:<?= $_rbcol ?>;--rb-border:<?= $_rbcol ?>33">
-                            <span class="role-dot"></span>
                             <?= htmlspecialchars($_rinfo['name']) ?>
                         </span>
+                    </td>
+                    <td data-val="<?= h($emp['phone'] ?? '') ?>" style="font-size:12px;color:var(--text)">
+                        <?= !empty($emp['phone']) ? h($emp['phone']) : '—' ?>
+                    </td>
+                    <td data-val="<?= h($emp['shift'] ?? '') ?>">
+                        <?php if (!empty($emp['shift'])):
+                            $shiftMeta = [
+                                'morning'   => ['#ffffff','fa-sun', __('shift_morning', 'Morning')],
+                                'afternoon' => ['#ffffff','fa-cloud-sun', __('shift_afternoon', 'Afternoon')],
+                                'night'     => ['#ffffff','fa-moon', __('shift_night', 'Night')]
+                            ];
+                            [$sc,$si,$sl] = $shiftMeta[strtolower($emp['shift'])] ?? ['#ffffff','fa-clock',ucfirst($emp['shift'])];
+                        ?>
+                            <span class="shift-badge" style="color:#ffffff;font-size:13px;font-weight:700;"><?= $sl ?></span>
                         <?php else: ?>
-                        <div class="role-wrap editable" data-eid="<?= $eid ?>" data-current="<?= h($empRole) ?>"
-                             style="--rb-bg:<?= $_rbcol ?>1a;--rb-color:<?= $_rbcol ?>;--rb-border:<?= $_rbcol ?>33">
-                            <span class="role-dot"></span>
-                            <select class="role-select" onchange="updateRole(<?= $eid ?>, this)" title="Change role">
-                                <?php foreach ($_roles_db as $_rs => $_ri): if ($_rs === 'admin' && ($_SESSION['role'] ?? '') !== 'admin') continue; ?>
-                                <option value="<?= h($_rs) ?>" <?= $empRole === $_rs ? 'selected' : '' ?>><?= h($_ri['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                            <span style="color:var(--text-muted);font-size:13px;">—</span>
                         <?php endif; ?>
                     </td>
-                    <td data-val="<?= (int)$emp['total_orders'] ?>" data-stat-orders="<?= $eid ?>" class="cell-orders" data-label="All-Time Orders">
-                        <div class="perf-cell">
-                            <div class="perf-top">
-                                <span class="perf-num <?= !$hasOrders ? 'num-zero' : '' ?>"><?= fmtnum($emp['total_orders']) ?></span>
-                                <?php if (!$hasOrders): ?><span class="inactive-tag">Inactive</span><?php endif; ?>
-                            </div>
-                            <?php if ($hasOrders): ?>
-                            <div class="perf-bar"><div class="perf-fill" style="width:<?= $pct ?>%"></div></div>
-                            <div class="perf-sub">avg $<?= money($emp['avg_order_value']) ?> / order</div>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                    <td data-val="<?= (int)$emp['orders_this_month'] ?>" data-stat-month="<?= $eid ?>" class="cell-month" data-label="This Month">
-                        <span class="num-cell <?= (int)$emp['orders_this_month'] === 0 ? 'num-zero' : '' ?>">
-                            <?= fmtnum($emp['orders_this_month']) ?>
-                        </span>
-                        <?php if ((int)$emp['orders_today'] > 0): ?>
-                        <div class="today-badge" style="font-size:10px;color:var(--ok);margin-top:2px">+<?= (int)$emp['orders_today'] ?> today</div>
-                        <?php endif; ?>
-                    </td>
-                    <?php if ($sess_role === 'admin'): ?>
-                    <td data-val="<?= round((float)$emp['total_revenue'], 2) ?>" data-stat-rev="<?= $eid ?>" class="hide-mob">
-                        <span class="revenue <?= (float)$emp['total_revenue'] <= 0 ? 'num-zero' : '' ?>">
-                            <?= (float)$emp['total_revenue'] > 0 ? '$'.money($emp['total_revenue']) : '—' ?>
-                        </span>
-                    </td>
-                    <?php endif; ?>
-                    <td data-val="<?= h($emp['hire_date'] ?? '') ?>" class="hide-mob">
-                        <div class="tenure-cell">
-                            <i class="fa-solid fa-clock" style="font-size:11px"></i>
-                            <?= tenure($emp['hire_date'] ?? '') ?>
-                        </div>
-                    </td>
-                    <td class="cell-actions">
-                        <div class="row-actions">
+                    <td class="cell-actions" style="text-align:right">
+                        <div class="row-actions" style="justify-content:flex-end">
                             <a class="btn-row view" href="employee_view.php?id=<?= $eid ?>">
-                                <i class="fa-regular fa-eye"></i> View
+                                <i class="fa-regular fa-eye"></i> <?= __('view_detail', 'View') ?>
                             </a>
                             <button class="btn-row edit" onclick="openEditModal(<?= $eid ?>)" title="Edit employee">
-                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                                <i class="fa-solid fa-pen-to-square"></i> <?= __('edit', 'Edit') ?>
                             </button>
                             <?php if ($sess_role === 'admin'): ?>
                             <button class="btn-row del" onclick="confirmDelete(<?= $eid ?>,'<?= h($emp['name']) ?>')" title="Delete">
-                                <i class="fa-solid fa-trash-can"></i> Delete
+                                <i class="fa-solid fa-trash-can"></i> <?= __('delete', 'Delete') ?>
                             </button>
                             <?php endif; ?>
                         </div>
@@ -1143,16 +974,9 @@ foreach ($sorted_employees as $idx => $emp):
             </tbody>
             <tfoot id="tableFoot">
                 <tr>
-                    <td colspan="3" id="footLabel" style="color:var(--text-muted);font-size:11px;font-weight:700">
+                    <td colspan="8" id="footLabel" style="color:var(--text-muted);font-size:11px;font-weight:700">
                         <?= $total_staff ?> employees
                     </td>
-                    <td id="footOrders" class="foot-val"><?= fmtnum($total_orders_all) ?> total</td>
-                    <td id="footMonth"><?= fmtnum($total_this_month) ?> this mo.</td>
-                    <?php if ($sess_role === 'admin'): ?>
-                    <td id="footRevenue" class="foot-val hide-mob">$<?= money($total_revenue) ?></td>
-                    <?php endif; ?>
-                    <td class="hide-mob"></td>
-                    <td></td>
                 </tr>
             </tfoot>
         </table>
@@ -1177,9 +1001,9 @@ foreach ($sorted_employees as $idx => $emp):
             <span class="mv" id="deleteName">—</span>
         </div>
         <input type="hidden" id="deleteId">
-        <a id="deleteLink" href="#" class="btn-danger">
+        <button id="deleteLink" class="btn-danger" onclick="executeDeleteEmployee()" style="border:none; cursor:pointer; width:100%; justify-content:center;">
             <i class="fa-solid fa-trash-can"></i> Delete Permanently
-        </a>
+        </button>
         <button class="btn-cancel" onclick="closeDelete()">Cancel</button>
     </div>
 </div>
@@ -1218,138 +1042,63 @@ const ROLES_INFO = <?= json_encode(array_combine(
     array_keys($_roles_db),
     array_map(fn($r) => ['name' => $r['name'], 'icon' => $r['icon'], 'color' => $r['color'] ?? '#888'], $_roles_db)
 )) ?>;
-let currentFilter = 'all';
-let currentShiftFilter = '';
-let isCompact = false;
 
 /* ── COUNT-UP ── */
-function countUp() {
-    document.querySelectorAll('.stat-num[data-target]').forEach(el => {
-        const target = parseFloat(el.dataset.target);
-        const prefix = el.dataset.prefix || '';
-        const dec    = parseInt(el.dataset.dec || 0);
-        if (isNaN(target)) return;
-        const dur = 700, start = performance.now();
-        function frame(now) {
-            const t    = Math.min((now - start) / dur, 1);
-            const ease = 1 - Math.pow(1 - t, 3);
-            const val  = target * ease;
-            el.textContent = prefix + (dec
-                ? Math.round(val).toLocaleString()
-                : Math.round(val).toLocaleString());
-            if (t < 1) requestAnimationFrame(frame);
-        }
-        requestAnimationFrame(frame);
-    });
-}
+function countUp() {}
 
 /* ── SEARCH ── */
 let searchTimer;
-document.getElementById('searchInput').addEventListener('input', function() {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(applyFilters, 150);
-    document.getElementById('clearSearch').classList.toggle('vis', this.value.length > 0);
-});
+const _searchInput = document.getElementById('searchInput');
+if (_searchInput) {
+    _searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(applyFilters, 150);
+        const cs = document.getElementById('clearSearch');
+        if (cs) cs.style.display = this.value.length > 0 ? 'inline-flex' : 'none';
+    });
+}
 function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('clearSearch').classList.remove('vis');
+    const si = document.getElementById('searchInput');
+    if (si) si.value = '';
+    const rf = document.getElementById('roleFilter');
+    if (rf) rf.value = 'all';
+    const cs = document.getElementById('clearSearch');
+    if (cs) cs.style.display = 'none';
     applyFilters();
-    document.getElementById('searchInput').focus();
+    if (si) si.focus();
 }
 function resetFilters() {
     clearSearch();
-    setFilter(document.querySelector('[data-filter="all"]'), 'all');
-}
-
-/* ── FILTER ── */
-const ROLE_FILTERS = <?= json_encode(array_merge(array_keys($_roles_db), ['general'])) ?>;
-let currentPositionFilter = '';
-// Status pills (All / Active / No Orders) share the primary dimension with the Role dropdown.
-function setFilter(btn, filter) {
-    currentFilter = filter;
-    document.querySelectorAll('.controls-bar .filter-pill:not(.shift-pill)').forEach(p => {
-        p.className = 'filter-pill';
-        if (p.dataset.filter === filter) p.classList.add(filter === 'all' ? 'active' : 'active-' + filter);
-    });
-    const rf = document.getElementById('roleFilter'); if (rf) rf.value = '__allroles__';
-    const pf = document.getElementById('posFilter'); if (pf) { pf.style.display = 'none'; pf.value = ''; }
-    currentPositionFilter = '';
-    applyFilters();
-}
-function roleFilterChange(sel) {
-    const val = sel.value;
-    document.querySelectorAll('.controls-bar .filter-pill:not(.shift-pill)').forEach(p => p.className = 'filter-pill');
-    const pf = document.getElementById('posFilter');
-    currentPositionFilter = '';
-    if (pf) { pf.value = ''; }
-    if (val === '__allroles__') {
-        currentFilter = 'all';
-        const allp = document.querySelector('.filter-pill[data-filter="all"]'); if (allp) allp.classList.add('active');
-        if (pf) pf.style.display = 'none';
-    } else {
-        currentFilter = val;
-        if (pf) pf.style.display = (val === 'general') ? '' : 'none';
-    }
-    applyFilters();
-}
-function setPosition(pos) {
-    currentPositionFilter = pos;
-    applyFilters();
-}
-function setShiftFilter(btn, shift) {
-    currentShiftFilter = (shift !== '' && currentShiftFilter === shift) ? '' : shift;
-    document.querySelectorAll('.shift-pill').forEach(p => {
-        p.classList.remove('active-shift','shift-active');
-        if (p.dataset.shiftFilter === currentShiftFilter) p.classList.add('active-shift','shift-active');
-    });
-    applyFilters();
 }
 
 /* ── APPLY FILTERS ── */
 function applyFilters() {
-    const q    = document.getElementById('searchInput').value.toLowerCase().trim();
+    const si   = document.getElementById('searchInput');
+    const q    = si ? si.value.toLowerCase().trim() : '';
+    const rf   = document.getElementById('roleFilter');
+    const role = rf ? rf.value : 'all';
     const rows = document.querySelectorAll('#tableBody tr[data-name]');
-    let shown  = 0, shownOrders = 0, shownMonth = 0;
+    let shown  = 0;
     rows.forEach(row => {
         const nameOk = !q || row.dataset.name.includes(q) || row.dataset.title.includes(q);
-        let filtOk;
-        if (currentFilter === 'all')            filtOk = true;
-        else if (currentFilter === 'top')       filtOk = parseInt(row.dataset.orders) > 0;
-        else if (currentFilter === 'idle')      filtOk = parseInt(row.dataset.orders) === 0;
-        else if (ROLE_FILTERS.includes(currentFilter)) filtOk = row.dataset.role === currentFilter;
-        else filtOk = true;
-        const shiftOk = !currentShiftFilter || row.dataset.shift === currentShiftFilter;
-        const posOk   = !currentPositionFilter || row.dataset.title === currentPositionFilter;
-        const show = nameOk && filtOk && shiftOk && posOk;
+        const roleOk = role === 'all' || row.dataset.role === role;
+        const show   = nameOk && roleOk;
         row.classList.toggle('hidden', !show);
-        if (show) {
-            shown++;
-            shownOrders += parseInt(row.children[3]?.dataset?.val) || 0;
-            shownMonth  += parseInt(row.children[4]?.dataset?.val) || 0;
-        }
+        if (show) shown++;
     });
-    // Show/hide group separators based on whether their group has visible rows
-    document.querySelectorAll('.group-sep').forEach(sep => {
-        let next = sep.nextElementSibling;
-        let hasVisible = false;
-        while (next && !next.classList.contains('group-sep')) {
-            if (!next.classList.contains('hidden')) { hasVisible = true; break; }
-            next = next.nextElementSibling;
-        }
-        sep.classList.toggle('hidden', !hasVisible);
-    });
-    document.getElementById('emptyState').style.display = shown === 0 ? 'block' : 'none';
-    document.getElementById('rowCount').textContent   = `Showing ${shown} of ${TOTAL}`;
-    document.getElementById('footLabel').textContent  = `${shown} employee${shown !== 1 ? 's' : ''}`;
-    document.getElementById('footOrders').textContent = shownOrders.toLocaleString() + ' total';
-    document.getElementById('footMonth').textContent  = shownMonth.toLocaleString() + ' this mo.';
+    const empty = document.getElementById('emptyState');
+    if (empty) empty.style.display = shown === 0 ? 'block' : 'none';
+    const rc = document.getElementById('rowCount');
+    if (rc) rc.textContent = `Showing ${shown} of ${TOTAL}`;
+    const fl = document.getElementById('footLabel');
+    if (fl) fl.textContent = `${shown} employee${shown !== 1 ? 's' : ''}`;
 }
 
 /* ── SORT ── */
 let sortDir = {};
 function sortTable(col) {
     const tbody = document.getElementById('tableBody');
-    const seps  = [...tbody.querySelectorAll('tr.group-sep')];
+    const rows  = [...tbody.querySelectorAll('tr[data-name]')];
     const asc   = sortDir[col] !== 'asc';
     sortDir = {}; sortDir[col] = asc ? 'asc' : 'desc';
     document.querySelectorAll('th').forEach((th, i) => {
@@ -1359,27 +1108,14 @@ function sortTable(col) {
             ? `fa-solid ${asc ? 'fa-sort-up' : 'fa-sort-down'} si`
             : 'fa-solid fa-sort si';
     });
-    // Sort within each group, keeping group separators in place
-    seps.forEach(sep => {
-        const group = [];
-        let next = sep.nextElementSibling;
-        while (next && !next.classList.contains('group-sep')) {
-            group.push(next);
-            next = next.nextElementSibling;
-        }
-        group.sort((a, b) => {
-            const av = a.children[col]?.dataset?.val ?? a.children[col]?.textContent?.trim() ?? '';
-            const bv = b.children[col]?.dataset?.val ?? b.children[col]?.textContent?.trim() ?? '';
-            const an = parseFloat(av), bn = parseFloat(bv);
-            if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
-            return asc ? av.localeCompare(bv) : bv.localeCompare(av);
-        });
-        const anchor = sep;
-        group.forEach((r, i) => {
-            if (i === 0) anchor.after(r);
-            else group[i - 1].after(r);
-        });
+    rows.sort((a, b) => {
+        const av = a.children[col]?.dataset?.val ?? a.children[col]?.textContent?.trim() ?? '';
+        const bv = b.children[col]?.dataset?.val ?? b.children[col]?.textContent?.trim() ?? '';
+        const an = parseFloat(av), bn = parseFloat(bv);
+        if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+        return asc ? av.localeCompare(bv) : bv.localeCompare(av);
     });
+    rows.forEach(r => tbody.appendChild(r));
 }
 
 /* ── COMPACT ── */
@@ -1390,13 +1126,53 @@ function toggleCompact() {
 }
 
 /* ── DELETE CONFIRM ── */
+let pendingDeleteEmpId = null;
+
 function confirmDelete(id, name) {
+    pendingDeleteEmpId = id;
     document.getElementById('deleteId').value = id;
     document.getElementById('deleteName').textContent = name;
-    document.getElementById('deleteLink').href = `employee_delete.php?id=${id}`;
     document.getElementById('deleteModal').classList.add('open');
 }
-function closeDelete() { document.getElementById('deleteModal').classList.remove('open'); }
+function closeDelete() {
+    document.getElementById('deleteModal').classList.remove('open');
+    pendingDeleteEmpId = null;
+}
+
+async function executeDeleteEmployee() {
+    if (!pendingDeleteEmpId) return;
+    const btn = document.getElementById('deleteLink');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting...';
+
+    try {
+        const res = await fetch(`employee_delete.php?id=${pendingDeleteEmpId}&ajax=1`);
+        const j = await res.json();
+        if (j.ok) {
+            const row = document.querySelector(`#tableBody tr[data-id="${pendingDeleteEmpId}"]`);
+            if (row) {
+                const role = row.dataset.role;
+                row.style.transition = 'all 0.3s ease';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    row.remove();
+                    if (role) adjustPillCount(role, -1);
+                    applyFilters();
+                }, 300);
+            }
+            showToast('Employee deleted successfully', 'success');
+        } else {
+            showToast(j.error || 'Delete failed', 'error');
+        }
+    } catch {
+        showToast('Network error', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Delete Permanently';
+        closeDelete();
+    }
+}
 
 /* ── EXPORT CSV ── */
 function exportCSV() {
@@ -1463,38 +1239,9 @@ function recalcShiftCounts() {
     });
 }
 
-function getOrCreateGroupSep(tbody, role, info) {
-    let sep = tbody.querySelector(`tr.group-sep[data-group="${role}"]`);
-    if (sep) return sep;
-    const color = info?.color || '#888';
-    sep = document.createElement('tr');
-    sep.className = 'group-sep';
-    sep.dataset.group = role;
-    sep.innerHTML = `<td colspan="99" style="--gs-color:${color}"><span class="gc"><i class="fa-solid ${info?.icon || 'fa-user'}"></i> ${info?.name || role} <span class="gcnt">0</span></span></td>`;
-    const order = Object.keys(ROLES_INFO);
-    const ni    = order.indexOf(role);
-    const after = [...tbody.querySelectorAll('tr.group-sep')].find(s => order.indexOf(s.dataset.group) > ni);
-    after ? tbody.insertBefore(sep, after) : tbody.appendChild(sep);
-    return sep;
-}
-
 function moveRowToGroup(row, prevRole, newRole, newInfo) {
     const tbody = document.getElementById('tableBody');
-    // Decrement old separator count
-    const oldSep = tbody.querySelector(`tr.group-sep[data-group="${prevRole}"]`);
-    if (oldSep) {
-        const c = oldSep.querySelector('.gcnt');
-        if (c) c.textContent = Math.max(0, (parseInt(c.textContent) || 0) - 1);
-    }
-    // Find / create new separator and increment
-    const newSep = getOrCreateGroupSep(tbody, newRole, newInfo);
-    const nc = newSep.querySelector('.gcnt');
-    if (nc) nc.textContent = (parseInt(nc.textContent) || 0) + 1;
-    // Move row to end of new group
-    let anchor = newSep;
-    let next   = newSep.nextElementSibling;
-    while (next && !next.classList.contains('group-sep')) { anchor = next; next = next.nextElementSibling; }
-    anchor.after(row);
+    tbody.appendChild(row);
 }
 
 /* ── REUSABLE STYLED CONFIRM (replaces native confirm) ── */
@@ -1640,7 +1387,7 @@ document.addEventListener('keydown', e => {
         closeDelete(); return;
     }
     if (inField) return;
-    if (e.key === '/' || e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+    if (e.key === '/' || e.key === 'f') { const si = document.getElementById('searchInput'); if (si) { e.preventDefault(); si.focus(); } }
     if (e.key === 'n' || e.key === 'N') window.location.href = 'employee_add.php';
 });
 
@@ -1662,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 window.addEventListener('resize', resizeTable);
 </script>
-<script src="animations.js"></script>
+<script src="animations.js?v=<?= time() ?>"></script>
 
 <!-- ── EDIT EMPLOYEE MODAL ── -->
 <div class="em-overlay" id="editOverlay" onclick="if(event.target===this)closeEditModal()">
@@ -2093,5 +1840,7 @@ async function refreshStats() {
 refreshStats();
 setInterval(refreshStats, 10000);
 </script>
+</main>
+</div>
 </body>
 </html>

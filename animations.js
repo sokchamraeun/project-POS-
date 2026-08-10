@@ -62,7 +62,7 @@
         a(document.querySelector('.controls-bar, .controls, .filters'), 'entFadeIn', 70, 0.4);
 
         // 3. Stat cards & KPI chips — pop up, staggered
-        stagger('.stat-card, .kpi', 'entPopUp', 70, 68, 0.45);
+        stagger('.kpi', 'entPopUp', 70, 68, 0.45);
 
         // 4. Podium / medal cards (employees leaderboard top-3)
         stagger('.podium-card, .medal-card', 'entPopUp', 180, 95, 0.52);
@@ -90,16 +90,5 @@
         document.querySelectorAll('.chart-wrap').forEach((el, i) => {
             if (!el.style.animation) reveal(el, i * 45);
         });
-
-        // 9. Accent pulse on the top stat card / peak KPI (runs once, 1 s after load)
-        setTimeout(() => {
-            const hero = document.querySelector(
-                '.stat-card:first-child, .kpi:first-child, .podium-card.gold'
-            );
-            if (hero) {
-                const prev = hero.style.animation;
-                hero.style.animation = `${prev}, entPulse 1.8s ${E} 1s 2`;
-            }
-        }, 900);
     });
 })();

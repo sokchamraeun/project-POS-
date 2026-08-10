@@ -2,15 +2,6 @@
 require 'admin_only.php';
 require 'config.php';
 
-// Ensure employees table has user_id link column
-$conn->query("ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INT NULL");
-// NOTE: there used to be a backfill here that linked employees to users via
-// `u.user_id = e.employee_id`. Those two columns are unrelated numbers and never
-// coincide, so it mislinked staff (user #34 ended up owning two employee rows,
-// splitting order attribution). A NULL user_id is either a deliberate unlink or a
-// non-POS/display-only employee — neither should be auto-guessed. Link accounts
-// explicitly via employee_edit.php instead.
-
 // AJAX: username availability check
 if (isset($_GET['check_username'])) {
     header('Content-Type: application/json');
@@ -25,10 +16,12 @@ if (isset($_GET['check_username'])) {
 $errors = [];
 $old = ['name'=>'','phone'=>'','job'=>'','salary'=>'','dob'=>'','hire'=>date('Y-m-d'),'address'=>'','username'=>'','role'=>'staff'];
 
-// Load roles from DB
+// Load roles from DB safely
 $_all_roles = [];
 $_rr = $conn->query("SELECT slug, name, icon, description FROM roles ORDER BY is_system DESC, id ASC");
-while ($_rv = $_rr->fetch_assoc()) $_all_roles[] = $_rv;
+if ($_rr) {
+    while ($_rv = $_rr->fetch_assoc()) $_all_roles[] = $_rv;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name     = trim($_POST['name'] ?? '');
@@ -36,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $job_raw  = trim($_POST['job_title'] ?? '');
     $job      = ($job_raw === '__other__') ? trim($_POST['job_title_custom'] ?? '') : $job_raw;
     $salary   = (float)($_POST['salary'] ?? 0);
-    $dob      = $_POST['date_of_birth'] ?? '';
-    $hire     = $_POST['hire_date'] ?? '';
+    $dob      = trim($_POST['date_of_birth'] ?? '');
+    $hire     = trim($_POST['hire_date'] ?? '');
     $address  = trim($_POST['address'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -45,10 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $roleRaw  = $_POST['role'] ?? 'staff';
     // POS access: ON = real login + role; OFF = display-only staff (cleaner, waiter…), no account.
     $is_pos   = isset($_POST['pos_access']) ? 1 : 0;
+    
     // Validate against DB roles
     $_vrole = $conn->prepare("SELECT slug FROM roles WHERE slug=?");
-    $_vrole->bind_param("s", $roleRaw); $_vrole->execute();
-    $role = $_vrole->get_result()->fetch_assoc() ? $roleRaw : 'staff';
+    if ($_vrole) {
+        $_vrole->bind_param("s", $roleRaw); $_vrole->execute();
+        $role = $_vrole->get_result()->fetch_assoc() ? $roleRaw : 'staff';
+    } else {
+        $role = 'staff';
+    }
 
     $old = ['name'=>$name,'phone'=>$phone,'job'=>$job,'salary'=>$salary,'dob'=>$dob,'hire'=>$hire,'address'=>$address,'username'=>$username,'role'=>$roleRaw];
 
@@ -67,43 +65,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             $q = $conn->prepare("SELECT user_id FROM users WHERE username=? LIMIT 1");
-            $q->bind_param('s',$username); $q->execute(); $q->store_result();
-            if ($q->num_rows > 0) $errors[] = 'Username is already taken.';
+            if ($q) {
+                $q->bind_param('s',$username); $q->execute(); $q->store_result();
+                if ($q->num_rows > 0) $errors[] = 'Username is already taken.';
+            }
         }
     }
 
     if (empty($errors)) {
-        $photo = '';
-        if (!empty($_FILES['photo']['name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
-            $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
-            if (in_array($_FILES['photo']['type'], $allowed)) {
-                if (!is_dir('uploads')) mkdir('uploads', 0777, true);
-                $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
-                $photo = 'uploads/' . time() . '_' . uniqid() . '.' . $ext;
-                move_uploaded_file($_FILES['photo']['tmp_name'], $photo);
+        try {
+            $photo = '';
+            if (!empty($_FILES['photo']['name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+                $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+                if (in_array($_FILES['photo']['type'], $allowed)) {
+                    if (!is_dir('uploads')) mkdir('uploads', 0777, true);
+                    $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
+                    $photo = 'uploads/' . time() . '_' . uniqid() . '.' . $ext;
+                    move_uploaded_file($_FILES['photo']['tmp_name'], $photo);
+                }
             }
+
+            $dob_val  = ($dob !== '') ? $dob : null;
+            $hire_val = ($hire !== '') ? $hire : null;
+
+            // Check if is_pos column exists on employees table
+            $has_is_pos = false;
+            $c_chk = $conn->query("SHOW COLUMNS FROM employees LIKE 'is_pos'");
+            if ($c_chk && $c_chk->num_rows > 0) {
+                $has_is_pos = true;
+            }
+
+            if ($has_is_pos) {
+                $s1 = $conn->prepare("INSERT INTO employees (name,phone,job_title,salary,date_of_birth,hire_date,address,photo,is_pos) VALUES (?,?,?,?,?,?,?,?,?)");
+                $s1->bind_param("sssdssssi",$name,$phone,$job,$salary,$dob_val,$hire_val,$address,$photo,$is_pos);
+            } else {
+                $s1 = $conn->prepare("INSERT INTO employees (name,phone,job_title,salary,date_of_birth,hire_date,address,photo) VALUES (?,?,?,?,?,?,?,?)");
+                $s1->bind_param("sssdssss",$name,$phone,$job,$salary,$dob_val,$hire_val,$address,$photo);
+            }
+
+            if (!$s1 || !$s1->execute()) {
+                throw new Exception($conn->error ?: "Failed to insert employee record.");
+            }
+            $emp_id = $conn->insert_id;
+
+            // POS staff get a login + role; display-only staff get neither (user_id stays NULL).
+            if ($is_pos) {
+                $hp = password_hash($password, PASSWORD_DEFAULT);
+
+                // Fetch explicit role_id
+                $role_id = null;
+                $r_stmt = $conn->prepare("SELECT id FROM roles WHERE slug=? LIMIT 1");
+                if ($r_stmt) {
+                    $r_stmt->bind_param("s", $role);
+                    $r_stmt->execute();
+                    $r_res = $r_stmt->get_result()->fetch_assoc();
+                    if ($r_res) $role_id = (int)$r_res['id'];
+                }
+
+                if (!$role_id) {
+                    $r_fallback = $conn->query("SELECT id FROM roles WHERE slug='staff' UNION ALL SELECT id FROM roles LIMIT 1")->fetch_assoc();
+                    if ($r_fallback) $role_id = (int)$r_fallback['id'];
+                }
+
+                if (!$role_id) {
+                    throw new Exception("Role not found in database.");
+                }
+
+                $s2 = $conn->prepare("INSERT INTO users (username,password,role_id) VALUES (?,?,?)");
+                $s2->bind_param("ssi",$username,$hp,$role_id);
+                if (!$s2 || !$s2->execute()) {
+                    throw new Exception("Failed to create user login: " . ($s2 ? $s2->error : $conn->error));
+                }
+                $usr_id = $conn->insert_id;
+
+                // Check if user_id column exists on employees table
+                $u_chk = $conn->query("SHOW COLUMNS FROM employees LIKE 'user_id'");
+                if ($u_chk && $u_chk->num_rows > 0) {
+                    $s3 = $conn->prepare("UPDATE employees SET user_id = ? WHERE employee_id = ?");
+                    $s3->bind_param("ii", $usr_id, $emp_id);
+                    $s3->execute();
+                }
+            }
+
+            header("Location: employees.php?added=1");
+            exit;
+        } catch (Throwable $t) {
+            $errors[] = "Error adding employee: " . $t->getMessage();
         }
-        $s1 = $conn->prepare("INSERT INTO employees (name,phone,job_title,salary,date_of_birth,hire_date,address,photo,is_pos) VALUES (?,?,?,?,?,?,?,?,?)");
-        $s1->bind_param("sssdssssi",$name,$phone,$job,$salary,$dob,$hire,$address,$photo,$is_pos);
-        $s1->execute();
-        $emp_id = $conn->insert_id;
-
-        // POS staff get a login + role; display-only staff get neither (user_id stays NULL).
-        if ($is_pos) {
-            $hp = password_hash($password, PASSWORD_DEFAULT);
-            $s2 = $conn->prepare("INSERT INTO users (username,password,role_id) VALUES (?,?,(SELECT id FROM roles WHERE slug=?))");
-            $s2->bind_param("sss",$username,$hp,$role);
-            $s2->execute();
-            $usr_id = $conn->insert_id;
-
-            // Store the real user_id link on the employee row
-            $s3 = $conn->prepare("UPDATE employees SET user_id = ? WHERE employee_id = ?");
-            $s3->bind_param("ii", $usr_id, $emp_id);
-            $s3->execute();
-        }
-
-        header("Location: employees.php?added=1");
-        exit;
     }
 }
 ?>

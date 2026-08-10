@@ -1,5 +1,6 @@
 <?php
 date_default_timezone_set('Asia/Phnom_Penh');
+require_once __DIR__ . '/lang.php';
 
 // Database connection
 // ⚠️  Run this once in phpMyAdmin/MySQL CLI before changing these credentials:
@@ -26,6 +27,7 @@ if ($conn->connect_error) {
 
 // ── CRITICAL: Force utf8mb4 so 4-byte emoji are read correctly ──
 $conn->set_charset('utf8mb4');
+$conn->query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price DECIMAL(10,2) DEFAULT 0.00 AFTER price");
 
 // --- Check if constants are already defined before defining them ---
 if (!defined('PAYMENT_API_URL')) {
@@ -96,14 +98,23 @@ _migrate($conn, 'orders_started_at_v1', function($db) {
     $db->query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS started_at DATETIME NULL DEFAULT NULL");
 });
 _migrate($conn, 'employees_user_id', function($db) {
-    $db->query("ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INT NULL");
+    $has = $db->query("SELECT COUNT(*) c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employees' AND COLUMN_NAME='user_id'")->fetch_assoc()['c'] ?? 0;
+    if ((int)$has === 0) {
+        $db->query("ALTER TABLE employees ADD COLUMN user_id INT NULL");
+    }
 });
 _migrate($conn, 'employees_shift_v1', function($db) {
-    $db->query("ALTER TABLE employees ADD COLUMN IF NOT EXISTS shift ENUM('morning','afternoon','night') NULL DEFAULT NULL");
+    $has = $db->query("SELECT COUNT(*) c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employees' AND COLUMN_NAME='shift'")->fetch_assoc()['c'] ?? 0;
+    if ((int)$has === 0) {
+        $db->query("ALTER TABLE employees ADD COLUMN shift ENUM('morning','afternoon','night') NULL DEFAULT NULL");
+    }
 });
 // Display-only / non-POS staff (cleaner, waiter, etc.): is_pos=0 means no login, no role.
 _migrate($conn, 'employees_is_pos_v1', function($db) {
-    $db->query("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_pos TINYINT(1) NOT NULL DEFAULT 1");
+    $has = $db->query("SELECT COUNT(*) c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employees' AND COLUMN_NAME='is_pos'")->fetch_assoc()['c'] ?? 0;
+    if ((int)$has === 0) {
+        $db->query("ALTER TABLE employees ADD COLUMN is_pos TINYINT(1) NOT NULL DEFAULT 1");
+    }
 });
 // One employee per login: a user_id must map to at most one employee, else order
 // attribution (confirm_order: WHERE user_id=? LIMIT 1) picks arbitrarily. UNIQUE allows
@@ -2199,24 +2210,32 @@ if (!function_exists('can')) {
 
                 // 1. Fetch user-specific overrides if user_id > 0
                 if ($user_id > 0) {
-                    $uo = $conn->prepare("SELECT p.slug, up.is_granted FROM user_permissions up JOIN permissions p ON p.id = up.permission_id WHERE up.user_id = ?");
-                    if ($uo) {
-                        $uo->bind_param("i", $user_id);
-                        $uo->execute();
-                        $uores = $uo->get_result();
-                        while ($row = $uores->fetch_assoc()) {
-                            $user_overrides[$row['slug']] = (int)$row['is_granted'];
+                    try {
+                        $uo = $conn->prepare("SELECT p.slug, up.is_granted FROM user_permissions up JOIN permissions p ON p.id = up.permission_id WHERE up.user_id = ?");
+                        if ($uo) {
+                            $uo->bind_param("i", $user_id);
+                            $uo->execute();
+                            $uores = $uo->get_result();
+                            while ($row = $uores->fetch_assoc()) {
+                                $user_overrides[$row['slug']] = (int)$row['is_granted'];
+                            }
                         }
+                    } catch (Throwable $t) {
+                        // User permissions table or permission tables missing, skip gracefully
                     }
                 }
 
                 // 2. Fetch base role permissions
-                $r = $conn->prepare("SELECT p.slug FROM permissions p JOIN role_permissions rp ON rp.permission_id=p.id JOIN roles ro ON ro.id=rp.role_id WHERE ro.slug=?");
-                if ($r) {
-                    $r->bind_param("s", $role);
-                    $r->execute();
-                    $res = $r->get_result();
-                    while ($row = $res->fetch_assoc()) $role_perms[$row['slug']] = true;
+                try {
+                    $r = $conn->prepare("SELECT p.slug FROM permissions p JOIN role_permissions rp ON rp.permission_id=p.id JOIN roles ro ON ro.id=rp.role_id WHERE ro.slug=?");
+                    if ($r) {
+                        $r->bind_param("s", $role);
+                        $r->execute();
+                        $res = $r->get_result();
+                        while ($row = $res->fetch_assoc()) $role_perms[$row['slug']] = true;
+                    }
+                } catch (Throwable $t) {
+                    // Role permissions table missing, skip gracefully
                 }
             }
         }

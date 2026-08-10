@@ -108,6 +108,7 @@ $home_url = ($role === 'barista') ? 'view_order.php' : 'dashboard.php';
 <title>My Profile | Bird's Nest Coffee</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 <style>
 :root {
@@ -320,7 +321,7 @@ body {
     padding:22px 24px;
     animation:scaleIn .45s cubic-bezier(.16,1,.3,1) .12s both;
 }
-.profile-avatar {
+.profile-summary .profile-avatar {
     width:68px; height:68px; border-radius:18px; flex-shrink:0;
     background:linear-gradient(135deg,var(--accent),var(--accent-dark));
     display:flex; align-items:center; justify-content:center;
@@ -370,21 +371,25 @@ body {
 </style>
 </head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<div class="app-main flex-1 h-full overflow-y-auto">
 
 <!-- ── TOPBAR ── -->
-<div class="topbar">
-    <div class="topbar-left">
-        <a href="<?= $home_url ?>" class="back-btn">
-            <i class="fa-solid fa-arrow-left"></i> Back
-        </a>
-        <span class="page-title">My <span>Profile</span></span>
+<div class="topbar" style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(18,18,21,0.5);backdrop-filter:blur(12px);">
+    <div class="topbar-left" style="display:flex;align-items:center;gap:12px;">
+        <h1 class="page-title" style="font-size:22px;font-weight:800;color:var(--accent,#d1904b);display:flex;align-items:center;gap:10px;margin:0;">
+            <i class="fa-solid fa-circle-user"></i> My Profile
+        </h1>
     </div>
-    <div class="topbar-right">
-        <div class="user-chip">
-            <div class="user-avatar"><?php $__ph = current_user_photo($conn); if ($__ph): ?><img src="<?= htmlspecialchars($__ph) ?>" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"><?php else: ?><?= strtoupper(substr($username, 0, 1)) ?><?php endif; ?></div>
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px;">
+        <div class="user-chip flex items-center gap-2.5 bg-[#18181c] p-2.5 px-3.5 rounded-xl border border-[#24242b]" style="display:flex;align-items:center;gap:10px;background:#18181c;padding:8px 14px;border-radius:12px;border:1px solid #24242b;">
+            <div class="w-8 h-8 rounded-full bg-[#d1904b]/20 text-[#d1904b] font-bold flex items-center justify-center text-xs flex-shrink-0" style="width:32px;height:32px;border-radius:50%;background:rgba(209,144,75,0.2);color:#d1904b;font-weight:700;display:flex;align-items:center;justify-content:center;">
+                <?php $__ph = current_user_photo($conn); if ($__ph): ?><img src="<?= htmlspecialchars($__ph) ?>" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block"><?php else: ?><?= strtoupper(substr($username, 0, 1)) ?><?php endif; ?>
+            </div>
             <div>
-                <div class="user-name"><?= htmlspecialchars($username) ?></div>
-                <div class="user-role"><?= htmlspecialchars($role_display) ?></div>
+                <div class="user-name" style="font-size:13px;font-weight:600;color:#fff;"><?= htmlspecialchars($username) ?></div>
+                <div class="user-role" style="font-size:11px;color:#888;"><?= htmlspecialchars($role_display) ?></div>
             </div>
         </div>
     </div>
@@ -687,5 +692,6 @@ newPass.addEventListener('input', updateMeter);
 confirmPass.addEventListener('input', checkPassReady);
 document.getElementById('currentPass').addEventListener('input', checkPassReady);
 </script>
+</div></div>
 </body>
 </html>

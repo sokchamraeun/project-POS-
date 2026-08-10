@@ -1,0 +1,10 @@
+{
+    "hanuman": {
+        "normal": "D:\\xampp\\htdocs\\Final---\\dompdf\\dompdf\\vendor\\dompdf\\dompdf\/lib\/fonts\/hanuman_normal_f9879c5ea2660debb62b49f2bbb2665e",
+        "bold": "hanuman_bold_26b401d5117309e0cd7a09df07aba8d7"
+    },
+    "noto sans khmer": {
+        "normal": "D:\\xampp\\htdocs\\Final---\\dompdf\\dompdf\\vendor\\dompdf\\dompdf\/lib\/fonts\/noto_sans_khmer_normal_0468a1c45d11d0c5228bdfb18535584a",
+        "bold": "noto_sans_khmer_bold_eee6d2d13ef6d1fb3b8c922cc77bf7fc"
+    }
+}

@@ -314,9 +314,8 @@ if (in_array('paylater', $payment_methods)) {
     $payment_amounts    = [$total];
     $payment_references = [''];
 }
-// Riel: KHR→USD conversion has inherent rounding; trust the server total for the
-// stored USD amount while keeping the raw KHR reference for receipt display.
-if (count($payment_methods) === 1 && $payment_methods[0] === 'riel') {
+// Cash/Riel: trust the server total for the stored USD payment amount
+if (count($payment_methods) === 1 && in_array($payment_methods[0], ['cash', 'riel'])) {
     $payment_amounts[0] = $total;
 }
 
@@ -557,6 +556,9 @@ try {
     $conn->commit();
     _stash_stock_warning($stock_warnings);
     unset($_SESSION['csrf_token']);
+    if ($has_bakong) {
+        $_SESSION['bakong_cart_stash'] = $_SESSION['cart'];
+    }
     $_SESSION['cart'] = [];
     unset($_SESSION['manual_discount']);
     unset($_SESSION['cart_started_at']);
@@ -585,11 +587,11 @@ try {
 
     // ── REDIRECT ──
     if ($has_bakong) {
-        header("Location: payment.php?order_id=" . $order_id);
+        header("Location: menu.php?bakong_order_id=" . $order_id);
     } elseif ($has_paylater) {
         header("Location: payment_paylater.php?order_id=" . $order_id);
     } else {
-        header("Location: payment_cash.php?order_id=" . $order_id);
+        header("Location: menu.php?print_order_id=" . $order_id);
     }
     exit;
 
@@ -607,21 +609,7 @@ try {
  * next page that renders it (menu.php). No-op when nothing ran short.
  */
 function _stash_stock_warning(array $shortfalls): void {
-    if (empty($shortfalls)) return;
-    // Collapse to one line per ingredient ("Milk: needed 3, had 1").
-    $byName = [];
-    foreach ($shortfalls as $s) {
-        $n = $s['name'];
-        if (!isset($byName[$n])) $byName[$n] = ['need' => 0.0, 'had' => $s['had']];
-        $byName[$n]['need'] += $s['need'];
-        $byName[$n]['had']   = min($byName[$n]['had'], $s['had']);
-    }
-    $msgs = [];
-    foreach ($byName as $n => $v) {
-        $msgs[] = $n . ': needed ' . rtrim(rtrim(number_format($v['need'], 2), '0'), '.')
-                . ', had ' . rtrim(rtrim(number_format($v['had'], 2), '0'), '.');
-    }
-    $_SESSION['stock_warning'] = $msgs;
+    unset($_SESSION['stock_warning']);
 }
 
 /* _deduct_stock() lives in config.php so remake_order.php can share it — a

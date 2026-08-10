@@ -26,6 +26,7 @@ if (isset($_POST['update_product'])) {
     $name        = trim($_POST['name']        ?? '');
     $description = trim($_POST['description'] ?? '');
     $price       = round((float)($_POST['price'] ?? 0), 2);
+    $cost_price  = round((float)($_POST['cost_price'] ?? 0), 2);
     $category    = $_POST['category']    ?? '';
     $is_avail    = isset($_POST['is_available']) ? 1 : 0;
     $badge_text  = substr(trim($_POST['badge_text'] ?? ''), 0, 40) ?: null;
@@ -39,8 +40,16 @@ if (isset($_POST['update_product'])) {
         $error = "Please fill in all required fields.";
     } elseif (!empty($_FILES['image']['name'])) {
         $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-        if (!in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
-            $error = "Invalid file type. Allowed: jpg, jpeg, png, gif, webp.";
+        $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif','heic','heif','jfif','pjpeg','pjp','apng','cur','dng'];
+        $isImageMime = false;
+        if (function_exists('finfo_open') && !empty($_FILES['image']['tmp_name'])) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime  = finfo_file($finfo, $_FILES['image']['tmp_name']);
+            finfo_close($finfo);
+            $isImageMime = (strpos($mime, 'image/') === 0);
+        }
+        if (!in_array($ext, $allowedExts) && !$isImageMime) {
+            $error = "Invalid file type. Please upload a valid image file.";
         } else {
             $upload_dir = "uploads/";
             if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
@@ -48,8 +57,8 @@ if (isset($_POST['update_product'])) {
             $image_path = $upload_dir . $image_name;
             if (move_uploaded_file($_FILES['image']['tmp_name'], $image_path)) {
                 if (!empty($product['image']) && file_exists($product['image'])) unlink($product['image']);
-                $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,category=?,category_id=?,image=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
-                $stmt->bind_param("ssdsisisii", $name, $description, $price, $category, $category_id, $image_path, $is_avail, $badge_text, $promo_percent, $id);
+                $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,image=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
+                $stmt->bind_param("ssddsisisii", $name, $description, $price, $cost_price, $category, $category_id, $image_path, $is_avail, $badge_text, $promo_percent, $id);
                 if ($stmt->execute()) { $success = true; $product['image'] = $image_path; }
                 else $error = "Database error while updating product.";
             } else {
@@ -57,8 +66,8 @@ if (isset($_POST['update_product'])) {
             }
         }
     } else {
-        $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,category=?,category_id=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
-        $stmt->bind_param("ssdsiisii", $name, $description, $price, $category, $category_id, $is_avail, $badge_text, $promo_percent, $id);
+        $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
+        $stmt->bind_param("ssddsiisii", $name, $description, $price, $cost_price, $category, $category_id, $is_avail, $badge_text, $promo_percent, $id);
         if ($stmt->execute()) $success = true;
         else $error = "Database error while updating product.";
     }
@@ -67,6 +76,7 @@ if (isset($_POST['update_product'])) {
         $product['name']         = $name;
         $product['description']  = $description;
         $product['price']        = $price;
+        $product['cost_price']   = $cost_price;
         $product['category']     = $category;
         $product['is_available'] = $is_avail;
         $product['badge_text']   = $badge_text ?: null;
@@ -136,9 +146,31 @@ if (isset($_POST['update_product'])) {
                 if ($aid > 0) { $pa->bind_param('ii', $id, $aid); $pa->execute(); }
             }
         }
-        // refresh prefill
-        $assignedAddons = [];
-        foreach ($addonIds as $aid) $assignedAddons[$aid] = true;
+        // ── Recipe Ingredients: inline save ──
+        $conn->query("DELETE FROM product_ingredients WHERE product_id = " . (int)$id);
+        if (!empty($_POST['recipe_ingredient_id']) && is_array($_POST['recipe_ingredient_id'])) {
+            $pi_stmt = $conn->prepare("INSERT INTO product_ingredients (product_id, ingredient_id, amount_used) VALUES (?, ?, ?)");
+            foreach ($_POST['recipe_ingredient_id'] as $idx => $r_ing_id) {
+                $r_ing_id = (int)$r_ing_id;
+                $r_amt    = (float)($_POST['recipe_amount_used'][$idx] ?? 0);
+                if ($r_ing_id > 0 && $r_amt > 0) {
+                    $pi_stmt->bind_param("iid", $id, $r_ing_id, $r_amt);
+                    $pi_stmt->execute();
+                }
+            }
+        }
+
+        // Auto-recalculate authoritative cost_price from product_ingredients
+        $cogsQ = $conn->prepare("SELECT SUM(pi.amount_used * i.cost_per_unit) AS cogs FROM product_ingredients pi JOIN ingredients i ON pi.ingredient_id = i.ingredient_id WHERE pi.product_id = ?");
+        $cogsQ->bind_param("i", $id);
+        $cogsQ->execute();
+        $calcCogs = (float)($cogsQ->get_result()->fetch_assoc()['cogs'] ?? 0);
+        if ($calcCogs > 0) {
+            $upCogs = $conn->prepare("UPDATE products SET cost_price = ? WHERE product_id = ?");
+            $upCogs->bind_param("di", $calcCogs, $id);
+            $upCogs->execute();
+            $product['cost_price'] = $calcCogs;
+        }
     }
 }
 
@@ -157,6 +189,29 @@ $__aa->execute();
 $__ar2 = $__aa->get_result();
 while ($__r = $__ar2->fetch_assoc()) $assignedAddons[(int)$__r['addon_id']] = true;
 $hasAddons = !empty($assignedAddons);
+
+$productIngredients = [];
+$pi_q = $conn->prepare("
+    SELECT pi.ingredient_id, pi.amount_used, i.ingredient_name, i.unit, i.stock_quantity
+    FROM product_ingredients pi
+    JOIN ingredients i ON pi.ingredient_id = i.ingredient_id
+    WHERE pi.product_id = ?
+    ORDER BY i.ingredient_name ASC
+");
+$pi_q->bind_param("i", $id);
+$pi_q->execute();
+$pi_res = $pi_q->get_result();
+while ($r = $pi_res->fetch_assoc()) {
+    $productIngredients[] = $r;
+}
+
+$allIngredients = [];
+$_ig_q = $conn->query("SELECT ingredient_id, ingredient_name, unit, stock_quantity, cost_per_unit FROM ingredients ORDER BY ingredient_name ASC");
+while ($r = $_ig_q->fetch_assoc()) {
+    $allIngredients[] = $r;
+}
+$allIngMap = [];
+foreach ($allIngredients as $aIng) $allIngMap[$aIng['ingredient_id']] = $aIng;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -166,6 +221,7 @@ $hasAddons = !empty($assignedAddons);
 <title>Edit — <?= htmlspecialchars($product['name']) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
 :root {
     --bg:      #0c0c0c;
@@ -225,23 +281,30 @@ body {
 
 /* ── LAYOUT ── */
 .page-wrap {
-    max-width: 960px;
+    max-width: 100%;
     margin: 0 auto;
-    padding: 32px 20px 60px;
+    padding: 0;
     display: grid;
-    grid-template-columns: 340px 1fr;
-    gap: 24px;
+    grid-template-columns: 350px 1fr;
+    gap: 20px;
     align-items: start;
 }
-@media (max-width: 720px) { .page-wrap { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .page-wrap { grid-template-columns: 1fr; } }
+.image-panel { position: relative; top: 0; }
+@keyframes scaleUp {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+.animate-scaleUp { animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 /* ── IMAGE PANEL ── */
 .image-panel {
-    display: flex; flex-direction: column; gap: 16px;
-    position: sticky; top: 74px;
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative;
 }
 .img-preview-wrap {
-    aspect-ratio: 1;
+    height: 180px;
+    width: 100%;
     border-radius: var(--radius);
     overflow: hidden;
     background: #141414;
@@ -399,20 +462,33 @@ select option { background: #1a1a1a; }
 .char-count { font-size: 11px; color: var(--muted); text-align: right; }
 .char-count.warn { color: var(--accent); }
 
-/* category pills */
-.cat-pills { display: flex; flex-wrap: wrap; gap: 8px; }
-.cat-pill {
-    padding: 7px 16px; border-radius: 20px;
-    border: 1px solid #2a2a2a; background: #0f0f0f;
-    color: var(--muted); font-size: 13px; font-weight: 500;
-    cursor: pointer; transition: background .18s, border-color .18s, color .18s;
-    user-select: none;
+/* category select box */
+select.cat-select {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--accent, #d1904b);
+    background: #0f0f12 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23d1904b' viewBox='0 0 16 16'><path d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/></svg>") no-repeat calc(100% - 16px) center;
+    color: var(--text, #f0f0f0);
+    font-family: Poppins, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: all .2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
-.cat-pill:hover { border-color: #3a3a3a; color: var(--text); }
-.cat-pill.active {
-    background: rgba(209,144,75,.15);
-    border-color: var(--accent);
-    color: var(--accent);
+select.cat-select:focus {
+    outline: none;
+    border-color: #e8b87a;
+    box-shadow: 0 0 0 3px rgba(209,144,75,0.3);
+}
+select.cat-select option {
+    background: #18181c;
+    color: #ffffff;
+    padding: 10px;
+    font-weight: 500;
 }
 input[name=category] { display: none; }
 
@@ -570,253 +646,272 @@ input[name=category] { display: none; }
 </style>
 </head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
 <div class="orb orb-a"></div>
 <div class="orb orb-b"></div>
 
-<!-- NAV -->
-<nav class="topnav">
-    <a class="back-btn" href="products.php">
-        <i class="fa-solid fa-arrow-left"></i> Products
-    </a>
-    <div class="breadcrumb">
-        <i class="fa-solid fa-chevron-right" style="font-size:10px"></i>
-        <span id="nav-name"><?= htmlspecialchars($product['name']) ?></span>
-    </div>
-    <span class="avail-pill <?= $product['is_available'] ? 'on' : 'off' ?>" id="navPill">
-        <i class="fa-solid fa-circle" style="font-size:7px"></i>
-        <?= $product['is_available'] ? 'Available' : 'Unavailable' ?>
-    </span>
-</nav>
-
-<div class="page-wrap">
-
-    <!-- LEFT: IMAGE + PREVIEW -->
-    <div class="image-panel">
-
-        <?php if (!empty($product['image']) && file_exists($product['image'])): ?>
-        <div class="img-preview-wrap" id="imgWrap" onclick="document.getElementById('imgInput').click()">
-            <img src="<?= htmlspecialchars($product['image']) ?>" alt="Product image" id="imgPreview">
-            <div class="img-overlay">
-                <i class="fa-solid fa-camera"></i>
-                Replace image
-            </div>
-            <?php if (!empty($product['badge_text'])): ?>
-            <span class="img-badge-overlay" id="imgBadge"><?= htmlspecialchars($product['badge_text']) ?></span>
-            <?php else: ?>
-            <span class="img-badge-overlay" id="imgBadge" style="display:none"></span>
-            <?php endif; ?>
-        </div>
-        <?php else: ?>
-        <div class="no-image" id="imgWrap" onclick="document.getElementById('imgInput').click()">
-            <i class="fa-solid fa-image"></i>
-            <span>Click or drag to upload</span>
-        </div>
-        <img id="imgPreview" style="display:none">
-        <?php endif; ?>
-
-        <div class="img-file-info" id="fileInfo">
-            <span id="fileName">Current image — click above to replace</span>
+<!-- EDIT PRODUCT MODAL BACKDROP -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
+    <!-- MODAL DIALOG CONTAINER -->
+    <div class="relative w-full max-w-[1300px] max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
+        
+        <!-- MODAL HEADER -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0">
+            <h2 class="text-lg font-bold text-white leading-tight">
+                Edit product <span id="nav-name"><?= htmlspecialchars($product['name']) ?></span>
+            </h2>
+            
+            <a href="products.php" class="w-9 h-9 rounded-xl bg-[#22222a] text-[#888] hover:text-white hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Close Modal (Esc)">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </a>
         </div>
 
-        <!-- Live preview card -->
-        <div class="product-preview">
-            <div class="pp-label">Preview</div>
-            <div class="pp-name" id="ppName"><?= htmlspecialchars($product['name']) ?></div>
-            <div class="pp-meta">
-                <span class="pp-price" id="ppPrice">$<?= number_format($product['price'], 2) ?></span>
-                <span class="pp-cat" id="ppCat"><?= htmlspecialchars($product['category']) ?></span>
-            </div>
-            <div class="badge-preview-row" id="ppBadgeRow" style="margin-top:10px;<?= empty($product['badge_text']) ? 'display:none' : '' ?>">
-                <span class="product-badge" id="ppBadge"><?= htmlspecialchars($product['badge_text'] ?? '') ?></span>
-            </div>
-        </div>
+        <!-- MODAL BODY -->
+        <div class="flex-1 overflow-y-auto p-5 md:p-6">
+            <form method="POST" enctype="multipart/form-data" id="editForm">
+                <input type="file" name="image" id="imgInput" accept="image/*" style="display:none">
 
-    </div>
-
-    <!-- RIGHT: FORM -->
-    <div class="form-panel">
-
-        <?php if ($error): ?>
-        <div class="error-bar"><i class="fa-solid fa-circle-xmark"></i><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-
-        <form method="POST" enctype="multipart/form-data" id="editForm">
-            <input type="file" name="image" id="imgInput" accept="image/*" style="display:none">
-
-            <!-- DETAILS -->
-            <div class="section-card">
-                <div class="section-head">
-                    <i class="fa-solid fa-pen-line"></i>
-                    <h3>Product Details</h3>
-                </div>
-                <div class="section-body">
-                    <div class="field">
-                        <label class="flabel" for="f_name">Product Name</label>
-                        <input type="text" id="f_name" name="name" required maxlength="120"
-                            value="<?= htmlspecialchars($product['name']) ?>"
-                            placeholder="e.g. Iced Caramel Latte">
-                    </div>
-
-                    <div class="field">
-                        <label class="flabel" for="f_desc">Description</label>
-                        <textarea id="f_desc" name="description" maxlength="300"
-                            placeholder="Short description shown to customers..."><?= htmlspecialchars($product['description']) ?></textarea>
-                        <div class="char-count" id="charCount">0 / 300</div>
-                    </div>
-
-                    <div class="field">
-                        <label class="flabel" for="f_price">Price</label>
-                        <div class="input-wrap">
-                            <span class="prefix">$</span>
-                            <?php /* When this product has sizes, the save handler overwrites
-                                     products.price with the Medium size price (or the first
-                                     size offered) so the legacy single-price paths in cart
-                                     and receipts keep working. The field used to stay fully
-                                     editable anyway, so typing a price here, saving, and
-                                     watching it come back as something else looked like the
-                                     save was broken. It is read-only while sizes are on, and
-                                     mirrors the size that actually drives it. */ ?>
-                            <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
-                                required class="has-prefix"
-                                <?= $hasSizes ? 'readonly' : '' ?>
-                                value="<?= $product['price'] ?>">
-                        </div>
-                        <div class="char-count" id="priceNote"
-                             style="display:<?= $hasSizes ? 'block' : 'none' ?>;color:var(--muted);">
-                            Set by the Medium size below — clear the sizes checkbox to price this product directly.
-                        </div>
-                    </div>
-
-                    <div class="field">
-                        <label class="form-check" for="has_sizes" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                            <input type="checkbox" id="has_sizes" name="has_sizes" value="1"
-                                <?= $hasSizes ? 'checked' : '' ?>
-                                onchange="document.getElementById('sizeRows').style.display=this.checked?'block':'none'; syncBasePrice();">
-                            <span class="flabel" style="margin:0">This product has sizes (S / M / L)</span>
-                        </label>
-                        <div id="sizeRows" style="display:<?= $hasSizes ? 'block' : 'none' ?>;flex-direction:column;gap:10px;margin-top:10px;">
-                            <?php
-                            $sizeDefaults = [
-                                ['code'=>'S','label'=>'Small','factor'=>'0.80','sort'=>0],
-                                ['code'=>'M','label'=>'Medium','factor'=>'1.00','sort'=>1],
-                                ['code'=>'L','label'=>'Large','factor'=>'1.30','sort'=>2],
-                            ];
-                            foreach ($sizeDefaults as $d):
-                                $ex = $existingSizes[$d['code']] ?? null;
-                                $pv = $ex['price'] ?? '';
-                                $lv = $ex['label'] ?? $d['label'];
-                                $fv = $ex['size_factor'] ?? $d['factor'];
-                            ?>
-                            <div class="size-row" style="display:flex;gap:8px;align-items:center;">
-                                <input type="hidden" name="size_code[]" value="<?= $d['code'] ?>">
-                                <input type="hidden" name="size_sort[]" value="<?= $d['sort'] ?>">
-                                <input type="text" name="size_label[]" value="<?= htmlspecialchars($lv) ?>" placeholder="Label" style="flex:1.3">
-                                <div class="input-wrap" style="flex:1">
-                                    <span class="prefix">$</span>
-                                    <input type="number" step="0.01" min="0" name="size_price[]" value="<?= htmlspecialchars($pv) ?>" placeholder="Price" class="has-prefix size-price" data-size-code="<?= $d['code'] ?>">
-                                </div>
-                                <input type="number" step="0.01" min="0" name="size_factor[]" value="<?= htmlspecialchars($fv) ?>" placeholder="Stock ×" style="flex:0.8">
+                <div class="page-wrap">
+                    <!-- LEFT COLUMN: PRODUCT INFO -->
+                    <div class="left-col flex flex-col gap-4">
+                        <!-- DETAILS -->
+                        <div class="section-card">
+                            <div class="section-head">
+                                <i class="fa-solid fa-pen-line"></i>
+                                <h3>Product Details</h3>
                             </div>
-                            <?php endforeach; ?>
+                            <div class="section-body flex flex-col gap-3">
+
+                                <!-- PRODUCT IMAGE AT TOP OF DETAILS -->
+                                <div class="image-panel">
+                                    <?php if (!empty($product['image']) && file_exists($product['image'])): ?>
+                                    <div class="img-preview-wrap" id="imgWrap" onclick="document.getElementById('imgInput').click()">
+                                        <img src="<?= htmlspecialchars($product['image']) ?>" alt="Product image" id="imgPreview">
+                                        <div class="img-overlay">
+                                            <i class="fa-solid fa-camera"></i>
+                                            Replace image
+                                        </div>
+                                        <?php if (!empty($product['badge_text'])): ?>
+                                        <span class="img-badge-overlay" id="imgBadge"><?= htmlspecialchars($product['badge_text']) ?></span>
+                                        <?php else: ?>
+                                        <span class="img-badge-overlay" id="imgBadge" style="display:none"></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php else: ?>
+                                    <div class="no-image" id="imgWrap" onclick="document.getElementById('imgInput').click()">
+                                        <i class="fa-solid fa-image"></i>
+                                        <span>Click or drag to upload image</span>
+                                    </div>
+                                    <img id="imgPreview" style="display:none">
+                                    <?php endif; ?>
+
+                                    <div class="img-file-info text-center" id="fileInfo">
+                                        <span id="fileName" class="text-[11px] text-[#888]">Current image — click above to replace</span>
+                                    </div>
+                                </div>
+
+                                <div class="field">
+                                    <label class="flabel" for="f_name">Product Name</label>
+                                    <input type="text" id="f_name" name="name" required maxlength="120"
+                                        value="<?= htmlspecialchars($product['name']) ?>"
+                                        placeholder="e.g. Iced Caramel Latte">
+                                </div>
+
+                                <!-- CATEGORY -->
+                                <div class="field">
+                                    <label class="flabel" for="f_cat">Category</label>
+                                    <select name="category" id="f_cat" class="cat-select" required>
+                                        <option value="">Select Category…</option>
+                                        <?php foreach ($cats as $slug => $label): ?>
+                                        <option value="<?= htmlspecialchars($slug) ?>" <?= ($product['category'] === $slug) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($label) ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <!-- AVAILABILITY -->
+                                <div class="field">
+                                    <label class="flabel" for="availToggle">Availability</label>
+                                    <div class="toggle-row">
+                                        <div class="toggle-info">
+                                            <h4>Show on menu</h4>
+                                            <p class="text-[11px] text-[#777]">Toggle off to hide this product.</p>
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="is_available" id="availToggle"
+                                                <?= $product['is_available'] ? 'checked' : '' ?>>
+                                            <span class="toggle-track"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" name="update_product" class="btn-save">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            Save Changes
+                        </button>
+                    </div>
+
+                    <!-- RIGHT COLUMN: RECIPE PANEL -->
+                    <div class="right-col flex flex-col gap-4">
+                        <div class="section-card">
+                            <div class="section-head flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-flask"></i>
+                                    <h3>Recipe Ingredients</h3>
+                                </div>
+                                <button type="button" onclick="addRecipeRow()" class="text-xs text-[#d1904b] hover:underline flex items-center gap-1 font-semibold">
+                                    <i class="fa-solid fa-plus text-[11px]"></i> Add Ingredient
+                                </button>
+                            </div>
+                            <div class="section-body p-0 overflow-hidden">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-[#24242b] bg-[#18181c] text-[#888] font-semibold uppercase tracking-wider text-[11px]">
+                                                <th class="py-3 px-3">Ingredient</th>
+                                                <th class="py-3 px-2 text-center w-[130px]">Qty Required</th>
+                                                <th class="py-3 px-2 text-right w-[100px]">Cost / Unit</th>
+                                                <th class="py-3 px-2 text-right w-[90px]">Item Cost</th>
+                                                <th class="py-3 px-2 text-center w-[45px]">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recipeRowsContainer" class="divide-y divide-[#1e1e24]">
+                                            <?php 
+                                            $totalCogs = 0.0;
+                                            if (!empty($productIngredients)): 
+                                            ?>
+                                                <?php foreach ($productIngredients as $ing): 
+                                                    $cpu = (float)($allIngMap[$ing['ingredient_id']]['cost_per_unit'] ?? 0);
+                                                    $amt = (float)$ing['amount_used'];
+                                                    $rowTot = $amt * $cpu;
+                                                    $totalCogs += $rowTot;
+                                                ?>
+                                                <tr class="recipe-row hover:bg-[#151519] transition-all">
+                                                    <td class="py-2 px-3">
+                                                        <select name="recipe_ingredient_id[]" class="w-full text-xs bg-[#18181c] border border-[#333] rounded-lg p-2 text-white outline-none focus:border-[#d1904b]" onchange="updateRecipeRow(this)" required>
+                                                            <?php foreach ($allIngredients as $aIng): ?>
+                                                            <option value="<?= $aIng['ingredient_id'] ?>" 
+                                                                    data-unit="<?= htmlspecialchars($aIng['unit']) ?>" 
+                                                                    data-cpu="<?= (float)$aIng['cost_per_unit'] ?>"
+                                                                    <?= ($ing['ingredient_id'] == $aIng['ingredient_id']) ? 'selected' : '' ?>>
+                                                                <?= htmlspecialchars($aIng['ingredient_name']) ?> (Stock: <?= (float)$aIng['stock_quantity'] ?> <?= htmlspecialchars($aIng['unit']) ?>)
+                                                            </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </td>
+                                                    <td class="py-2 px-2">
+                                                        <div class="flex items-center justify-center gap-1">
+                                                            <input type="number" step="any" min="0" name="recipe_amount_used[]" value="<?= $amt ?>" placeholder="0" class="w-16 text-xs bg-[#18181c] border border-[#333] rounded-md px-2 py-1.5 text-white outline-none focus:border-[#d1904b] text-right font-bold row-qty-input" oninput="calculateRowTotal(this)" required>
+                                                            <span class="unit-label text-[11px] text-[#d1904b] font-bold min-w-[20px]"><?= htmlspecialchars($ing['unit']) ?></span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right text-[11px] text-[#aaa]">
+                                                        <span class="unit-price-label text-white font-semibold">$<?= ($cpu < 0.01 && $cpu > 0) ? rtrim(rtrim(number_format($cpu, 4, '.', ''), '0'), '.') : number_format($cpu, 2) ?></span>/<span class="unit-name-label text-[#777]"><?= htmlspecialchars($ing['unit']) ?></span>
+                                                    </td>
+                                                    <td class="py-2 px-2 text-right text-xs font-bold text-[#3ecf70]">
+                                                        $<span class="row-total-label"><?= number_format($rowTot, 2) ?></span>
+                                                    </td>
+                                                    <td class="py-2 px-2 text-center">
+                                                        <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Remove ingredient">
+                                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </tbody>
+                                        <tfoot id="recipeFooterSummary" style="<?= empty($productIngredients) ? 'display:none' : '' ?>">
+                                            <tr class="border-t-2 border-[#2a2a32] bg-[#18181c]">
+                                                <td colspan="3" class="py-3 px-3 font-bold text-[#888] uppercase tracking-wider text-[11px]">
+                                                    <i class="fa-solid fa-calculator text-[#d1904b] mr-1.5"></i> Total Cost of Goods (COGS)
+                                                </td>
+                                                <td class="py-3 px-2 text-right font-extrabold text-[#3ecf70] text-sm">
+                                                    $<span id="tableTotalCogs"><?= number_format($totalCogs, 2) ?></span>
+                                                </td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                <div id="noRecipeMsg" class="text-center py-8 text-[#888] flex flex-col items-center justify-center p-4" style="<?= !empty($productIngredients) ? 'display:none' : '' ?>">
+                                    <div class="w-12 h-12 rounded-full bg-[#222] flex items-center justify-center mb-3 text-[#d1904b]">
+                                        <i class="fa-solid fa-book-open text-xl"></i>
+                                    </div>
+                                    <p class="text-xs font-medium text-white mb-1">No recipe configured</p>
+                                    <p class="text-[11px] text-[#777] max-w-[200px] mb-4">No ingredients are linked to this drink yet.</p>
+                                    <button type="button" onclick="addRecipeRow()" class="inline-flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#e8b87a] to-[#d1904b] text-black font-bold hover:brightness-110 transition-all shadow-md">
+                                        <i class="fa-solid fa-plus text-[10px]"></i> Setup Recipe
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PRICING & FINANCIAL SUMMARY BELOW RECIPE TABLE -->
+                        <div class="section-card">
+                            <div class="section-head">
+                                <i class="fa-solid fa-coins text-[#d1904b]"></i>
+                                <h3>Pricing & Profit Summary</h3>
+                            </div>
+                            <div class="section-body flex flex-col gap-3">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="field">
+                                        <label class="flabel" for="f_price">Selling Price</label>
+                                        <div class="input-wrap">
+                                            <span class="prefix">$</span>
+                                            <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
+                                                required class="has-prefix"
+                                                value="<?= $product['price'] ?>">
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label class="flabel" for="f_cost_price">Cost Price</label>
+                                        <div class="input-wrap">
+                                            <span class="prefix">$</span>
+                                            <input type="number" id="f_cost_price" name="cost_price" step="0.01" min="0" max="9999.99"
+                                                readonly class="has-prefix text-[#3ecf70] font-bold bg-[#141418] cursor-not-allowed opacity-90"
+                                                value="<?= number_format((float)($product['cost_price'] ?? 0), 2, '.', '') ?>"
+                                                placeholder="0.00" title="Automatically calculated from total recipe ingredient costs">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <?php 
+                                $sellP = (float)($product['price'] ?? 0);
+                                $marginDol = max(0, $sellP - $totalCogs);
+                                $marginPct = $sellP > 0 ? (($sellP - $totalCogs) / $sellP) * 100 : 0;
+                                ?>
+                                <div class="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[#141418] border border-[#24242b] text-center text-xs">
+                                    <div>
+                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Total COGS</span>
+                                        <span class="text-sm font-extrabold text-white">$<span id="totalRecipeCogs"><?= number_format($totalCogs, 2) ?></span></span>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Selling Price</span>
+                                        <span class="text-sm font-extrabold text-[#d1904b]">$<span id="dispSellingPrice"><?= number_format($sellP, 2) ?></span></span>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Gross Margin</span>
+                                        <span id="grossMarginWrap" class="text-sm font-extrabold <?= $marginDol > 0 ? 'text-[#3ecf70]' : ($marginDol < 0 ? 'text-[#ff4d4d]' : 'text-[#777]') ?>">
+                                            $<span id="grossMarginDol"><?= number_format($marginDol, 2) ?></span> (<span id="grossMarginPct"><?= number_format($marginPct, 1) ?>%</span>)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div><!-- /.page-wrap -->
+            </form>
 
-                    <?php if (!empty($allAddons)): ?>
-                    <div class="input-group" style="padding-left:0;margin-bottom:8px;">
-                        <label class="form-check" for="has_addons" style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--muted);font-size:14px;">
-                            <input type="checkbox" id="has_addons" name="has_addons" value="1" <?= $hasAddons ? 'checked' : '' ?>
-                                onchange="var b=document.getElementById('addonRows');b.style.display=this.checked?'block':'none';if(!this.checked){b.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=false;c.closest('.addon-chip').classList.remove('on');});}">
-                            This product has add-ons
-                        </label>
-                    </div>
-                    <div id="addonRows" class="input-group" style="padding-left:0;<?= $hasAddons ? '' : 'display:none;' ?>">
-                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                            <?php foreach ($allAddons as $ad): $on = !empty($assignedAddons[(int)$ad['id']]); ?>
-                            <label class="addon-chip<?= $on ? ' on' : '' ?>">
-                                <input type="checkbox" name="addon_id[]" value="<?= (int)$ad['id'] ?>" <?= $on ? 'checked' : '' ?> style="display:none;" onchange="this.closest('.addon-chip').classList.toggle('on', this.checked);">
-                                <?= htmlspecialchars($ad['name'], ENT_QUOTES, 'UTF-8') ?> +$<?= number_format((float)$ad['price'], 2) ?>
-                            </label>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- CATEGORY -->
-            <div class="section-card">
-                <div class="section-head">
-                    <i class="fa-solid fa-layer-group"></i>
-                    <h3>Category</h3>
-                </div>
-                <div class="section-body">
-                    <div class="cat-pills" id="catPills">
-                        <?php foreach ($cats as $slug => $label): ?>
-                        <div class="cat-pill <?= ($product['category'] === $slug) ? 'active' : '' ?>"
-                             data-cat="<?= htmlspecialchars($slug) ?>"
-                             onclick="selectCat(this)">
-                            <?= htmlspecialchars($label) ?>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <input type="text" name="category" id="f_cat"
-                        value="<?= htmlspecialchars($product['category']) ?>" required readonly>
-                </div>
-            </div>
-
-            <!-- AVAILABILITY -->
-            <div class="section-card">
-                <div class="section-head">
-                    <i class="fa-solid fa-toggle-on"></i>
-                    <h3>Availability</h3>
-                </div>
-                <div class="section-body">
-                    <div class="toggle-row">
-                        <div class="toggle-info">
-                            <h4>Show on menu</h4>
-                            <p>Toggle off to hide this product from the customer menu.</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" name="is_available" id="availToggle"
-                                <?= $product['is_available'] ? 'checked' : '' ?>>
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- BADGE -->
-            <div class="section-card">
-                <div class="section-head">
-                    <i class="fa-solid fa-certificate"></i>
-                    <h3>Promotion Badge</h3>
-                </div>
-                <div class="section-body">
-                    <div class="field">
-                        <label class="flabel" for="f_promo">Promo % Off <span style="font-weight:400;color:var(--muted)">(0 = none; a non-zero promo replaces the badge with "N% OFF")</span></label>
-                        <input type="number" id="f_promo" name="promo_percent" min="0" max="100" step="1"
-                            value="<?= (int)($product['promo_percent'] ?? 0) ?>">
-                    </div>
-                    <div class="field">
-                        <label class="flabel" for="f_badge">Badge Label <span style="font-weight:400;color:var(--muted)">(leave blank to remove)</span></label>
-                        <input type="text" id="f_badge" name="badge_text" maxlength="40"
-                            value="<?= htmlspecialchars($product['badge_text'] ?? '') ?>"
-                            placeholder='e.g. "50% OFF", "New!", "Limited", "Hot Deal"'>
-                    </div>
-                    <div class="badge-preview-row" id="badgeLiveRow" style="<?= empty($product['badge_text']) ? 'display:none' : '' ?>">
-                        <span class="product-badge" id="badgeLive"><?= htmlspecialchars($product['badge_text'] ?? '') ?></span>
-                        <button type="button" class="badge-clear-btn" onclick="clearBadge()" title="Remove badge"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                </div>
-            </div>
-
-            <button type="submit" name="update_product" class="btn-save">
-                <i class="fa-solid fa-floppy-disk"></i>
-                Save Changes
-            </button>
-        </form>
-    </div>
-
+        </div><!-- /.modal-body -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-backdrop -->
+</main>
 </div>
 
 <!-- TOAST -->
@@ -874,7 +969,7 @@ function handleFile() {
     reader.readAsDataURL(file);
 }
 
-// ── Live preview ──
+// ── Live preview & input sync ──
 const fName  = document.getElementById('f_name');
 const fPrice = document.getElementById('f_price');
 const ppName = document.getElementById('ppName');
@@ -882,74 +977,76 @@ const ppPrice= document.getElementById('ppPrice');
 const ppCat  = document.getElementById('ppCat');
 const navName= document.getElementById('nav-name');
 
-fName.addEventListener('input', () => {
-    ppName.textContent = fName.value || 'Product name';
-    navName.textContent = fName.value || 'Edit Product';
-});
-fPrice.addEventListener('input', () => {
-    const v = parseFloat(fPrice.value);
-    ppPrice.textContent = isNaN(v) ? '$—' : '$' + v.toFixed(2);
-});
+if (fName) {
+    fName.addEventListener('input', () => {
+        if (ppName) ppName.textContent = fName.value || 'Product name';
+        if (navName) navName.textContent = fName.value || 'Edit Product';
+    });
+}
+if (fPrice) {
+    fPrice.addEventListener('input', () => {
+        const v = parseFloat(fPrice.value);
+        if (ppPrice) ppPrice.textContent = isNaN(v) ? '$—' : '$' + v.toFixed(2);
+        calculateTotalRecipeCost();
+    });
+}
 
-// ── Base price follows the sizes ──
-// The server picks Medium, falling back to the first size actually offered
-// (edit_product.php: $mediumPrice ?? $fallbackPrice). Mirror that rule exactly
-// rather than approximating it, so the number on screen is the number that will
-// be stored. A size left blank is not offered, which is why blanks are skipped
-// here the same way the save handler skips them.
 function syncBasePrice() {
-    const on   = document.getElementById('has_sizes').checked;
+    const hasSizesEl = document.getElementById('has_sizes');
+    if (!hasSizesEl) return;
+    const on   = hasSizesEl.checked;
     const note = document.getElementById('priceNote');
 
-    fPrice.readOnly    = on;
-    note.style.display = on ? 'block' : 'none';
+    if (fPrice) fPrice.readOnly = on;
+    if (note) note.style.display = on ? 'block' : 'none';
     if (!on) return;
 
     const priced = [...document.querySelectorAll('.size-price')]
         .filter(el => parseFloat(el.value) > 0);
-    if (!priced.length) return;   // every size blank — the server keeps the typed price
+    if (!priced.length) return;
 
     const medium = priced.find(el => el.dataset.sizeCode === 'M');
     const chosen = parseFloat((medium || priced[0]).value);
 
-    fPrice.value = chosen.toFixed(2);
-    ppPrice.textContent = '$' + chosen.toFixed(2);
+    if (fPrice) fPrice.value = chosen.toFixed(2);
+    if (ppPrice) ppPrice.textContent = '$' + chosen.toFixed(2);
 }
 
 document.querySelectorAll('.size-price').forEach(el => el.addEventListener('input', syncBasePrice));
-syncBasePrice();
 
-// ── Category pills ──
-function selectCat(el) {
-    document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
-    el.classList.add('active');
-    document.getElementById('f_cat').value = el.dataset.cat;
-    ppCat.textContent = el.dataset.cat;
+// ── Category select box ──
+const fCatSelect = document.getElementById('f_cat');
+if (fCatSelect) {
+    fCatSelect.addEventListener('change', function() {
+        if (ppCat) ppCat.textContent = this.value;
+    });
 }
 
 // ── Char counter ──
 const fDesc = document.getElementById('f_desc');
 const charCount = document.getElementById('charCount');
 function updateChar() {
+    if (!fDesc || !charCount) return;
     const n = fDesc.value.length;
     charCount.textContent = n + ' / 300';
     charCount.className = 'char-count' + (n > 260 ? ' warn' : '');
 }
-fDesc.addEventListener('input', updateChar);
-updateChar();
+if (fDesc) fDesc.addEventListener('input', updateChar);
 
 // ── Availability pill in nav ──
 const availToggle = document.getElementById('availToggle');
 const navPill = document.getElementById('navPill');
-availToggle.addEventListener('change', () => {
-    if (availToggle.checked) {
-        navPill.className = 'avail-pill on';
-        navPill.innerHTML = '<i class="fa-solid fa-circle" style="font-size:7px"></i> Available';
-    } else {
-        navPill.className = 'avail-pill off';
-        navPill.innerHTML = '<i class="fa-solid fa-circle" style="font-size:7px"></i> Unavailable';
-    }
-});
+if (availToggle && navPill) {
+    availToggle.addEventListener('change', () => {
+        if (availToggle.checked) {
+            navPill.className = 'avail-pill on';
+            navPill.innerHTML = '<i class="fa-solid fa-circle" style="font-size:7px"></i> Available';
+        } else {
+            navPill.className = 'avail-pill off';
+            navPill.innerHTML = '<i class="fa-solid fa-circle" style="font-size:7px"></i> Unavailable';
+        }
+    });
+}
 
 // ── Badge live preview ──
 const fBadge       = document.getElementById('f_badge');
@@ -959,40 +1056,192 @@ const ppBadgeRow   = document.getElementById('ppBadgeRow');
 const ppBadge      = document.getElementById('ppBadge');
 const imgBadge     = document.getElementById('imgBadge');
 
-fBadge.addEventListener('input', updateBadge);
+if (fBadge) {
+    fBadge.addEventListener('input', updateBadge);
+}
 function updateBadge() {
+    if (!fBadge) return;
     const val = fBadge.value.trim();
     if (val) {
-        badgeLive.textContent = val; badgeLiveRow.style.display = 'flex';
-        ppBadge.textContent   = val; ppBadgeRow.style.display   = 'flex';
+        if (badgeLive && badgeLiveRow) { badgeLive.textContent = val; badgeLiveRow.style.display = 'flex'; }
+        if (ppBadge && ppBadgeRow) { ppBadge.textContent = val; ppBadgeRow.style.display = 'flex'; }
         if (imgBadge) { imgBadge.textContent = val; imgBadge.style.display = 'flex'; }
     } else {
-        badgeLiveRow.style.display = 'none';
-        ppBadgeRow.style.display   = 'none';
+        if (badgeLiveRow) badgeLiveRow.style.display = 'none';
+        if (ppBadgeRow) ppBadgeRow.style.display   = 'none';
         if (imgBadge) imgBadge.style.display = 'none';
     }
 }
-function clearBadge() { fBadge.value = ''; updateBadge(); }
+function clearBadge() { if (fBadge) { fBadge.value = ''; updateBadge(); } }
 
 const fPromo = document.getElementById('f_promo');
-fPromo.addEventListener('input', applyPromoBadge);
+if (fPromo) {
+    fPromo.addEventListener('input', applyPromoBadge);
+    applyPromoBadge();
+}
 function applyPromoBadge() {
+    if (!fPromo) return;
     const promo = Math.max(0, Math.min(100, parseInt(fPromo.value || '0', 10)));
     if (promo > 0) {
-        fBadge.disabled = true; fBadge.style.opacity = '0.5';
+        if (fBadge) { fBadge.disabled = true; fBadge.style.opacity = '0.5'; }
         const txt = promo + '% OFF';
-        badgeLive.textContent = txt; badgeLiveRow.style.display = 'flex';
-        ppBadge.textContent   = txt; ppBadgeRow.style.display   = 'flex';
+        if (badgeLive && badgeLiveRow) { badgeLive.textContent = txt; badgeLiveRow.style.display = 'flex'; }
+        if (ppBadge && ppBadgeRow) { ppBadge.textContent   = txt; ppBadgeRow.style.display   = 'flex'; }
         if (imgBadge) { imgBadge.textContent = txt; imgBadge.style.display = 'flex'; }
     } else {
-        fBadge.disabled = false; fBadge.style.opacity = '';
+        if (fBadge) { fBadge.disabled = false; fBadge.style.opacity = ''; }
         updateBadge();
     }
 }
-applyPromoBadge();
 
-// ── Ctrl+Enter ──
+// ── Inline Recipe Rows Manager ──
+const allIngredients = <?= json_encode($allIngredients) ?>;
+
+function addRecipeRow(ingId = '', amt = '') {
+    const container = document.getElementById('recipeRowsContainer');
+    const noMsg = document.getElementById('noRecipeMsg');
+    if (noMsg) noMsg.style.display = 'none';
+
+    let options = '<option value="">Select ingredient…</option>';
+    allIngredients.forEach(i => {
+        const sel = (i.ingredient_id == ingId) ? 'selected' : '';
+        const cpu = parseFloat(i.cost_per_unit || 0);
+        options += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)} (Stock: ${i.stock_quantity} ${escapeHtml(i.unit)})</option>`;
+    });
+
+    const tr = document.createElement('tr');
+    tr.className = 'recipe-row hover:bg-[#151519] transition-all';
+    tr.innerHTML = `
+        <td class="py-2 px-3">
+            <select name="recipe_ingredient_id[]" class="w-full text-xs bg-[#18181c] border border-[#333] rounded-lg p-2 text-white outline-none focus:border-[#d1904b]" onchange="updateRecipeRow(this)" required>
+                ${options}
+            </select>
+        </td>
+        <td class="py-2 px-2">
+            <div class="flex items-center justify-center gap-1">
+                <input type="number" step="any" min="0" name="recipe_amount_used[]" value="${amt}" placeholder="0" class="w-16 text-xs bg-[#18181c] border border-[#333] rounded-md px-2 py-1.5 text-white outline-none focus:border-[#d1904b] text-right font-bold row-qty-input" oninput="calculateRowTotal(this)" required>
+                <span class="unit-label text-[11px] text-[#d1904b] font-bold min-w-[20px]">unit</span>
+            </div>
+        </td>
+        <td class="py-2 px-2 text-right text-[11px] text-[#aaa]">
+            <span class="unit-price-label text-white font-semibold">$0.00</span>/<span class="unit-name-label text-[#777]">unit</span>
+        </td>
+        <td class="py-2 px-2 text-right text-xs font-bold text-[#3ecf70]">
+            $<span class="row-total-label">0.00</span>
+        </td>
+        <td class="py-2 px-2 text-center">
+            <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Remove ingredient">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+        </td>
+    `;
+    container.appendChild(tr);
+    const sel = tr.querySelector('select');
+    if (sel.value) updateRecipeRow(sel);
+}
+
+function updateRecipeRow(selectEl) {
+    const opt = selectEl.options[selectEl.selectedIndex];
+    const row = selectEl.closest('.recipe-row');
+    if (!row || !opt) return;
+
+    const unit = opt.dataset.unit || 'unit';
+    const cpu  = parseFloat(opt.dataset.cpu || '0');
+
+    const uLbl = row.querySelector('.unit-label');
+    if (uLbl) uLbl.textContent = unit;
+    const unLbl = row.querySelector('.unit-name-label');
+    if (unLbl) unLbl.textContent = unit;
+    const upLbl = row.querySelector('.unit-price-label');
+    if (upLbl) {
+        const cpuStr = (cpu < 0.01 && cpu > 0) ? cpu.toFixed(4).replace(/0+$/, '') : cpu.toFixed(2);
+        upLbl.textContent = '$' + cpuStr;
+    }
+
+    calculateRowTotal(row.querySelector('.row-qty-input'));
+}
+
+function calculateRowTotal(qtyInput) {
+    if (!qtyInput) return;
+    const row = qtyInput.closest('.recipe-row');
+    if (!row) return;
+
+    const selectEl = row.querySelector('select[name="recipe_ingredient_id[]"]');
+    const opt = selectEl ? selectEl.options[selectEl.selectedIndex] : null;
+    const cpu = opt ? parseFloat(opt.dataset.cpu || '0') : 0;
+    const qty = parseFloat(qtyInput.value || '0');
+
+    const total = qty * cpu;
+    const rtLbl = row.querySelector('.row-total-label');
+    if (rtLbl) rtLbl.textContent = total.toFixed(2);
+
+    calculateTotalRecipeCost();
+}
+
+function calculateTotalRecipeCost() {
+    let grandTotal = 0;
+    document.querySelectorAll('.recipe-row').forEach(row => {
+        const qtyInput = row.querySelector('.row-qty-input');
+        const selectEl = row.querySelector('select[name="recipe_ingredient_id[]"]');
+        const opt = selectEl ? selectEl.options[selectEl.selectedIndex] : null;
+        const cpu = opt ? parseFloat(opt.dataset.cpu || '0') : 0;
+        const qty = parseFloat(qtyInput ? qtyInput.value || '0' : '0');
+        grandTotal += (qty * cpu);
+    });
+
+    const cogsEl = document.getElementById('totalRecipeCogs');
+    if (cogsEl) cogsEl.textContent = grandTotal.toFixed(2);
+
+    const tblCogs = document.getElementById('tableTotalCogs');
+    if (tblCogs) tblCogs.textContent = grandTotal.toFixed(2);
+
+    const costPriceInput = document.getElementById('f_cost_price');
+    if (costPriceInput) costPriceInput.value = grandTotal.toFixed(2);
+
+    // Live Gross Margin calculation
+    const sellingPrice = parseFloat(document.getElementById('f_price')?.value || '0');
+    const dispSelling  = document.getElementById('dispSellingPrice');
+    if (dispSelling) dispSelling.textContent = sellingPrice.toFixed(2);
+
+    const marginDol    = sellingPrice - grandTotal;
+    const marginPct    = sellingPrice > 0 ? ((sellingPrice - grandTotal) / sellingPrice) * 100 : 0;
+
+    const gmDolEl = document.getElementById('grossMarginDol');
+    const gmPctEl = document.getElementById('grossMarginPct');
+    const gmWrap  = document.getElementById('grossMarginWrap');
+
+    if (gmDolEl) gmDolEl.textContent = marginDol.toFixed(2);
+    if (gmPctEl) gmPctEl.textContent = marginPct.toFixed(1) + '%';
+
+    if (gmWrap) {
+        if (marginDol > 0 || marginPct > 0) gmWrap.className = 'text-sm font-extrabold text-[#3ecf70]';
+        else if (sellingPrice > 0 && marginDol <= 0) gmWrap.className = 'text-sm font-extrabold text-[#ff4d4d]';
+        else gmWrap.className = 'text-sm font-extrabold text-[#777]';
+    }
+
+    const summary = document.getElementById('recipeFooterSummary');
+    if (summary) summary.style.display = document.querySelectorAll('.recipe-row').length > 0 ? 'table-footer-group' : 'none';
+}
+
+function checkEmptyRecipe() {
+    const container = document.getElementById('recipeRowsContainer');
+    const noMsg = document.getElementById('noRecipeMsg');
+    if (container.querySelectorAll('.recipe-row').length === 0) {
+        if (noMsg) noMsg.style.display = 'flex';
+    }
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Initial load calculation ──
+document.addEventListener('DOMContentLoaded', calculateTotalRecipeCost);
+calculateTotalRecipeCost();
+
+// ── Shortcuts: Escape to exit modal, Ctrl+Enter to save ──
 document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') window.location.href = 'products.php';
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') document.getElementById('editForm').submit();
 });
 

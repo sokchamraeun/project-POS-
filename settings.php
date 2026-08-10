@@ -193,8 +193,9 @@ body {
     background: var(--bg);
     min-height: 100vh;
     color: var(--text);
-    padding: 100px 20px 80px;
-    overflow-x: hidden;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
 }
 
 /* ── Ambient blobs ── */
@@ -586,12 +587,12 @@ body::after {
     .hero h1 { font-size: 22px; }
 }
 </style>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-
-<a href="dashboard.php" class="back-btn">
-    <i class="fa-solid fa-arrow-left"></i> Dashboard
-</a>
+<body style="margin:0; padding:0; background:var(--bg); color:var(--text); height:100vh; overflow:hidden;">
+<div class="flex h-screen w-screen overflow-hidden bg-[#0b0b0b] app-layout" style="display:flex; width:100vw; height:100vh; overflow:hidden;">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto p-6" style="flex:1; height:100%; overflow-y:auto;">
 
 <div class="wrapper">
 
@@ -1221,6 +1222,7 @@ function updateTaxPreview() {
 document.getElementById('taxRate').addEventListener('input', updateTaxPreview);
 updateTaxPreview();
 </script>
-
+</main>
+</div>
 </body>
 </html>

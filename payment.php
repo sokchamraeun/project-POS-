@@ -10,8 +10,9 @@ $config = require __DIR__ . '/bakong_config.php';
 
 $order_id = (int)($_GET['order_id'] ?? 0);
 
-if ($order_id <= 0) {
-    die('Invalid order.');
+if ($order_id > 0) {
+    header("Location: menu.php?bakong_order_id=" . $order_id);
+    exit;
 }
 
 // ── Try QR Again: clear md5 so a fresh QR is generated ──
@@ -47,6 +48,7 @@ if (($_GET['action'] ?? '') === 'switch_cash') {
 // ── Get order and payment data ──
 $stmt = $conn->prepare("
     SELECT o.order_id, o.customer_name, o.total, o.status, o.bakong_md5, o.daily_order_no,
+           o.order_type, o.table_number, o.payment_method,
            op.payment_id, op.amount AS bakong_amount, op.payment_status,
            (SELECT COUNT(*) FROM order_payments WHERE order_id = o.order_id AND payment_method = 'cash' AND payment_status = 'pending') AS has_cash_pending,
            (SELECT COUNT(*) FROM order_payments WHERE order_id = o.order_id) AS total_payment_methods
@@ -62,6 +64,12 @@ $order = $stmt->get_result()->fetch_assoc();
 if (!$order) {
     die('Order not found.');
 }
+
+// Fetch order items for the receipt list
+$stmt_items = $conn->prepare("SELECT product_name, quantity AS qty, price, size_label, sweetness, ice, milk FROM order_items WHERE order_id = ?");
+$stmt_items->bind_param("i", $order_id);
+$stmt_items->execute();
+$order_items = $stmt_items->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // If Bakong is already paid, redirect to menu
 if ($order['payment_status'] === 'paid') {
@@ -159,7 +167,35 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urle
     <title>Bakong KHQR Payment | Bird's Nest Coffee</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* ── RECEIPT MODAL GLASSMORPHISM FALLBACK STYLES ── */
+        #receipt-modal {
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(0, 0, 0, 0.75) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            z-index: 9999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 16px !important;
+        }
+        .receipt-modal-card {
+            background: rgba(18, 18, 21, 0.96) !important;
+            border: 1px solid rgba(209, 144, 75, 0.25) !important;
+            border-radius: 24px !important;
+            max-width: 440px !important;
+            width: 100% !important;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7) !important;
+            position: relative !important;
+            overflow: hidden !important;
+            padding: 24px !important;
+            color: #ffffff !important;
+            font-family: 'Poppins', sans-serif !important;
+        }
+
         /* ── RESET & ROOT ── */
         :root {
             --bg-body: #f2ede8;
@@ -783,58 +819,107 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urle
         [data-theme="dark"] .qr-box img { filter: invert(0); }
     </style>
 </head>
-<body>
+<body class="bg-[#0e0e10] overflow-hidden min-h-screen relative">
 
-<div class="payment-card" style="position:relative;">
-    <!-- Always-available close (never trap the cashier) -->
-    <button type="button" id="btnClose" title="Close — order waits in Pending Payment"
-            style="position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;
-                   border:1px solid var(--border,#333);background:transparent;color:var(--text-secondary,#999);
-                   font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;">
+<!-- Ambient Glowing Background behind the modal -->
+<div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+  <div class="absolute -top-32 -left-32 w-[450px] h-[450px] bg-amber-600/30 rounded-full blur-[120px]"></div>
+  <div class="absolute top-1/3 -right-32 w-[550px] h-[550px] bg-amber-500/20 rounded-full blur-[140px]"></div>
+  <div class="absolute -bottom-32 left-1/4 w-[450px] h-[450px] bg-orange-600/25 rounded-full blur-[130px]"></div>
+  
+  <!-- Subtle POS Grid Pattern behind modal -->
+  <div class="absolute inset-0 opacity-15 filter blur-[2px] scale-105 pointer-events-none grid grid-cols-3 gap-6 p-10">
+    <div class="bg-amber-500/10 rounded-3xl p-6 border border-white/10 h-64"></div>
+    <div class="bg-amber-500/10 rounded-3xl p-6 border border-white/10 h-64"></div>
+    <div class="bg-amber-500/10 rounded-3xl p-6 border border-white/10 h-64"></div>
+    <div class="bg-amber-500/10 rounded-3xl p-6 border border-white/10 h-64"></div>
+    <div class="bg-amber-500/10 rounded-3xl p-6 border border-white/10 h-64"></div>
+    <div class="bg-amber-500/10 rounded-3xl p-6 border border-white/10 h-64"></div>
+  </div>
+</div>
+
+<div id="receipt-modal" class="fixed inset-0 bg-black/40 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+  <div class="bg-[#121215]/85 border border-amber-500/30 rounded-3xl max-w-md w-full shadow-[0_25px_60px_rgba(0,0,0,0.8)] relative overflow-hidden p-6 text-white backdrop-blur-2xl">
+    <!-- Top Accent Bar -->
+    <div class="h-1 w-full bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0 absolute top-0 left-0"></div>
+
+    <!-- Close Button -->
+    <button type="button" id="btnClose" title="Close" onclick="window.location.href='menu.php'"
+            class="absolute top-4 right-4 w-8 h-8 rounded-full border border-gray-700/60 bg-gray-800/40 text-gray-400 hover:text-white flex items-center justify-center transition">
         <i class="fa-solid fa-xmark"></i>
     </button>
-    <!-- Header -->
-    <div class="header">
-        <div class="icon-wrapper">
-            <i class="fa-solid fa-qrcode"></i>
+
+    <!-- Header & Brand -->
+    <div class="receipt-header text-center mb-4">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-500 text-xl mb-2">
+            <i class="fa-solid fa-receipt"></i>
         </div>
-        <h1><span>Scan to Pay</span></h1>
-        <p>Bakong KHQR Payment</p>
+        <h2 class="text-xl font-bold text-white m-0">Bird's Nest POS Receipt</h2>
+        <p class="text-xs text-gray-400 mt-1">Scan Bakong KHQR to Complete Order</p>
     </div>
 
-    <!-- Info Grid -->
-    <div class="info-grid">
-        <div class="info-item">
-            <span class="label">Order #</span>
-            <span class="value highlight">#<?php echo (int)$order['daily_order_no']; ?></span>
-        </div>
-        <div class="info-item" style="align-items: flex-end;">
-            <span class="label">Customer</span>
-            <span class="value" style="text-align: right;"><?php echo htmlspecialchars($order['customer_name']); ?></span>
+    <!-- 1. Order Header Badges -->
+    <div class="receipt-badges flex flex-wrap gap-2 justify-center mb-4 p-2.5 bg-white/[0.03] rounded-2xl border border-white/[0.05]">
+        <span class="badge px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-400 text-xs font-semibold">
+            <i class="fa-solid fa-hashtag"></i> Order #<?= (int)$order['daily_order_no'] ?>
+        </span>
+        <?php if (!empty($order['table_number']) && $order['table_number'] !== 'N/A'): ?>
+        <span class="badge px-2.5 py-1 rounded-lg bg-blue-500/15 text-blue-400 text-xs font-semibold">
+            <i class="fa-solid fa-chair"></i> Stand #<?= htmlspecialchars($order['table_number']) ?>
+        </span>
+        <?php endif; ?>
+        <span class="badge px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-semibold">
+            <i class="fa-solid fa-<?= ($order['order_type'] ?? '') === 'drink_out' ? 'bag-shopping' : 'mug-hot' ?>"></i> <?= ($order['order_type'] ?? '') === 'drink_out' ? 'Drink Out' : 'Drink In' ?>
+        </span>
+        <span class="badge px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 text-xs font-semibold">
+            <i class="fa-solid fa-qrcode"></i> Bakong KHQR
+        </span>
+    </div>
+
+    <!-- 2. Detailed Items List -->
+    <div class="receipt-items-section mb-4">
+        <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Ordered Items</div>
+        <div class="receipt-items-list max-h-40 overflow-y-auto pr-1 flex flex-col gap-2">
+            <?php if (!empty($order_items)): ?>
+            <?php foreach ($order_items as $item):
+                $meta = array_filter([
+                    !empty($item['size_label']) ? 'Size: '.$item['size_label'] : '',
+                    !empty($item['sweetness'])  ? 'Sweet: '.$item['sweetness']  : '',
+                    !empty($item['ice'])        ? 'Ice: '.$item['ice']          : '',
+                    !empty($item['milk'])       ? 'Milk: '.$item['milk']        : '',
+                ]);
+                $line_total = (float)($item['price'] ?? 0) * (int)($item['qty'] ?? 1);
+            ?>
+            <div class="receipt-item-row flex items-start justify-between p-2.5 bg-white/[0.02] rounded-xl border border-white/[0.04]">
+                <div class="flex-1 pr-2">
+                    <div class="text-xs font-semibold text-gray-200"><?= htmlspecialchars($item['product_name'] ?? '') ?> <span class="text-[11px] text-amber-500">x<?= (int)($item['qty'] ?? 1) ?></span></div>
+                    <?php if ($meta): ?>
+                    <div class="text-[11px] text-gray-400 mt-0.5"><?= htmlspecialchars(implode(' • ', $meta)) ?></div>
+                    <?php endif; ?>
+                </div>
+                <div class="text-xs font-bold text-white whitespace-nowrap">$<?= number_format($line_total, 2) ?></div>
+            </div>
+            <?php endforeach; ?>
+            <?php endif; ?>
         </div>
     </div>
 
-    <!-- Amount Breakdown -->
-    <div class="amount-breakdown">
-        <div class="breakdown-row">
+    <!-- 3. Order Totals Summary -->
+    <div class="receipt-summary p-3 bg-white/[0.03] rounded-2xl border border-white/[0.05] mb-4">
+        <div class="flex justify-between text-xs text-gray-400 mb-1">
             <span>Subtotal</span>
-            <span>$<?php echo number_format($subtotal, 2); ?></span>
+            <span>$<?= number_format($subtotal, 2) ?></span>
         </div>
-        <div class="breakdown-row">
+        <div class="flex justify-between text-xs text-gray-400 mb-2">
             <span>Tax (<?= TAX_RATE ?>%)</span>
-            <span>$<?php echo number_format($tax_amount, 2); ?></span>
+            <span>$<?= number_format($tax_amount, 2) ?></span>
         </div>
-        <div class="breakdown-row total">
-            <span>Total</span>
-            <span>$<?php echo number_format($total, 2); ?></span>
-        </div>
-        <div class="breakdown-row bakong-amount">
-            <span>Bakong Amount</span>
-            <span>$<?php echo number_format($bakong_amount, 2); ?></span>
-        </div>
-        <div class="breakdown-row" style="color:var(--text-muted);font-size:12px;">
-            <span>KHR Equivalent</span>
-            <span>KHR <?php echo number_format($khr_bakong); ?></span>
+        <div class="flex justify-between items-center pt-2 border-t border-dashed border-white/10">
+            <span class="text-sm font-bold text-white">Final Total</span>
+            <div class="text-right">
+                <div class="text-lg font-extrabold text-emerald-400">$<?= number_format($total, 2) ?></div>
+                <div class="text-[11px] text-gray-400">KHR <?= number_format($khr_bakong) ?></div>
+            </div>
         </div>
     </div>
 
@@ -843,24 +928,17 @@ $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urle
         <div class="circle"><i class="fa-solid fa-check"></i></div>
     </div>
 
-    <!-- QR Section -->
-    <div class="qr-section" id="qrSection">
-        <div class="qr-box">
-            <img src="<?php echo htmlspecialchars($qrUrl); ?>" alt="Bakong KHQR">
+    <!-- 4. KHQR Code & Status -->
+    <div class="receipt-qr-section text-center" id="qrSection">
+        <div class="qr-box inline-block p-3 bg-white rounded-2xl shadow-xl mb-3">
+            <img src="<?= htmlspecialchars($qrUrl) ?>" alt="Bakong KHQR" class="w-40 h-40 block">
         </div>
-    </div>
-
-    <!-- Status -->
-    <div class="status-section">
-        <div class="status-indicator" id="statusIndicator">
+        <div class="status-indicator flex items-center justify-center gap-2 text-xs text-amber-500" id="statusIndicator">
             <span class="spinner"></span>
             <span class="status-text" id="statusText">Waiting for Bakong payment...</span>
         </div>
     </div>
-
-
-    <!-- Escape is the ✕ in the card corner. Cash / regenerate / print all live on
-         Find Orders → Pending Payment, so they're intentionally not duplicated here. -->
+  </div>
 </div>
 
 <!-- Custom Confirm Modal -->

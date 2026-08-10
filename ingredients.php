@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick
         $s3->execute();
         $r = $s3->get_result()->fetch_assoc();
         echo json_encode(['success'=>true,'new_stock'=>(float)$r['stock_quantity'],'min_stock'=>(float)$r['minimum_stock']]);
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $conn->rollback();
         echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
     }
@@ -52,6 +52,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     $s->bind_param("di", $min, $iid);
     $s->execute();
     echo json_encode(['success' => true]);
+    exit;
+}
+
+/* ══════════════════════════════════════════
+   AJAX: Update Ingredient (Edit Modal)
+══════════════════════════════════════════ */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_ingredient') {
+    header('Content-Type: application/json');
+    $iid         = (int)($_POST['ingredient_id'] ?? 0);
+    $name        = trim($_POST['ingredient_name'] ?? '');
+    $unit        = trim($_POST['unit'] ?? '');
+    $min         = (float)($_POST['minimum_stock'] ?? 0);
+    $cost        = (float)($_POST['cost_price'] ?? 0);
+    $buyqty      = (float)($_POST['purchase_qty'] ?? 0);
+    $supplier_id = (int)($_POST['supplier_id'] ?? 0);
+
+    if ($iid <= 0 || empty($name)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid input']);
+        exit;
+    }
+
+    $chk = $conn->prepare("SELECT * FROM ingredients WHERE ingredient_id = ?");
+    $chk->bind_param("i", $iid);
+    $chk->execute();
+    $ing = $chk->get_result()->fetch_assoc();
+    if (!$ing) {
+        echo json_encode(['success' => false, 'message' => 'Ingredient not found']);
+        exit;
+    }
+
+    $stock     = isset($_POST['stock_quantity']) ? (float)$_POST['stock_quantity'] : (float)$ing['stock_quantity'];
+    $old_cpu   = (float)$ing['cost_per_unit'];
+    $final_cpu = $old_cpu;
+
+    if ($buyqty > 0 && $cost > 0) {
+        $final_cpu = $cost / $buyqty;
+    } elseif ($cost > 0 && (float)($ing['purchase_qty'] ?? 0) > 0) {
+        $final_cpu = $cost / (float)$ing['purchase_qty'];
+    }
+
+    $final_cost = ($cost > 0) ? $cost : (float)$ing['cost_price'];
+    $final_qty  = ($buyqty > 0) ? $buyqty : (float)$ing['purchase_qty'];
+    $sid        = $supplier_id > 0 ? $supplier_id : null;
+
+    $upd = $conn->prepare(
+        "UPDATE ingredients SET ingredient_name=?, unit=?, stock_quantity=?, cost_price=?, purchase_qty=?,
+         minimum_stock=?, cost_per_unit=?, supplier_id=? WHERE ingredient_id=?"
+    );
+    $upd->bind_param("ssdddddii", $name, $unit, $stock, $final_cost, $final_qty, $min, $final_cpu, $sid, $iid);
+    $upd->execute();
+
+    echo json_encode([
+        'success'   => true,
+        'new_stock' => $stock,
+        'new_cpu'   => $final_cpu,
+        'min_stock' => $min,
+        'name'      => $name,
+        'unit'      => $unit
+    ]);
     exit;
 }
 
@@ -134,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
                 'other'             => 'Manual Adjustment'
             ];
             $catLabel  = $catMap[$category] ?? 'Manual Adjustment';
-            $notifType = ($category === 'spoilage') ? 'danger' : 'warning';
+            $notifType = ($category === 'spoilage') ? 'urgent' : 'warning';
             $title     = "Inventory Alert: " . $ingName;
             $deltaText = ($delta > 0 ? "+$delta" : "$delta") . " " . ($cur['unit'] ?? '');
             $msg       = ($by ?: 'Staff') . " logged " . $catLabel . " (" . $deltaText . "). Reason: \"" . $reason . "\".";
@@ -152,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'manua
         $s3->execute();
         $rr = $s3->get_result()->fetch_assoc();
         echo json_encode(['success'=>true,'new_stock'=>(float)$rr['stock_quantity'],'min_stock'=>(float)$rr['minimum_stock']]);
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $conn->rollback();
         echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
     }
@@ -274,6 +333,11 @@ $fc_map = [];
 $fc_res = $conn->query("SELECT ingredient_id, SUM(amount)/7 AS daily_avg FROM ingredient_history WHERE change_type='order_deduct' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY ingredient_id");
 if ($fc_res) while ($fc = $fc_res->fetch_assoc()) $fc_map[(int)$fc['ingredient_id']] = (float)$fc['daily_avg'];
 
+// Load suppliers for Edit Modal dropdown
+$supplierList = [];
+$sr = $conn->query("SELECT supplier_id, name FROM suppliers ORDER BY name ASC");
+if ($sr) while ($sRow = $sr->fetch_assoc()) $supplierList[] = $sRow;
+
 $rows = [];
 $res  = mysqli_query($conn, "SELECT i.*, s.name AS supplier_name FROM ingredients i LEFT JOIN suppliers s ON s.supplier_id = i.supplier_id ORDER BY i.ingredient_name ASC");
 while ($r = mysqli_fetch_assoc($res)) {
@@ -290,8 +354,6 @@ while ($r = mysqli_fetch_assoc($res)) {
     $unitLc   = strtolower(trim($r['unit'] ?? ''));
     $dispCpu  = $cpu;
     $dispSfx  = $unitLc ? ('/'.$unitLc) : '';
-    if ($unitLc === 'g')  { $dispCpu = $cpu * 1000; $dispSfx = '/kg'; }
-    if ($unitLc === 'ml') { $dispCpu = $cpu * 1000; $dispSfx = '/L';  }
     $da = $fc_map[(int)$r['ingredient_id']] ?? 0;
     $rows[] = array_merge($r, ['stock'=>$stock,'min'=>$min,'cpu'=>$cpu,'value'=>$value,'pct'=>$pct,'status'=>$status,'disp_cpu'=>$dispCpu,'disp_sfx'=>$dispSfx,'daily_avg'=>$da]);
 }
@@ -304,9 +366,15 @@ $stk_val  = array_sum(array_column($rows, 'value'));
 $critical = $cnt_low + $cnt_out;
 
 
-function fmt($n)   { return rtrim(rtrim(number_format((float)$n,2,'.','' ),'0'),'.'); }
-function money($n) { return number_format((float)$n,2); }
-function h($s)     { return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8'); }
+function fmt($n)       { return rtrim(rtrim(number_format((float)$n,2,'.','' ),'0'),'.'); }
+function money($n)     { return number_format((float)$n,2); }
+function money_cpu($n) {
+    $n = (float)$n;
+    if ($n <= 0) return '0.00';
+    if ($n < 0.01) return rtrim(rtrim(number_format($n, 4, '.', ''), '0'), '.');
+    return number_format($n, 2);
+}
+function h($s)         { return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8'); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -317,6 +385,7 @@ function h($s)     { return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8'); }
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');}());</script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
 /* ── VARS ── */
 :root {
@@ -342,6 +411,10 @@ function h($s)     { return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8'); }
 [data-theme="light"] .row-out td        { background:rgba(255,95,95,.04); }
 [data-theme="light"] input:not([type=checkbox]),
 [data-theme="light"] select             { background:var(--bg-input)!important; color:var(--text)!important; border-color:var(--border)!important; color-scheme:light; }
+
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.no-spinner { -moz-appearance: textfield; appearance: textfield; }
 
 /* ── RESET ── */
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
@@ -406,35 +479,108 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 .critical-banner .btn-link:hover { text-decoration:underline; }
 @keyframes fadeSlide { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
 
-/* ── STATS ── */
-.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:14px 24px 0; }
-.stat-card {
-    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:16px 18px; display:flex; align-items:center; gap:12px;
-    transition:var(--transition); cursor:pointer; position:relative; overflow:hidden;
+/* ── STATS (ORDER PAGE STYLE) ── */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    padding: 14px 24px 0;
+    width: 100%;
 }
-.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:var(--radius) var(--radius) 0 0; }
-.stat-card.s-accent::before { background:linear-gradient(90deg,var(--accent-dark),var(--accent-light)); }
-.stat-card.s-ok::before     { background:linear-gradient(90deg,#2ecc71,var(--ok)); }
-.stat-card.s-low::before    { background:linear-gradient(90deg,#d4ac0d,var(--low)); }
-.stat-card.s-out::before    { background:linear-gradient(90deg,#c0392b,var(--danger)); }
-.stat-card.s-val::before    { background:linear-gradient(90deg,#2471a3,var(--blue)); }
-.stat-card:hover  { border-color:var(--border-hover); box-shadow:var(--shadow-md); transform:translateY(-2px); }
-.stat-card.active { border-color:var(--accent); box-shadow:var(--shadow-accent); }
-.stat-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
-.stat-icon.accent { background:rgba(209,144,75,.12); color:var(--accent); }
-.stat-icon.ok     { background:rgba(85,224,135,.12);  color:var(--ok); }
-.stat-icon.low    { background:rgba(241,196,15,.12);  color:var(--low); }
-.stat-icon.out    { background:rgba(255,95,95,.12);   color:var(--danger); }
-.stat-icon.val    { background:rgba(52,152,219,.12);  color:var(--blue); }
-.stat-label { font-size:10px; color:var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:.5px; }
-.stat-num   { font-size:21px; font-weight:800; line-height:1.15; }
-.stat-hint  { font-size:10px; color:var(--text-muted); margin-top:1px; }
-.s-accent .stat-num { color:var(--text-light); }
-.s-ok  .stat-num { color:var(--ok); }
-.s-low .stat-num { color:var(--low); }
-.s-out .stat-num { color:var(--danger); }
-.s-val .stat-num { color:var(--blue); }
+@media (max-width: 1200px) {
+    .stats-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; }
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    min-height: 92px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.stat-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(209,144,75,.3), 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+    flex-shrink: 0;
+}
+
+.stat-icon.accent {
+    background: rgba(139, 92, 246, 0.22);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.4);
+}
+.stat-icon.ok {
+    background: rgba(16, 185, 129, 0.22);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.stat-icon.low {
+    background: rgba(245, 158, 11, 0.22);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+.stat-icon.out {
+    background: rgba(239, 68, 68, 0.22);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.stat-icon.val {
+    background: rgba(59, 130, 246, 0.22);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.stat-num {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--text);
+}
+.stat-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
 
 /* ── CONTROLS BAR ── */
 .controls-bar { display:flex; align-items:center; gap:8px; padding:12px 24px 0; flex-wrap:wrap; }
@@ -455,21 +601,34 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 .table-card { margin:12px 24px 0; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm); }
 .table-wrap { overflow:auto; max-height:calc(100vh - 310px); }
 table { width:100%; border-collapse:collapse; font-size:13px; }
-thead { position:sticky; top:0; z-index:10; }
-th { padding:10px 14px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); background:var(--bg-card); border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; transition:color .18s; }
-th:hover { color:var(--accent); }
-th.sorted { color:var(--accent); }
-th .si { margin-left:4px; opacity:.3; font-size:9px; }
+thead { position:sticky; top:0; z-index:20; }
+th {
+    position:sticky;
+    top:0;
+    z-index:20;
+    padding:14px 16px;
+    text-align:left;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--accent, #d1904b);
+    background:#16161a !important;
+    border-bottom:1px solid rgba(255, 255, 255, 0.12);
+    white-space:nowrap;
+    cursor:pointer;
+    user-select:none;
+    transition:color .18s;
+}
+th:hover { color:#fff; }
+th.sorted { color:#fff; }
+th .si { margin-left:4px; opacity:.4; font-size:9px; }
 th.sorted .si { opacity:1; }
 th:last-child { cursor:default; }
-th:last-child:hover { color:var(--text-muted); }
-td { padding:11px 14px; border-bottom:1px solid var(--border); color:var(--text); white-space:nowrap; transition:background .12s; vertical-align:middle; }
+th:last-child:hover { color:var(--accent, #d1904b); }
+td { padding:14px 16px; border-bottom:1px solid var(--border); color:var(--text); white-space:nowrap; transition:background .12s; vertical-align:middle; }
 tr:last-child td { border-bottom:none; }
 tr:hover td { background:rgba(255,255,255,.025); }
-tr.row-low  td { background:rgba(241,196,15,.03); }
-tr.row-out  td { background:rgba(255,95,95,.04); }
-tr.row-low:hover td { background:rgba(241,196,15,.07); }
-tr.row-out:hover td  { background:rgba(255,95,95,.08); }
 tr.hidden { display:none !important; }
 tr.compact td { padding:6px 14px; }
 tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px solid var(--border); color:var(--text-muted); background:rgba(255,255,255,.015); white-space:nowrap; }
@@ -493,10 +652,8 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 /* ── BADGES ── */
 .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:50px; font-size:11px; font-weight:700; }
 .badge.ok  { background:rgba(85,224,135,.1);  color:var(--ok);     border:1px solid rgba(85,224,135,.2); }
-.badge.low { background:rgba(241,196,15,.1);  color:var(--low);    border:1px solid rgba(241,196,15,.2); animation:plow 2.5s infinite; }
-.badge.out { background:rgba(255,95,95,.1);   color:var(--danger); border:1px solid rgba(255,95,95,.2);  animation:pout 1.8s infinite; }
-@keyframes plow { 0%,100%{opacity:1} 50%{opacity:.55} }
-@keyframes pout { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.06)} }
+.badge.low { background:rgba(241,196,15,.1);  color:var(--low);    border:1px solid rgba(241,196,15,.2); }
+.badge.out { background:rgba(255,95,95,.1);   color:var(--danger); border:1px solid rgba(255,95,95,.2); }
 
 /* ── INLINE EDIT ── */
 .editable { cursor:pointer; border-bottom:1px dotted var(--text-muted); transition:color .15s; }
@@ -508,17 +665,82 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 .ing-icon { width:28px; height:28px; border-radius:7px; background:rgba(209,144,75,.1); display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--accent); flex-shrink:0; }
 .cost-hl  { color:var(--accent); font-weight:600; }
 
-/* ── ROW ACTIONS ── */
-.row-actions { display:flex; gap:5px; }
-.btn-row { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; text-decoration:none; transition:var(--transition); border:1px solid transparent; font-family:'Poppins',sans-serif; }
-.btn-row.edit    { background:rgba(209,144,75,.08); color:var(--accent); border-color:rgba(209,144,75,.2); }
-.btn-row.restock { background:rgba(85,224,135,.08); color:var(--ok);    border-color:rgba(85,224,135,.2); }
-.btn-row.del     { background:rgba(255,95,95,.06);  color:var(--danger); border-color:rgba(255,95,95,.15); padding:4px 8px; }
-.btn-row.edit:hover    { background:var(--accent); color:#000; }
-.btn-row.restock:hover { background:var(--ok); color:#000; }
-.btn-row.del:hover     { background:var(--danger); color:#fff; }
-.btn-row.adjust { background:rgba(241,196,15,.08); color:var(--low); border-color:rgba(241,196,15,.3); }
-.btn-row.adjust:hover { background:var(--low); color:#000; }
+/* ── ROW ACTIONS TOOLTIP POPUP ── */
+.row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+
+.btn-row {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'Poppins', sans-serif;
+}
+
+.btn-row:hover {
+    background: rgba(209, 144, 75, 0.18);
+    color: var(--accent);
+}
+
+.btn-row.del:hover {
+    background: rgba(255, 95, 95, 0.18);
+    color: var(--danger);
+}
+
+/* Tooltip Pop-up */
+.btn-row span {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: #1e1e24;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    z-index: 50;
+}
+
+.btn-row span::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 4px;
+    border-style: solid;
+    border-color: #1e1e24 transparent transparent transparent;
+}
+
+.btn-row:hover span {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-8px);
+}
 
 /* ── EMPTY STATE ── */
 .empty-state { text-align:center; padding:60px 20px; }
@@ -638,127 +860,74 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 </style>
 </head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto p-6">
 
 <!-- ── TOPBAR ── -->
-<div class="topbar">
-    <div class="topbar-brand">
-        <a href="dashboard.php" class="btn-nav icon-only" title="Back to dashboard"><i class="fa-solid fa-arrow-left"></i></a>
-        <div class="brand-icon"><i class="fa-solid fa-flask"></i></div>
-        <div class="brand-text">
-            <span class="brand-title">Ingredients Stock</span>
-            <span class="brand-sub">Bird's Nest Coffee &rsaquo; Admin</span>
-        </div>
-    </div>
-    <div class="topbar-sep"></div>
-    <div class="topbar-center">
-        <div class="search-wrap">
-            <i class="fa-solid fa-magnifying-glass icon"></i>
-            <input id="searchInput" placeholder="Search ingredients…" autocomplete="off" aria-label="Search ingredients">
-            <button id="clearSearch" onclick="clearSearch()" title="Clear"><i class="fa-solid fa-xmark"></i></button>
-            <span class="kbd" title="Press / to focus">/</span>
-        </div>
-    </div>
+<div class="topbar" style="justify-content: flex-end;">
     <div class="topbar-right">
-        <?php if ($critical > 0): ?>
-        <button class="btn-nav" onclick="setFilter(null,'critical')" title="<?= $critical ?> items need restocking" style="border-color:rgba(255,95,95,.35);color:var(--danger)">
-            <i class="fa-solid fa-circle-exclamation"></i>
-            <span class="badge-count"><?= $critical ?></span>
-        </button>
-        <?php endif; ?>
-        <a href="ingredient_history.php" class="btn-nav" title="View stock movement history"><i class="fa-solid fa-clock-rotate-left"></i> History</a>
-        <a href="ingredient_report.php" class="btn-nav" title="Consumption summary report"><i class="fa-solid fa-chart-bar"></i> Report</a>
-        <button class="btn-nav" onclick="window.open('ingredients_pdf.php','_blank')" title="Export stock report as PDF"><i class="fa-solid fa-file-pdf"></i> Export PDF</button>
-        <?php /* "Alert" removed: it called send_report.php?type=stock, which only wrote a
-                 PDF into stock_alerts/ — no mail, no notification, despite the label. Real
-                 low-stock alerting is cron_stock_alert.php, which actually sends mail(). */ ?>
-        <a href="add_ingredient.php" class="btn-nav primary" title="Add new ingredient (N)"><i class="fa-solid fa-plus"></i> Add</a>
+        <a href="ingredient_history.php" class="btn-nav" title="View stock movement history"><i class="fa-solid fa-clock-rotate-left"></i> <?= __('btn_history', 'History') ?></a>
+        <a href="ingredient_report.php" class="btn-nav" title="Consumption summary report"><i class="fa-solid fa-chart-bar"></i> <?= __('nav_report', 'Report') ?></a>
+        <button class="btn-nav" onclick="window.open('ingredients_pdf.php','_blank')" title="Export stock report as PDF"><i class="fa-solid fa-file-pdf"></i> <?= __('btn_export_pdf', 'Export PDF') ?></button>
+        <a href="add_ingredient.php" class="btn-nav primary" title="Add new ingredient (N)"><i class="fa-solid fa-plus"></i> <?= __('add', 'Add') ?></a>
         <button class="btn-nav icon-only" onclick="toggleTheme()" id="themeBtn" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
     </div>
 </div>
 
-<?php if ($critical > 0): ?>
-<!-- ── CRITICAL BANNER ── -->
-<div class="critical-banner">
-    <i class="fa-solid fa-triangle-exclamation"></i>
-    <span>
-        <strong><?= $critical ?> ingredient<?= $critical > 1 ? 's' : '' ?></strong> need restocking —
-        <?= $cnt_out ?> out of stock, <?= $cnt_low ?> below minimum.
-    </span>
-    <button class="btn-link" onclick="setFilter(null,'critical')">Show critical only &rarr;</button>
-</div>
-<?php endif; ?>
-
-<!-- ── UNREVIEWED AUDIT BANNER (Manager / Admin Only) ── -->
-<div id="unreviewedBanner" class="critical-banner" style="display:none;background:rgba(52,152,219,.1);border-color:rgba(52,152,219,.3);color:#3498db;margin:12px 24px 0;">
-    <i class="fa-solid fa-user-shield"></i>
-    <span>
-        <strong id="unreviewedCount">0</strong> unreviewed stock adjustment(s) / losses logged by staff.
-    </span>
-    <button class="btn-link" onclick="openReviewModal()" style="color:#3498db;font-weight:700;">Review Reasons & Details &rarr;</button>
-</div>
-
 <!-- ── STATS ── -->
 <div class="stats-row">
-    <div class="stat-card s-accent" onclick="setFilter(null,'all')" title="Show all">
+    <div class="stat-card s-accent" onclick="setFilter(this,'all')" title="Show all">
         <div class="stat-icon accent"><i class="fa-solid fa-flask"></i></div>
         <div>
-            <div class="stat-label">Total</div>
+            <div class="stat-label"><?= __('total', 'Total') ?></div>
             <div class="stat-num" data-target="<?= $total ?>"><?= $total ?></div>
-            <div class="stat-hint">Ingredients</div>
+            <div class="stat-hint"><?= __('nav_ingredients', 'Ingredients') ?></div>
         </div>
     </div>
-    <div class="stat-card s-ok" onclick="setFilter(null,'ok')" title="Filter: In Stock">
+    <div class="stat-card s-ok" onclick="setFilter(this,'ok')" title="Filter: In Stock">
         <div class="stat-icon ok"><i class="fa-solid fa-circle-check"></i></div>
         <div>
-            <div class="stat-label">In Stock</div>
+            <div class="stat-label"><?= __('in_stock', 'In Stock') ?></div>
             <div class="stat-num" data-target="<?= $cnt_ok ?>"><?= $cnt_ok ?></div>
-            <div class="stat-hint">Available</div>
+            <div class="stat-hint"><?= __('available', 'Available') ?></div>
         </div>
     </div>
-    <div class="stat-card s-low" onclick="setFilter(null,'low')" title="Filter: Low Stock">
+    <div class="stat-card s-low" onclick="setFilter(this,'low')" title="Filter: Low Stock">
         <div class="stat-icon low"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <div>
-            <div class="stat-label">Low Stock</div>
+            <div class="stat-label"><?= __('low_stock', 'Low Stock') ?></div>
             <div class="stat-num" data-target="<?= $cnt_low ?>"><?= $cnt_low ?></div>
-            <div class="stat-hint">Below minimum</div>
+            <div class="stat-hint"><?= __('below_minimum', 'Below minimum') ?></div>
         </div>
     </div>
-    <div class="stat-card s-out" onclick="setFilter(null,'out')" title="Filter: Out of Stock">
+    <div class="stat-card s-out" onclick="setFilter(this,'out')" title="Filter: Out of Stock">
         <div class="stat-icon out"><i class="fa-solid fa-circle-exclamation"></i></div>
         <div>
-            <div class="stat-label">Out of Stock</div>
+            <div class="stat-label"><?= __('out_of_stock', 'Out of Stock') ?></div>
             <div class="stat-num" data-target="<?= $cnt_out ?>"><?= $cnt_out ?></div>
-            <div class="stat-hint">Needs restock</div>
+            <div class="stat-hint"><?= __('needs_restock', 'Needs restock') ?></div>
         </div>
     </div>
     <div class="stat-card s-val" style="cursor:default" title="Total inventory value">
         <div class="stat-icon val"><i class="fa-solid fa-dollar-sign"></i></div>
         <div>
-            <div class="stat-label">Stock Value</div>
+            <div class="stat-label"><?= __('stock_value', 'Stock Value') ?></div>
             <div class="stat-num" data-target="<?= $stk_val ?>" data-prefix="$" data-dec="2">$<?= money($stk_val) ?></div>
-            <div class="stat-hint">Total investment</div>
+            <div class="stat-hint"><?= __('total_investment', 'Total investment') ?></div>
         </div>
     </div>
 </div>
 
-<!-- ── CONTROLS BAR ── -->
-<div class="controls-bar">
-    <button class="filter-pill active" data-filter="all" onclick="setFilter(this,'all')">
-        <i class="fa-solid fa-layer-group"></i> All <span class="pill-count"><?= $total ?></span>
-    </button>
-    <button class="filter-pill" data-filter="ok" onclick="setFilter(this,'ok')">
-        <i class="fa-solid fa-circle-check"></i> In Stock <span class="pill-count"><?= $cnt_ok ?></span>
-    </button>
-    <button class="filter-pill" data-filter="low" onclick="setFilter(this,'low')">
-        <i class="fa-solid fa-triangle-exclamation"></i> Low <span class="pill-count"><?= $cnt_low ?></span>
-    </button>
-    <button class="filter-pill" data-filter="out" onclick="setFilter(this,'out')">
-        <i class="fa-solid fa-circle-exclamation"></i> Out <span class="pill-count"><?= $cnt_out ?></span>
-    </button>
-    <div class="controls-right">
-        <span class="row-count" id="rowCount">Showing <?= $total ?> of <?= $total ?></span>
-        <button class="compact-btn" id="compactBtn" onclick="toggleCompact()" title="Toggle compact rows">
-            <i class="fa-solid fa-bars"></i> Compact
+<!-- ── SEARCH BAR BELOW STATS BOXES ── -->
+<div style="padding: 16px 24px 0; display: flex; align-items: center; justify-content: flex-start; width: 100%;">
+    <div class="search-box-wrap" style="position:relative; width: 100%;">
+        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px; pointer-events:none;"></i>
+        <input type="text" id="searchInput" placeholder="<?= __('search_ingredients_ph', 'Search ingredients… (Press /)') ?>" autocomplete="off"
+            style="width:100%; padding:10px 38px 10px 38px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; color:var(--text); font-size:13px; outline:none; transition:all 0.2s ease;">
+        <button type="button" id="searchClear" onclick="clearSearch()" title="Clear search (Esc)"
+            style="display:none; position:absolute; right:10px; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.08); border:none; color:var(--text-muted); cursor:pointer; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center; font-size:11px;">
+            <i class="fa-solid fa-xmark"></i>
         </button>
     </div>
 </div>
@@ -769,19 +938,21 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
         <table id="ingredientTable">
             <thead>
                 <tr>
-                    <th onclick="sortTable(0)" data-col="0">Ingredient <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(1)" data-col="1">Stock Level <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(2)" data-col="2" title="Double-click a value to edit">Minimum <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(3)" data-col="3">Unit <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(4)" data-col="4">Unit Cost <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(5)" data-col="5">Stock Value <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(6)" data-col="6">Status <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(7)" data-col="7">Supplier <i class="fa-solid fa-sort si"></i></th>
-                    <th>Actions</th>
+                    <th style="width:50px; text-align:center;"><?= __('col_no', 'No.') ?></th>
+                    <th style="width:60px; text-align:center;"><?= __('image', 'Image') ?></th>
+                    <th onclick="sortTable(2)" data-col="2"><?= __('ingredient_name', 'Name') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(3)" data-col="3"><?= __('stock_level', 'Stock Level') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(4)" data-col="4" title="Double-click minimum stock value to edit"><?= __('min_stock', 'Reorder Level') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(5)" data-col="5"><?= __('unit', 'Unit') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(6)" data-col="6"><?= __('cost_per_unit', 'Cost Per Unit') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(7)" data-col="7"><?= __('col_status', 'Status') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th style="text-align:right;"><?= __('actions', 'Actions') ?></th>
                 </tr>
             </thead>
             <tbody id="tableBody">
-<?php foreach ($rows as $row):
+<?php 
+$rowNo = 1;
+foreach ($rows as $row):
     $fillCls   = match($row['status']) { 'ok'=>'fill-ok','low'=>'fill-low',default=>'fill-out' };
     $rowCls    = match($row['status']) { 'low'=>'row-low','out'=>'row-out',default=>'' };
     $bIcon     = match($row['status']) { 'ok'=>'fa-circle-check','low'=>'fa-triangle-exclamation',default=>'fa-circle-exclamation' };
@@ -792,83 +963,86 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
     $da        = (float)$row['daily_avg'];
     $days_rem  = ($da > 0 && $row['stock'] > 0) ? (int)round($row['stock'] / $da) : null;
     $fc_cls    = $days_rem === null ? '' : ($days_rem <= 2 ? 'fc-critical' : ($days_rem <= 7 ? 'fc-warn' : 'fc-ok'));
+    $costPrice = (float)($row['cost_price'] ?? 0);
 ?>
                 <tr class="<?= $rowCls ?>"
                     data-status="<?= $row['status'] ?>"
                     data-name="<?= h(strtolower($row['ingredient_name'])) ?>"
                     data-id="<?= $iid ?>">
-                    <td>
-                        <div class="ing-name">
-                            <div class="ing-icon"><i class="fa-solid fa-leaf"></i></div>
-                            <span><?= $ingName ?></span>
-                        </div>
-                    </td>
-                    <td data-val="<?= $row['stock'] ?>">
-                        <div class="stock-cell">
-                            <div class="stock-val"><?= fmt($row['stock']) ?> <?= $unit ?></div>
-                            <div class="stock-bar"><div class="stock-fill <?= $fillCls ?>" style="width:<?= $row['pct'] ?>%"></div></div>
-                            <div class="stock-pct"><?= $row['pct'] ?>% of minimum</div>
-                            <?php if ($days_rem !== null): ?>
-                            <div class="stock-forecast <?= $fc_cls ?>">
-                                <i class="fa-solid fa-clock" style="font-size:9px"></i>
-                                ~<?= $days_rem ?> day<?= $days_rem !== 1 ? 's' : '' ?> remaining
+                    <!-- 1. No. -->
+                    <td class="text-center font-bold text-[#777] row-no-cell"><?= $rowNo++ ?></td>
+                    <!-- 2. Image -->
+                    <td class="text-center">
+                        <?php if (!empty($row['image']) && file_exists($row['image'])): ?>
+                            <img src="<?= h($row['image']) ?>" alt="<?= $ingName ?>" class="w-9 h-9 object-cover rounded-xl border border-[#333] inline-block">
+                        <?php else: ?>
+                            <div class="w-9 h-9 rounded-xl bg-[#d1904b]/10 text-[#d1904b] flex items-center justify-center font-bold text-xs inline-flex border border-[#d1904b]/20">
+                                <i class="fa-solid fa-leaf"></i>
                             </div>
-                            <?php endif; ?>
-                        </div>
+                        <?php endif; ?>
                     </td>
+                    <!-- 3. Name -->
+                    <td>
+                        <span class="font-semibold text-white"><?= $ingName ?></span>
+                    </td>
+                    <!-- 4. Stock Level -->
+                    <td data-val="<?= $row['stock'] ?>">
+                        <div class="stock-val font-semibold text-white"><?= fmt($row['stock']) ?><?= $unit ? ' <small style="font-size:11px;color:var(--text-muted);font-weight:normal">' . $unit . '</small>' : '' ?></div>
+                    </td>
+                    <!-- 5. Reorder Level -->
                     <td data-val="<?= $row['min'] ?>">
                         <span class="editable"
                               ondblclick="startInlineEdit(this,<?= $iid ?>,<?= $row['min'] ?>,'<?= $unit ?>')"
-                              title="Double-click to edit"><?= fmt($row['min']) ?></span> <?= $unit ?>
+                              title="Double-click to edit"><?= fmt($row['min']) ?></span><?= $unit ? ' <small style="font-size:11px;color:var(--text-muted);font-weight:normal">' . $unit . '</small>' : '' ?>
                     </td>
-                    <td><?= $unit ?: '—' ?></td>
-                    <td data-val="<?= $row['cpu'] ?>">
-                        <span class="cost-hl">$<?= money($row['disp_cpu']) ?></span><small style="font-size:10px;color:var(--text-muted);margin-left:1px"><?= h($row['disp_sfx']) ?></small>
+                    <!-- 6. Unit -->
+                    <td>
+                        <span style="background:rgba(209,144,75,0.15); border:1px solid rgba(209,144,75,0.3); color:var(--accent,#d1904b); font-weight:700; padding:4px 10px; border-radius:8px; font-size:12px; display:inline-block; text-transform:lowercase;"><?= $unit ?: '—' ?></span>
                     </td>
-                    <td data-val="<?= $row['value'] ?>">$<?= money($row['value']) ?></td>
+                    <!-- 7. Cost Per Unit -->
+                    <td data-val="<?= $row['disp_cpu'] ?>">
+                        <span class="cost-hl">$<?= money_cpu($row['disp_cpu']) ?></span><small style="font-size:10px;color:var(--text-muted);margin-left:1px"><?= h($row['disp_sfx']) ?></small>
+                        <?php 
+                        $uLower = strtolower(trim($row['unit'] ?? ''));
+                        $cVal   = (float)$row['disp_cpu'];
+                        if ($uLower === 'ml' && $cVal > 0): 
+                            $c1000 = $cVal * 1000;
+                            $c500  = $cVal * 500;
+                        ?>
+                            <div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">
+                                $<?= number_format($c1000, 2) ?>/L <span style="font-size:10px;color:#777;">($<?= number_format($c500, 2) ?>/500ml)</span>
+                            </div>
+                        <?php elseif ($uLower === 'g' && $cVal > 0): 
+                            $c1000 = $cVal * 1000;
+                        ?>
+                            <div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">
+                                $<?= number_format($c1000, 2) ?>/kg
+                            </div>
+                        <?php endif; ?>
+                    </td>
+                    <!-- 9. Status -->
                     <td data-val="<?= $row['status'] ?>">
                         <span class="badge <?= $row['status'] ?>">
                             <i class="fa-solid <?= $bIcon ?>"></i> <?= $bLabel ?>
                         </span>
                     </td>
-                    <td data-val="<?= h($row['supplier_name'] ?? '') ?>">
-                        <?php if (!empty($row['supplier_name'])): ?>
-                        <span style="font-size:12px;color:var(--accent)"><?= h($row['supplier_name']) ?></span>
-                        <?php else: ?>
-                        <span style="color:var(--border-hover)">—</span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
+                    <!-- 9. Actions -->
+                    <td style="text-align:right;">
                         <div class="row-actions">
-                            <a class="btn-row edit" href="edit_ingredient.php?id=<?= $iid ?>">
-                                <i class="fa-solid fa-pen-to-square"></i> Edit
-                            </a>
-                            <button class="btn-row"
-                                style="background:rgba(52,152,219,.08);color:#3498db;border-color:rgba(52,152,219,.2)"
-                                onclick="openHistory(<?= $iid ?>,'<?= $ingName ?>')"
-                                title="View stock history">
-                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            <button class="btn-row" type="button" onclick="openEditModal(<?= $iid ?>)" title="Edit ingredient">
+                                <i class="fa-solid fa-pen-to-square"></i><span>Edit</span>
                             </button>
-                            <button class="btn-row adjust"
-                                onclick="openAdjust(<?= $iid ?>,'<?= $ingName ?>',<?= $row['stock'] ?>,'<?= $unit ?>')"
-                                title="Manual stock adjustment (waste/damage/correction)">
-                                <i class="fa-solid fa-sliders"></i> Adjust
+                            <button class="btn-row" onclick="openHistory(<?= $iid ?>,'<?= $ingName ?>')" title="View stock history">
+                                <i class="fa-solid fa-clock-rotate-left"></i><span>History</span>
                             </button>
-                            <button class="btn-row restock"
-                                onclick="openRestock(<?= $iid ?>,'<?= $ingName ?>',<?= $row['stock'] ?>,'<?= $unit ?>',<?= $row['min'] ?>)">
-                                <i class="fa-solid fa-plus"></i> Add Stock
+                            <button class="btn-row" onclick="openAdjust(<?= $iid ?>,'<?= $ingName ?>',<?= $row['stock'] ?>,'<?= $unit ?>')" title="Adjust stock">
+                                <i class="fa-solid fa-sliders"></i><span>Adjust</span>
                             </button>
-                            <?php if (in_array($row['status'], ['low','out']) && !empty($row['supplier_id'])): ?>
-                            <a class="btn-row" href="purchase_order_create.php?supplier_id=<?= (int)$row['supplier_id'] ?>"
-                               style="background:rgba(52,152,219,.08);color:#3498db;border-color:rgba(52,152,219,.2)"
-                               title="Create Purchase Order from <?= h($row['supplier_name']) ?>">
-                                <i class="fa-solid fa-file-invoice"></i> Order
-                            </a>
-                            <?php endif; ?>
-                            <button class="btn-row del"
-                                onclick="confirmDelete(<?= $iid ?>,'<?= $ingName ?>')"
-                                title="Delete ingredient">
-                                <i class="fa-solid fa-trash-can"></i>
+                            <button class="btn-row" onclick="openRestock(<?= $iid ?>,'<?= $ingName ?>',<?= $row['stock'] ?>,'<?= $unit ?>',<?= $row['min'] ?>)" title="Add Stock">
+                                <i class="fa-solid fa-plus"></i><span>Add Stock</span>
+                            </button>
+                            <button class="btn-row del" onclick="confirmDelete(<?= $iid ?>,'<?= $ingName ?>')" title="Delete ingredient">
+                                <i class="fa-solid fa-trash-can"></i><span>Delete</span>
                             </button>
                         </div>
                     </td>
@@ -898,6 +1072,79 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
     </div>
 </div>
 
+<!-- ── EDIT INGREDIENT MODAL ── -->
+<div class="modal-overlay" id="editIngredientModal" onclick="if(event.target===this)closeEditModal()">
+    <div class="modal-box" style="max-width:540px;">
+        <button class="modal-close" type="button" onclick="closeEditModal()"><i class="fa-solid fa-xmark"></i></button>
+        <div class="modal-title"><i class="fa-solid fa-pen-to-square" style="color:var(--accent,#d1904b)"></i> Edit Ingredient</div>
+        <div class="modal-sub" id="editModalSub">Update ingredient details</div>
+
+        <form id="editIngredientForm" onsubmit="submitEditModal(event)" style="margin-top:14px">
+            <input type="hidden" id="editIngId">
+
+            <label class="modal-label">Ingredient Name <span style="color:var(--danger)">*</span></label>
+            <input class="modal-input" type="text" id="editIngName" required placeholder="e.g. Almond Milk">
+
+            <div style="display:flex;gap:10px;margin-bottom:10px">
+                <div style="flex:1">
+                    <label class="modal-label">Current Stock Level <span style="color:var(--danger)">*</span></label>
+                    <input class="modal-input" type="number" step="any" min="0" id="editIngStock" required placeholder="e.g. 49222" style="margin-bottom:0">
+                </div>
+                <div style="flex:1">
+                    <label class="modal-label">Reorder Level (Min) <span style="color:var(--danger)">*</span></label>
+                    <input class="modal-input" type="number" step="any" min="0" id="editIngMin" required placeholder="e.g. 500" style="margin-bottom:0">
+                </div>
+                <div style="flex:0.8">
+                    <label class="modal-label">Unit <span style="color:var(--danger)">*</span></label>
+                    <input class="modal-input" type="text" id="editIngUnit" required placeholder="e.g. ml" oninput="calcEditModalCosts()" style="margin-bottom:0">
+                </div>
+            </div>
+
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);margin-bottom:10px;">
+                <label class="modal-label" style="font-weight:600;color:var(--accent,#d1904b)">Purchase & Cost Reference</label>
+                
+                <div style="display:flex;gap:10px;margin-bottom:6px;margin-top:6px">
+                    <div style="flex:1">
+                        <label class="modal-label">Purchase Pack Size (Qty)</label>
+                        <input class="modal-input" type="number" step="any" min="0" id="editIngPurchaseQty" placeholder="e.g. 20000" oninput="calcEditModalCosts('qty')" style="margin-bottom:0">
+                    </div>
+                    <div style="flex:1">
+                        <label class="modal-label">Purchase Total Cost ($)</label>
+                        <input class="modal-input" type="number" step="any" min="0" id="editIngCostPrice" placeholder="e.g. 7000.00" oninput="calcEditModalCosts('cost')" style="margin-bottom:0">
+                    </div>
+                    <div style="flex:1">
+                        <label class="modal-label" id="editBulkCostLabel">Cost / Kg or L ($)</label>
+                        <input class="modal-input" type="number" step="any" min="0" id="editIngBulkCost" placeholder="e.g. 350.00" oninput="calcEditModalCosts('bulk')" style="margin-bottom:0">
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+                    <span style="font-size:11px;color:var(--text-muted);align-self:center;">Quick bottle/pack presets:</span>
+                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(500, 'ml')">500ml bottle</button>
+                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(1000, 'ml')">1000ml (1L)</button>
+                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(1000, 'g')">1kg (1000g)</button>
+                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(5000, 'g')">5kg</button>
+                </div>
+
+                <div id="editCostHelp" style="display:none;background:rgba(209,144,75,0.08);border:1px solid rgba(209,144,75,0.25);border-radius:10px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:8px;"></div>
+            </div>
+
+            <label class="modal-label">Preferred Supplier</label>
+            <select class="modal-input" id="editIngSupplier" style="margin-bottom:14px;cursor:pointer;">
+                <option value="0">— None —</option>
+                <?php foreach ($supplierList as $sup): ?>
+                <option value="<?= $sup['supplier_id'] ?>"><?= htmlspecialchars($sup['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+
+            <button class="btn-confirm" id="editIngBtn" type="submit">
+                <i class="fa-solid fa-floppy-disk"></i> Save Changes
+            </button>
+            <button class="btn-cancel" type="button" onclick="closeEditModal()">Cancel</button>
+        </form>
+    </div>
+</div>
+
 <!-- ── QUICK RESTOCK MODAL ── -->
 <div class="modal-overlay" id="restockModal" onclick="if(event.target===this)closeRestock()">
     <div class="modal-box">
@@ -914,10 +1161,41 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
             </div>
         </div>
 
+        <!-- ── CONTAINER / PACK CALCULATOR ── -->
+        <div style="background: rgba(209, 144, 75, 0.05); border: 1px dashed rgba(209, 144, 75, 0.3); border-radius: 14px; padding: 14px; margin-bottom: 16px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--accent, #d1904b); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fa-solid fa-boxes-stacked" style="margin-right: 5px;"></i> Pack / Container Calculator</span>
+                <span style="font-size: 10px; font-weight: 500; opacity: 0.7; text-transform: none;">Auto-calculates total qty</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 8px; align-items: end;">
+                <div>
+                    <label class="modal-label" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap;">Pack Qty</label>
+                    <input class="modal-input no-spinner" type="number" id="packNumCans" placeholder="e.g. 5" min="1" step="any" oninput="calcPackRestock()" style="margin-bottom: 0; font-size: 13px; height: 38px; text-align: center;">
+                </div>
+
+                <div style="padding-bottom: 9px; color: var(--accent, #d1904b); font-weight: 700; font-size: 14px;">×</div>
+
+                <div>
+                    <label class="modal-label" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap;">Pack Size</label>
+                    <input class="modal-input no-spinner" type="number" id="packSizePerCan" placeholder="e.g. 1000" min="0.01" step="any" oninput="calcPackRestock()" style="margin-bottom: 0; font-size: 13px; height: 38px; text-align: center;">
+                </div>
+
+                <div style="padding-bottom: 9px; color: var(--border); font-weight: 700; font-size: 14px;">|</div>
+
+                <div>
+                    <label class="modal-label" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap;">Cost / Pack ($)</label>
+                    <input class="modal-input no-spinner" type="number" id="packCostPerCan" placeholder="e.g. 5.00" min="0" step="any" oninput="calcPackRestock()" style="margin-bottom: 0; font-size: 13px; height: 38px; text-align: center;">
+                </div>
+            </div>
+
+            <div id="packResultHint" style="font-size: 12px; color: var(--text); font-weight: 600; display: none; margin-top: 10px; background: rgba(209, 144, 75, 0.12); border: 1px solid rgba(209, 144, 75, 0.25); padding: 8px 12px; border-radius: 8px;"></div>
+        </div>
+
         <label class="modal-label">Quick amounts</label>
         <div class="quick-amounts" id="qaWrap"></div>
 
-        <label class="modal-label">Custom amount</label>
+        <label class="modal-label">Total Qty to Add</label>
         <input class="modal-input" type="number" id="restockAmt" placeholder="Amount to add…" min="0.01" step="any">
 
         <label class="modal-label">Note <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
@@ -1035,7 +1313,234 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
     <span><span class="sc-key">Esc</span> Close</span>
 </div>
 
+<?php
+$ingMap = [];
+foreach ($rows as $r) {
+    $ingMap[(int)$r['ingredient_id']] = [
+        'id'           => (int)$r['ingredient_id'],
+        'name'         => $r['ingredient_name'],
+        'unit'         => $r['unit'] ?? '',
+        'stock'        => (float)$r['stock_quantity'],
+        'min'          => (float)$r['minimum_stock'],
+        'cost_price'   => (float)($r['cost_price'] ?? 0),
+        'purchase_qty' => (float)($r['purchase_qty'] ?? 0),
+        'cost_per_unit'=> (float)($r['cost_per_unit'] ?? 0),
+        'supplier_id'  => (int)($r['supplier_id'] ?? 0),
+    ];
+}
+?>
+
 <script>
+/* ── EDIT MODAL ── */
+const ING_MAP = <?= json_encode($ingMap) ?>;
+
+function openEditModal(id) {
+    const ing = ING_MAP[id];
+    if (!ing) return;
+    document.getElementById('editIngId').value          = ing.id;
+    document.getElementById('editIngName').value        = ing.name;
+    document.getElementById('editIngStock').value       = ing.stock;
+    document.getElementById('editIngUnit').value        = ing.unit;
+    document.getElementById('editIngMin').value         = ing.min;
+    document.getElementById('editIngPurchaseQty').value = ing.purchase_qty || '';
+    document.getElementById('editIngCostPrice').value   = ing.cost_price || '';
+    document.getElementById('editIngSupplier').value    = ing.supplier_id || 0;
+    document.getElementById('editModalSub').textContent = `Editing #${ing.id} — ${ing.name}`;
+    calcEditModalCosts('init');
+    document.getElementById('editIngredientModal').classList.add('open');
+    setTimeout(() => document.getElementById('editIngName').focus(), 100);
+}
+
+function closeEditModal() {
+    document.getElementById('editIngredientModal').classList.remove('open');
+}
+
+function setPackPreset(qty, unit) {
+    document.getElementById('editIngPurchaseQty').value = qty;
+    if (unit) document.getElementById('editIngUnit').value = unit;
+    calcEditModalCosts('qty');
+}
+
+function calcEditModalCosts(changed) {
+    const qtyInput  = document.getElementById('editIngPurchaseQty');
+    const costInput = document.getElementById('editIngCostPrice');
+    const bulkInput = document.getElementById('editIngBulkCost');
+    const labelEl   = document.getElementById('editBulkCostLabel');
+    const unit      = (document.getElementById('editIngUnit').value || '').toLowerCase().trim();
+    const box       = document.getElementById('editCostHelp');
+
+    const isBulkUnit = (unit === 'ml' || unit === 'g');
+    const bulkFactor = isBulkUnit ? 1000 : 1;
+
+    if (labelEl) {
+        if (unit === 'ml') labelEl.textContent = 'Cost / Liter ($)';
+        else if (unit === 'g') labelEl.textContent = 'Cost / Kg ($)';
+        else labelEl.textContent = 'Cost / Unit ($)';
+    }
+
+    let qty  = parseFloat(qtyInput.value) || 0;
+    let cost = parseFloat(costInput.value) || 0;
+    let bulk = parseFloat(bulkInput.value) || 0;
+
+    if (changed === 'bulk') {
+        if (bulk >= 0 && bulkFactor > 0) {
+            const cpu = bulk / bulkFactor;
+            if (qty > 0) {
+                cost = parseFloat((qty * cpu).toFixed(2));
+                costInput.value = cost;
+            }
+        }
+    } else if (changed === 'cost') {
+        if (qty > 0 && cost >= 0) {
+            bulk = parseFloat(((cost / qty) * bulkFactor).toFixed(2));
+            bulkInput.value = bulk;
+        }
+    } else if (changed === 'qty') {
+        if (qty > 0) {
+            if (cost > 0) {
+                bulk = parseFloat(((cost / qty) * bulkFactor).toFixed(2));
+                bulkInput.value = bulk;
+            } else if (bulk > 0) {
+                const cpu = bulk / bulkFactor;
+                cost = parseFloat((qty * cpu).toFixed(2));
+                costInput.value = cost;
+            }
+        }
+    } else {
+        if (qty > 0 && cost > 0) {
+            bulk = parseFloat(((cost / qty) * bulkFactor).toFixed(2));
+            bulkInput.value = bulk;
+        }
+    }
+
+    if (box) {
+        let finalCpu = 0;
+        if (qty > 0 && cost > 0) finalCpu = cost / qty;
+        else if (bulk > 0 && bulkFactor > 0) finalCpu = bulk / bulkFactor;
+
+        if (finalCpu > 0) {
+            const fmtCpu = (finalCpu < 0.01) ? finalCpu.toFixed(4) : finalCpu.toFixed(2);
+            let txt = `Unit cost: <strong>$${fmtCpu} / ${unit || 'unit'}</strong>`;
+            if (unit === 'ml') {
+                const c1000 = (finalCpu * 1000).toFixed(2);
+                const c500  = (finalCpu * 500).toFixed(2);
+                txt += ` &nbsp;&bull;&nbsp; <strong>$${c1000} / 1L</strong> ($${c500} / 500ml bottle)`;
+            } else if (unit === 'g') {
+                const c1000 = (finalCpu * 1000).toFixed(2);
+                txt += ` &nbsp;&bull;&nbsp; <strong>$${c1000} / 1kg</strong>`;
+            }
+            box.innerHTML = `<i class="fa-solid fa-calculator" style="color:var(--accent)"></i> ${txt}`;
+            box.style.display = 'block';
+        } else {
+            box.style.display = 'none';
+        }
+    }
+}
+
+function renderCostCellHTML(cpu, unit) {
+    const uLower = (unit || '').toLowerCase().trim();
+    const fmtCpu = (cpu <= 0) ? '0.00' : (cpu < 0.01 ? (Math.round(cpu * 10000) / 10000) : cpu.toFixed(2));
+    const sfx = unit ? ('/' + unit) : '';
+    let html = `<span class="cost-hl">$${fmtCpu}</span><small style="font-size:10px;color:var(--text-muted);margin-left:1px">${sfx}</small>`;
+
+    if (uLower === 'ml' && cpu > 0) {
+        const c1000 = (cpu * 1000).toFixed(2);
+        const c500  = (cpu * 500).toFixed(2);
+        html += `<div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">$${c1000}/L <span style="font-size:10px;color:#777;">($${c500}/500ml)</span></div>`;
+    } else if (uLower === 'g' && cpu > 0) {
+        const c1000 = (cpu * 1000).toFixed(2);
+        html += `<div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">$${c1000}/kg</div>`;
+    }
+    return html;
+}
+
+async function submitEditModal(e) {
+    e.preventDefault();
+    const id          = document.getElementById('editIngId').value;
+    const name        = document.getElementById('editIngName').value.trim();
+    const stock       = parseFloat(document.getElementById('editIngStock').value) || 0;
+    const unit        = document.getElementById('editIngUnit').value.trim();
+    const min         = parseFloat(document.getElementById('editIngMin').value) || 0;
+    const purchaseQty = parseFloat(document.getElementById('editIngPurchaseQty').value) || 0;
+    const costPrice   = parseFloat(document.getElementById('editIngCostPrice').value) || 0;
+    const supplierId  = parseInt(document.getElementById('editIngSupplier').value) || 0;
+
+    if (!name) { showToast('Ingredient name is required', 'error'); return; }
+
+    const btn = document.getElementById('editIngBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        const body = `action=update_ingredient&ingredient_id=${id}&ingredient_name=${encodeURIComponent(name)}&stock_quantity=${stock}&unit=${encodeURIComponent(unit)}&minimum_stock=${min}&purchase_qty=${purchaseQty}&cost_price=${costPrice}&supplier_id=${supplierId}`;
+        const res  = await fetch('ingredients.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (ING_MAP[id]) {
+                ING_MAP[id].name         = name;
+                ING_MAP[id].stock        = data.new_stock !== undefined ? data.new_stock : stock;
+                ING_MAP[id].unit         = unit;
+                ING_MAP[id].min          = min;
+                ING_MAP[id].purchase_qty = purchaseQty;
+                ING_MAP[id].cost_price   = costPrice;
+                ING_MAP[id].supplier_id  = supplierId;
+                if (data.new_cpu !== undefined) ING_MAP[id].cost_per_unit = data.new_cpu;
+            }
+
+            updateIngredientRowDOM(id, name, unit, min, data.new_cpu !== undefined ? data.new_cpu : (ING_MAP[id]?.cost_per_unit || 0), data.new_stock !== undefined ? data.new_stock : stock);
+
+            closeEditModal();
+            showToast('Ingredient updated successfully', 'success');
+        } else {
+            showToast(data.message || 'Update failed', 'error');
+        }
+    } catch (err) {
+        showToast(err.message || 'Network error', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+    }
+}
+
+function updateIngredientRowDOM(id, name, unit, minStock, cpu, stock) {
+    const row = document.querySelector(`#tableBody tr[data-id="${id}"]`);
+    if (!row) return;
+
+    row.dataset.name = name.toLowerCase();
+
+    const nameSpan = row.children[2]?.querySelector('span');
+    if (nameSpan) nameSpan.textContent = name;
+
+    const sc = row.children[3];
+    const curStock = (stock !== undefined) ? stock : parseFloat(sc?.dataset?.val || 0);
+    if (sc) {
+        sc.dataset.val = curStock;
+        const sv = sc.querySelector('.stock-val') || sc;
+        sv.innerHTML = fmt(curStock) + (unit ? ` <small style="font-size:11px;color:var(--text-muted);font-weight:normal">${unit}</small>` : '');
+    }
+
+    const mc = row.children[4];
+    if (mc) {
+        mc.dataset.val = minStock;
+        mc.innerHTML = `<span class="editable" ondblclick="startInlineEdit(this,${id},${minStock},'${unit}')" title="Double-click to edit">${fmt(minStock)}</span>` + (unit ? ` <small style="font-size:11px;color:var(--text-muted);font-weight:normal">${unit}</small>` : '');
+    }
+
+    const uc = row.children[5]?.querySelector('span');
+    if (uc) uc.textContent = unit || '—';
+
+    const cc = row.children[6];
+    if (cc) {
+        cc.dataset.val = cpu;
+        cc.innerHTML = renderCostCellHTML(cpu, unit);
+    }
+
+    updateRow(id, curStock, minStock, unit);
+}
+
 /* ── GLOBALS ── */
 const TOTAL     = <?= $total ?>;
 const TOTAL_VAL = <?= round($stk_val, 4) ?>;
@@ -1065,40 +1570,55 @@ function countUp() {
 /* ── FILTER ── */
 function setFilter(btn, filter) {
     currentFilter = filter;
-    // Pills
-    document.querySelectorAll('.filter-pill').forEach(p => {
-        p.className = 'filter-pill';
-        const f = p.dataset.filter;
-        if (!f) return;
-        if (f === filter) {
-            p.classList.add(filter === 'all' ? 'active' : 'active-' + filter);
-        }
-    });
-    // Stat card highlight
     document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
-    const map = { all:0, ok:1, low:2, out:3 };
-    if (map[filter] !== undefined)
-        document.querySelectorAll('.stat-card')[map[filter]]?.classList.add('active');
+    if (btn) {
+        btn.classList.add('active');
+    } else {
+        const clsMap = { all: 's-accent', ok: 's-ok', low: 's-low', out: 's-out' };
+        if (clsMap[filter]) {
+            const card = document.querySelector(`.stat-card.${clsMap[filter]}`);
+            if (card) card.classList.add('active');
+        }
+    }
     applyFilters();
 }
 
 /* ── SEARCH ── */
 let searchTimer;
-document.getElementById('searchInput').addEventListener('input', function() {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(applyFilters, 150);
-    document.getElementById('clearSearch').classList.toggle('visible', this.value.length > 0);
-});
+const searchInput = document.getElementById('searchInput');
+const searchClear = document.getElementById('searchClear');
+
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(applyFilters, 150);
+        if (searchClear) searchClear.style.display = this.value.length > 0 ? 'flex' : 'none';
+    });
+}
 function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('clearSearch').classList.remove('visible');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    if (searchClear) searchClear.style.display = 'none';
     applyFilters();
-    document.getElementById('searchInput').focus();
 }
 function resetFilters() {
     clearSearch();
-    setFilter(document.querySelector('[data-filter="all"]'), 'all');
+    setFilter(null, 'all');
 }
+
+// Keylogger shortcut listener: Pressing '/' focuses search, 'Escape' clears search
+document.addEventListener('keydown', e => {
+    if (searchInput && e.key === '/' && document.activeElement !== searchInput && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInput.focus();
+    }
+    if (searchInput && e.key === 'Escape' && document.activeElement === searchInput) {
+        clearSearch();
+        searchInput.blur();
+    }
+});
 
 /* ── APPLY FILTERS + JS PAGINATION ── */
 const PER_PAGE_ING = 10;
@@ -1106,15 +1626,17 @@ let currentPageIng  = 1;
 let lastFilteredIng = [];
 
 function applyFilters() {
-    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const sInput = document.getElementById('searchInput');
+    const q = sInput ? sInput.value.toLowerCase().trim() : '';
     const allRows = [...document.querySelectorAll('#tableBody tr[data-name]')];
     lastFilteredIng = allRows.filter(row => {
-        const nameOk = !q || row.dataset.name.includes(q);
+        const textContent = row.textContent.toLowerCase();
+        const searchOk = !q || textContent.includes(q) || row.dataset.name.includes(q);
         const statOk = currentFilter === 'all' ? true
             : currentFilter === 'critical'
                 ? (row.dataset.status === 'low' || row.dataset.status === 'out')
                 : row.dataset.status === currentFilter;
-        return nameOk && statOk;
+        return searchOk && statOk;
     });
     currentPageIng = 1;
     renderPageIng();
@@ -1128,10 +1650,15 @@ function renderPageIng() {
     const pageRows   = lastFilteredIng.slice(start, start + PER_PAGE_ING);
 
     document.querySelectorAll('#tableBody tr[data-name]').forEach(r => r.classList.add('hidden'));
-    pageRows.forEach(r => r.classList.remove('hidden'));
+    pageRows.forEach((r, idx) => {
+        r.classList.remove('hidden');
+        const noCell = r.querySelector('.row-no-cell');
+        if (noCell) noCell.textContent = start + idx + 1;
+    });
 
     document.getElementById('emptyState').style.display = total === 0 ? 'block' : 'none';
-    document.getElementById('rowCount').textContent  = `Showing ${total} of ${TOTAL}`;
+    const rc = document.getElementById('rowCount');
+    if (rc) rc.textContent = `Showing ${total} of ${TOTAL}`;
     document.getElementById('footLabel').textContent = `Showing ${total} of ${TOTAL} ingredients`;
 
     renderPaginationIng(total, totalPages);
@@ -1223,6 +1750,11 @@ function startInlineEdit(span, id, curMin, unit) {
                 td.dataset.val = val;
                 td.innerHTML = `<span class="editable" ondblclick="startInlineEdit(this,${id},${val},'${unit}')" title="Double-click to edit">${fmt(val)}</span> ${unit}`;
                 showToast(`Minimum updated → ${fmt(val)} ${unit}`, 'success');
+                const row = td.closest('tr');
+                if (row) {
+                    const curStock = parseFloat(row.children[3]?.dataset?.val || 0);
+                    updateRow(id, curStock, val, unit);
+                }
             } else restore();
         } catch { restore(); }
     };
@@ -1243,6 +1775,13 @@ function openRestock(id, name, stock, unit, minStock) {
     document.getElementById('restockAmt').value  = '';
     document.getElementById('restockNote').value = '';
 
+    // Clear & initialize Pack Calculator inputs
+    document.getElementById('packNumCans').value = '';
+    document.getElementById('packSizePerCan').value = (ING_MAP[id]?.purchase_qty > 0 ? ING_MAP[id].purchase_qty : (unit==='ml'||unit==='g' ? 1000 : ''));
+    document.getElementById('packCostPerCan').value = (ING_MAP[id]?.cost_price > 0 ? ING_MAP[id].cost_price : '');
+    const hint = document.getElementById('packResultHint');
+    if (hint) hint.style.display = 'none';
+
     const needed = minStock - stock;
     const qa = document.getElementById('qaWrap');
     let btns = '';
@@ -1251,7 +1790,33 @@ function openRestock(id, name, stock, unit, minStock) {
     qa.innerHTML = btns;
 
     document.getElementById('restockModal').classList.add('open');
-    setTimeout(() => document.getElementById('restockAmt').focus(), 100);
+    setTimeout(() => document.getElementById('packNumCans').focus(), 100);
+}
+
+function calcPackRestock() {
+    const cans = parseFloat(document.getElementById('packNumCans').value) || 0;
+    const size = parseFloat(document.getElementById('packSizePerCan').value) || 0;
+    const cost = parseFloat(document.getElementById('packCostPerCan').value) || 0;
+    const unit = document.getElementById('restockUnit').value || '';
+    const hint = document.getElementById('packResultHint');
+    const amtInput = document.getElementById('restockAmt');
+
+    if (cans > 0 && size > 0) {
+        const totalQty = cans * size;
+        amtInput.value = totalQty;
+        
+        let txt = `Total Qty: <strong>+${fmt(totalQty)} ${unit}</strong> (${cans} packs × ${fmt(size)}${unit})`;
+        if (cost > 0) {
+            const totalCost = (cans * cost).toFixed(2);
+            txt += ` &bull; Total Cost: <strong>$${totalCost}</strong> ($${cost.toFixed(2)}/pack)`;
+        }
+        if (hint) {
+            hint.innerHTML = `<i class="fa-solid fa-calculator" style="color:var(--accent)"></i> ` + txt;
+            hint.style.display = 'block';
+        }
+    } else {
+        if (hint) hint.style.display = 'none';
+    }
 }
 function closeRestock() { document.getElementById('restockModal').classList.remove('open'); }
 function setAmt(n) { document.getElementById('restockAmt').value = n; document.getElementById('restockAmt').focus(); }
@@ -1267,7 +1832,9 @@ async function submitRestock() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
     try {
         const res  = await fetch('ingredients.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`action=quick_restock&ingredient_id=${id}&amount=${amt}&note=${encodeURIComponent(note)}` });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { throw new Error('Invalid response from server'); }
         if (data.success) {
             updateRow(parseInt(id), data.new_stock, data.min_stock, unit);
             closeRestock();
@@ -1275,7 +1842,7 @@ async function submitRestock() {
         } else {
             showToast(data.message || 'Restock failed', 'error');
         }
-    } catch { showToast('Network error', 'error'); }
+    } catch (err) { showToast(err.message || 'Network error', 'error'); }
     finally  { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Add'; }
 }
 
@@ -1288,38 +1855,50 @@ function updateRow(id, newStock, minStock, unit, dailyAvg) {
     const badges = { ok:['OK','fa-circle-check'], low:['LOW','fa-triangle-exclamation'], out:['OUT','fa-circle-exclamation'] };
     const [lbl, ico] = badges[status];
 
-    // Stock cell
-    const sc = row.children[1];
-    sc.dataset.val = newStock;
-    sc.querySelector('.stock-val').textContent = fmt(newStock) + (unit ? ' ' + unit : '');
-    const fill = sc.querySelector('.stock-fill');
-    fill.className = 'stock-fill ' + fills[status];
-    fill.style.width = pct + '%';
-    sc.querySelector('.stock-pct').textContent = pct + '% of minimum';
+    // Stock cell (index 3)
+    const sc = row.children[3];
+    if (sc) {
+        sc.dataset.val = newStock;
+        const sv = sc.querySelector('.stock-val') || sc;
+        sv.textContent = fmt(newStock) + (unit ? ' ' + unit : '');
+        const fill = sc.querySelector('.stock-fill');
+        if (fill) {
+            fill.className = 'stock-fill ' + fills[status];
+            fill.style.width = pct + '%';
+        }
+        const spct = sc.querySelector('.stock-pct');
+        if (spct) spct.textContent = pct + '% of minimum';
+    }
 
     // Forecast chip
-    if (dailyAvg !== undefined) {
+    if (dailyAvg !== undefined && sc) {
         let fc = sc.querySelector('.stock-forecast');
         const da = parseFloat(dailyAvg) || 0;
         const daysRem = (da > 0 && newStock > 0) ? Math.round(newStock / da) : null;
         if (daysRem !== null) {
             const fcCls = daysRem <= 2 ? 'fc-critical' : (daysRem <= 7 ? 'fc-warn' : 'fc-ok');
-            if (!fc) { fc = document.createElement('div'); fc.className = 'stock-forecast'; sc.querySelector('.stock-cell').appendChild(fc); }
+            if (!fc) { fc = document.createElement('div'); fc.className = 'stock-forecast'; sc.appendChild(fc); }
             fc.className = 'stock-forecast ' + fcCls;
             fc.innerHTML = `<i class="fa-solid fa-clock" style="font-size:9px"></i> ~${daysRem} day${daysRem !== 1 ? 's' : ''} remaining`;
         } else if (fc) { fc.remove(); }
     }
 
-    // Value cell
-    const cpu = parseFloat(row.children[4]?.dataset?.val) || 0;
-    const newVal = newStock * cpu;
-    row.children[5].dataset.val = newVal;
-    row.children[5].textContent = '$' + newVal.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Minimum Stock cell (index 4)
+    const mc = row.children[4];
+    if (mc) {
+        mc.dataset.val = minStock;
+        const ed = mc.querySelector('.editable');
+        if (ed) ed.textContent = fmt(minStock);
+    }
 
-    // Badge
-    const badge = row.querySelector('.badge');
-    badge.className = 'badge ' + status;
-    badge.innerHTML = `<i class="fa-solid ${ico}"></i> ${lbl}`;
+    // Status cell (index 7)
+    const stCell = row.children[7];
+    if (stCell) {
+        stCell.dataset.val = status;
+        const badge = stCell.querySelector('.badge') || stCell;
+        badge.className = 'badge ' + status;
+        badge.innerHTML = `<i class="fa-solid ${ico}"></i> ${lbl}`;
+    }
 
     // Row state
     row.classList.remove('row-low','row-out');
@@ -1328,6 +1907,7 @@ function updateRow(id, newStock, minStock, unit, dailyAvg) {
     row.dataset.status = status;
 
     applyFilters();
+    refreshStatCards();
 }
 
 /* ── MANUAL ADJUST (deduction only) ── */
@@ -1361,7 +1941,9 @@ async function submitAdjust() {
     try {
         const body = `action=manual_adjust&ingredient_id=${id}&delta=${delta}&reason_category=${encodeURIComponent(category)}&reason=${encodeURIComponent(reason)}`;
         const res  = await fetch('ingredients.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { throw new Error('Invalid response from server'); }
         if (data.success) {
             updateRow(parseInt(id), data.new_stock, data.min_stock, unit);
             closeAdjust();
@@ -1370,7 +1952,7 @@ async function submitAdjust() {
         } else {
             showToast(data.message || 'Adjustment failed', 'error');
         }
-    } catch { showToast('Network error', 'error'); }
+    } catch (err) { showToast(err.message || 'Network error', 'error'); }
     finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Deduction'; }
 }
 
@@ -1388,19 +1970,21 @@ const IS_MANAGER_OR_ADMIN = <?= (in_array($_SESSION['role'] ?? '', ['admin', 'ma
 
 /* ── UNREVIEWED AUDIT FUNCTIONS ── */
 async function checkUnreviewedAdjustments() {
+    const b = document.getElementById('unreviewedBanner');
+    if (!b) return;
     if (!IS_MANAGER_OR_ADMIN) {
-        const b = document.getElementById('unreviewedBanner');
-        if (b) b.style.display = 'none';
+        b.style.display = 'none';
         return;
     }
     try {
         const res = await fetch('ingredients.php?action=get_unreviewed');
         const data = await res.json();
+        const cntEl = document.getElementById('unreviewedCount');
         if (data.ok && data.unreviewed_count > 0) {
-            document.getElementById('unreviewedCount').textContent = data.unreviewed_count;
-            document.getElementById('unreviewedBanner').style.display = 'flex';
+            if (cntEl) cntEl.textContent = data.unreviewed_count;
+            b.style.display = 'flex';
         } else {
-            document.getElementById('unreviewedBanner').style.display = 'none';
+            b.style.display = 'none';
         }
     } catch (e) {}
 }
@@ -1609,7 +2193,7 @@ function toggleTheme() {
 document.addEventListener('keydown', e => {
     const tag = document.activeElement?.tagName;
     const inField = tag === 'INPUT' || tag === 'TEXTAREA';
-    if (e.key === 'Escape') { closeRestock(); closeDelete(); closeAdjust(); closeHistory(); return; }
+    if (e.key === 'Escape') { closeRestock(); closeDelete(); closeAdjust(); closeHistory(); closeEditModal(); return; }
     if (inField) return;
     if (e.key === '/' || e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
     if (e.key === 'n' || e.key === 'N') window.location.href = 'add_ingredient.php';
@@ -1655,8 +2239,8 @@ async function pollIngredients() {
         data.ingredients.forEach(ing => {
             const row = document.querySelector(`#tableBody tr[data-id="${ing.id}"]`);
             if (!row) { location.reload(); return; }
-            const curStock = parseFloat(row.children[1].dataset.val);
-            const curMin   = parseFloat(row.children[2].dataset.val);
+            const curStock = parseFloat(row.children[3]?.dataset?.val || 0);
+            const curMin   = parseFloat(row.children[4]?.dataset?.val || 0);
             if (Math.abs(curStock - ing.stock) > 0.0001 || Math.abs(curMin - ing.min) > 0.0001) {
                 updateRow(ing.id, ing.stock, ing.min, ing.unit, ing.daily_avg);
                 flashRow(row);
@@ -1757,7 +2341,11 @@ function refreshStatCards() {
     const out   = allRows.filter(r => r.dataset.status === 'out').length;
     const total = allRows.length;
     let totalVal = 0;
-    allRows.forEach(r => { totalVal += parseFloat(r.children[5]?.dataset?.val || 0); });
+    allRows.forEach(r => {
+        const stock = parseFloat(r.children[3]?.dataset?.val || 0);
+        const cpu   = parseFloat(r.children[6]?.dataset?.val || 0);
+        totalVal += (stock * cpu);
+    });
 
     const nums = document.querySelectorAll('.stat-num');
     if (nums[0]) nums[0].textContent = total;
@@ -1781,6 +2369,7 @@ function refreshStatCards() {
 lastFilteredIng = [...document.querySelectorAll('#tableBody tr[data-name]')];
 renderPageIng();
 </script>
-<script src="animations.js"></script>
+</main>
+</div>
 </body>
 </html>

@@ -263,22 +263,70 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
   <!-- Apply theme before paint (default dark, matching the rest of the app) to avoid a flash -->
   <script>(function(){if((localStorage.getItem('theme')||'dark')!=='light')document.documentElement.setAttribute('data-theme','dark');})();</script>
   <title>POS | Bird's Nest Coffee</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/css/menu.css?v=<?= filemtime(__DIR__.'/assets/css/menu.css') ?>">
   <style>
     /* ── BASE ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
+    html, body { height: 100vh; width: 100%; overflow: hidden; margin: 0; padding: 0; }
+    :root { --sidebar-w: 260px; }
     body {
-      background: var(--bg, #f4efe9);
+      background: var(--bg, #0e0e10);
       color: var(--text, #1a1410);
-      font-family: 'Poppins', sans-serif;
+      font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
       display: flex;
-      flex-direction: column;
-      padding: 0;
-      min-height: 0;
+      flex-direction: row;
+      padding-left: 0;
+      height: 100vh;
+      width: 100%;
+      overflow: hidden;
+      margin: 0;
     }
+
+    /* ── CART SIDEBAR HIDDEN ── */
+    #cart-sidebar.hidden, .cart-panel.hidden {
+      display: none !important;
+    }
+  </style>
+
+  <script>
+  function openCartSidebar() {
+    var s = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+    if (!s) return;
+    s.classList.remove('hidden');
+    s.style.setProperty('display', 'flex', 'important');
+    localStorage.setItem('cart_sidebar_closed', 'false');
+  }
+  function closeCartSidebar() {
+    var s = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+    if (!s) return;
+    s.classList.add('hidden');
+    s.style.setProperty('display', 'none', 'important');
+    localStorage.setItem('cart_sidebar_closed', 'true');
+  }
+  function toggleCartSidebar() {
+    var s = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+    if (!s) return;
+    var isHidden = s.classList.contains('hidden') || s.style.display === 'none' || window.getComputedStyle(s).display === 'none';
+    if (isHidden) {
+      openCartSidebar();
+    } else {
+      closeCartSidebar();
+    }
+  }
+  window.openCartSidebar = openCartSidebar;
+  window.closeCartSidebar = closeCartSidebar;
+  window.toggleCartSidebar = toggleCartSidebar;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    if (localStorage.getItem('cart_sidebar_closed') === 'true') {
+      closeCartSidebar();
+    }
+  });
+  </script>
+  <style>
 
     /* ── HEADER ── */
     .menu-header {
@@ -310,6 +358,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     .pos-layout {
       flex: 1;
       display: flex;
+      height: calc(100vh - 61px);
       overflow: hidden;
       min-height: 0;
     }
@@ -319,6 +368,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       flex: 1;
       display: flex;
       flex-direction: column;
+      height: 100%;
       overflow: hidden;
       min-width: 0;
     }
@@ -333,8 +383,9 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     }
     .menu-panel .menu-scroll {
       flex: 1;
+      height: 100%;
       overflow-y: auto;
-      padding-bottom: 40px;
+      padding-bottom: 20px;
     }
     /* ── Custom thin amber scrollbars — replaces default OS scrollbar ── */
     .menu-scroll { scrollbar-width: thin; scrollbar-color: rgba(209,144,75,.35) transparent; }
@@ -354,8 +405,8 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     }
     .stand-cells::-webkit-scrollbar { display: none; }
 
-    .menu-main { padding: 0 20px; }
-    .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+    .menu-main { padding: 16px 24px; width: 100%; box-sizing: border-box; }
+    .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; width: 100%; }
 
     /* ── ADD TO ORDER BANNER ── */
     .add-order-banner {
@@ -365,7 +416,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       flex-shrink: 0;
     }
 
-    /* ── CART PANEL (right, fixed width) ── */
+    /* ── CART PANEL (right, fixed width, full height flexbox) ── */
     .cart-panel {
       width: 420px;
       min-width: 340px;
@@ -373,8 +424,9 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       height: 100%;
       border-left: 1px solid var(--border,#e0d4c4);
       background: var(--bg-card, #fff);
-      display: grid;
-      grid-template-rows: auto 1fr auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
       overflow: hidden;
       min-height: 0;
     }
@@ -396,8 +448,8 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     }
     .cp-clear-btn:hover { background: #e74c3c; color: #fff; border-color: #e74c3c; }
 
-    /* Cart body: items scroll, summary stays pinned above the footer */
-    .cp-body { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+    /* Cart body: middle scrollable area for cart items and order options */
+    .cp-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
     #cpItems { flex: 0 1 auto; overflow-x: hidden; overflow-y: auto; min-height: 0; scrollbar-width: none; }
     .cp-empty { flex: 1; }
 
@@ -561,10 +613,14 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 
     /* Cart footer */
     .cp-footer {
+      position: sticky;
+      bottom: 0;
       border-top: 1px solid var(--border,#e0d4c4);
       padding: 14px 16px 16px;
       background: var(--bg-card,#fff);
+      margin-top: auto;
       flex-shrink: 0;
+      z-index: 10;
     }
     .cp-total-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
     .cp-total-row .lbl { font-size: 13px; font-weight: 600; color: var(--text-sec,#5a4a3a); letter-spacing: .04em; text-transform: uppercase; }
@@ -649,71 +705,52 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       display: flex; align-items: center; justify-content: center;
       transition: all .25s; animation: none; box-shadow: none;
     }
-    #chatToggle:hover { border-color: #d1904b; color: #d1904b; transform: none; }
-    #chatBox { top: 66px; bottom: auto; right: 24px; }
+    .card-desc { display: none !important; }
 
+    /* Option Pills Styling */
+    .option-pill {
+      background: #1a1a1e !important;
+      color: #9ca3af !important;
+      border: 1px solid #1f2937 !important;
+      border-radius: 12px !important;
+      padding: 8px 14px !important;
+      font-size: 12.5px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: all 0.18s ease !important;
+    }
+    .option-pill:hover {
+      border-color: #374151 !important;
+      color: #ffffff !important;
+    }
+    .option-pill.active {
+      background: #f59e0b !important;
+      color: #000000 !important;
+      font-weight: 800 !important;
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.3) !important;
+    }
   </style>
-</head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require __DIR__ . '/sidebar.php'; ?>
+<main class="flex-1 h-full overflow-y-auto app-main flex flex-col">
 
-<?php if (!empty($_SESSION['stock_warning'])): $__sw = $_SESSION['stock_warning']; unset($_SESSION['stock_warning']); ?>
-<div id="stockWarn" style="max-width:1200px;margin:14px auto 0;padding:13px 16px;display:flex;gap:12px;align-items:flex-start;
-     background:rgba(209,144,75,.10);border:1px solid rgba(209,144,75,.40);border-radius:12px;color:#d1904b;font-size:13.5px;line-height:1.5;">
-  <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px;"></i>
-  <div style="flex:1;">
-    <strong>Low stock on the last order.</strong> It was completed, but these ingredients ran short — restock soon:
-    <ul style="margin:6px 0 0;padding-left:18px;">
-      <?php foreach ($__sw as $line): ?>
-      <li><?= htmlspecialchars($line) ?></li>
-      <?php endforeach; ?>
-    </ul>
-  </div>
-  <button type="button" onclick="this.parentElement.remove()" aria-label="Dismiss"
-          style="background:none;border:none;color:#d1904b;cursor:pointer;font-size:15px;line-height:1;">&times;</button>
-</div>
-<?php endif; ?>
+<?php unset($_SESSION['stock_warning']); ?>
 
 <!-- HEADER -->
 <header class="menu-header">
-  <div class="header-left">
-    <?php
-    $_role = $_SESSION['role'] ?? '';
-    if ($add_to_order_mode > 0): ?>
-    <a href="find_order.php?tab=paylater" class="btn-nav btn-orders">
-      <i class="fa-solid fa-arrow-left"></i> Back to Pay Later
-    </a>
-    <?php elseif (in_array($_role, ['admin', 'manager'])): ?>
-    <a href="dashboard.php" class="btn-nav btn-orders">
-      <i class="fa-solid fa-arrow-left"></i> Back
-    </a>
-    <?php elseif ($_show_kitchen_btn): ?>
-    <a href="view_order.php" class="btn-nav btn-orders">
-      <i class="fa-solid fa-fire"></i> Kitchen
-      <?php if ($active_orders > 0): ?>
-      <span class="badge"><?= $active_orders ?></span>
-      <?php endif; ?>
-    </a>
-    <?php else: ?>
-    <a href="dashboard.php" class="btn-nav btn-orders">
-      <i class="fa-solid fa-arrow-left"></i> Back
-    </a>
-    <?php endif; ?>
-  </div>
+  <div class="header-left" style="display:none;"></div>
 
   <div class="header-center">
     <form class="search-form" method="GET" id="searchForm">
       <div class="search-inner">
         <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" name="search" placeholder="Search drinks..." value="<?= e($search_term) ?>" id="searchInput" autocomplete="off">
+        <input type="text" name="search" placeholder="<?= __('search_products', 'Search drinks...') ?>" value="<?= e($search_term) ?>" id="searchInput" autocomplete="off">
         <?php if (!empty($search_term)): ?>
         <a href="menu.php" class="search-clear"><i class="fa-solid fa-xmark"></i></a>
         <?php endif; ?>
       </div>
-      <select name="sort" id="sortSelect" class="sort-select">
-        <option value="default" <?= $sort==='default'?'selected':'' ?>>Default</option>
-        <option value="price_low" <?= $sort==='price_low'?'selected':'' ?>>Price: Low → High</option>
-        <option value="price_high" <?= $sort==='price_high'?'selected':'' ?>>Price: High → Low</option>
-      </select>
     </form>
   </div>
 
@@ -722,6 +759,10 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       <img src="images/Newlogo.jpg" alt="Logo">
       <span class="brand-name">Bird's Nest</span>
     </div>
+    <button type="button" class="btn-nav relative flex items-center justify-center p-2 rounded-xl bg-[#1e1e24] text-white hover:text-amber-400" id="cart-toggle-btn" onclick="toggleCartSidebar()" title="Toggle Cart">
+      <i class="fa-solid fa-cart-shopping text-base"></i>
+      <span id="cart-badge" class="badge absolute -top-1 -right-1 bg-amber-500 text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center"><?= $cart_count ?></span>
+    </button>
     <button id="chatToggle" onclick="toggleChat()" title="AI Assistant">
       <i class="fa-solid fa-robot"></i>
     </button>
@@ -784,7 +825,11 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         $icon   = $catIcons[$key] ?? 'fa-circle';
       ?>
       <a href="#<?= $anchor ?>" class="cat-pill" data-target="<?= $anchor ?>">
+        <?php if (str_contains($icon, '/')): ?>
+        <img src="<?= e($icon) ?>" alt="" style="width:18px;height:18px;border-radius:50%;object-fit:cover;">
+        <?php else: ?>
         <i class="fa-solid <?= $icon ?>"></i>
+        <?php endif; ?>
         <?= e($label) ?>
         <span class="pill-count"><?= $count ?></span>
       </a>
@@ -799,7 +844,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         <!-- TOP SELLERS -->
         <section class="top-sellers">
           <div class="section-header">
-            <h2><i class="fa-solid fa-fire" style="color:#e74c3c;"></i> Top Sellers</h2>
+            <h2><i class="fa-solid fa-fire" style="color:#e74c3c;"></i> <?= __('top_sellers', 'Top Sellers') ?></h2>
           </div>
           <div class="sellers-strip">
             <?php foreach ($top_sellers as $idx => $t): ?>
@@ -824,7 +869,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                 <?php endif; ?>
               </div>
               <div class="seller-info">
-                <div class="seller-rank"><?= $idx===0 ? '&#x1F3C6; #1 Seller' : '&#x1F525; Top Pick' ?></div>
+                <div class="seller-rank"><?= $idx===0 ? '&#x1F3C6; '.__('seller_num_1', '#1 Seller') : '&#x1F525; '.__('top_pick', 'Top Pick') ?></div>
                 <h4><?= e($t['name']) ?></h4>
                 <div class="seller-price">$<?= number_format($t['price'], 2) ?></div>
               </div>
@@ -874,7 +919,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                   <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Quick add"><i class="fa-solid fa-plus"></i></button>
                   <?php endif; ?>
                 </div>
-                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-desc"><?= e($p['description']) ?></div><div class="card-price">$<?= number_format($p['price'], 2) ?></div></div>
+                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-price">$<?= number_format($p['price'], 2) ?></div></div>
               </div>
             <?php endif; ?>
             <?php endforeach; ?>
@@ -887,11 +932,17 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
           ?>
           <section class="cat-section" id="<?= e($anchor) ?>">
             <div class="cat-header">
-              <div class="cat-icon"><i class="fa-solid <?= $icon ?>"></i></div>
+              <div class="cat-icon" style="overflow:hidden;">
+                <?php if (str_contains($icon, '/')): ?>
+                <img src="<?= e($icon) ?>" alt="" style="width:100%;height:100%;object-fit:cover;">
+                <?php else: ?>
+                <i class="fa-solid <?= $icon ?>"></i>
+                <?php endif; ?>
+              </div>
               <div class="cat-title-text">
                 <h2><?= e($label) ?></h2>
                 <?php $_in_stock = count(array_filter($products[$key], fn($p) => (int)$p['low_count'] === 0)); ?>
-                <span><?= $_in_stock ?> item<?= $_in_stock!==1?'s':'' ?></span>
+                <span><?= $_in_stock ?> <?= $_in_stock !== 1 ? __('item_plural', 'items') : __('item_single', 'item') ?></span>
               </div>
             </div>
             <div class="product-grid">
@@ -927,7 +978,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                   <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Quick add"><i class="fa-solid fa-plus"></i></button>
                   <?php endif; ?>
                 </div>
-                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-desc"><?= e($p['description']) ?></div><div class="card-price">$<?= number_format($p['price'], 2) ?></div></div>
+                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-price">$<?= number_format($p['price'], 2) ?></div></div>
               </div>
               <?php endif; ?>
             <?php endforeach; ?>
@@ -950,24 +1001,29 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
   </div><!-- /menu-panel -->
 
   <!-- ════ RIGHT: CART PANEL ════ -->
-  <aside class="cart-panel" id="cartPanel">
+  <aside class="cart-panel" id="cart-sidebar">
 
     <!-- Cart header -->
-    <div class="cp-header">
-      <div class="cp-title">
+    <div class="cp-header flex items-center justify-between">
+      <div class="cp-title flex items-center gap-2">
         <i class="fa-solid fa-cart-shopping"></i>
-        <span>Cart</span>
-        <span class="cp-count" id="cpCount"><?= $cart_count ?> item<?= $cart_count != 1 ? 's' : '' ?></span>
+        <span><?= __('cart', 'Cart') ?></span>
+        <span class="cp-count" id="cpCount"><?= $cart_count ?> <?= $cart_count != 1 ? __('item_plural', 'items') : __('item_single', 'item') ?></span>
       </div>
-      <?php if (!empty($cart)): ?>
-      <button class="cp-clear-btn" id="cpClearBtn" onclick="cpClearCart()">
-        <i class="fa-solid fa-trash"></i> Clear
-      </button>
-      <?php else: ?>
-      <button class="cp-clear-btn" id="cpClearBtn" onclick="cpClearCart()" style="display:none">
-        <i class="fa-solid fa-trash"></i> Clear
-      </button>
-      <?php endif; ?>
+      <div class="flex items-center gap-2">
+        <?php if (!empty($cart)): ?>
+        <button class="cp-clear-btn" id="cpClearBtn" onclick="cpClearCart()">
+          <i class="fa-solid fa-trash"></i> <?= __('clear', 'Clear') ?>
+        </button>
+        <?php else: ?>
+        <button class="cp-clear-btn" id="cpClearBtn" onclick="cpClearCart()" style="display:none">
+          <i class="fa-solid fa-trash"></i> <?= __('clear', 'Clear') ?>
+        </button>
+        <?php endif; ?>
+        <button type="button" class="cp-close-btn p-1 text-gray-400 hover:text-white" id="close-cart-btn" onclick="closeCartSidebar()" title="Close Cart">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Cart items (scrollable) -->
@@ -977,8 +1033,8 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       <!-- Empty state -->
       <div class="cp-empty" id="cpEmpty">
         <i class="fa-solid fa-mug-hot"></i>
-        <p>Cart is empty</p>
-        <small>Tap a drink to add it</small>
+        <p><?= __('cart_empty', 'Cart is empty') ?></p>
+        <small><?= __('tap_drink_to_add', 'Tap a drink to add it') ?></small>
       </div>
 
       <?php else: ?>
@@ -1019,29 +1075,22 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
           </div>
         </div>
         <?php endforeach; ?>
-
-        <!-- Free item row -->
-        <div class="cp-item" id="cpFreeRow" style="<?= $cp_buy3 > 0 ? 'border-top:1px dashed #27ae60;' : 'display:none' ?>">
-          <div class="cp-free-icon">&#x1F381;</div>
-          <div class="cp-item-info">
-            <div class="cp-item-name"><span id="cpFreeName"><?= e($cp_free_name) ?></span> <span class="cp-free-badge">FREE</span></div>
-            <div class="cp-item-meta">Buy <?= BUY_X_COUNT ?> Get 1 Free</div>
-            <div class="cp-item-price" style="color:#27ae60;">FREE <s style="color:#aaa;font-size:10px;">was $<span id="cpFreePrice"><?= number_format($cp_free_price, 2) ?></span></s></div>
-          </div>
-        </div>
       </div><!-- /cpItems -->
+      <?php endif; ?>
+    </div><!-- /cp-body -->
 
+    <!-- Cart footer (always visible when cart has items) -->
+    <div class="cp-footer" id="cpFooter" <?= empty($cart) ? 'style="display:none"' : '' ?>>
       <!-- Summary rows -->
       <div class="cp-summary" id="cpSummary">
         <div class="cp-sum-row">
-          <span>Subtotal</span>
+          <span><?= __('subtotal', 'Subtotal') ?></span>
           <span id="cpSubtotal">$<?= number_format($cp_subtotal, 2) ?></span>
         </div>
         <div class="cp-sum-row discount" id="cpItemPromoRow" style="<?= $cp_item_promos > 0 ? '' : 'display:none' ?>">
           <span>&#x1F3F7;&#xFE0F; Item Promos</span>
           <span id="cpItemPromoAmt">-$<?= number_format($cp_item_promos, 2) ?></span>
         </div>
-        <?php /* Buy-X-Get-1-Free is a GIFT (free item shown above), not a discount — no "-$" summary row. */ ?>
         <div class="cp-sum-row discount" id="cpHHRow" style="<?= $cp_hh > 0 ? '' : 'display:none' ?>">
           <span>&#x1F305; Happy Hour (<?= HAPPY_HOUR_DISCOUNT ?>% off)</span>
           <span id="cpHHAmt">-$<?= number_format($cp_hh, 2) ?></span>
@@ -1058,12 +1107,6 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
             <i class="fa-solid fa-xmark"></i> Remove Discount
           </button>
           <?php else: ?>
-          <?php /* Discounting needs more shape than one blanket control before it goes in
-                   front of customers. Hidden rather than removed: the POST handler, the
-                   manual_discount column and every reader stay untouched, so orders that
-                   already carry a discount still render theirs. To restore, change false
-                   back to true here AND flip CP_SHOW_DISCOUNT below. Same pattern as the
-                   Riel tile and products.php:1508. */ ?>
           <?php if (false): ?>
           <button type="button" class="cp-discount-toggle" id="cpAddDiscBtn" onclick="cpOpenDiscount()">
             <i class="fa-solid fa-tag"></i> Add Discount
@@ -1087,49 +1130,40 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         </div>
 
         <div class="cp-sum-row">
-          <span>Tax (<?= TAX_RATE ?>%)</span>
+          <span><?= __('tax', 'Tax') ?> (<?= TAX_RATE ?>%)</span>
           <span id="cpTax">$<?= number_format($cp_tax, 2) ?></span>
         </div>
 
         <?php if (!$add_to_order_mode): ?>
-        <!-- Loyalty -->
-        <div class="cp-loyalty cp-section">
-          <div class="cp-loyalty-info">
-            <i class="fa-solid fa-star" style="color:#d1904b;margin-right:3px;"></i>
-            <span id="cpLoyaltyStatus" class="<?= $linked_loyalty ? 'linked' : '' ?>">
-              <?php if ($linked_loyalty): ?>
-                <?= e($linked_loyalty['loyalty_id']) ?> &mdash; <?= (int)$linked_loyalty['points'] ?> pts
-              <?php else: ?>
-                Loyalty card
-              <?php endif; ?>
-            </span>
-          </div>
-          <button class="cp-loyalty-btn" onclick="openLoyaltyModal()" id="cpLoyaltyBtn">
-            <?= $linked_loyalty ? '<i class="fa-solid fa-circle-check"></i> Linked' : '<i class="fa-solid fa-credit-card"></i> Link' ?>
-          </button>
-        </div>
-        <?php elseif ($parent_has_loyalty): ?>
-        <!-- Read-only: the card belongs to the order being added to, not to this cart. -->
-        <div class="cp-loyalty cp-section">
-          <div class="cp-loyalty-info">
-            <i class="fa-solid fa-star" style="color:#d1904b;margin-right:3px;"></i>
-            <span class="linked"><?= e($parent_loyalty['loyalty_id']) ?> &mdash; <?= (int)$parent_loyalty['points'] ?> pts</span>
-            <span style="color:#888;"> &middot; points go to Order #<?= $add_to_order_mode ?></span>
-          </div>
-        </div>
-        <?php endif; ?>
-
-        <?php if (!$add_to_order_mode): ?>
         <!-- Order type -->
         <div class="cp-section">
-          <div class="cp-section-label"><i class="fa-solid fa-mug-hot"></i> Order Type</div>
-          <div class="cp-drink-type">
-            <button type="button" class="cp-drink-btn active" id="cpBtnDrinkIn" onclick="cpSetDrinkType('drink_in')">
-              <i class="fa-solid fa-mug-hot"></i> Drink In
-            </button>
-            <button type="button" class="cp-drink-btn" id="cpBtnDrinkOut" onclick="cpSetDrinkType('drink_out')">
-              <i class="fa-solid fa-bag-shopping"></i> Drink Out
-            </button>
+          <div class="cp-section-label" style="margin-bottom:6px;"><i class="fa-solid fa-mug-hot"></i> <?= __('order_type', 'Order Type') ?></div>
+          <div class="cp-order-row" style="display:flex;align-items:center;">
+            <div class="cp-drink-type" style="width:100%;display:flex;gap:6px;margin:0;">
+              <button type="button" class="cp-drink-btn active" id="cpBtnDrinkIn" onclick="cpSetDrinkType('drink_in')" style="flex:1;padding:8px 4px;font-size:11.5px;white-space:nowrap;">
+                <i class="fa-solid fa-mug-hot"></i> <?= __('dine_in', 'Drink In') ?>
+              </button>
+              <button type="button" class="cp-drink-btn" id="cpBtnDrinkOut" onclick="cpSetDrinkType('drink_out')" style="flex:1;padding:8px 4px;font-size:11.5px;white-space:nowrap;">
+                <i class="fa-solid fa-bag-shopping"></i> <?= __('takeaway', 'Drink Out') ?>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct Payment Method Selector -->
+        <div class="cp-section" style="margin-top:10px;">
+          <div class="cp-section-label" style="margin-bottom:6px;"><i class="fa-solid fa-credit-card"></i> <?= __('payment_method', 'Payment Method') ?></div>
+          <div class="cp-pay-methods" id="cpDirectPayMethods" style="display:flex;gap:6px;">
+            <div class="cp-pay-method selected" data-method="cash" onclick="cpSelectDirectPayment(this, 'cash')" style="flex:1;padding:8px 4px;font-size:11.5px;text-align:center;border-radius:10px;cursor:pointer;background:rgba(39,174,96,.12);border:1.5px solid #27ae60;">
+              <input type="checkbox" name="payment_methods[]" value="cash" checked style="display:none">
+              <i class="fa-solid fa-money-bill-wave" style="font-size:15px;display:block;margin-bottom:2px;color:#27ae60;"></i>
+              <span style="font-size:11px;font-weight:600;"><?= __('cash', 'Cash') ?></span>
+            </div>
+            <div class="cp-pay-method" data-method="bakong" onclick="cpSelectDirectPayment(this, 'bakong')" style="flex:1;padding:8px 4px;font-size:11.5px;text-align:center;border-radius:10px;cursor:pointer;">
+              <input type="checkbox" name="payment_methods[]" value="bakong" style="display:none">
+              <i class="fa-solid fa-qrcode" style="font-size:15px;display:block;margin-bottom:2px;color:#e0454a;"></i>
+              <span style="font-size:11px;font-weight:600;"><?= __('bakong_khqr', 'Bakong') ?></span>
+            </div>
           </div>
         </div>
         <?php else: ?>
@@ -1140,30 +1174,8 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         </div>
         <?php endif; ?>
 
-        <?php if (!$add_to_order_mode): ?>
-        <!-- Customer name -->
-        <div class="cp-form-group">
-          <label><i class="fa-regular fa-user"></i> Customer Name</label>
-          <input type="text" id="cpCustomerName" placeholder="Leave blank for Guest">
-        </div>
-
-        <!-- Stand number (drink in only) -->
-        <div class="cp-form-group" id="cpTableNumberGroup">
-          <label style="display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-hashtag"></i> Stand Number <span id="cpStandReq" style="color:#f0ad4e;font-weight:600;font-size:11px;">(required for Drink In)</span>
-            <button type="button" onclick="cpToggleStandGrid()" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:#aaa;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-table-cells-large"></i> Pick</button>
-          </label>
-          <input type="text" id="cpTableNumber" name="table_number" maxlength="10" placeholder="e.g. 1, 7, 12..." onblur="cpCheckStand(this.value)">
-          <div id="cpStandWarn" style="display:none;margin-top:6px;padding:7px 10px;background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.35);border-radius:8px;font-size:12px;color:#f0ad4e;align-items:center;gap:6px;"><i class="fa-solid fa-triangle-exclamation"></i> <span id="cpStandWarnText"></span></div>
-          <div id="cpStandGrid" style="display:none;margin-top:6px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:10px;"></div>
-        </div>
-        <?php endif; // add-to-order: name + stand belong to the existing order, never re-asked ?>
-
       </div><!-- /cp-summary -->
-      <?php endif; ?>
-    </div><!-- /cp-body -->
 
-    <!-- Cart footer (always visible) -->
-    <div class="cp-footer" id="cpFooter" <?= empty($cart) ? 'style="display:none"' : '' ?>>
       <!-- Total hidden here — shown on the confirm/payment screen instead.
            #cpTotal kept in DOM (display:none) because cpGetCartTotal() reads it for payment math. -->
       <div class="cp-total-row" style="display:none">
@@ -1180,81 +1192,81 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         <div id="cpPaymentInputs"></div>
         <button type="button" class="cp-confirm-btn<?= $add_to_order_mode ? ' paylater' : '' ?>" id="cpConfirmBtn" onclick="cpOnConfirmOrderClick()">
           <i class="fa-solid fa-<?= $add_to_order_mode ? 'cart-plus' : 'credit-card' ?>" id="cpConfirmIcon"></i>
-          <span id="cpConfirmText"><?= $add_to_order_mode ? 'Add to Order #'.$add_to_order_mode : 'Confirm Order' ?></span>
+          <span id="cpConfirmText"><?= $add_to_order_mode ? __('add_to_order', 'Add to Order #').$add_to_order_mode : __('confirm_order', 'Confirm Order') ?></span>
         </button>
       </form>
-      <div class="cp-shortcuts">
-        <?php if (!$add_to_order_mode): ?>
-        <span><kbd>B</kbd> Bakong</span>
-        <span><kbd>C</kbd> Cash</span>
-        <span><kbd>P</kbd> Pay Later</span>
-        <?php endif; ?>
-        <span><kbd>Enter</kbd> Confirm</span>
-      </div>
     </div>
 
   </aside><!-- /cart-panel -->
 </div><!-- /pos-layout -->
 
-<!-- PRODUCT MODAL -->
-<div id="modal" class="modal">
-  <div class="modal-card">
-    <div class="modal-img-wrap">
-      <img id="modalImg" class="modal-img" src="" alt="">
-      <span id="modalBadge" class="modal-product-badge" style="display:none"></span>
+<!-- PRODUCT MODAL (DRINK CUSTOMIZATION) -->
+<div id="product-modal" class="modal fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4" style="display:none;">
+  <div class="modal-card bg-[#121215]/95 border border-amber-500/20 rounded-3xl max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col max-h-[90vh] text-white">
+    
+    <!-- Header with Mini Square Image & Close Button -->
+    <div class="modal-header relative p-5 pb-0 flex items-center gap-4 flex-shrink-0">
+      <div class="modal-img-wrap relative w-20 h-20 rounded-2xl overflow-hidden bg-black/40 flex-shrink-0 border border-white/10 shadow-lg">
+        <img id="modalImg" class="modal-img w-full h-full object-cover" src="" alt="">
+        <span id="modalBadge" class="modal-product-badge absolute bottom-1 right-1 bg-amber-500 text-black text-[10px] font-extrabold px-1.5 py-0.5 rounded-md shadow" style="display:none"></span>
+      </div>
+      <div class="flex-1 min-w-0 pr-8">
+        <h2 class="modal-name text-lg font-extrabold text-white leading-tight" id="modalName"></h2>
+        <p class="modal-desc text-xs text-gray-400 mt-1" id="modalDesc" style="display:none"></p>
+      </div>
+      <button class="modal-close absolute top-4 right-4 w-8 h-8 rounded-full bg-black/60 text-gray-300 hover:text-white flex items-center justify-center transition border border-white/10" onclick="closeModal()" title="Close">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
-    <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
-    <div class="modal-body">
-      <h2 class="modal-name" id="modalName"></h2>
-      <p class="modal-desc" id="modalDesc"></p>
-      <div class="modal-price-row">
-        <span class="modal-price" id="modalPrice"></span>
-        <div class="qty-control">
-          <button type="button" onclick="changeQty(-1)">&#x2212;</button>
-          <span id="modalQtyDisplay">1</span>
-          <button type="button" onclick="changeQty(1)">+</button>
+
+    <!-- Scrollable Body -->
+    <div class="modal-body p-5 overflow-y-auto flex-1 flex flex-col gap-4">
+
+      <!-- Price & Quantity Row -->
+      <div class="modal-price-row flex items-center justify-between bg-white/[0.03] p-3 rounded-2xl border border-white/[0.05]">
+        <span class="modal-price text-xl font-bold text-amber-500" id="modalPrice"></span>
+        <div class="qty-control flex items-center gap-3 bg-[#1a1a1e] px-3 py-1.5 rounded-xl border border-gray-800">
+          <button type="button" class="text-amber-500 text-base font-bold w-6 h-6 flex items-center justify-center" onclick="changeQty(-1)">&#x2212;</button>
+          <span id="modalQtyDisplay" class="font-bold text-sm min-w-[20px] text-center text-white">1</span>
+          <button type="button" class="text-amber-500 text-base font-bold w-6 h-6 flex items-center justify-center" onclick="changeQty(1)">+</button>
         </div>
       </div>
-      <div id="optSize" class="option-section" style="display:none">
-        <div class="option-label">Size</div>
-        <div class="pill-group" id="sizePills"></div>
-      </div>
+
+      <!-- Option Sections -->
       <div id="optSweetness" class="option-section">
-        <div class="option-label">Sweetness</div>
-        <div class="pill-group" id="sweetnessPills">
+        <div class="option-label text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><?= __('sweetness', 'Sugar') ?></div>
+        <div class="pill-group flex flex-wrap gap-2" id="sweetnessPills">
           <?php foreach (['0%','25%','50%','75%','100%'] as $s): ?>
           <button class="option-pill <?= $s==='50%'?'active':'' ?>" data-group="sweetness" data-value="<?= $s ?>" onclick="selectPill(this)"><?= $s ?></button>
           <?php endforeach; ?>
         </div>
       </div>
+
       <div id="optIce" class="option-section">
-        <div class="option-label">Ice</div>
-        <div class="pill-group" id="icePills">
-          <?php foreach (['No Ice','Less Ice','Normal Ice','More Ice'] as $ic): ?>
-          <button class="option-pill <?= $ic==='Normal Ice'?'active':'' ?>" data-group="ice" data-value="<?= $ic ?>" onclick="selectPill(this)"><?= $ic ?></button>
+        <div class="option-label text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><?= __('ice', 'Ice') ?></div>
+        <div class="pill-group flex flex-wrap gap-2" id="icePills">
+          <?php 
+          $ice_map = [
+            'No Ice' => __('no_ice', 'No Ice'),
+            'Less Ice' => __('less_ice', 'Less Ice'),
+            'Normal Ice' => __('normal_ice', 'Normal Ice'),
+            'More Ice' => __('more_ice', 'More Ice')
+          ];
+          foreach ($ice_map as $ic_val => $ic_label): ?>
+          <button class="option-pill <?= $ic_val==='Normal Ice'?'active':'' ?>" data-group="ice" data-value="<?= $ic_val ?>" onclick="selectPill(this)"><?= $ic_label ?></button>
           <?php endforeach; ?>
         </div>
       </div>
-      <?php if (!empty($milkOptions)): ?>
-      <div id="optMilk" class="option-section">
-        <div class="option-label">Milk</div>
-        <div class="pill-group" id="milkPills">
-          <?php foreach ($milkOptions as $mk): ?>
-          <button class="option-pill <?= $mk === $defaultMilk ? 'active' : '' ?>" data-group="milk" data-value="<?= htmlspecialchars($mk, ENT_QUOTES) ?>" onclick="selectPill(this)"><?= htmlspecialchars($mk, ENT_QUOTES) ?></button>
-          <?php endforeach; ?>
-        </div>
+    </div>
+
+    <!-- 4. Bottom Sticky CTA Bar -->
+    <div class="modal-footer bg-[#18181c]/95 backdrop-blur-md border-t border-white/10 p-4 flex items-center justify-between flex-shrink-0">
+      <div class="modal-total text-sm text-gray-400">
+        <?= __('total', 'Total') ?>: <strong id="modalTotalDisplay" class="text-xl font-extrabold text-white ml-1">$0.00</strong>
       </div>
-      <?php endif; ?>
-      <div id="optAddons" class="option-section" style="display:none">
-        <div class="option-label">Add-ons</div>
-        <div class="pill-group" id="addonPills"></div>
-      </div>
-      <div class="modal-footer">
-        <div class="modal-total">Total: <strong id="modalTotalDisplay">$0.00</strong></div>
-        <button class="btn-add-to-cart" onclick="addToCart()">
-          <i class="fa-solid fa-cart-plus"></i> Add to Cart
-        </button>
-      </div>
+      <button class="btn-add-to-cart bg-amber-500 hover:bg-amber-600 active:scale-95 text-black font-extrabold px-6 py-3 rounded-xl flex items-center gap-2 transition shadow-lg shadow-amber-500/20" onclick="addToCart()">
+        <i class="fa-solid fa-cart-plus"></i> <?= __('add_to_cart', 'Add to Cart') ?>
+      </button>
     </div>
   </div>
 </div>
@@ -1269,6 +1281,10 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     <div class="cp-pm-breakdown">
       <div class="cp-pm-row"><span>Subtotal</span><span id="cpPmSubtotal">$0.00</span></div>
       <div class="cp-pm-row"><span>Tax (<?= (int)TAX_RATE ?>%)</span><span id="cpPmTax">$0.00</span></div>
+      <div class="cp-pm-row" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);font-size:12.5px;color:#a1a1aa;">
+        <span>Exchange Rate</span>
+        <span style="font-weight:700;color:var(--accent, #d1904b);">1$ = <?= number_format(defined('KHR_RATE') ? (int)KHR_RATE : 4100) ?> ៛</span>
+      </div>
     </div>
     <div class="cp-pm-hero">
       <span class="cp-pm-hero-label">Total due</span>
@@ -1277,35 +1293,13 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     </div>
     <div id="cpPayModalBody">
       <?php if (!$add_to_order_mode): ?>
-      <div class="cp-pm-methods-label">How is the customer paying?</div>
-      <div class="cp-pay-methods" id="cpPayMethods">
-        <div class="cp-pay-method" data-method="bakong" onclick="cpTogglePayment(this)">
-          <input type="checkbox" value="bakong">
-          <i class="cp-pm-ico fa-solid fa-qrcode"></i><span class="cp-pm-lbl">Bakong</span>
-          <i class="cp-pm-check fa-solid fa-circle-check"></i>
-        </div>
-        <div class="cp-pay-method" data-method="cash" onclick="cpTogglePayment(this)">
-          <input type="checkbox" value="cash">
+      <div class="cp-pm-methods-label" style="display:none;">How is the customer paying?</div>
+      <div class="cp-pay-methods" id="cpPayMethods" style="display:none;">
+        <div class="cp-pay-method selected" data-method="cash" onclick="cpTogglePayment(this)">
+          <input type="checkbox" value="cash" checked>
           <i class="cp-pm-ico fa-solid fa-money-bill-wave"></i><span class="cp-pm-lbl">Cash</span>
           <i class="cp-pm-check fa-solid fa-circle-check"></i>
         </div>
-        <div class="cp-pay-method" data-method="paylater" onclick="cpTogglePayment(this)">
-          <input type="checkbox" value="paylater">
-          <i class="cp-pm-ico fa-solid fa-clock"></i><span class="cp-pm-lbl">Later</span>
-          <i class="cp-pm-check fa-solid fa-circle-check"></i>
-        </div>
-        <?php /* Riel is no longer offered as its own method: the shop has one
-                 drawer, and riel is now taken inside the Cash tender below.
-                 Hidden rather than deleted — 4 historical orders still carry
-                 payment_method='riel' and their receipts read this method.
-                 To restore, change false back to true. */ ?>
-        <?php if (false): ?>
-        <div class="cp-pay-method" data-method="riel" onclick="cpTogglePayment(this)">
-          <input type="checkbox" value="riel">
-          <i class="cp-pm-ico fa-solid fa-coins"></i><span class="cp-pm-lbl">Riel &#x17DB;</span>
-          <i class="cp-pm-check fa-solid fa-circle-check"></i>
-        </div>
-        <?php endif; ?>
       </div>
       <div class="cp-split-inputs" id="cpSplitInputs"><div id="cpSplitRows"></div></div>
 
@@ -1325,27 +1319,61 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       <div class="cp-change-calc" id="cpChangeCalc">
         <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> Amount Received</label>
 
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:12px;font-weight:700;color:var(--text-2,#aaa);width:16px;">$</span>
-          <!-- oninput only fires for real typing, never for a programmatic .value
-               set, so dataset.touched reliably marks "the cashier entered this". -->
-          <input type="number" id="cpCashReceived" step="0.01" min="0" placeholder="0.00"
-                 oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
-                 onfocus="this.select()">
-        </div>
-        <div class="cp-tender-quick" id="cpTenderQuick"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
+          <!-- USD Input -->
+          <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px 12px;">
+            <span style="font-size:14px;font-weight:700;color:#55e087;">$</span>
+            <input type="number" id="cpCashReceived" step="0.01" min="0" placeholder="0.00" style="width:100%;background:transparent;border:none;color:#fff;font-size:15px;font-weight:700;outline:none;"
+                   oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
+                   onfocus="this.select()">
+          </div>
 
-        <div style="display:flex;align-items:center;gap:6px;margin-top:9px;">
-          <span style="font-size:12px;font-weight:700;color:var(--text-2,#aaa);width:16px;">&#x17DB;</span>
-          <input type="number" id="cpRielCash" step="100" min="0" placeholder="0"
-                 oninput="cpOnRielInput(); cpCalcChange()" onfocus="this.select()">
-          <span id="cpRielCashUsd" style="font-size:11px;color:#888;white-space:nowrap;">&asymp; $0.00</span>
+          <!-- Riel Input -->
+          <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px 12px;">
+            <span style="font-size:14px;font-weight:700;color:#55e087;">&#x17DB;</span>
+            <input type="number" id="cpRielCash" step="100" min="0" placeholder="0" style="width:100%;background:transparent;border:none;color:#fff;font-size:15px;font-weight:700;outline:none;"
+                   oninput="cpOnRielInput(); cpCalcChange()" onfocus="this.select()">
+            <span id="cpRielCashUsd" style="display:none;">&asymp; $0.00</span>
+          </div>
         </div>
-        <div class="cp-tender-quick" id="cpRielQuick"></div>
+        <div class="cp-tender-quick" id="cpTenderQuick" style="display:none;"></div>
+        <div class="cp-tender-quick" id="cpRielQuick" style="display:none;"></div>
 
-        <div class="cp-change-row">
-          <span class="change-label">Change to give back</span>
-          <span class="change-amount" id="cpChangeAmount">$0.00</span>
+        <div class="cp-change-row" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 18px;background:rgba(85,224,135,0.06);border:1px solid rgba(85,224,135,0.25);border-radius:14px;margin-top:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:12px;font-weight:700;color:var(--text-sec,#a1a1aa);text-transform:uppercase;letter-spacing:0.5px;">Change to give back</span>
+            <div style="display:flex;gap:4px;background:rgba(0,0,0,0.3);padding:3px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);" id="cpChangeCurrencySelect">
+              <button type="button" class="cp-change-btn active" data-curr="mixed" onclick="cpSelectChangeCurrency('mixed')" style="padding:3px 8px;border-radius:6px;border:none;background:#55e087;color:#000;font-size:11px;font-weight:800;cursor:pointer;transition:all 0.2s;">
+                $ + &#x17DB; Mixed
+              </button>
+              <button type="button" class="cp-change-btn" data-curr="usd" onclick="cpSelectChangeCurrency('usd')" style="padding:3px 8px;border-radius:6px;border:none;background:transparent;color:#aaa;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">
+                $ Dollar
+              </button>
+              <button type="button" class="cp-change-btn" data-curr="khr" onclick="cpSelectChangeCurrency('khr')" style="padding:3px 8px;border-radius:6px;border:none;background:transparent;color:#aaa;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">
+                &#x17DB; Riel
+              </button>
+            </div>
+          </div>
+          
+          <!-- Mixed Change View (Default) -->
+          <div id="cpChangeBoxMixed" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+            <span style="font-size:14px;font-weight:600;color:var(--text,#e4e4e7);">Mixed =</span>
+            <span id="cpChangeMixed" style="font-size:22px;font-weight:800;color:#55e087;font-family:'Poppins',sans-serif;">$0.00</span>
+          </div>
+
+          <!-- Dollar Change View -->
+          <div id="cpChangeBoxUsd" style="display:none;justify-content:space-between;align-items:center;padding:4px 0;">
+            <span style="font-size:14px;font-weight:600;color:var(--text,#e4e4e7);">Dollar =</span>
+            <span id="cpChangeDollar" style="font-size:22px;font-weight:800;color:#55e087;font-family:'Poppins',sans-serif;">$0.00</span>
+          </div>
+
+          <!-- Riel Change View -->
+          <div id="cpChangeBoxKhr" style="display:none;justify-content:space-between;align-items:center;padding:4px 0;">
+            <span style="font-size:14px;font-weight:600;color:var(--text,#e4e4e7);">Riel =</span>
+            <span id="cpChangeRiel" style="font-size:22px;font-weight:800;color:#55e087;font-family:'Poppins',sans-serif;">&#x17DB;0</span>
+          </div>
+
+          <span class="change-amount" id="cpChangeAmount" style="display:none;">$0.00</span>
         </div>
         <div id="cpShortWarn" style="display:none;margin-top:6px;font-size:11px;color:#e0a955;">
           <i class="fa-solid fa-triangle-exclamation"></i>
@@ -1408,8 +1436,10 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 
 <script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <script>
-const CP_KHR_RATE = <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
-const CP_SHOW_DISCOUNT = false;   // see the PHP note at the Add Discount button
+window.OVERDUE_MINUTES = window.OVERDUE_MINUTES || <?= (int)OVERDUE_MINUTES ?>;
+window.CP_KHR_RATE     = window.CP_KHR_RATE     || <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
+var CP_KHR_RATE        = window.CP_KHR_RATE;
+var CP_SHOW_DISCOUNT   = false;
 
 // ── Theme ──
 (function() {
@@ -1471,61 +1501,21 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
   document.getElementById('modalQtyDisplay').textContent = '1';
   // Per-category option visibility (configured in Manage Categories); default = show all.
   var co = CATEGORY_OPTS[cat] || { sweet: 1, ice: 1, milk: 1, addons: 1 };
-  document.getElementById('optSweetness').style.display = co.sweet ? 'block' : 'none';
-  document.getElementById('optIce').style.display       = co.ice   ? 'block' : 'none';
-  var _optMilk = document.getElementById('optMilk');
-  if (_optMilk) _optMilk.style.display = co.milk ? 'block' : 'none';
-  document.querySelectorAll('#sweetnessPills .option-pill').forEach(function(pill) { pill.classList.toggle('active', pill.dataset.value === '50%'); });
-  document.querySelectorAll('#icePills .option-pill').forEach(function(pill)      { pill.classList.toggle('active', pill.dataset.value === 'Normal Ice'); });
-  document.querySelectorAll('#milkPills .option-pill').forEach(function(pill)     { pill.classList.toggle('active', pill.dataset.value === MILK_DEFAULT); });
+  var _optSw = document.getElementById('optSweetness');
+  if (_optSw) _optSw.style.display = co.sweet ? 'block' : 'none';
+  var _optIce = document.getElementById('optIce');
+  if (_optIce) _optIce.style.display = co.ice ? 'block' : 'none';
+  var _swPills = document.querySelectorAll('#sweetnessPills .option-pill');
+  if (_swPills) _swPills.forEach(function(pill) { pill.classList.toggle('active', pill.dataset.value === '50%'); });
+  var _icePills = document.querySelectorAll('#icePills .option-pill');
+  if (_icePills) _icePills.forEach(function(pill) { pill.classList.toggle('active', pill.dataset.value === 'Normal Ice'); });
 
-  // ── Size pills (render in given order; default = Medium or first) ──
-  var sizeWrap = document.getElementById('optSize');
-  var pills = document.getElementById('sizePills');
-  pills.innerHTML = '';
-  if (hasSizes && Array.isArray(sizes) && sizes.length) {
-    sizes.forEach(function(s) {
-      var b = document.createElement('button');
-      b.className = 'option-pill';
-      b.dataset.group = 'size';
-      b.dataset.value = s.code;
-      b.dataset.price = s.price;
-      b.textContent = s.label + ' $' + Number(s.price).toFixed(2);
-      b.onclick = function(){ selectSize(b); };
-      pills.appendChild(b);
-    });
-    // default Medium if present else first
-    var def = pills.querySelector('[data-value="M"]') || pills.firstChild;
-    if (def) { def.classList.add('active'); modalUnitPrice = Number(def.dataset.price) || p; }
-    document.getElementById('modalPrice').textContent = '$' + promoNet(modalUnitPrice, promoPct).toFixed(2);
-    sizeWrap.style.display = 'block';
-  } else {
-    sizeWrap.style.display = 'none';
-  }
-
-  // ── Add-on pills (multi-select toggles) ──
+  // Size, Milk, and Add-ons are removed from product customization modal
   modalAddonTotal = 0;
-  var addonWrap = document.getElementById('optAddons');
-  var addonBox  = document.getElementById('addonPills');
-  addonBox.innerHTML = '';
-  if (co.addons && Array.isArray(addons) && addons.length) {
-    addons.forEach(function(a) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'option-pill';
-      b.dataset.addonId = a.id;
-      b.dataset.addonPrice = a.price;
-      b.textContent = a.name + ' +$' + Number(a.price).toFixed(2);
-      b.onclick = function(){ toggleAddon(b); };
-      addonBox.appendChild(b);
-    });
-    addonWrap.style.display = 'block';
-  } else {
-    addonWrap.style.display = 'none';
-  }
 
   updateModalTotal();
-  document.getElementById('modal').style.display = 'flex';
+  var m = document.getElementById('product-modal') || document.getElementById('modal');
+  if (m) m.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
 
@@ -1538,29 +1528,18 @@ function openModalFromCard(card) {
   openModal(card.dataset.productId, card.dataset.productName||'', Number(card.dataset.productPrice||0), card.dataset.productImage||'', card.dataset.productCategory||'', card.dataset.productDesc||'', card.dataset.productBadge||'', card.dataset.productHasSizes==='1', sizes, addons, Number(card.dataset.productPromo||0));
 }
 
-function closeModal() { document.getElementById('modal').style.display = 'none'; document.body.style.overflow = ''; }
+function closeModal() {
+  var m = document.getElementById('product-modal') || document.getElementById('modal');
+  if (m) m.style.display = 'none';
+  document.body.style.overflow = '';
+}
 function changeQty(delta) { modalQty = Math.max(1, Math.min(10, modalQty + delta)); document.getElementById('modalQtyDisplay').textContent = modalQty; updateModalTotal(); }
 function updateModalTotal() {
   var net = promoNet(modalUnitPrice, (product.promo || 0));
   document.getElementById('modalTotalDisplay').textContent = '$' + ((net + modalAddonTotal) * modalQty).toFixed(2);
 }
 function selectPill(pill) { pill.closest('.pill-group').querySelectorAll('.option-pill').forEach(function(p) { p.classList.remove('active'); }); pill.classList.add('active'); }
-function toggleAddon(pill) {
-  pill.classList.toggle('active');
-  var t = 0;
-  document.querySelectorAll('#addonPills .option-pill.active').forEach(function(p){ t += Number(p.dataset.addonPrice) || 0; });
-  modalAddonTotal = t;
-  updateModalTotal();
-}
 function getPillValue(groupId) { var a = document.querySelector('#' + groupId + ' .option-pill.active'); return a ? a.dataset.value : ''; }
-
-function selectSize(pill) {
-  pill.closest('.pill-group').querySelectorAll('.option-pill').forEach(function(p){ p.classList.remove('active'); });
-  pill.classList.add('active');
-  modalUnitPrice = Number(pill.dataset.price) || modalUnitPrice;
-  document.getElementById('modalPrice').textContent = '$' + promoNet(modalUnitPrice, (product.promo || 0)).toFixed(2);
-  updateModalTotal();
-}
 
 // ── ADD TO CART (from modal) ──
 function addToCart() {
@@ -1568,12 +1547,10 @@ function addToCart() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
   var params = new URLSearchParams({ id: product.id, qty: modalQty, csrf_token: CSRF });
-  if (document.getElementById('optSweetness').style.display !== 'none') params.append('sweetness', getPillValue('sweetnessPills'));
-  if (document.getElementById('optIce').style.display !== 'none')       params.append('ice',       getPillValue('icePills'));
-  var _mk = document.getElementById('optMilk');
-  if (_mk && _mk.style.display !== 'none')      params.append('milk',      getPillValue('milkPills'));
-  if (document.getElementById('optSize').style.display !== 'none')      params.append('size',      getPillValue('sizePills'));
-  document.querySelectorAll('#addonPills .option-pill.active').forEach(function(p){ params.append('addons[]', p.dataset.addonId); });
+  var _optSw = document.getElementById('optSweetness');
+  if (_optSw && _optSw.style.display !== 'none') params.append('sweetness', getPillValue('sweetnessPills'));
+  var _optIce = document.getElementById('optIce');
+  if (_optIce && _optIce.style.display !== 'none') params.append('ice', getPillValue('icePills'));
 
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: params.toString() })
     .then(function(r) { return r.json(); })
@@ -1608,15 +1585,17 @@ function loadCartPanel() {
 }
 
 function renderCartPanel(data) {
-  // Update header count
+  // Update header count & badge
   var countEl = document.getElementById('cpCount');
   if (countEl) countEl.textContent = data.count + ' item' + (data.count != 1 ? 's' : '');
+  var badgeEl = document.getElementById('cart-badge') || document.getElementById('headerCartCount');
+  if (badgeEl) badgeEl.textContent = data.count;
 
-  var footer  = document.getElementById('cpFooter');
+  var footer   = document.getElementById('cpFooter');
   var clearBtn = document.getElementById('cpClearBtn');
-  var body    = document.getElementById('cpBody');
+  var body     = document.getElementById('cpBody');
 
-  if (data.items.length === 0) {
+  if (!data.items || data.items.length === 0) {
     if (body) body.innerHTML = '<div class="cp-empty"><i class="fa-solid fa-mug-hot"></i><p>Cart is empty</p><small>Tap a drink to add it</small></div>';
     if (footer) footer.style.display = 'none';
     if (clearBtn) clearBtn.style.display = 'none';
@@ -1626,18 +1605,19 @@ function renderCartPanel(data) {
   if (clearBtn) clearBtn.style.display = '';
   if (footer)  footer.style.display = '';
 
-  // Build items HTML
+  // Build items HTML for #cpBody ONLY
   var itemsHtml = '<div id="cpItems">';
   data.items.forEach(function(item) {
     var meta = [
       item.size_label ? 'Size: '  + item.size_label : '',
-      item.sweetness ? 'Sweet: ' + item.sweetness : '',
-      item.ice       ? 'Ice: '   + item.ice       : '',
-      item.milk      ? 'Milk: '  + item.milk      : '',
+      item.sweetness  ? 'Sweet: ' + item.sweetness  : '',
+      item.ice        ? 'Ice: '   + item.ice        : '',
+      item.milk       ? 'Milk: '  + item.milk       : '',
     ].filter(Boolean).join(' • ');
-    itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '">' +
-      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '">' +
-      '<div class="cp-item-info">' +
+
+    itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '">' +
+      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
+      '<div class="cp-item-info js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
         '<div class="cp-item-name">' + escH(item.product_name) + '</div>' +
         (meta ? '<div class="cp-item-meta">' + escH(meta) + '</div>' : '') +
         (item.addons && item.addons.length
@@ -1660,125 +1640,19 @@ function renderCartPanel(data) {
       '</div>' +
     '</div>';
   });
-
-  // Free item row
-  var buy3v = parseFloat(data.buy3);
-  itemsHtml += '<div class="cp-item" id="cpFreeRow" style="' + (buy3v > 0 ? 'border-top:1px dashed #27ae60;' : 'display:none') + '">' +
-    '<div class="cp-free-icon">&#x1F381;</div>' +
-    '<div class="cp-item-info">' +
-      '<div class="cp-item-name"><span id="cpFreeName">' + escH(data.buy3_name) + '</span> <span class="cp-free-badge">FREE</span></div>' +
-      '<div class="cp-item-meta">Buy ' + data.buy3_count + ' Get 1 Free</div>' +
-      '<div class="cp-item-price" style="color:#27ae60;">FREE <s style="color:#aaa;font-size:10px;">was $<span id="cpFreePrice">' + data.buy3_price + '</span></s></div>' +
-    '</div>' +
-  '</div>';
   itemsHtml += '</div>'; // /cpItems
-
-  // Summary HTML
-  var discountType = _cpDiscountType || 'percent';
-  var manualV = parseFloat(data.manual);
-  var hhV     = parseFloat(data.happy_hour);
-  var b3V     = parseFloat(data.buy3);
-
-  // Buy3 row shows the VALUE of the free drink — purely informational.
-  // It is NOT subtracted from the total. Customer pays full price; free drink is an extra gift.
-  itemsHtml += '<div class="cp-summary" id="cpSummary">' +
-    '<div class="cp-sum-row"><span>Subtotal</span><span id="cpSubtotal">$' + data.subtotal + '</span></div>' +
-    '<div class="cp-sum-row discount" id="cpItemPromoRow" style="' + (parseFloat(data.item_promos) > 0 ? '' : 'display:none') + '">' +
-      '<span>&#x1F3F7;&#xFE0F; Item Promos</span><span id="cpItemPromoAmt">-$' + data.item_promos + '</span>' +
-    '</div>' +
-    /* Buy-X-Get-1-Free is a gift (free item row above), not a discount — no summary "-$" row. */
-    '<div class="cp-sum-row discount" id="cpHHRow" style="' + (hhV > 0 ? '' : 'display:none') + '">' +
-      '<span>&#x1F305; Happy Hour (' + data.happy_hour_pct + '% off)</span><span id="cpHHAmt">-$' + data.happy_hour + '</span>' +
-    '</div>' +
-    '<div class="cp-sum-row discount" id="cpManualRow" style="' + (manualV > 0 ? '' : 'display:none') + '">' +
-      '<span id="cpManualLabel">&#x1F3F7;&#xFE0F; ' + escH(data.manual_label) + '</span><span id="cpManualAmt">-$' + data.manual + '</span>' +
-    '</div>';
-
-  // Discount panel
-  itemsHtml += '<div id="cpDiscountPanel">';
-  if (manualV > 0) {
-    itemsHtml += '<button type="button" class="cp-discount-toggle remove" onclick="cpClearDiscount()"><i class="fa-solid fa-xmark"></i> Remove Discount</button>';
-  } else if (CP_SHOW_DISCOUNT) {
-    itemsHtml += '<button type="button" class="cp-discount-toggle" id="cpAddDiscBtn" onclick="cpOpenDiscount()"><i class="fa-solid fa-tag"></i> Add Discount</button>';
-  }
-  itemsHtml += '<div id="cpDiscountForm" style="display:none">' +
-    '<div class="cp-dtype-row"><button type="button" class="cp-dtype-btn active" id="cpDtypePercent" onclick="cpSetDType(\'percent\')">% Percent</button><button type="button" class="cp-dtype-btn" id="cpDtypeFlat" onclick="cpSetDType(\'flat\')">$ Flat</button></div>' +
-    '<div class="cp-disc-inputs"><input type="number" id="cpDiscAmount" placeholder="0" min="0" step="0.01"><input type="text" id="cpDiscReason" placeholder="Reason (e.g. Staff, VIP)" maxlength="100"></div>' +
-    '<div class="cp-disc-actions"><button type="button" class="cp-btn-apply" onclick="cpApplyDiscount()"><i class="fa-solid fa-check"></i> Apply</button><button type="button" class="cp-btn-cancel" onclick="cpCloseDiscount()">Cancel</button></div>' +
-  '</div></div>';
-
-  itemsHtml += '<div class="cp-sum-row"><span>Tax (' + CP_TAX_RATE + '%)</span><span id="cpTax">$' + data.tax + '</span></div>';
-
-  // Loyalty — must mirror the server-rendered markup above. In add-to-order mode the
-  // card belongs to the parent order, so there is nothing to link from this cart;
-  // re-emitting the Link button here would put it straight back after every render.
-  if (ADD_TO_ORDER_MODE > 0) {
-    if (PARENT_LOYALTY) {
-      itemsHtml += '<div class="cp-loyalty cp-section">' +
-        '<div class="cp-loyalty-info"><i class="fa-solid fa-star" style="color:#d1904b;margin-right:3px;"></i>' +
-        '<span class="linked">' + PARENT_LOYALTY.id + ' &mdash; ' + PARENT_LOYALTY.pts + ' pts</span>' +
-        '<span style="color:#888;"> &middot; points go to Order #' + ADD_TO_ORDER_MODE + '</span>' +
-        '</div></div>';
-    }
-  } else {
-    var loyaltyStatus = document.getElementById('cpLoyaltyStatus');
-    var loyaltyLinked = loyaltyStatus && loyaltyStatus.classList.contains('linked');
-    itemsHtml += '<div class="cp-loyalty cp-section">' +
-      '<div class="cp-loyalty-info"><i class="fa-solid fa-star" style="color:#d1904b;margin-right:3px;"></i>' +
-      '<span id="cpLoyaltyStatus"' + (loyaltyLinked ? ' class="linked"' : '') + '>' + (loyaltyStatus ? loyaltyStatus.textContent : 'Loyalty card') + '</span></div>' +
-      '<button class="cp-loyalty-btn" onclick="openLoyaltyModal()" id="cpLoyaltyBtn">' + (loyaltyLinked ? '<i class="fa-solid fa-circle-check"></i> Linked' : '<i class="fa-solid fa-credit-card"></i> Link') + '</button>' +
-    '</div>';
-  }
-
-  // Preserve state that lives inside cpBody across re-renders
-  var prevDrinkType    = (document.getElementById('cpOrderTypeInput') || {}).value || 'drink_in';
-  var prevCustomerName = (document.getElementById('cpCustomerName')   || {}).value || '';
-  var prevTableNumber  = (document.getElementById('cpTableNumber')    || {}).value || '';
-
-  // Order type section only shown for fresh orders (payment block moved to modal)
-  if (!ADD_TO_ORDER_MODE) {
-    itemsHtml += '<div class="cp-section">' +
-      '<div class="cp-section-label"><i class="fa-solid fa-mug-hot"></i> Order Type</div>' +
-      '<div class="cp-drink-type">' +
-      '<button type="button" class="cp-drink-btn active" id="cpBtnDrinkIn" onclick="cpSetDrinkType(\'drink_in\')"><i class="fa-solid fa-mug-hot"></i> Drink In</button>' +
-      '<button type="button" class="cp-drink-btn" id="cpBtnDrinkOut" onclick="cpSetDrinkType(\'drink_out\')"><i class="fa-solid fa-bag-shopping"></i> Drink Out</button>' +
-      '</div></div>';
-  }
-
-  // Customer name + stand number — only for a NEW order. In add-to-order mode both already
-  // belong to the existing order and are never re-asked (nor re-sent on submit).
-  if (!ADD_TO_ORDER_MODE) {
-  itemsHtml += '<div class="cp-form-group"><label><i class="fa-regular fa-user"></i> Customer Name</label>' +
-    '<input type="text" id="cpCustomerName" placeholder="Leave blank for Guest"></div>';
-
-  // Stand number (drink in only)
-  itemsHtml += '<div class="cp-form-group" id="cpTableNumberGroup">' +
-    '<label style="display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-hashtag"></i> Stand Number <span id="cpStandReq" style="color:#f0ad4e;font-weight:600;font-size:11px;">(required for Drink In)</span>' +
-    '<button type="button" onclick="cpToggleStandGrid()" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:#aaa;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-table-cells-large"></i> Pick</button></label>' +
-    '<input type="text" id="cpTableNumber" name="table_number" maxlength="10" placeholder="e.g. 1, 7, 12..." onblur="cpCheckStand(this.value)">' +
-    '<div id="cpStandWarn" style="display:none;margin-top:6px;padding:7px 10px;background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.35);border-radius:8px;font-size:12px;color:#f0ad4e;align-items:center;gap:6px;"><i class="fa-solid fa-triangle-exclamation"></i> <span id="cpStandWarnText"></span></div>' +
-    '<div id="cpStandGrid" style="display:none;margin-top:6px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:10px;"></div>' +
-    '</div>';
-  }
-
-  itemsHtml += '</div>'; // /cp-summary
 
   if (body) body.innerHTML = itemsHtml;
 
-  // Update total in footer
+  // Update summary values safely without duplicating or re-rendering footer HTML
+  var subtotalEl = document.getElementById('cpSubtotal');
+  if (subtotalEl) subtotalEl.textContent = '$' + data.subtotal;
+
+  var taxEl = document.getElementById('cpTax');
+  if (taxEl) taxEl.textContent = '$' + data.tax;
+
   var totalEl = document.getElementById('cpTotal');
   if (totalEl) totalEl.textContent = '$' + data.total;
-
-  if (!ADD_TO_ORDER_MODE) {
-    // Restore drink type button visuals
-    cpSetDrinkType(prevDrinkType);
-  }
-
-  // Restore customer name and table number (live in cpBody, wiped on rebuild)
-  var cnEl = document.getElementById('cpCustomerName');
-  if (cnEl && prevCustomerName) cnEl.value = prevCustomerName;
-  var tnEl = document.getElementById('cpTableNumber');
-  if (tnEl && prevTableNumber) tnEl.value = prevTableNumber;
 }
 
 // ── CART ITEM OPERATIONS ──
@@ -1933,13 +1807,12 @@ function cpOwedInCash() {
 
 function cpPrefillCashReceived() {
   var cr = document.getElementById('cpCashReceived');
+  var ri = document.getElementById('cpRielCash');
   if (!cr) return;
-  if (cr.dataset.touched !== '1') {
-    var owed = cpOwedInCash();
-    cr.value = owed > 0 ? owed.toFixed(2) : '';
-    cpCalcChange();
-  }
-  cpRenderTenderQuick();
+  cr.value = '';
+  if (ri) ri.value = '';
+  delete cr.dataset.touched;
+  cpCalcChange();
 }
 
 /* One tap for the note the customer actually handed over.
@@ -1977,9 +1850,13 @@ function cpRenderTenderQuick() {
 
 function cpSetTender(val) {
   var cr = document.getElementById('cpCashReceived');
+  var ri = document.getElementById('cpRielCash');
   if (!cr) return;
   cr.value = Number(val).toFixed(2);
-  cr.dataset.touched = '1';   // an explicit choice — never re-seed over it
+  cr.dataset.touched = '1';
+  if (ri) { ri.value = ''; }
+  var eq = document.getElementById('cpRielCashUsd');
+  if (eq) { eq.textContent = '≈ $0.00'; }
   cpCalcChange();
   cpMarkActiveTender(val);
 }
@@ -2138,20 +2015,7 @@ function cpStandGateShow(freeCount, onTakeaway) {
 }
 
 function cpRequireStand(onOk) {
-  // Only new Drink In orders need a stand.
-  if (typeof ADD_TO_ORDER_MODE !== 'undefined' && ADD_TO_ORDER_MODE) { onOk(); return; }
-  var typeEl = document.getElementById('cpOrderTypeInput');
-  if (!typeEl || typeEl.value !== 'drink_in') { onOk(); return; }
-  var inp = document.getElementById('cpTableNumber');
-  if (inp && inp.value.trim() !== '') { onOk(); return; }
-  fetch('get_stands.php')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var active = d.stands || {}, free = 0;
-      for (var i = 1; i <= CP_STAND_MAX; i++) { if (!active[String(i)]) free++; }
-      cpStandGateShow(free, onOk);
-    })
-    .catch(function() { cpStandGateShow(0, onOk); });  // lookup failed — still gated
+  if (typeof onOk === 'function') onOk();
 }
 
 // Gate before the payment step — catches both the Confirm button and the
@@ -2174,6 +2038,12 @@ function cpOpenPayModalNow() {
   var khr = Math.round(total * CP_KHR_RATE / 100) * 100;
   var khrEl = document.getElementById('cpPmKhr');
   if (khrEl) khrEl.textContent = '៛ ' + khr.toLocaleString();
+
+  // Ensure cash is checked and change calculator is active
+  var cashCb = document.querySelector('#cpPayMethods input[value="cash"]');
+  if (cashCb) cashCb.checked = true;
+  cpUpdateConfirmBtn(['cash']);
+
   document.getElementById('cpPayModal').classList.add('active');
 }
 function cpClosePayModal() {
@@ -2194,13 +2064,74 @@ function cpClosePayModal() {
   cpUpdateConfirmBtn([]);
   cpUpdateSplitInputs();
 }
+function cpSelectDirectPayment(el, method) {
+  var container = document.getElementById('cpDirectPayMethods');
+  if (container) {
+    container.querySelectorAll('.cp-pay-method').forEach(function(item) {
+      item.classList.remove('selected');
+      item.style.border = '1.5px solid var(--border,#e0d4c4)';
+      item.style.background = 'var(--bg,#f4efe9)';
+      var cb = item.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = false;
+    });
+  }
+  el.classList.add('selected');
+  var checkbox = el.querySelector('input[type="checkbox"]');
+  if (checkbox) checkbox.checked = true;
+
+  if (method === 'cash') {
+    el.style.border = '1.5px solid #27ae60';
+    el.style.background = 'rgba(39,174,96,.12)';
+  } else if (method === 'bakong') {
+    el.style.border = '1.5px solid #e0454a';
+    el.style.background = 'rgba(224,69,74,.12)';
+  } else if (method === 'paylater') {
+    el.style.border = '1.5px solid #e8973a';
+    el.style.background = 'rgba(232,151,58,.12)';
+  }
+}
+window.cpSelectDirectPayment = cpSelectDirectPayment;
+
 function cpOnConfirmOrderClick() {
-  if (typeof ADD_TO_ORDER_MODE !== 'undefined' && ADD_TO_ORDER_MODE) {
-    // add-to-order has no payment step — submit directly
-    document.getElementById('cpCheckoutForm').requestSubmit();
+  if (cpGetCartTotal() <= 0) {
+    alert('Your cart is empty!');
     return;
   }
+  if (!confirmOrderSubmit()) return;
+
+  var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
+  var methodVal = selectedCb ? selectedCb.value : 'cash';
+
+  // If Bakong payment is selected, submit form directly to create order and show Bakong KHQR modal!
+  if (methodVal === 'bakong') {
+    var form = document.getElementById('cpCheckoutForm');
+    if (form) {
+      var directCb = form.querySelector('#cpDirectPayMethods input[name="payment_methods[]"][value="bakong"]');
+      if (directCb) directCb.checked = true;
+      form.submit();
+      return;
+    }
+  }
+
+  // Open payment modal so cashier can enter received money ($ / Riel) and see change back
   cpOpenPayModal();
+
+  var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
+  var methodVal = selectedCb ? selectedCb.value : 'cash';
+
+  var modalMethod = document.querySelector('#cpPayMethods .cp-pay-method[data-method="' + methodVal + '"]');
+  if (modalMethod) {
+    var cb = modalMethod.querySelector('input[type="checkbox"]');
+    if (cb && !cb.checked) {
+      cpTogglePayment(modalMethod);
+    }
+  } else {
+    var defaultCash = document.querySelector('#cpPayMethods .cp-pay-method[data-method="cash"]');
+    if (defaultCash) {
+      var cb = defaultCash.querySelector('input[type="checkbox"]');
+      if (cb && !cb.checked) cpTogglePayment(defaultCash);
+    }
+  }
 }
 
 // ── SPLIT PAYMENT ──
@@ -2288,23 +2219,73 @@ function cpCashReceivedUsd() {
 
 function cpCalcChange() {
   var el = document.getElementById('cpChangeAmount');
-  if (!el) return;
+  var elDollar = document.getElementById('cpChangeDollar');
+  var elRiel = document.getElementById('cpChangeRiel');
+  var elMixed = document.getElementById('cpChangeMixed');
+
   var received = cpCashReceivedUsd();
   var owed     = cpOwedInCash();
-  // Follow the currency: a tender that is riel and nothing else comes back
-  // entirely in riel. Derived from the two fields through tender.js so this
-  // modal, the counter screen and the printed receipt cannot disagree about
-  // which tenders are riel-only.
   var ch       = tenderChange(received, owed, CP_KHR_RATE,
                               tenderFieldsRielOnly('cpCashReceived', 'cpRielCash'));
 
   var warn = document.getElementById('cpShortWarn');
   if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
 
-  if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
-  el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
-  el.textContent = tenderChangeText(ch, received, owed);
+  var changeUsd = Math.max(0, received - owed);
+  var changeKhr = Math.round((changeUsd * CP_KHR_RATE) / 100) * 100;
+
+  var mixedUsd = Math.floor(changeUsd / 5) * 5;
+  var mixedKhr = Math.round(((changeUsd - mixedUsd) * CP_KHR_RATE) / 100) * 100;
+  var mixedStr = '$0.00';
+  if (changeUsd > 0) {
+    if (mixedUsd > 0 && mixedKhr > 0) {
+      mixedStr = '$' + mixedUsd + ' + ៛' + mixedKhr.toLocaleString();
+    } else if (mixedUsd > 0) {
+      mixedStr = '$' + mixedUsd.toFixed(2);
+    } else {
+      mixedStr = '៛' + mixedKhr.toLocaleString();
+    }
+  }
+
+  if (elDollar) elDollar.textContent = '$' + changeUsd.toFixed(2);
+  if (elRiel) elRiel.textContent = '៛' + changeKhr.toLocaleString();
+  if (elMixed) elMixed.textContent = mixedStr;
+
+  if (el) {
+    if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
+    el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
+    el.textContent = tenderChangeText(ch, received, owed);
+  }
 }
+
+function cpSelectChangeCurrency(curr) {
+  var bUsd = document.querySelector('#cpChangeCurrencySelect button[data-curr="usd"]');
+  var bKhr = document.querySelector('#cpChangeCurrencySelect button[data-curr="khr"]');
+  var bMixed = document.querySelector('#cpChangeCurrencySelect button[data-curr="mixed"]');
+
+  var boxUsd = document.getElementById('cpChangeBoxUsd');
+  var boxKhr = document.getElementById('cpChangeBoxKhr');
+  var boxMixed = document.getElementById('cpChangeBoxMixed');
+
+  [bUsd, bKhr, bMixed].forEach(function(b) {
+    if (b) { b.style.background = 'transparent'; b.style.color = '#aaa'; b.classList.remove('active'); }
+  });
+  [boxUsd, boxKhr, boxMixed].forEach(function(box) {
+    if (box) box.style.display = 'none';
+  });
+
+  if (curr === 'khr') {
+    if (bKhr) { bKhr.style.background = '#55e087'; bKhr.style.color = '#000'; bKhr.classList.add('active'); }
+    if (boxKhr) boxKhr.style.display = 'flex';
+  } else if (curr === 'usd') {
+    if (bUsd) { bUsd.style.background = '#55e087'; bUsd.style.color = '#000'; bUsd.classList.add('active'); }
+    if (boxUsd) boxUsd.style.display = 'flex';
+  } else {
+    if (bMixed) { bMixed.style.background = '#55e087'; bMixed.style.color = '#000'; bMixed.classList.add('active'); }
+    if (boxMixed) boxMixed.style.display = 'flex';
+  }
+}
+window.cpSelectChangeCurrency = cpSelectChangeCurrency;
 
 function cpOnRielInput() {
   tenderOnRielInput('cpCashReceived', 'cpRielCash', 'cpRielCashUsd', CP_KHR_RATE);
@@ -2346,13 +2327,12 @@ function cpSetDrinkType(type) {
   var dout = document.getElementById('cpBtnDrinkOut');
   if (din)  din.classList.toggle('active',  type === 'drink_in');
   if (dout) dout.classList.toggle('active', type === 'drink_out');
-  var tg = document.getElementById('cpTableNumberGroup');
-  if (tg) tg.style.display = (type === 'drink_in') ? '' : 'none';
-  if (type === 'drink_out') {
-    var tf = document.getElementById('cpTableNumber');
-    if (tf) tf.value = '';
-  }
 }
+
+function confirmOrderSubmit() {
+  return true;
+}
+window.confirmOrderSubmit = confirmOrderSubmit;
 
 // ── CHECKOUT FORM SUBMIT ──
 document.addEventListener('DOMContentLoaded', function() {
@@ -2364,36 +2344,46 @@ document.addEventListener('DOMContentLoaded', function() {
       if (selected.length === 0 && !ADD_TO_ORDER_MODE) { alert('Please select a payment method.'); return; }
       if (ADD_TO_ORDER_MODE) selected = ['paylater'];
 
-      // Customer name / stand number are properties of the ORDER, not of an add. In
-      // add-to-order mode the fields aren't rendered and nothing is posted, so the
-      // existing order keeps its own name and stand.
       if (!ADD_TO_ORDER_MODE) {
-        // Sync customer name to hidden input in form
-        var nameInput = document.getElementById('cpCustomerName');
-        var existingName = form.querySelector('input[name="customer_name"]');
-        if (!existingName) {
-          existingName = document.createElement('input');
-          existingName.type = 'hidden'; existingName.name = 'customer_name';
-          form.appendChild(existingName);
-        }
-        existingName.value = nameInput ? nameInput.value : '';
+        if (!confirmOrderSubmit()) return;
 
-        // Sync table number to hidden input in form
-        var tableInput = document.getElementById('cpTableNumber');
+        // Sync table / stand number to hidden input in form
+        var tableInput = document.getElementById('stand-number-input') || document.getElementById('cpTableNumber');
         var existingTable = form.querySelector('input[name="table_number"]');
         if (!existingTable) {
           existingTable = document.createElement('input');
           existingTable.type = 'hidden'; existingTable.name = 'table_number';
           form.appendChild(existingTable);
         }
-        existingTable.value = (tableInput && document.getElementById('cpOrderTypeInput').value === 'drink_in') ? tableInput.value : '';
+        existingTable.value = tableInput ? tableInput.value : '';
       }
 
       var total = cpGetCartTotal();
+      var selected = cpGetSelected();
+      if (selected.length === 0) selected = ['cash'];
+
+      if (selected.includes('cash')) {
+        var recUsd = cpCashReceivedUsd();
+        if (recUsd <= 0) {
+          alert('Please enter received money!');
+          var crInput = document.getElementById('cpCashReceived');
+          if (crInput) crInput.focus();
+          return;
+        }
+        if (recUsd < total - 0.005) {
+          alert('Amount received ($' + recUsd.toFixed(2) + ') is lower than the total price ($' + total.toFixed(2) + ')!');
+          var crInput = document.getElementById('cpCashReceived');
+          if (crInput) crInput.focus();
+          return;
+        }
+      }
+
       var splits = document.querySelectorAll('.cp-split-amount');
       var selectedAmounts = [];
 
-      if (splits.length > 0 && document.getElementById('cpSplitInputs') && document.getElementById('cpSplitInputs').classList.contains('active')) {
+      var isSplitActive = (splits.length > 0 && document.getElementById('cpSplitInputs') && document.getElementById('cpSplitInputs').classList.contains('active'));
+
+      if (isSplitActive) {
         // Sum in USD (convert KHR inputs)
         var sumUsd = 0;
         splits.forEach(function(inp) { sumUsd += cpInputToUsd(inp); });
@@ -2408,7 +2398,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         splits.forEach(function(inp) { selectedAmounts.push(parseFloat(inp.value).toFixed(2)); });
       } else {
-        selected.forEach(function() { selectedAmounts.push(total.toFixed(2)); });
+        if (selected.length > 1) {
+          selected = [selected[0]];
+        }
+        selectedAmounts = [total.toFixed(2)];
       }
 
       var container = document.getElementById('cpPaymentInputs');
@@ -2433,6 +2426,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var h2 = document.createElement('input'); h2.type='hidden'; h2.name='payment_amounts[]'; h2.value=usdAmount; container.appendChild(h2);
         var h3 = document.createElement('input'); h3.type='hidden'; h3.name='payment_references[]'; h3.value=reference; container.appendChild(h3);
       });
+      try {
+        window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+      } catch(err) {}
       form.submit();
     });
   }
@@ -2441,6 +2437,26 @@ document.addEventListener('DOMContentLoaded', function() {
   var confirmPayBtn = document.getElementById('cpConfirmPayBtn');
   if (confirmPayBtn) {
     confirmPayBtn.addEventListener('click', function() {
+      var selected = cpGetSelected();
+      if (selected.length === 0 || selected.includes('cash')) {
+        var recUsd = cpCashReceivedUsd();
+        var total  = cpGetCartTotal();
+        if (recUsd <= 0) {
+          alert('Please enter received money!');
+          var crInput = document.getElementById('cpCashReceived');
+          if (crInput) crInput.focus();
+          return;
+        }
+        if (recUsd < total - 0.005) {
+          alert('Amount received ($' + recUsd.toFixed(2) + ') is lower than the total price ($' + total.toFixed(2) + ')!');
+          var crInput = document.getElementById('cpCashReceived');
+          if (crInput) crInput.focus();
+          return;
+        }
+      }
+      try {
+        window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+      } catch(err) {}
       document.getElementById('cpCheckoutForm').requestSubmit();
     });
   }
@@ -2719,5 +2735,163 @@ function cpCheckStand(val) {
 }
 
 </script>
+<?php 
+$_print_order_no = '';
+if (isset($_GET['print_order_id'])) {
+    $_p_id = (int)$_GET['print_order_id'];
+    $_stmt_p = $conn->prepare("SELECT daily_order_no FROM orders WHERE order_id = ?");
+    if ($_stmt_p) {
+        $_stmt_p->bind_param("i", $_p_id);
+        $_stmt_p->execute();
+        $_res_p = $_stmt_p->get_result()->fetch_assoc();
+        if ($_res_p && !empty($_res_p['daily_order_no'])) {
+            $_print_order_no = sprintf('%03d', (int)$_res_p['daily_order_no']);
+        }
+        $_stmt_p->close();
+    }
+}
+?>
+<?php if (isset($_GET['print_order_id'])): ?>
+<style>
+.order-toast-right {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 999999;
+    background: #18181b;
+    border: 1px solid rgba(85, 224, 135, 0.4);
+    border-left: 5px solid #55e087;
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+    animation: slideInRight 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    min-width: 300px;
+    max-width: 90vw;
+}
+@keyframes slideInRight {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.order-toast-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(85, 224, 135, 0.15);
+    color: #55e087;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.order-toast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.order-toast-title {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+}
+.order-toast-msg {
+    color: #a1a1aa;
+    font-size: 13px;
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+}
+.order-toast-close {
+    background: none;
+    border: none;
+    color: #71717a;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+.order-toast-close:hover {
+    color: #ffffff;
+}
+</style>
+
+<div class="order-toast-right" id="orderSuccessAlert">
+    <div class="order-toast-icon">
+        <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <div class="order-toast-content">
+        <h4 class="order-toast-title">Order #<?= htmlspecialchars($_print_order_no ?: '001') ?></h4>
+        <p class="order-toast-msg">Done! Sent to printer 🖨️</p>
+    </div>
+    <button type="button" onclick="printReceipt(<?= (int)$_GET['print_order_id'] ?>)" class="print-toast-btn" style="background:#d1904b;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;">
+        <i class="fa-solid fa-print"></i> Print
+    </button>
+    <button type="button" class="order-toast-close" onclick="closeOrderSuccessAlert()" title="Close">
+        <i class="fa-solid fa-xmark"></i>
+    </button>
+</div>
+
+<script>
+function printReceipt(orderId) {
+    if (!orderId) return;
+    var printWin = window.open('receipt_print.php?order_id=' + orderId + '&auto_print=1', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+    if (printWin) {
+        try { printWin.focus(); } catch(e) {}
+    }
+}
+
+function closeOrderSuccessAlert() {
+    var el = document.getElementById('orderSuccessAlert');
+    if (el) el.remove();
+}
+
+setTimeout(closeOrderSuccessAlert, 7000);
+
+document.addEventListener("DOMContentLoaded", function() {
+    var printOrderId = <?= (int)($_GET['print_order_id'] ?? 0) ?>;
+    if (printOrderId > 0) {
+        // Automatically open receipt popup for printing
+        printReceipt(printOrderId);
+
+        var existingFrame = document.getElementById('receiptPrintFrame');
+        if (existingFrame) existingFrame.remove();
+
+        var iframe = document.createElement('iframe');
+        iframe.id = 'receiptPrintFrame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '10px';
+        iframe.style.height = '10px';
+        iframe.style.opacity = '0';
+        iframe.style.pointerEvents = 'none';
+        iframe.style.border = '0';
+        iframe.src = 'receipt_print.php?order_id=' + printOrderId + '&auto_print=1';
+        document.body.appendChild(iframe);
+
+        setTimeout(function() {
+            if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        }, 60000);
+    }
+
+    if (window.history && window.history.replaceState) {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('print_order_id');
+        window.history.replaceState({}, document.title, url.toString());
+    }
+});
+</script>
+<?php endif; ?>
+<script src="assets/js/menu.js?v=<?= filemtime(__DIR__.'/assets/js/menu.js') ?>"></script>
+</main>
+</div>
+<?php include __DIR__ . '/bakong_modal_partial.php'; ?>
+<?php include __DIR__ . '/receipt_modal_partial.php'; ?>
 </body>
 </html>

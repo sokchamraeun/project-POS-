@@ -23,8 +23,16 @@ if (isset($_POST['update'])) {
 
     if (!empty($_FILES['photo']['name'])) {
         $ext    = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
-        $okSize = $_FILES['photo']['size'] > 0 && $_FILES['photo']['size'] <= 5 * 1024 * 1024; // 5MB cap
-        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']) && $okSize && @getimagesize($_FILES['photo']['tmp_name']) !== false) {
+        $okSize = $_FILES['photo']['size'] > 0 && $_FILES['photo']['size'] <= 15 * 1024 * 1024; // 15MB cap
+        $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif','heic','heif','jfif','pjpeg','pjp','apng','cur','dng'];
+        $isImageMime = false;
+        if (function_exists('finfo_open') && !empty($_FILES['photo']['tmp_name'])) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime  = finfo_file($finfo, $_FILES['photo']['tmp_name']);
+            finfo_close($finfo);
+            $isImageMime = (strpos($mime, 'image/') === 0);
+        }
+        if ((in_array($ext, $allowedExts) || $isImageMime) && $okSize) {
             if (!is_dir('uploads')) mkdir('uploads');
             $photo = 'uploads/' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
             move_uploaded_file($_FILES['photo']['tmp_name'], $photo);

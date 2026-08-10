@@ -106,6 +106,7 @@ try {
 <title>Edit — <?= htmlspecialchars($ing['ingredient_name']) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
 :root {
     --bg:      #0c0c0c;
@@ -439,21 +440,36 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
 </style>
 </head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
 <div class="orb orb-a"></div>
 <div class="orb orb-b"></div>
 
-<!-- NAV -->
-<nav class="topnav">
-    <a class="back-btn" href="ingredients.php">
-        <i class="fa-solid fa-arrow-left"></i> Ingredients
-    </a>
-    <div class="breadcrumb">
-        <i class="fa-solid fa-chevron-right" style="font-size:10px"></i>
-        <span><?= htmlspecialchars($ing['ingredient_name']) ?></span>
-    </div>
-</nav>
+<!-- MODAL BACKDROP -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
+    <!-- MODAL DIALOG CONTAINER -->
+    <div class="relative w-full max-w-5xl max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
+        
+        <!-- MODAL HEADER -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#d1904b]/10 border border-[#d1904b]/30 text-[#d1904b] flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-white leading-tight">Edit Ingredient</h2>
+                    <p class="text-xs text-[#888]"><?= htmlspecialchars($ing['ingredient_name']) ?> (ID #<?= $id ?>)</p>
+                </div>
+            </div>
+            
+            <a href="ingredients.php" class="w-9 h-9 rounded-xl bg-[#22222a] text-[#888] hover:text-white hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Close Modal (Esc)">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </a>
+        </div>
 
-<div class="page-wrap">
+        <!-- MODAL BODY -->
+        <div class="flex-1 overflow-y-auto p-6">
 
     <!-- HEADER -->
     <div class="ingredient-header" style="border-left: 4px solid <?= $statusColor ?>">
@@ -657,7 +673,11 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
         </div>
     </div>
 
-</div><!-- /page-wrap -->
+        </div><!-- /modal-body -->
+    </div><!-- /modal-dialog -->
+</div><!-- /modal-backdrop -->
+</main>
+</div><!-- /app-layout -->
 
 <!-- TOAST -->
 <div class="toast" id="toast">
@@ -715,9 +735,10 @@ fCost.addEventListener('input', updatePreview);
 fMin.addEventListener('input', updateMinHint);
 updateMinHint();
 
-// Ctrl+Enter shortcut
+// Ctrl+Enter shortcut to save, Escape key to close modal
 document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') document.getElementById('editForm').submit();
+    if (e.key === 'Escape') window.location.href = 'ingredients.php';
 });
 
 // Show success toast

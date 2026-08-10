@@ -77,58 +77,41 @@ function tenderChange(receivedUsdTotal, owed, rate, allRiel) {
    screen cannot drift apart — they must agree to the cent. */
 function tenderChangeText(ch, received, owed) {
   if (ch.short) { return 'Need $' + (owed - received).toFixed(2) + ' more'; }
-  if (ch.khr > 0) {
-    return ch.usd > 0
-      ? '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString()
-      : '៛' + ch.khr.toLocaleString();
+  var r = (typeof window !== 'undefined' && window.CP_KHR_RATE) ? window.CP_KHR_RATE : 4100;
+  var changeUsd = Math.max(0, received - owed);
+  var changeKhr = Math.round((changeUsd * r) / 100) * 100;
+
+  if (changeUsd <= 0) return '$0.00';
+
+  if (ch.usd > 0 && ch.khr > 0) {
+    return '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString();
   }
-  return '$' + ch.usd.toFixed(2);
+
+  return '$' + changeUsd.toFixed(2) + ' or ៛' + changeKhr.toLocaleString();
 }
 
 /* ── DOM helpers ──────────────────────────────────────────────────────────
    Shared so menu.php and _cash_tender.php do not each carry a copy. Called by
    the host page after its markup exists; never bound on load. */
 
-/* The combined tender in dollars. Keyed on BOTH fields: with dollars and riel
-   separate, zero dollars is the normal riel-only case, and a dollars-only test
-   would leave the change line at $0.00 while the cashier holds 5,500 riel. */
 function tenderCashReceivedUsd(usdId, khrId, rate) {
   var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
   var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
   return Math.max(0, usd) + Math.max(0, khr) / rate;
 }
 
-/* The follow-the-currency flag for a LIVE screen, which holds two input fields
-   and no stored reference yet. Shaped into the same {usd, khr} that
-   tenderParts() produces and answered by the same tenderIsRielOnly(), so the
-   checkout modal, the counter screen and the receipt all decide "riel-only" by
-   one rule. Re-deriving the test inline at each screen is how the $4.00/$3.99
-   mismatch happened once already. */
 function tenderFieldsRielOnly(usdId, khrId) {
   var usd = parseFloat((document.getElementById(usdId) || {}).value) || 0;
   var khr = parseFloat((document.getElementById(khrId) || {}).value) || 0;
-  // Rounded to cents FIRST, because that is what gets stored: tenderRef() and
-  // PHP's tender_ref() both format the dollar part to 2dp. A raw $0.004 typed
-  // beside a riel amount is not riel-only on screen but stores as "0.00|8000",
-  // which reads back as riel-only — so the receipt would show all-riel change
-  // while the screen showed dollars first. That is the same drift that once put
-  // $4.00 on screen against $3.99 on paper, and it is not repeating here.
   usd = Math.round(Math.max(0, usd) * 100) / 100;
   return tenderIsRielOnly({ usd: usd, khr: Math.max(0, khr) });
 }
 
-/* The prefill trap. The dollar field is pre-seeded with the exact total so
-   one-tap exact cash stays one tap. With a second field that seed is dangerous:
-   a prefilled $1.34 plus a typed ៛5,500 reads as $2.68 received on a $1.34
-   order, and the screen would confidently show change that was never owed.
-   The first real keystroke in the riel field clears an UNTOUCHED dollar
-   prefill. A dollar amount the cashier typed themselves carries
-   dataset.touched and is never cleared. */
 function tenderOnRielInput(usdId, khrId, eqId, rate) {
   var ri  = document.getElementById(khrId);
   var cr  = document.getElementById(usdId);
   var khr = Math.max(0, parseFloat(ri ? ri.value : 0) || 0);
-  if (cr && cr.dataset.touched !== '1' && khr > 0) { cr.value = ''; }
+  if (cr && khr > 0) { cr.value = ''; delete cr.dataset.touched; }
   var eq = document.getElementById(eqId);
   if (eq) { eq.textContent = '≈ $' + (khr / rate).toFixed(2); }
 }

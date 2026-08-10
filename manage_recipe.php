@@ -1,7 +1,7 @@
 <?php
 require 'auth.php';
 require 'config.php';
-if (!can('manage_recipes')) { header("Location: recipes_view.php"); exit; }
+if (!can('manage_recipes')) { header("Location: products.php"); exit; }
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 /* ================= SAVE RECIPE ================= */
@@ -685,7 +685,7 @@ input:disabled {
 <body>
 
 <!-- Back Button -->
-<a class="back-btn" href="recipes_view.php">
+<a class="back-btn" href="products.php">
     <i class="fa-solid fa-arrow-left"></i> Back
 </a>
 

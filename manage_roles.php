@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
             $sr->bind_param("ss", $reassign, $slug);
             $sr->execute();
         }
-        $sd = $conn->prepare("DELETE FROM roles WHERE slug=? AND is_system=0");
+        $sd = $conn->prepare("DELETE FROM roles WHERE slug=? AND slug!='admin'");
         $sd->bind_param("s", $slug); $sd->execute();
         if ($sd->affected_rows > 0) {
             $detail = $reassign !== '' ? "reassigned_to=$reassign" : 'no_employees';
@@ -382,6 +382,7 @@ $module_count = count($all_perms);
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');}());</script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
 :root {
     --bg:#0b0b0b; --bg-card:#131313; --bg-card-hover:#1a1a1a; --bg-input:#1a1a1a;
@@ -451,20 +452,18 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 .hero-badge { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(209,144,75,.1); color:var(--accent); border:1px solid rgba(209,144,75,.2); margin-left:8px; vertical-align:middle; }
 
 /* ── STATS BAR ── */
-.stats-bar  { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.stats-bar  { display:flex; align-items:center; gap:12px; flex-shrink:0; }
 .stat-chip  {
-    display:flex; align-items:center; gap:8px; padding:10px 16px;
-    background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
-    transition:var(--transition);
+    display:flex; align-items:center; gap:12px; padding:14px 20px;
+    background:var(--bg-card,#131313); border:1px solid var(--border,#222); border-radius:14px;
 }
-.stat-chip:hover { border-color:var(--border-hover); }
-.stat-chip-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+.stat-chip-icon { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
 .stat-chip-icon.ic-roles   { background:rgba(209,144,75,.1); color:var(--accent); }
 .stat-chip-icon.ic-perms   { background:rgba(52,152,219,.1);  color:#3498db; }
 .stat-chip-icon.ic-modules { background:rgba(85,224,135,.1);  color:#55e087; }
 .stat-chip-body { display:flex; flex-direction:column; line-height:1.2; }
-.stat-chip-num  { font-size:17px; font-weight:800; color:var(--text-light); }
-.stat-chip-lbl  { font-size:10px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.stat-chip-num  { font-size:20px; font-weight:800; color:var(--text-light); }
+.stat-chip-lbl  { font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
 
 /* ── SECTION HEADERS ── */
 .sec-hdr {
@@ -479,11 +478,9 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 .roles-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; animation:fadeUp .45s cubic-bezier(.22,1,.36,1) both; animation-delay:.12s; }
 
 .role-card {
-    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+    background:var(--bg-card,#131313); border:1px solid var(--border,#222); border-radius:14px;
     display:flex; flex-direction:column; overflow:hidden; position:relative;
-    transition:var(--transition);
 }
-.role-card:hover { border-color:var(--border-hover); box-shadow:var(--shadow-md); transform:translateY(-3px); }
 .role-card-accent { height:3px; flex-shrink:0; }
 .r-admin   .role-card-accent { background:linear-gradient(90deg,#a0702a,#d1904b,#e8b87a); }
 .r-manager .role-card-accent { background:linear-gradient(90deg,#1a6899,#3498db,#5dade2); }
@@ -547,18 +544,18 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
     color:var(--text-muted); font-size:13px; pointer-events:none;
 }
 .perm-search {
-    padding:9px 14px 9px 36px; border-radius:10px; border:1px solid var(--border);
-    background:var(--bg-input); color:var(--text); font-family:'Poppins',sans-serif;
-    font-size:13px; outline:none; transition:var(--transition); width:230px;
+    padding:10px 16px 10px 36px; border-radius:12px; border:1px solid var(--border,#222);
+    background:var(--bg-card,#131313); color:var(--text); font-family:'Poppins',sans-serif;
+    font-size:13px; outline:none; transition:var(--transition); width:280px;
 }
 .perm-search:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(209,144,75,.1); }
 .perm-search::placeholder { color:var(--text-muted); }
 
-.module-filters { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.module-filters { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .mod-filter-btn {
-    display:inline-flex; align-items:center; gap:5px; padding:6px 12px;
-    border-radius:20px; border:1px solid var(--border); background:var(--bg-input);
-    color:var(--text-muted); font-size:11px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; padding:8px 14px;
+    border-radius:12px; border:1px solid var(--border,#222); background:var(--bg-card,#131313);
+    color:var(--text-muted); font-size:12px; font-weight:600; cursor:pointer;
     transition:var(--transition); font-family:'Poppins',sans-serif; white-space:nowrap;
 }
 .mod-filter-btn:hover { border-color:var(--border-hover); color:var(--text); }
@@ -567,19 +564,20 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 .mod-filter-btn.active .mod-badge { background:rgba(209,144,75,.15); }
 
 /* ── TABLE ── */
-.table-wrap { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm); }
-.table-scroll { overflow-x:auto; }
+.table-wrap { background:var(--bg-card,#131313); border:1px solid var(--border,#222); border-radius:14px; overflow:hidden; }
+.table-scroll { overflow-x:auto; max-height:650px; }
 table { width:100%; border-collapse:collapse; font-size:13px; }
 
 thead th {
-    padding:12px 20px; text-align:left; font-size:10px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.65px; color:var(--text-muted);
-    background:var(--bg-card); border-bottom:2px solid var(--border);
+    position:sticky; top:0; z-index:10;
+    padding:14px 20px; text-align:left; font-size:11px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);
+    background:var(--bg-card,#131313); border-bottom:1px solid var(--border,#222);
     white-space:nowrap;
 }
 thead th.role-col { text-align:center; }
 
-td { padding:12px 20px; border-bottom:1px solid var(--border); color:var(--text); transition:background .12s; vertical-align:middle; }
+td { padding:14px 20px; border-bottom:1px solid var(--border,#222); color:var(--text); transition:background .12s; vertical-align:middle; }
 tr:last-child td { border-bottom:none; }
 .perm-row:hover td { background:rgba(255,255,255,.018); }
 [data-theme="light"] .perm-row:hover td { background:rgba(0,0,0,.02); }
@@ -622,6 +620,176 @@ tr:last-child td { border-bottom:none; }
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.78); backdrop-filter:blur(12px); z-index:9999; display:none; align-items:center; justify-content:center; padding:20px; }
 .modal-overlay.open { display:flex; }
 .modal-box { background:var(--bg-card); border:1px solid var(--border); border-radius:20px; max-width:520px; width:100%; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 28px 70px rgba(0,0,0,.65); animation:popIn .22s ease both; position:relative; }
+.modal-box-lg { max-width:860px; }
+
+/* ── 2-BOX PERMISSION LAYOUT ── */
+.perm-two-box-layout {
+    display: flex;
+    gap: 16px;
+    padding: 14px 0 6px;
+    height: 480px;
+    max-height: 60vh;
+}
+@media (max-width: 640px) {
+    .perm-two-box-layout {
+        flex-direction: column;
+        height: auto;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+}
+
+.box-main-perms {
+    width: 270px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-input, #1a1a1a);
+    border: 1px solid var(--border, #222);
+    border-radius: 14px;
+    overflow: hidden;
+}
+.box-sub-perms {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-input, #1a1a1a);
+    border: 1px solid var(--border, #222);
+    border-radius: 14px;
+    overflow: hidden;
+}
+@media (max-width: 640px) {
+    .box-main-perms, .box-sub-perms {
+        width: 100%;
+        max-height: 260px;
+    }
+}
+
+.box-hdr {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border, #222);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--text-muted, #888);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+.box-hdr-badge {
+    background: rgba(255, 255, 255, 0.07);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.box-main-list, .box-sub-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.box-main-list::-webkit-scrollbar, .box-sub-list::-webkit-scrollbar {
+    width: 4px;
+}
+.box-main-list::-webkit-scrollbar-thumb, .box-sub-list::-webkit-scrollbar-thumb {
+    background: var(--border-hover, #333);
+    border-radius: 4px;
+}
+
+.main-perm-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1.5px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: all .18s ease;
+    user-select: none;
+}
+.main-perm-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+.main-perm-item.active {
+    background: rgba(209, 144, 75, 0.12);
+    border-color: var(--accent, #d1904b);
+}
+.main-perm-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.main-perm-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+.main-perm-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+}
+.main-perm-count {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+}
+.main-perm-count.all-selected {
+    background: rgba(85, 224, 135, 0.15);
+    color: #55e087;
+    border: 1px solid rgba(85, 224, 135, 0.3);
+}
+.main-perm-count.some-selected {
+    background: rgba(209, 144, 75, 0.15);
+    color: var(--accent, #d1904b);
+    border: 1px solid rgba(209, 144, 75, 0.3);
+}
+
+.sub-perm-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card, #131313);
+    cursor: pointer;
+    transition: all .18s ease;
+    user-select: none;
+}
+.sub-perm-item:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+}
+.btn-select-sm {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+}
+.btn-select-sm:hover {
+    text-decoration: underline;
+}
 @keyframes popIn { from{opacity:0;transform:scale(.92) translateY(16px)} to{opacity:1;transform:scale(1) translateY(0)} }
 
 .modal-accent { height:3px; border-radius:20px 20px 0 0; flex-shrink:0; }
@@ -696,10 +864,10 @@ tr:last-child td { border-bottom:none; }
 
 /* ── Create Role button ── */
 .btn-create-role {
-    display:inline-flex;align-items:center;gap:6px;
-    padding:7px 14px;border-radius:9px;border:1px solid rgba(209,144,75,.35);
+    display:inline-flex;align-items:center;gap:7px;
+    padding:8px 16px;border-radius:12px;border:1px solid rgba(209,144,75,.35);
     background:rgba(209,144,75,.1);color:var(--accent);
-    font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+    font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;
     transition:all .2s;
 }
 .btn-create-role:hover { background:rgba(209,144,75,.22);transform:translateY(-1px);box-shadow:0 4px 14px rgba(209,144,75,.15); }
@@ -796,30 +964,20 @@ tr:last-child td { border-bottom:none; }
 </style>
 </head>
 <body>
-
-<!-- TOPBAR -->
-<div class="topbar">
-    <a href="dashboard.php" class="btn-nav icon-only" title="Back to dashboard"><i class="fa-solid fa-arrow-left"></i></a>
-    <div class="topbar-sep"></div>
-    <div class="brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
-    <div class="brand-text">
-        <span class="brand-title">Role Permissions</span>
-        <span class="brand-sub">Bird's Nest Coffee &rsaquo; Admin</span>
-    </div>
-    <div class="topbar-right">
-        <button class="btn-nav icon-only" onclick="toggleTheme()" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
-    </div>
-</div>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto p-6">
 
 <div class="container">
+    <?php $page_title = __('nav_manage_roles', 'Manage Roles'); require __DIR__ . '/header_bar.php'; ?>
 
     <!-- HERO -->
     <div class="page-hero">
         <div class="hero-left">
             <div class="hero-icon"><i class="fa-solid fa-shield-halved"></i></div>
             <div>
-                <div class="hero-title">Manage Role Permissions <span class="hero-badge"><i class="fa-solid fa-lock" style="font-size:9px"></i> Admin Only</span></div>
-                <div class="hero-sub">Control which pages and features each role can access. Admin always retains full access.</div>
+                <div class="hero-title"><?= __('manage_role_permissions', 'Manage Role Permissions') ?> <span class="hero-badge"><i class="fa-solid fa-lock" style="font-size:9px"></i> <?= __('admin_only', 'Admin Only') ?></span></div>
+                <div class="hero-sub"><?= __('manage_role_sub', 'Control which pages and features each role can access. Admin always retains full access.') ?></div>
             </div>
         </div>
         <div class="stats-bar">
@@ -827,23 +985,29 @@ tr:last-child td { border-bottom:none; }
                 <div class="stat-chip-icon ic-roles"><i class="fa-solid fa-users"></i></div>
                 <div class="stat-chip-body">
                     <span class="stat-chip-num"><?= count($roles) ?></span>
-                    <span class="stat-chip-lbl">Roles</span>
+                    <span class="stat-chip-lbl"><?= __('roles', 'Roles') ?></span>
                 </div>
             </div>
             <div class="stat-chip">
                 <div class="stat-chip-icon ic-perms"><i class="fa-solid fa-key"></i></div>
                 <div class="stat-chip-body">
                     <span class="stat-chip-num"><?= $total_perm_count ?></span>
-                    <span class="stat-chip-lbl">Permissions</span>
+                    <span class="stat-chip-lbl"><?= __('permissions', 'Permissions') ?></span>
                 </div>
             </div>
             <div class="stat-chip">
                 <div class="stat-chip-icon ic-modules"><i class="fa-solid fa-layer-group"></i></div>
                 <div class="stat-chip-body">
                     <span class="stat-chip-num"><?= $module_count ?></span>
-                    <span class="stat-chip-lbl">Modules</span>
+                    <span class="stat-chip-lbl"><?= __('modules', 'Modules') ?></span>
                 </div>
             </div>
+            <button type="button" onclick="openUserOverridesModal()" style="display:inline-flex; align-items:center; gap:7px; padding:10px 18px; border-radius:12px; background:rgba(52,152,219,.12); border:1px solid rgba(52,152,219,.35); color:#3498db; font-size:13px; font-weight:700; cursor:pointer;">
+                <i class="fa-solid fa-user-gear"></i> <?= __('user_overrides', 'User Overrides') ?>
+            </button>
+            <button type="button" onclick="document.getElementById('createRoleModal').classList.add('open')" style="display:inline-flex; align-items:center; gap:8px; padding:10px 22px; border-radius:12px; background:var(--accent,#d1904b); color:#000; font-size:13.5px; font-weight:800; border:none; cursor:pointer; box-shadow:0 4px 16px rgba(209,144,75,.25);">
+                <i class="fa-solid fa-plus"></i> <?= __('create_role', 'Create Role') ?>
+            </button>
         </div>
     </div>
 
@@ -851,87 +1015,86 @@ tr:last-child td { border-bottom:none; }
     <div class="sec-hdr" style="animation:fadeUp .45s cubic-bezier(.22,1,.36,1) both;animation-delay:.1s">
         <div class="sec-hdr-left">
             <div class="sec-hdr-dot"></div>
-            <span class="sec-hdr-label">Roles Overview</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;">
-            <span style="font-size:11px;color:var(--text-muted)">Click <strong style="color:var(--text)">Edit Permissions</strong> on a role to configure access</span>
-            <button type="button" class="btn-create-role" onclick="openUserOverridesModal()" style="background:rgba(52,152,219,.12);border-color:rgba(52,152,219,.35);color:#3498db;">
-                <i class="fa-solid fa-user-gear"></i> Per-User Overrides
-            </button>
-            <button class="btn-create-role" onclick="document.getElementById('createRoleModal').classList.add('open')">
-                <i class="fa-solid fa-plus"></i> Create Role
-            </button>
+            <span class="sec-hdr-label"><?= __('roles_overview', 'Roles Overview') ?></span>
         </div>
     </div>
 
-    <div class="roles-grid">
-    <?php foreach ($roles as $rkey => $rinfo):
-        $count = $role_counts[$rkey] ?? 0;
-        $pct   = $total_perm_count > 0 ? round($count / $total_perm_count * 100) : 0;
-        $col   = $rinfo['color'];
-    ?>
-    <div class="role-card" style="--rc:<?= $col ?>" data-role="<?= $rkey ?>">
-        <div class="role-card-accent" style="background:linear-gradient(90deg,<?= $col ?>99,<?= $col ?>,<?= $col ?>cc)"></div>
-        <div class="role-card-body">
-            <div class="role-header">
-                <div class="role-avatar" style="background:<?= $col ?>22;color:<?= $col ?>"><i class="fa-solid <?= $rinfo['icon'] ?>"></i></div>
-                <div class="role-name-wrap" style="flex:1">
-                    <div class="role-name"><?= htmlspecialchars($rinfo['label']) ?></div>
-                    <span class="role-badge"><?= $rinfo['editable'] ? 'Configurable' : 'Protected' ?></span>
-                </div>
-                <?php if ($rkey !== 'admin'): ?>
-                <button class="btn-edit-meta" title="Edit role"
-                    data-slug="<?= htmlspecialchars($rkey) ?>"
-                    data-name="<?= htmlspecialchars($rinfo['label']) ?>"
-                    data-desc="<?= htmlspecialchars($rinfo['desc']) ?>"
-                    data-icon="<?= htmlspecialchars($rinfo['icon']) ?>"
-                    data-color="<?= htmlspecialchars($rinfo['color']) ?>"
-                    onclick="openEditRoleMeta(this)">
-                    <i class="fa-solid fa-pen-to-square"></i>
-                </button>
-                <?php if (($emp_counts[$rkey] ?? 0) > 0): ?>
-                <button class="btn-reassign-role" title="Bulk reassign employees"
-                    onclick="openBulkReassignModal('<?= htmlspecialchars($rkey, ENT_QUOTES) ?>','<?= htmlspecialchars($rinfo['label'], ENT_QUOTES) ?>',<?= $emp_counts[$rkey] ?? 0 ?>)">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                </button>
-                <?php endif; ?>
-                <?php if (!$rinfo['system']): ?>
-                <button class="btn-delete-role" title="Delete role"
-                    onclick="openDeleteModal('<?= htmlspecialchars($rkey, ENT_QUOTES) ?>','<?= htmlspecialchars($rinfo['label'], ENT_QUOTES) ?>',<?= $emp_counts[$rkey] ?? 0 ?>)">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
-                <?php endif; ?>
-                <?php endif; ?>
-            </div>
-            <div class="role-desc"><?= htmlspecialchars($rinfo['desc']) ?></div>
-            <?php $ecount = $emp_counts[$rkey] ?? 0; ?>
-            <div class="emp-count-chip">
-                <i class="fa-solid fa-users" style="color:<?= $col ?>;opacity:.7"></i>
-                <span><?= $ecount ?> employee<?= $ecount !== 1 ? 's' : '' ?></span>
-            </div>
-            <div class="perm-count-row">
-                <span class="perm-big-num" id="bignum-<?= $rkey ?>"><?= $count ?></span>
-                <span class="perm-big-of">/ <?= $total_perm_count ?> permissions</span>
-            </div>
-            <div class="perm-bar-wrap">
-                <div class="perm-bar-lbl">
-                    <span>Access coverage</span>
-                    <strong id="pct-<?= $rkey ?>"><?= $pct ?>%</strong>
-                </div>
-                <div class="perm-bar"><div class="perm-bar-fill" id="bar-<?= $rkey ?>" style="width:<?= $pct ?>%;background:<?= $col ?>"></div></div>
-            </div>
+    <!-- ROLES LIST TABLE -->
+    <div class="table-card" style="background:var(--bg-card,#131313); border:1px solid var(--border,#222); border-radius:14px; overflow:hidden; margin-top:16px;">
+        <div class="table-wrap" style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                    <tr>
+                        <th style="width:40px; text-align:center;"><?= __('col_no', 'No') ?></th>
+                        <th><?= __('col_role', 'Role') ?></th>
+                        <th><?= __('nav_employees', 'Employees') ?></th>
+                        <th style="text-align:right;"><?= __('actions', 'Actions') ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php
+                $r_idx = 0;
+                foreach ($roles as $rkey => $rinfo):
+                    $r_idx++;
+                    $count = $role_counts[$rkey] ?? 0;
+                    $pct   = $total_perm_count > 0 ? round($count / $total_perm_count * 100) : 0;
+                    $col   = $rinfo['color'];
+                    $ecount = $emp_counts[$rkey] ?? 0;
+                ?>
+                    <tr data-role="<?= $rkey ?>">
+                        <td style="text-align:center; font-weight:700; color:var(--text-muted); font-size:12px;">
+                            <?= $r_idx ?>
+                        </td>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:36px; height:36px; border-radius:10px; background:rgba(209,144,75,0.12); color:var(--accent,#d1904b); border:1px solid rgba(209,144,75,0.25); display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;">
+                                    <i class="fa-solid <?= $rinfo['icon'] ?>"></i>
+                                </div>
+                                <div style="font-weight:700; font-size:14px; color:var(--text-light);"><?= htmlspecialchars($rinfo['label']) ?></div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="emp-count-chip" style="margin-top:0;">
+                                <i class="fa-solid fa-users" style="color:#3498db;opacity:.9"></i>
+                                <span style="font-weight:600; color:var(--text);"><?= $ecount ?> <?= __('staff', 'staff') ?></span>
+                            </span>
+                        </td>
+                        <td style="text-align:right;">
+                            <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+                                <?php if ($rinfo['editable']): ?>
+                                <button type="button" title="Edit Permissions" onclick="openModal('<?= htmlspecialchars($rkey, ENT_QUOTES) ?>')" style="width:28px;height:28px;border-radius:7px;border:1px solid rgba(209,144,75,0.3);background:rgba(209,144,75,0.12);color:var(--accent,#d1904b);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;">
+                                    <i class="fa-solid fa-sliders" style="pointer-events:none"></i>
+                                </button>
+                                <?php endif; ?>
+
+                                <?php if ($rkey !== 'admin'): ?>
+                                <button class="btn-edit-meta" title="Edit role"
+                                    data-slug="<?= htmlspecialchars($rkey) ?>"
+                                    data-name="<?= htmlspecialchars($rinfo['label']) ?>"
+                                    data-desc="<?= htmlspecialchars($rinfo['desc']) ?>"
+                                    data-icon="<?= htmlspecialchars($rinfo['icon']) ?>"
+                                    data-color="<?= htmlspecialchars($rinfo['color']) ?>"
+                                    onclick="openEditRoleMeta(this)">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <?php if (($emp_counts[$rkey] ?? 0) > 0): ?>
+                                <button class="btn-reassign-role" title="Bulk reassign employees"
+                                    onclick="openBulkReassignModal('<?= htmlspecialchars($rkey, ENT_QUOTES) ?>','<?= htmlspecialchars($rinfo['label'], ENT_QUOTES) ?>',<?= $emp_counts[$rkey] ?? 0 ?>)">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                                <?php endif; ?>
+                                <button class="btn-delete-role" title="Delete role"
+                                    onclick="openDeleteModal('<?= htmlspecialchars($rkey, ENT_QUOTES) ?>','<?= htmlspecialchars($rinfo['label'], ENT_QUOTES) ?>',<?= $emp_counts[$rkey] ?? 0 ?>)">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
-        <div class="role-card-foot">
-            <?php if ($rinfo['editable']): ?>
-            <button class="btn-edit-role" style="border-color:<?= $col ?>44;color:<?= $col ?>" onclick="openModal('<?= $rkey ?>')">
-                <i class="fa-solid fa-sliders"></i> Edit Permissions
-            </button>
-            <?php else: ?>
-            <div class="lock-note"><i class="fa-solid fa-lock" style="color:var(--accent)"></i> Admin has all <?= $total_perm_count ?> permissions and cannot be restricted.</div>
-            <?php endif; ?>
-        </div>
-    </div>
-    <?php endforeach; ?>
     </div>
 
     <!-- CREATE ROLE MODAL -->
@@ -1096,109 +1259,13 @@ tr:last-child td { border-bottom:none; }
         </div>
     </div>
 
-    <!-- PERMISSIONS MATRIX SECTION -->
-    <div class="perms-section">
-        <div class="sec-hdr">
-            <div class="sec-hdr-left">
-                <div class="sec-hdr-dot"></div>
-                <span class="sec-hdr-label">Permissions Matrix</span>
-            </div>
-            <div class="search-wrap">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" class="perm-search" id="permSearch" placeholder="Search permissions…" autocomplete="off">
-            </div>
-        </div>
 
-        <!-- Module filters -->
-        <div class="module-filters" style="margin-bottom:14px">
-            <button class="mod-filter-btn active" data-module="all">
-                <i class="fa-solid fa-table-cells"></i> All
-                <span class="mod-badge"><?= $total_perm_count ?></span>
-            </button>
-            <?php foreach ($all_perms as $module => $mperms):
-                $meta = $module_meta[$module] ?? ['icon' => 'fa-puzzle-piece', 'color' => '#888'];
-            ?>
-            <button class="mod-filter-btn" data-module="<?= htmlspecialchars($module) ?>">
-                <i class="fa-solid <?= $meta['icon'] ?>" style="color:<?= $meta['color'] ?>"></i>
-                <?= htmlspecialchars($module) ?>
-                <span class="mod-badge"><?= count($mperms) ?></span>
-            </button>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Table -->
-        <div class="table-wrap">
-        <div class="table-scroll">
-        <table>
-            <thead>
-                <tr>
-                    <th style="min-width:200px">Permission</th>
-                    <?php foreach ($roles as $rslug => $rinfo): ?>
-                    <th class="role-col" style="min-width:110px">
-                        <i class="fa-solid <?= $rinfo['icon'] ?>" style="color:<?= $rinfo['color'] ?>;margin-right:5px"></i><?= htmlspecialchars($rinfo['label']) ?>
-                    </th>
-                    <?php endforeach; ?>
-                </tr>
-            </thead>
-            <tbody id="permTableBody">
-            <?php foreach ($all_perms as $module => $mperms):
-                $meta = $module_meta[$module] ?? ['icon' => 'fa-puzzle-piece', 'color' => '#888'];
-            ?>
-                <tr class="module-row" data-module="<?= htmlspecialchars($module) ?>">
-                    <td colspan="<?= count($roles) + 1 ?>">
-                        <div class="module-row-inner">
-                            <div class="module-icon-wrap" style="background:<?= $meta['color'] ?>1a;color:<?= $meta['color'] ?>">
-                                <i class="fa-solid <?= $meta['icon'] ?>"></i>
-                            </div>
-                            <span class="module-row-name"><?= htmlspecialchars($module) ?></span>
-                            <span class="module-row-count"><?= count($mperms) ?> permission<?= count($mperms) !== 1 ? 's' : '' ?></span>
-                        </div>
-                    </td>
-                </tr>
-                <?php foreach ($mperms as $p): ?>
-                <tr class="perm-row" data-module="<?= htmlspecialchars($module) ?>" id="perm-row-<?= $p['id'] ?>">
-                    <td>
-                        <div class="perm-name">
-                            <div class="perm-dot"></div>
-                            <span class="perm-name-text" id="perm-name-<?= $p['id'] ?>"><?= htmlspecialchars($p['name']) ?></span>
-                        </div>
-                    </td>
-                    <?php foreach ($roles as $rslug => $rinfo):
-                        $col = $rinfo['color'];
-                        if ($rslug === 'admin'): ?>
-                    <td class="role-col">
-                        <span class="toggle-pill on-admin"><i class="fa-solid fa-check"></i> Yes</span>
-                    </td>
-                    <?php else:
-                        $has = isset($role_perm_ids[$rslug][$p['id']]);
-                        $pillStyle = $has ? "style=\"--pill-bg:{$col}1a;--pill-color:{$col};--pill-border:{$col}40\"" : '';
-                    ?>
-                    <td class="role-col" id="cell-<?= $rslug ?>-<?= $p['id'] ?>">
-                        <button class="toggle-pill <?= $has ? 'on-role' : 'off' ?>" <?= $pillStyle ?>
-                                data-color="<?= $col ?>"
-                                onclick="quickToggle('<?= $rslug ?>',<?= $p['id'] ?>,this)" title="Click to toggle">
-                            <?= $has ? '<i class="fa-solid fa-check"></i> Yes' : '<i class="fa-solid fa-xmark"></i> No' ?>
-                        </button>
-                    </td>
-                    <?php endif; ?>
-                    <?php endforeach; ?>
-                </tr>
-                <?php endforeach; ?>
-            <?php endforeach; ?>
-            <tr class="no-results-row" id="noResults" style="display:none">
-                <td colspan="<?= count($roles) + 1 ?>"><i class="fa-solid fa-search" style="margin-right:7px;opacity:.4"></i>No permissions match your search.</td>
-            </tr>
-            </tbody>
-        </table>
-        </div>
-        </div>
-    </div>
 
 </div><!-- /container -->
 
 <!-- EDIT MODAL -->
 <div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeModal()">
-    <div class="modal-box">
+    <div class="modal-box modal-box-lg">
         <div class="modal-accent" id="modalAccent"></div>
         <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-head">
@@ -1221,9 +1288,12 @@ tr:last-child td { border-bottom:none; }
                 <i class="fa-solid fa-floppy-disk"></i> Save Changes
             </button>
         </div>
+    </div>
+</div>
+
 <!-- USER PERMISSIONS OVERRIDES MODAL -->
 <div class="modal-overlay" id="userOverridesModal" onclick="if(event.target===this)closeUserOverridesModal()">
-    <div class="modal-box" style="max-width:680px">
+    <div class="modal-box modal-box-lg">
         <div class="modal-accent" style="background:linear-gradient(90deg, #1a6899, #3498db, #5dade2)"></div>
         <button class="modal-close" onclick="closeUserOverridesModal()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-head">
@@ -1289,7 +1359,9 @@ let selected         = new Set();
 
 /* ── SEARCH + FILTER ── */
 const searchEl = document.getElementById('permSearch');
-searchEl.addEventListener('input', filterTable);
+if (searchEl) {
+    searchEl.addEventListener('input', filterTable);
+}
 
 document.querySelectorAll('.mod-filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -1300,6 +1372,8 @@ document.querySelectorAll('.mod-filter-btn').forEach(btn => {
 });
 
 function filterTable() {
+    const searchEl = document.getElementById('permSearch');
+    if (!searchEl) return;
     const q      = searchEl.value.toLowerCase().trim();
     const active = document.querySelector('.mod-filter-btn.active');
     const mod    = active ? active.dataset.module : 'all';
@@ -1327,10 +1401,13 @@ function filterTable() {
         mrow.style.display = vis ? '' : 'none';
     });
 
-    document.getElementById('noResults').style.display = anyVisible ? 'none' : '';
+    const noRes = document.getElementById('noResults');
+    if (noRes) noRes.style.display = anyVisible ? 'none' : '';
 }
 
 /* ── MODAL ── */
+let activeModule = null;
+
 function openModal(role) {
     currentRole = role;
     const info  = ROLES_INFO[role];
@@ -1341,72 +1418,169 @@ function openModal(role) {
         `<i class="fa-solid ${esc(info.icon)}" style="color:${esc(info.color)}"></i> Edit Permissions — ${esc(info.label)}`;
     document.getElementById('modalAccent').style.background = info.accent;
     selected = new Set((ROLE_IDS[role] || []).map(Number));
+
+    const modKeys = Object.keys(ALL_PERMS);
+    activeModule = modKeys.length > 0 ? modKeys[0] : null;
+
     renderModal();
     document.getElementById('editModal').classList.add('open');
 }
 
 function renderModal() {
+    const modalBody = document.getElementById('modalBody');
+    modalBody.innerHTML = `
+        <div class="perm-two-box-layout">
+            <div class="box-main-perms">
+                <div class="box-hdr">
+                    <span><i class="fa-solid fa-layer-group" style="margin-right:6px"></i> Main Permission</span>
+                    <span class="box-hdr-badge" id="mainPermModuleCount">${Object.keys(ALL_PERMS).length} Modules</span>
+                </div>
+                <div class="box-main-list" id="boxMainList"></div>
+            </div>
+            <div class="box-sub-perms">
+                <div class="box-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+                    <div id="subPermHdrTitle" style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text-light)"></div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <button type="button" class="btn-select-sm" onclick="toggleActiveModulePerms(true)">Select Module</button>
+                        <span style="color:var(--border-hover)">·</span>
+                        <button type="button" class="btn-select-sm" onclick="toggleActiveModulePerms(false)">Clear Module</button>
+                    </div>
+                </div>
+                <div class="box-sub-list" id="boxSubList"></div>
+            </div>
+        </div>
+    `;
+
+    renderBox1();
+    renderBox2();
+    updateCount();
+}
+
+function renderBox1() {
+    const boxMainList = document.getElementById('boxMainList');
+    if (!boxMainList) return;
+
     let html = '';
     for (const [module, perms] of Object.entries(ALL_PERMS)) {
         const meta = MOD_META[module] || { icon:'fa-puzzle-piece', color:'#888' };
         const checkedN = perms.filter(p => selected.has(parseInt(p.id))).length;
-        html += `<div class="module-group">
-            <div class="module-group-hdr">
-                <div class="mg-icon" style="background:${meta.color}1a;color:${meta.color}"><i class="fa-solid ${meta.icon}"></i></div>
-                ${module}
-                <span style="font-size:10px;color:var(--text-muted);margin-left:4px;font-weight:500;text-transform:none;letter-spacing:0">${checkedN}/${perms.length}</span>
+        const isActive = module === activeModule;
+        
+        let countCls = '';
+        if (checkedN === perms.length && perms.length > 0) countCls = 'all-selected';
+        else if (checkedN > 0) countCls = 'some-selected';
+
+        const activeStyle = isActive 
+            ? `border-color:${currentRoleColor};background:${currentRoleColor}18;` 
+            : '';
+
+        html += `
+            <div class="main-perm-item ${isActive ? 'active' : ''}" style="${activeStyle}" onclick="setActiveModule('${esc(module)}')">
+                <div class="main-perm-left">
+                    <div class="main-perm-icon" style="background:${meta.color}22;color:${meta.color}">
+                        <i class="fa-solid ${meta.icon}"></i>
+                    </div>
+                    <span class="main-perm-title">${esc(module)}</span>
+                </div>
+                <span class="main-perm-count ${countCls}">${checkedN}/${perms.length}</span>
             </div>
-            <div class="perm-check-list">`;
-        for (const p of perms) {
-            const checked = selected.has(parseInt(p.id));
-            const bStyle  = checked ? `border-color:${currentRoleColor}44;background:${currentRoleColor}11` : '';
-            const cbStyle = checked ? `background:${currentRoleColor};border-color:${currentRoleColor}` : '';
-            html += `<div class="perm-check-item ${checked ? 'checked' : ''}" style="${bStyle}"
-                          onclick="togglePerm(${p.id}, this)">
-                <div class="perm-checkbox" style="${cbStyle}"><i class="fa-solid fa-check"></i></div>
-                <span class="perm-check-name">${p.name}</span>
-            </div>`;
-        }
-        html += `</div></div>`;
+        `;
     }
-    document.getElementById('modalBody').innerHTML = html;
+    boxMainList.innerHTML = html;
+}
+
+function renderBox2() {
+    const boxSubList = document.getElementById('boxSubList');
+    const hdrTitle = document.getElementById('subPermHdrTitle');
+    if (!boxSubList || !activeModule) return;
+
+    const perms = ALL_PERMS[activeModule] || [];
+    const meta = MOD_META[activeModule] || { icon:'fa-puzzle-piece', color:'#888' };
+
+    if (hdrTitle) {
+        hdrTitle.innerHTML = `
+            <div style="width:24px;height:24px;border-radius:6px;background:${meta.color}22;color:${meta.color};display:inline-flex;align-items:center;justify-content:center;font-size:11px">
+                <i class="fa-solid ${meta.icon}"></i>
+            </div>
+            <span>${esc(activeModule)} Sub-Permissions</span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:500">(${perms.length})</span>
+        `;
+    }
+
+    let html = '';
+    if (perms.length === 0) {
+        html = `<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No permissions in this module.</div>`;
+    } else {
+        for (const p of perms) {
+            const pid = parseInt(p.id);
+            const checked = selected.has(pid);
+            const bStyle  = checked ? `border-color:${currentRoleColor}55;background:${currentRoleColor}14` : '';
+            const cbStyle = checked ? `background:${currentRoleColor};border-color:${currentRoleColor}` : '';
+            html += `
+                <div class="sub-perm-item ${checked ? 'checked' : ''}" style="${bStyle}" onclick="togglePerm(${pid})">
+                    <div class="perm-checkbox" style="${cbStyle}">
+                        <i class="fa-solid fa-check" style="${checked ? 'display:block' : 'display:none'}"></i>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:2px;flex:1">
+                        <span class="perm-check-name" style="font-size:13px;font-weight:600">${esc(p.name)}</span>
+                        <span style="font-size:10.5px;color:var(--text-muted);font-family:monospace">${esc(p.slug)}</span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    boxSubList.innerHTML = html;
+}
+
+function setActiveModule(modName) {
+    activeModule = modName;
+    renderBox1();
+    renderBox2();
+}
+
+function togglePerm(id) {
+    id = parseInt(id);
+    if (selected.has(id)) {
+        selected.delete(id);
+    } else {
+        selected.add(id);
+    }
+    renderBox1();
+    renderBox2();
     updateCount();
 }
 
-function togglePerm(id, el) {
-    const chk = el.querySelector('.perm-checkbox');
-    if (selected.has(id)) {
-        selected.delete(id); el.classList.remove('checked');
-        el.style.borderColor = ''; el.style.background = '';
-        chk.style.background = ''; chk.style.borderColor = '';
-    } else {
-        selected.add(id); el.classList.add('checked');
-        el.style.borderColor = currentRoleColor + '44'; el.style.background = currentRoleColor + '11';
-        chk.style.background = currentRoleColor; chk.style.borderColor = currentRoleColor;
+function toggleActiveModulePerms(state) {
+    if (!activeModule || !ALL_PERMS[activeModule]) return;
+    const perms = ALL_PERMS[activeModule];
+    for (const p of perms) {
+        const id = parseInt(p.id);
+        if (state) selected.add(id);
+        else selected.delete(id);
     }
+    renderBox1();
+    renderBox2();
+    updateCount();
+}
+
+function selectAll(state) {
+    for (const [mod, perms] of Object.entries(ALL_PERMS)) {
+        for (const p of perms) {
+            const id = parseInt(p.id);
+            if (state) selected.add(id);
+            else selected.delete(id);
+        }
+    }
+    renderBox1();
+    renderBox2();
     updateCount();
 }
 
 function updateCount() {
-    document.getElementById('checkedCount').textContent =
-        `${selected.size} of ${TOTAL} permissions selected`;
-}
-
-function selectAll(state) {
-    document.querySelectorAll('.perm-check-item').forEach(el => {
-        const id  = parseInt(el.getAttribute('onclick').match(/\d+/)[0]);
-        const chk = el.querySelector('.perm-checkbox');
-        if (state) {
-            selected.add(id); el.classList.add('checked');
-            el.style.borderColor = currentRoleColor + '44'; el.style.background = currentRoleColor + '11';
-            chk.style.background = currentRoleColor; chk.style.borderColor = currentRoleColor;
-        } else {
-            selected.delete(id); el.classList.remove('checked');
-            el.style.borderColor = ''; el.style.background = '';
-            chk.style.background = ''; chk.style.borderColor = '';
-        }
-    });
-    updateCount();
+    const el = document.getElementById('checkedCount');
+    if (el) {
+        el.textContent = `${selected.size} of ${TOTAL} permissions selected`;
+    }
 }
 
 function closeModal() {
@@ -1430,12 +1604,13 @@ async function savePermissions() {
             refreshTableCells(currentRole, ids);
             updateCard(currentRole, ids.length);
             const savedRole = currentRole;
+            const roleLabel = ROLES_INFO[savedRole]?.label || (savedRole.charAt(0).toUpperCase() + savedRole.slice(1));
             closeModal();
-            showToast(`${savedRole.charAt(0).toUpperCase()+savedRole.slice(1)} permissions saved`, 'success');
+            showToast(`Permissions for ${roleLabel} saved successfully!`, 'success');
         } else {
             showToast(data.message || 'Save failed', 'error');
         }
-    } catch { showToast('Network error', 'error'); }
+    } catch { showToast('Network error while saving permissions', 'error'); }
     finally  { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes'; }
 }
 
@@ -1493,15 +1668,22 @@ function updateCard(role, count) {
 
 /* ── TOAST ── */
 function showToast(msg, type='success') {
-    const c = document.getElementById('toast-cnt');
+    let c = document.getElementById('toast-cnt');
+    if (!c) {
+        c = document.createElement('div');
+        c.id = 'toast-cnt';
+        document.body.appendChild(c);
+    }
+    const isSuccess = (type === 'success' || type === true);
+    const toastType = isSuccess ? 'success' : 'error';
     const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation';
-    const col  = type === 'success' ? 'var(--ok)' : 'var(--danger)';
-    t.innerHTML = `<i class="fa-solid ${icon}" style="color:${col};flex-shrink:0"></i><span>${msg}</span>`;
+    t.className = 'toast ' + toastType;
+    const icon = isSuccess ? 'fa-circle-check' : 'fa-circle-exclamation';
+    const col  = isSuccess ? 'var(--ok, #55e087)' : 'var(--danger, #ff5f5f)';
+    t.innerHTML = `<i class="fa-solid ${icon}" style="color:${col};flex-shrink:0;font-size:16px"></i><span style="font-weight:600">${msg}</span>`;
     c.appendChild(t);
     requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
-    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 380); }, 3000);
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 380); }, 3500);
 }
 
 /* ── EDIT ROLE META ── */
@@ -1693,9 +1875,26 @@ function onUserOverrideSelectChange() {
         });
 }
 
+let activeOverrideModule = null;
+let currentModulesData = {};
+
 function renderUserOverridesUI(user, modules) {
+    currentModulesData = modules;
+    const modKeys = Object.keys(modules);
+    activeOverrideModule = modKeys.length > 0 ? modKeys[0] : null;
+
+    // Initialize userOverridesMap for all permissions
+    for (const [mod, perms] of Object.entries(modules)) {
+        perms.forEach(p => {
+            let initialOpt = 'inherit';
+            if (p.override === 1) initialOpt = 'grant';
+            if (p.override === 0) initialOpt = 'deny';
+            userOverridesMap[p.id] = initialOpt;
+        });
+    }
+
     const body = document.getElementById('userOverridesModalBody');
-    let html = `
+    body.innerHTML = `
         <div style="background:rgba(52,152,219,.08);border:1px solid rgba(52,152,219,.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
             <div>
                 <div style="font-weight:700;font-size:14px;color:var(--text)">${esc(user.emp_name)}</div>
@@ -1706,50 +1905,107 @@ function renderUserOverridesUI(user, modules) {
                 <div><span style="color:#e74c3c;font-weight:700">Deny</span> = Custom Revoke</div>
             </div>
         </div>
+        <div class="perm-two-box-layout">
+            <div class="box-main-perms">
+                <div class="box-hdr">
+                    <span><i class="fa-solid fa-layer-group" style="margin-right:6px"></i> Main Permission</span>
+                    <span class="box-hdr-badge" id="uoModuleCount">${modKeys.length} Modules</span>
+                </div>
+                <div class="box-main-list" id="uoBoxMainList"></div>
+            </div>
+            <div class="box-sub-perms">
+                <div class="box-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+                    <div id="uoSubPermHdrTitle" style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text-light)"></div>
+                </div>
+                <div class="box-sub-list" id="uoBoxSubList"></div>
+            </div>
+        </div>
     `;
 
-    for (const [module, perms] of Object.entries(modules)) {
+    renderUserOverrideBox1();
+    renderUserOverrideBox2();
+}
+
+function renderUserOverrideBox1() {
+    const list = document.getElementById('uoBoxMainList');
+    if (!list) return;
+
+    let html = '';
+    for (const [module, perms] of Object.entries(currentModulesData)) {
         const meta = MOD_META[module] || { icon:'fa-puzzle-piece', color:'#888' };
+        const overrideCount = perms.filter(p => userOverridesMap[p.id] !== 'inherit').length;
+        const isActive = module === activeOverrideModule;
+
+        let badgeCls = '';
+        if (overrideCount > 0) badgeCls = 'some-selected';
+
+        const activeStyle = isActive ? `border-color:#3498db;background:rgba(52,152,219,.15);` : '';
+
         html += `
-            <div class="module-group">
-                <div class="module-group-hdr">
-                    <div class="mg-icon" style="background:${meta.color}1a;color:${meta.color}">
+            <div class="main-perm-item ${isActive ? 'active' : ''}" style="${activeStyle}" onclick="setActiveOverrideModule('${esc(module)}')">
+                <div class="main-perm-left">
+                    <div class="main-perm-icon" style="background:${meta.color}22;color:${meta.color}">
                         <i class="fa-solid ${meta.icon}"></i>
                     </div>
-                    ${esc(module)} (${perms.length})
+                    <span class="main-perm-title">${esc(module)}</span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
+                <span class="main-perm-count ${badgeCls}">${overrideCount > 0 ? overrideCount + ' custom' : perms.length}</span>
+            </div>
         `;
+    }
+    list.innerHTML = html;
+}
 
+function renderUserOverrideBox2() {
+    const list = document.getElementById('uoBoxSubList');
+    const hdrTitle = document.getElementById('uoSubPermHdrTitle');
+    if (!list || !activeOverrideModule) return;
+
+    const perms = currentModulesData[activeOverrideModule] || [];
+    const meta = MOD_META[activeOverrideModule] || { icon:'fa-puzzle-piece', color:'#888' };
+
+    if (hdrTitle) {
+        hdrTitle.innerHTML = `
+            <div style="width:24px;height:24px;border-radius:6px;background:${meta.color}22;color:${meta.color};display:inline-flex;align-items:center;justify-content:center;font-size:11px">
+                <i class="fa-solid ${meta.icon}"></i>
+            </div>
+            <span>${esc(activeOverrideModule)} Overrides</span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:500">(${perms.length})</span>
+        `;
+    }
+
+    let html = '';
+    if (perms.length === 0) {
+        html = `<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No permissions in this module.</div>`;
+    } else {
         perms.forEach(p => {
-            let initialOpt = 'inherit';
-            if (p.override === 1) initialOpt = 'grant';
-            if (p.override === 0) initialOpt = 'deny';
-            userOverridesMap[p.id] = initialOpt;
-
+            const currentOpt = userOverridesMap[p.id] || 'inherit';
             const baseStatus = p.inherited
-                ? `<span style="color:var(--success);font-size:11px;font-weight:600;"><i class="fa-solid fa-check"></i> Role Default: Allowed</span>`
+                ? `<span style="color:#55e087;font-size:11px;font-weight:600;"><i class="fa-solid fa-check"></i> Role Default: Allowed</span>`
                 : `<span style="color:var(--text-muted);font-size:11px;"><i class="fa-solid fa-xmark"></i> Role Default: Denied</span>`;
 
             html += `
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);">
                     <div>
-                        <div style="font-weight:600;font-size:13px;">${esc(p.name)}</div>
+                        <div style="font-weight:600;font-size:13px;color:var(--text);">${esc(p.name)}</div>
                         <div style="margin-top:2px;">${baseStatus}</div>
                     </div>
                     <div class="override-segmented" data-pid="${p.id}" style="display:flex;background:rgba(255,255,255,.05);border-radius:8px;padding:3px;gap:3px;">
-                        <button type="button" class="uo-btn ${initialOpt==='inherit'?'sel-inherit':''}" onclick="setOverrideState(${p.id}, 'inherit', this)" title="Inherit from role">Inherit</button>
-                        <button type="button" class="uo-btn ${initialOpt==='grant'?'sel-grant':''}" onclick="setOverrideState(${p.id}, 'grant', this)" title="Force allow for this user">Grant</button>
-                        <button type="button" class="uo-btn ${initialOpt==='deny'?'sel-deny':''}" onclick="setOverrideState(${p.id}, 'deny', this)" title="Force deny for this user">Deny</button>
+                        <button type="button" class="uo-btn ${currentOpt==='inherit'?'sel-inherit':''}" onclick="setOverrideState(${p.id}, 'inherit', this)" title="Inherit from role">Inherit</button>
+                        <button type="button" class="uo-btn ${currentOpt==='grant'?'sel-grant':''}" onclick="setOverrideState(${p.id}, 'grant', this)" title="Force allow for this user">Grant</button>
+                        <button type="button" class="uo-btn ${currentOpt==='deny'?'sel-deny':''}" onclick="setOverrideState(${p.id}, 'deny', this)" title="Force deny for this user">Deny</button>
                     </div>
                 </div>
             `;
         });
-
-        html += `</div></div>`;
     }
+    list.innerHTML = html;
+}
 
-    body.innerHTML = html;
+function setActiveOverrideModule(modName) {
+    activeOverrideModule = modName;
+    renderUserOverrideBox1();
+    renderUserOverrideBox2();
 }
 
 function setOverrideState(pid, state, btn) {
@@ -1759,6 +2015,8 @@ function setOverrideState(pid, state, btn) {
     if (state === 'inherit') btn.classList.add('sel-inherit');
     if (state === 'grant') btn.classList.add('sel-grant');
     if (state === 'deny') btn.classList.add('sel-deny');
+
+    renderUserOverrideBox1();
 }
 
 function saveUserOverrides() {
@@ -1792,5 +2050,7 @@ function saveUserOverrides() {
         });
 }
 </script>
+</main>
+</div>
 </body>
 </html>

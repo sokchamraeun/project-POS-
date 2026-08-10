@@ -7,29 +7,18 @@
 // Perms absent here are non-navigable by design (manage_recipes, my_profile).
 // `dashboard` is intentionally absent — the home link is hardcoded per layout.
 $NAV_REGISTRY = [
-    'find_orders'         => ['find_order.php',            'fa-magnifying-glass'],
     'view_orders'         => ['view_order.php',            'fa-receipt'],
-    'loyalty'             => ['loyalty_dashboard.php',     'fa-star'],
     'products'            => ['products.php',              'fa-cube'],
+    'manage_categories'   => ['manage_categories.php',       'fa-tags'],
     'ingredients'         => ['ingredients.php',           'fa-flask'],
-    'recipes'             => ['recipes_view.php',          'fa-utensils'],
-    'suppliers'           => ['suppliers.php',             'fa-truck-ramp-box'],
-    'purchase_orders'     => ['purchase_orders.php',       'fa-file-invoice'],
-    'stock_count'         => ['stock_count.php',           'fa-clipboard-list'],
-    'cash_reconciliation' => ['reconciliation_report.php', 'fa-cash-register'],
+
     'report'              => ['daily_report.php',           'fa-chart-column'],
-    'barista_station'     => ['barista_display.php',       'fa-mug-hot'],
-    'customer_display'    => ['customer_display.php',      'fa-display'],
     'employees'           => ['employees.php',             'fa-user-tie'],
-    'attendance'          => ['attendance.php',            'fa-fingerprint'],
-    'announcements'       => ['announcements.php',         'fa-bullhorn'],
-    'promotions'          => ['settings.php',              'fa-gear'],
-    'reset_password'      => ['admin_reset_password.php',  'fa-key'],
     'manage_roles'        => ['manage_roles.php',          'fa-shield-halved', true],
 ];
 
 // Explicit section display order — never trust DB module/insertion order.
-$NAV_SECTION_ORDER = ['Orders','Operations','Inventory','Procurement','Reconciliation','Loyalty','Analytics','Staff','Admin'];
+$NAV_SECTION_ORDER = ['Orders','Inventory','Analytics','Staff'];
 
 /**
  * Nav items the current user may see. Each: slug,label,href,icon,section,admin_only.
@@ -47,9 +36,11 @@ function nav_items(mysqli $conn): array {
         if ($adminOnly && !$isAdmin) continue;
         if (!can($slug)) continue;                                  // grant gate
         $secIdx = array_search($p['module'], $NAV_SECTION_ORDER, true);
+        $localizedLabel = __('nav_' . $slug, $p['name']);
+        $localizedSection = __('sec_' . strtolower($p['module']), $p['module']);
         $rows[] = [
-            'slug'=>$slug, 'label'=>$p['name'], 'href'=>$href, 'icon'=>$icon,
-            'section'=>$p['module'], 'admin_only'=>(bool)$adminOnly,
+            'slug'=>$slug, 'label'=>$localizedLabel, 'href'=>$href, 'icon'=>$icon,
+            'section'=>$localizedSection, 'admin_only'=>(bool)$adminOnly,
             '_sec'=>($secIdx===false ? PHP_INT_MAX : $secIdx),
             '_ord'=>(int)$p['sort_order'], '_id'=>(int)$p['id'],
         ];

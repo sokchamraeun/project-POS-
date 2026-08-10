@@ -109,8 +109,11 @@ if ((int)$p['has_sizes'] === 1) {
     while ($r = $rs->fetch_assoc()) { $rows[$r['size_code']] = $r; }
 
     if (!empty($rows)) {
+        if ($size_code === '') {
+            $size_code = count($rows) === 1 ? (string)array_key_first($rows) : ($rows['M']['size_code'] ?? (string)array_key_first($rows));
+        }
         // size_code is required for a sized product
-        if ($size_code === '' || !isset($rows[$size_code])) {
+        if (!isset($rows[$size_code])) {
             json_out(false, 'Please choose a size', 0, null, 400);
         }
         $chosen        = $rows[$size_code];

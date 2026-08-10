@@ -11,13 +11,20 @@ if (!in_array($view, ['daily','monthly','yearly','range'], true)) { $view = 'dai
 $date  = is_string($_GET['date'] ?? null) ? trim($_GET['date']) : '';
 $dateOk = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) && checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
 if (!$dateOk || $date > $today) { $date = $today; }
-if ($date > $today) { $date = $today; }
 
-$dateFrom = is_string($_GET['date_from'] ?? null) ? trim($_GET['date_from']) : '';
-$dateTo   = is_string($_GET['date_to']   ?? null) ? trim($_GET['date_to'])   : '';
-$isRange  = ($view === 'range' && $dateFrom !== '' && $dateTo !== '');
-if ($isRange && !(preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo) && $dateFrom <= $dateTo && $dateTo <= $today)) {
-    $isRange = false;
+$dateFrom = is_string($_GET['from_date'] ?? $_GET['date_from'] ?? null) ? trim($_GET['from_date'] ?? $_GET['date_from']) : '';
+$dateTo   = is_string($_GET['to_date']   ?? $_GET['date_to']   ?? null) ? trim($_GET['to_date']   ?? $_GET['date_to'])   : '';
+$filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+
+if ($dateFrom !== '' && $dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+    if ($dateFrom > $dateTo) [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    $view = 'range';
+    $isRange = true;
+} else {
+    $isRange = ($view === 'range' && $dateFrom !== '' && $dateTo !== '');
+    if ($isRange && !(preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo) && $dateFrom <= $dateTo && $dateTo <= $today)) {
+        $isRange = false;
+    }
 }
 
 // ── Compute date range and navigation based on view ──
@@ -33,6 +40,10 @@ if ($isRange) {
     $dateExpr  = "business_date BETWEEN '$yearStart' AND '$yearEnd'";
 } else {
     $dateExpr = "business_date = '$date'";
+}
+
+if ($filter_user > 0) {
+    $dateExpr .= " AND user_id = $filter_user";
 }
 
 switch ($view) {
@@ -494,24 +505,26 @@ function dr_pay_label(array $o): array {
  */
 function dr_date_expr(): string {
     $d  = $_GET['date'] ?? '';
-    $df = $_GET['date_from'] ?? '';
-    $dt = $_GET['date_to'] ?? '';
+    $df = $_GET['from_date'] ?? $_GET['date_from'] ?? '';
+    $dt = $_GET['to_date']   ?? $_GET['date_to']   ?? '';
     $v  = $_GET['view'] ?? 'daily';
+    $u  = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+    $uCond = $u > 0 ? " AND user_id = $u" : "";
     if ($df !== '' && $dt !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $df) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) {
-        return "business_date BETWEEN '$df' AND '$dt'";
+        return "business_date BETWEEN '$df' AND '$dt'" . $uCond;
     }
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
         if ($v === 'monthly') {
             $ms = date('Y-m-01', strtotime($d));
             $me = date('Y-m-t',  strtotime($d));
-            return "business_date BETWEEN '$ms' AND '$me'";
+            return "business_date BETWEEN '$ms' AND '$me'" . $uCond;
         }
         if ($v === 'yearly') {
             $ys = date('Y-01-01', strtotime($d));
             $ye = date('Y-12-31', strtotime($d));
-            return "business_date BETWEEN '$ys' AND '$ye'";
+            return "business_date BETWEEN '$ys' AND '$ye'" . $uCond;
         }
-        return "business_date = '$d'";
+        return "business_date = '$d'" . $uCond;
     }
     return "business_date = '1970-01-01'"; // fallback: no rows
 }
@@ -947,6 +960,7 @@ if ($fragment !== '') {
 <title>Daily Report | Bird's Nest Coffee</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -1369,483 +1383,289 @@ body{
 }
 </style>
 </head>
-<body>
+<?php
+$filter_from = trim($_GET['from_date'] ?? $_GET['date_from'] ?? ($isRange ? $dateFrom : $date));
+$filter_to   = trim($_GET['to_date']   ?? $_GET['date_to']   ?? ($isRange ? $dateTo   : $date));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_from)) $filter_from = $today;
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_to))   $filter_to   = $today;
+if ($filter_from > $filter_to) [$filter_from, $filter_to] = [$filter_to, $filter_from];
 
-<div class="dr-topbar">
-  <div class="dr-topbar-in">
-    <span class="dr-topbar-mark"><i class="fa-solid fa-mug-hot"></i></span>
-    <span class="dr-topbar-name">The Bird's Nest Coffee</span>
-    <span class="dr-topbar-sep">·</span>
-    <span class="dr-topbar-where">Daily Report</span>
-    <span class="dr-topbar-right"><?= $isToday && !$isRange ? '<span class="dr-live"></span>live · ' : '' ?><?php if ($isRange): ?><?= htmlspecialchars($dateFrom) ?> – <?= htmlspecialchars($dateTo) ?><?php elseif ($view === 'monthly'): ?><?= date('F Y', strtotime($date)) ?><?php elseif ($view === 'yearly'): ?><?= date('Y', strtotime($date)) ?><?php else: ?><?= date('F j, Y', strtotime($date)) ?><?php endif; ?></span>
-  </div>
-</div>
+$filter_status  = trim($_GET['status'] ?? '');
+$filter_payment = trim($_GET['payment_method'] ?? '');
+$filter_user    = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
 
-<div class="wrap">
+$where_conds = ["o.business_date BETWEEN '$filter_from' AND '$filter_to'"];
+if ($filter_status !== '') {
+    $where_conds[] = "o.status = '" . $conn->real_escape_string($filter_status) . "'";
+}
+if ($filter_payment !== '') {
+    $where_conds[] = "o.payment_method = '" . $conn->real_escape_string($filter_payment) . "'";
+}
+if ($filter_user > 0) {
+    $where_conds[] = "o.user_id = $filter_user";
+}
+$where_str = implode(' AND ', $where_conds);
 
-    <a href="dashboard.php" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+$sql_table_orders = "SELECT o.order_id, o.daily_order_no, o.order_date, o.customer_name, o.table_number, o.order_type, o.total, o.payment_method, o.status,
+                            IFNULL(o.promotion_discount, 0) + IFNULL(o.manual_discount, 0) AS discount_amount,
+                            u.username as staff_name 
+                     FROM orders o 
+                     LEFT JOIN users u ON u.user_id = o.user_id 
+                     WHERE $where_str 
+                     ORDER BY o.order_id DESC";
+$res_table_orders = $conn->query($sql_table_orders);
+$table_orders = $res_table_orders ? $res_table_orders->fetch_all(MYSQLI_ASSOC) : [];
 
-    <div class="dr-head">
-        <div>
-            <div class="dr-eyebrow"><?php
-                switch ($view) {
-                    case 'monthly': echo 'MONTHLY REPORT'; break;
-                    case 'yearly':  echo 'YEARLY REPORT';  break;
-                    case 'range':   echo 'REPORT RANGE';    break;
-                    default:        echo 'DAILY REPORT';    break;
-                }
-            ?></div>
-            <?php if ($isRange): ?>
-            <h1><?= htmlspecialchars($dateFrom) ?> — <?= htmlspecialchars($dateTo) ?></h1>
-            <div class="dr-head-sub"><?= (new DateTime($dateFrom))->format('M j, Y') ?> – <?= (new DateTime($dateTo))->format('M j, Y') ?> · <?= $paidOrderCount ?> orders</div>
-            <?php elseif ($view === 'monthly'): ?>
-            <h1><?= date('F Y', strtotime($date)) ?></h1>
-            <div class="dr-head-sub"><?= date('M 1', strtotime($date)) ?> – <?= date('M t, Y', strtotime($date)) ?></div>
-            <?php elseif ($view === 'yearly'): ?>
-            <h1><?= date('Y', strtotime($date)) ?></h1>
-            <div class="dr-head-sub"><?= date('Y', strtotime($date)) ?> · full year</div>
-            <?php else: ?>
-            <h1><?= date('l, F j, Y', strtotime($date)) ?></h1>
-            <div class="dr-head-sub"><?= htmlspecialchars($date) ?><?= $isToday ? ' · today' : '' ?></div>
-            <?php endif; ?>
-        </div>
-        <div class="dr-head-actions">
-            <?php if ($isRange): ?>
-            <span class="dr-nav dr-range-label"><i class="fa-solid fa-calendar-days"></i> <?= htmlspecialchars($dateFrom) ?> → <?= htmlspecialchars($dateTo) ?></span>
-            <?php else: ?>
-            <a class="dr-nav" href="?date=<?= htmlspecialchars($today) ?>&view=<?= htmlspecialchars($view) ?>"<?= $isToday ? ' style="background:var(--amber-dim);border-color:var(--amber-border);color:var(--amber)"' : '' ?>><i class="fa-solid fa-calendar-day"></i> <?= htmlspecialchars($todayLabel) ?></a>
-            <a class="dr-nav" href="?date=<?= htmlspecialchars($prevDate) ?>&view=<?= htmlspecialchars($view) ?>"><i class="fa-solid fa-chevron-left"></i> <?= htmlspecialchars($prevLabel) ?></a>
-            <?php if (!$isToday): ?>
-            <a class="dr-nav" href="?date=<?= htmlspecialchars($nextDate) ?>&view=<?= htmlspecialchars($view) ?>"><?= htmlspecialchars($nextLabel) ?> <i class="fa-solid fa-chevron-right"></i></a>
-            <?php endif; ?>
-            <?php endif; ?>
-            <form method="get" class="dr-view-form" id="drViewForm">
-                <input type="hidden" name="date" value="<?= htmlspecialchars($date) ?>">
-                <select name="view" class="dr-view-select" id="drViewSelect">
-                    <option value="daily"   <?= $view === 'daily'   ? 'selected' : '' ?>>Daily</option>
-                    <option value="monthly" <?= $view === 'monthly' ? 'selected' : '' ?>>Monthly</option>
-                    <option value="yearly"  <?= $view === 'yearly'  ? 'selected' : '' ?>>Yearly</option>
-                    <option value="range"   <?= $view === 'range'   ? 'selected' : '' ?>>Range</option>
-                </select>
-                <?php if ($isRange): ?>
-                <button type="button" class="dr-nav" id="drReRangeBtn" style="margin-left:6px"><i class="fa-solid fa-pen"></i> Change</button>
-                <?php endif; ?>
-            </form>
-            <?php /* Both exports are built on the server from the same shared helpers this
-                    page uses, so neither can drift from what is on screen. Print opens the
-                    PDF in a new tab rather than printing the page: the browser's own print
-                    of a tabbed, lazily-loaded report only ever captured the visible tab. */ ?>
-            <a class="dr-nav" href="daily_report_xlsx.php?date=<?= htmlspecialchars($date) ?><?= $isRange ? '&date_from=' . htmlspecialchars($dateFrom) . '&date_to=' . htmlspecialchars($dateTo) : '' ?>&view=<?= htmlspecialchars($view) ?>"><i class="fa-solid fa-file-excel"></i> Excel</a>
-            <a class="dr-nav" href="daily_report_pdf.php?date=<?= htmlspecialchars($date) ?><?= $isRange ? '&date_from=' . htmlspecialchars($dateFrom) . '&date_to=' . htmlspecialchars($dateTo) : '' ?>&view=<?= htmlspecialchars($view) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-print"></i> Print</a>
-            <a class="dr-nav" href="report.php?mode=daily&date=<?= htmlspecialchars($date) ?>&view=<?= htmlspecialchars($view) ?>">Full analytics <i class="fa-solid fa-arrow-right"></i></a>
-        </div>
-    </div>
-
-    <div class="dr-tabs" role="tablist">
-        <button class="dr-tab is-on" data-tab="today"  role="tab"><i class="fa-solid fa-chart-simple"></i> <?= $view !== 'daily' ? 'Summary' : 'Today' ?></button>
-        <button class="dr-tab"       data-tab="orders" role="tab"><i class="fa-solid fa-receipt"></i> Orders</button>
-        <button class="dr-tab"       data-tab="stock"  role="tab"><i class="fa-solid fa-boxes-stacked"></i> Stock <span class="dr-badge" id="stockBadge"><?= $lowItems ? (int)$lowItems : '' ?></span></button>
-        <button class="dr-tab"       data-tab="staff"  role="tab"><i class="fa-solid fa-user-group"></i> Staff</button>
-    </div>
-
-    <div class="dr-alert-wrap" id="drAlertWrap">
-      <?php if ($isRange): ?>
-      <div class="dr-alert is-clear" style="margin-top:0">
-        <i class="fa-solid fa-calendar-range"></i>
-        <span>Range report — stock warnings hidden.</span>
-      </div>
-      <?php elseif (!$isToday): ?>
-      <div class="dr-alert is-clear" style="margin-top:0">
-        <i class="fa-solid fa-clock-rotate-left"></i>
-        <span>Historical view — stock warnings hidden.</span>
-      </div>
-      <?php elseif ($lowItems): ?>
-      <div class="dr-alert" style="margin-top:0">
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <span><b><?= (int)$lowItems ?> item<?= $lowItems === 1 ? '' : 's' ?></b> below the buy-more level<?= $outItems ? ', ' . (int)$outItems . ' already out' : '' ?>.
-        Buy <?= htmlspecialchars(implode(', ', $lowNames)) ?><?= $lowExtra ? " and $lowExtra more" : '' ?> before tomorrow.</span>
-      </div>
-      <?php else: ?>
-      <div class="dr-alert is-clear" style="margin-top:0">
-        <i class="fa-solid fa-circle-check"></i>
-        <span>Every item is above its buy-more level. You can open tomorrow.</span>
-      </div>
-      <?php endif; ?>
-    </div>
-
-    <div class="dr-panel" id="panel-today">
-        <?php
-          // Four headline stats in the reference's card format, each carrying its
-          // own comparison on the third line. A figure with no baseline cannot
-          // tell a manager whether the day went well, which is the whole reason
-          // this page replaced report.php.
-          // Before the first sale, every card would otherwise read red — "$14.65
-          // less than a normal Tuesday" at 8am is an alarm about a day that has
-          // not happened yet. The shop opening quietly is not bad news.
-          if ($paidOrderCount === 0) {
-              $zero  = ['tone' => 'flat', 'text' => $drZeroLine];
-              $dGot = $dKept = $dOrd = $dCups = $dAvg = $zero;
-          } else {
-              $dGot   = dr_delta($gotToday,  $baseGot['value'],  $baseGot['label']);
-              $dKept  = dr_delta($keptToday, $keptBaseline,      $baseGot['label']);
-              $dOrd   = dr_delta((float)$paidOrderCount, $ordersBaseline, $baseGot['label'], false);
-              $dCups  = dr_delta((float)$cupsToday,      $cupsBaseline,   $baseGot['label'], false);
-              $dAvg   = dr_delta($avgToday,  $avgBaseline,       $baseGot['label']);
-          }
-          $tip    = $baselineTooltip !== '' ? ' title="' . htmlspecialchars($baselineTooltip) . '"' : '';
-        ?>
-        <div class="dr-cards">
-          <div class="dr-stat">
-            <div class="dr-k">total sales</div>
-            <div class="dr-v-lg">$<?= number_format($gotToday, 2) ?></div>
-            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dGot['tone'] ?>"<?= $tip ?>><?= htmlspecialchars($dGot['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
-          </div>
-          <div class="dr-stat">
-            <div class="dr-k">money we keep</div>
-            <div class="dr-v-lg">$<?= number_format($keptToday, 2) ?></div>
-            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dKept['tone'] ?>"><?= htmlspecialchars($dKept['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
-          </div>
-          <div class="dr-stat">
-            <div class="dr-k">total orders</div>
-            <div class="dr-v-lg"><?= (int)$paidOrderCount ?></div>
-            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dOrd['tone'] ?>"><?= htmlspecialchars($dOrd['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
-          </div>
-          <div class="dr-stat">
-            <div class="dr-k">cups sold</div>
-            <div class="dr-v-lg"><?= (int)$cupsToday ?></div>
-            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dCups['tone'] ?>"><?= htmlspecialchars($dCups['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
-          </div>
-          <div class="dr-stat">
-            <div class="dr-k">avg per order</div>
-            <div class="dr-v-lg">$<?= number_format($avgToday, 2) ?></div>
-            <?php if ($view === 'daily'): ?><div class="dr-delta tone-<?= $dAvg['tone'] ?>"><?= htmlspecialchars($dAvg['text']) ?></div><?php else: ?><div class="dr-delta-spacer"></div><?php endif; ?>
-          </div>
-          <div class="dr-card"><div class="dr-k">cash</div><div class="dr-v">$<?= number_format($gotCash, 2) ?></div><div class="dr-note">in the register</div></div>
-          <div class="dr-card"><div class="dr-k">bakong</div><div class="dr-v">$<?= number_format($gotBakong, 2) ?></div><div class="dr-note">by phone</div></div>
-          <div class="dr-card"><div class="dr-k">pay later — paid</div><div class="dr-v">$<?= number_format($gotLater, 2) ?></div><div class="dr-note"><?= $isRange ? 'settled' : 'settled today' ?></div></div>
-          <div class="dr-card"><div class="dr-k">not paid yet</div><div class="dr-v">$<?= number_format($notPaidYet, 2) ?></div><div class="dr-note"><?= $notPaidCount === 0 ? 'everyone has paid' : ('from ' . $notPaidCount . ' order' . ($notPaidCount === 1 ? '' : 's')) ?></div></div>
-          <?php if ($gotOther > 0): ?>
-            <div class="dr-card"><div class="dr-k">Riel</div><div class="dr-v">$<?= number_format($gotOther, 2) ?> <span style="font-size: 14px; color: var(--text-muted, #9a8070); font-weight: 500;">~ <?= number_format((int)(round($gotOther * KHR_RATE / 100) * 100)) ?> ៛</span></div><div class="dr-note">total sales − known methods</div></div>
-          <?php else: ?>
-            <div class="dr-card"><div class="dr-k">Riel</div><div class="dr-v">No Order</div><div class="dr-note">total sales − known methods</div></div>
-          <?php endif; ?>
-        </div>
-
-        <div class="dr-charts<?= $view !== 'daily' ? ' dr-charts--full' : '' ?>">
-          <div class="dr-card">
-            <div class="dr-k">when the money came in</div>
-            <?php if ($view !== 'daily'): ?>
-              <div class="dr-note">revenue by <?= htmlspecialchars($periodLabel) ?></div>
-              <div class="dr-chart-area">
-                <div class="dr-y-axis">
-                  <?php foreach (array_reverse($yTicks2) as $yt): ?>
-                  <span class="dr-y-label">$<?= number_format($yt) ?></span>
-                  <?php endforeach; ?>
-                </div>
-                <div class="dr-chart-body">
-                  <div class="dr-chart-vis">
-                    <div class="dr-gridlines">
-                      <?php foreach ($yTicks2 as $yt): ?>
-                      <span class="dr-gridline" style="bottom:<?= $yMax2 > 0 ? $yt / $yMax2 * 100 : 0 ?>%"></span>
-                      <?php endforeach; ?>
-                    </div>
-                    <div class="dr-hours" role="img" aria-label="Revenue by <?= htmlspecialchars($periodLabel) ?>">
-                      <?php foreach ($periodData as $pi => $pv):
-                          $pct = $periodPeak > 0 ? ($pv / $periodPeak) * 100 : 0;
-                          $barDate = date('M j', strtotime(($view === 'monthly' ? substr($date,0,7).'-'.sprintf('%02d',$periodLabels[$pi]) : $periodLabels[$pi])));
-                          $isPeak = $periodPeak > 0 && $pv === $periodPeak; ?>
-                        <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?>">
-                          <span class="dr-hour-fill" style="height:<?= $pv > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
-                          <span class="dr-hour-tip"><?= $barDate ?> · $<?= number_format($pv, 2) ?></span>
-                        </span>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
-                  <div class="dr-hours-axis dr-period-axis">
-                    <?php foreach ($periodAxisLabels as $pa): ?>
-                    <span><?= $pa !== '' ? htmlspecialchars((string)$pa) : '' ?></span>
-                    <?php endforeach; ?>
-                  </div>
-                </div>
-              </div>
-              <?php if ($periodPeak > 0): ?>
-              <p class="dr-note"><?= count($periodData) ?> day<?= count($periodData) === 1 ? '' : 's' ?> · peak $<?= number_format($periodPeak, 2) ?></p>
-              <?php else: ?>
-              <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
-              <?php endif; ?>
-            <?php else: ?>
-            <div class="dr-note">the trading day, 06:00 to 05:00 next morning</div>
-              <div class="dr-chart-area">
-                <div class="dr-y-axis">
-                  <?php foreach (array_reverse($yTicks) as $yt): ?>
-                  <span class="dr-y-label">$<?= number_format($yt) ?></span>
-                  <?php endforeach; ?>
-                </div>
-                <div class="dr-chart-body">
-                  <div class="dr-chart-vis">
-                    <div class="dr-gridlines">
-                      <?php foreach ($yTicks as $yt): ?>
-                      <span class="dr-gridline" style="bottom:<?= $yMax > 0 ? $yt / $yMax * 100 : 0 ?>%"></span>
-                      <?php endforeach; ?>
-                    </div>
-                    <div class="dr-hours" role="img" aria-label="Money taken each hour of the trading day">
-                      <?php foreach ($hourOrder as $h):
-                          $v = $hourRev[$h] ?? 0.0;
-                          $pct = $hourPeakVal > 0 ? ($v / $hourPeakVal) * 100 : 0;
-                          $isPeak = ($busiestHour !== null && $h === $busiestHour); ?>
-                        <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?><?= $h === 0 ? ' is-daybreak' : '' ?>">
-                          <span class="dr-hour-fill" style="height:<?= $v > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
-                          <span class="dr-hour-tip"><?= sprintf('%02d:00', $h) ?> · $<?= number_format($v, 2) ?></span>
-                        </span>
-                      <?php endforeach; ?>
-                    </div>
-                  </div>
-                  <div class="dr-hours-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span><span>05:00</span></div>
-                </div>
-              </div>
-              <?php if ($hourPeakVal > 0 && $busiestHour !== null): ?>
-                <p class="dr-note">busiest at <?= sprintf('%02d:00', $busiestHour) ?> · $<?= number_format($hourPeakVal, 2) ?></p>
-              <?php else: ?>
-                <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
-              <?php endif; ?>
-            <?php endif; ?>
-          </div>
-
-        <?php if ($view === 'daily' && $hhData): ?>
-        <?php
-          $hhYTicks = [];
-          $hhStep = $hhYMax / 5;
-          for ($k = 0; $k <= 5; $k++) { $hhYTicks[] = $k * $hhStep; }
-          $hhBusiest = null;
-          if ($hhPeakVal > 0) {
-            foreach ($hhData as $hb) {
-              if ($hb['cnt'] === $hhPeakVal) { $hhBusiest = $hb['hour']; break; }
+// Compute per-order COGS for Profit column
+$cogsByOrder = [];
+if ($table_orders) {
+    $tbl_order_ids = array_map(fn($o) => (int)$o['order_id'], $table_orders);
+    $in_ids = implode(',', $tbl_order_ids);
+    $cost_map_ref = ingredient_cost_map($conn);
+    
+    $q_its = $conn->query("
+        SELECT oi.order_id, oi.product_id, oi.milk, oi.quantity
+        FROM order_items oi
+        WHERE oi.order_id IN ($in_ids)
+    ");
+    $items_by_order = [];
+    $pids_map = [];
+    if ($q_its) {
+        while ($it = $q_its->fetch_assoc()) {
+            $items_by_order[(int)$it['order_id']][] = $it;
+            if ((int)$it['product_id'] > 0) { $pids_map[(int)$it['product_id']] = true; }
+        }
+    }
+    
+    $recipes_map = [];
+    if ($pids_map) {
+        $pin_str = implode(',', array_keys($pids_map));
+        $qr_rec = $conn->query("
+            SELECT pi.product_id, pi.ingredient_id, pi.amount_used, i.ingredient_name
+            FROM product_ingredients pi
+            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
+            WHERE pi.product_id IN ($pin_str)
+        ");
+        if ($qr_rec) {
+            while ($r = $qr_rec->fetch_assoc()) {
+                $recipes_map[(int)$r['product_id']][] = [
+                    'ingredient_id'   => (int)$r['ingredient_id'],
+                    'ingredient_name' => $r['ingredient_name'],
+                    'amount_used'     => (float)$r['amount_used'],
+                ];
             }
-          }
-        ?>
-          <div class="dr-card">
-            <div class="dr-k">Orders vs Hour</div>
-            <div class="dr-note">order volume each hour, 06:00 to 22:00</div>
-            <div class="dr-chart-area">
-              <div class="dr-y-axis">
-                <?php foreach (array_reverse($hhYTicks) as $yt): ?>
-                <span class="dr-y-label"><?= (int)$yt ?></span>
-                <?php endforeach; ?>
-              </div>
-              <div class="dr-chart-body">
-                <div class="dr-chart-vis">
-                  <div class="dr-gridlines">
-                    <?php foreach ($hhYTicks as $yt): ?>
-                    <span class="dr-gridline" style="bottom:<?= $hhYMax > 0 ? $yt / $hhYMax * 100 : 0 ?>%"></span>
+        }
+    }
+
+    foreach ($items_by_order as $oid => $its) {
+        $ocost = 0.0;
+        foreach ($its as $it) {
+            $pid  = (int)$it['product_id'];
+            $qty  = max(1, (int)$it['quantity']);
+            $milk = trim((string)$it['milk']);
+            foreach ($recipes_map[$pid] ?? [] as $rc) {
+                $amount = $rc['amount_used'] * $qty;
+                if ($amount <= 0) continue;
+                if (strpos(strtolower(trim($rc['ingredient_name'])), 'milk') !== false) {
+                    $key = strtolower(trim($milk !== '' ? $milk : 'Fresh Milk'));
+                    if (isset($cost_map_ref[$key])) { $ocost += $amount * (float)$cost_map_ref[$key]['unit_cost']; }
+                } else {
+                    $ocost += $amount * (float)($cost_map_ref[$rc['ingredient_id']]['unit_cost'] ?? 0);
+                }
+            }
+        }
+        $cogsByOrder[$oid] = $ocost;
+    }
+}
+
+$sum_gross  = 0.0;
+$sum_disc   = 0.0;
+$sum_net    = 0.0;
+$sum_profit = 0.0;
+
+$processed_rows = [];
+$idx = 0;
+foreach ($table_orders as $to) {
+    $idx++;
+    $dailyOrderNo = (int)($to['daily_order_no'] ?? $idx);
+    $orderNoStr   = '#' . str_pad((string)$dailyOrderNo, 4, '0', STR_PAD_LEFT);
+    $oid   = (int)$to['order_id'];
+    $disc  = (float)($to['discount_amount'] ?? 0);
+    $net   = (float)$to['total'];
+    $gross = $net + $disc;
+    $ocogs = (float)($cogsByOrder[$oid] ?? 0.0);
+    $profit = $net - $ocogs;
+
+    $sum_gross  += $gross;
+    $sum_disc   += $disc;
+    $sum_net    += $net;
+    $sum_profit += $profit;
+
+    $date_str = date('g:i j/n/Y', strtotime($to['order_date']));
+    $cust = htmlspecialchars($to['customer_name'] ?: 'General');
+    $staff = htmlspecialchars($to['staff_name'] ?: 'Visal');
+
+    $fmt_gross  = ($gross == floor($gross) ? number_format($gross, 0) : number_format($gross, 2)) . '$';
+    $fmt_disc   = $disc > 0 ? (($disc == floor($disc) ? number_format($disc, 0) : number_format($disc, 2)) . '$') : '0';
+    $fmt_net    = ($net == floor($net) ? number_format($net, 0) : number_format($net, 2)) . '$';
+    $fmt_profit = ($profit == floor($profit) ? number_format($profit, 0) : number_format($profit, 2)) . '$';
+
+    $processed_rows[] = [
+        'no'         => $orderNoStr,
+        'date'       => $date_str,
+        'customer'   => $cust,
+        'price'      => $fmt_gross,
+        'discount'   => $fmt_disc,
+        'total'      => $fmt_net,
+        'profit'     => $fmt_profit,
+        'currency'   => '$',
+        'place_by'   => $staff,
+    ];
+}
+
+$fmt_sum_gross  = ($sum_gross == floor($sum_gross) ? number_format($sum_gross, 0) : number_format($sum_gross, 2)) . '$';
+$fmt_sum_disc   = ($sum_disc == floor($sum_disc) ? number_format($sum_disc, 0) : number_format($sum_disc, 2)) . '$';
+$fmt_sum_net    = ($sum_net == floor($sum_net) ? number_format($sum_net, 0) : number_format($sum_net, 2)) . '$';
+$fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit, 0) : number_format($sum_profit, 2)) . '$';
+?>
+<body>
+<div class="flex h-screen w-full overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto er-container">
+    <?php
+    $report_category = 'Sales';
+    $report_title    = 'Sales Report';
+    $date_from       = $filter_from;
+    $date_to         = $filter_to;
+
+    $user_options = ['' => 'All Staff'];
+    $q_users = $conn->query("SELECT u.user_id, u.username, r.slug AS role FROM users u LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.username ASC");
+    if ($q_users) {
+        while ($ur = $q_users->fetch_assoc()) {
+            $user_options[$ur['user_id']] = $ur['username'] . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+        }
+    }
+
+    $filter_options  = [
+        [
+            'name' => 'user_id',
+            'label' => 'Staff Member',
+            'options' => $user_options,
+            'selected' => $filter_user
+        ],
+        [
+            'name' => 'payment_method',
+            'label' => 'Payment Method',
+            'options' => ['' => 'All Methods', 'cash' => 'Cash', 'bakong' => 'Bakong'],
+            'selected' => $filter_payment
+        ]
+    ];
+    $export_excel_url = "daily_report_xlsx.php?date_from=" . urlencode($filter_from) . "&date_to=" . urlencode($filter_to);
+    $export_pdf_url   = "daily_report_pdf.php?date_from=" . urlencode($filter_from) . "&date_to=" . urlencode($filter_to) . "&user_id=" . urlencode($filter_user) . "&payment_method=" . urlencode($filter_payment) . "&lang=" . urlencode(current_lang());
+    require __DIR__ . '/report_header.php';
+
+    $isKm = (current_lang() === 'km');
+    $lbl_col_no       = $isKm ? 'លេខ Order' : 'No Order';
+    $lbl_col_date     = $isKm ? 'កាលបរិច្ឆេទ' : 'Date';
+    $lbl_col_cust     = $isKm ? 'អតិថិជន' : 'Customer';
+    $lbl_col_price    = $isKm ? 'តម្លៃ' : 'Price';
+    $lbl_col_disc     = $isKm ? 'បញ្ចុះតម្លៃ' : 'Disc';
+    $lbl_col_total    = $isKm ? 'ចំណូល' : 'Revenue';
+    $lbl_col_profit   = $isKm ? 'ប្រាក់ចំណេញ' : 'Profit';
+    $lbl_col_curr     = $isKm ? 'រូបិយប័ណ្ណ' : 'Currency';
+    $lbl_col_place    = $isKm ? 'អ្នកលក់' : 'Place by';
+    $lbl_col_sum      = $isKm ? 'សរុប' : 'Total';
+    $lbl_date_from    = $isKm ? 'ចាប់ពីថ្ងៃ :' : 'Date From :';
+    $lbl_date_to      = $isKm ? 'ដល់ថ្ងៃ :' : 'Date To :';
+    $lbl_doc_no       = $isKm ? 'ចំនួន Order :' : 'Order :';
+    $lbl_gross_sales  = $isKm ? 'ការលក់សរុប' : 'Total Gross Sales';
+    $lbl_total_disc   = $isKm ? 'បញ្ចុះតម្លៃសរុប' : 'Total Discounts';
+    $lbl_net_revenue  = $isKm ? 'ចំណូលសុទ្ធសរុប' : 'Total Net Revenue';
+    $lbl_total_profit = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit';
+    ?>
+
+    <!-- Data Table -->
+    <div class="er-table-card">
+        <div class="er-table-wrap">
+            <table class="er-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_no) ?></th>
+                        <th><?= htmlspecialchars($lbl_col_date) ?></th>
+                        <th><?= htmlspecialchars($lbl_col_cust) ?></th>
+                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_price) ?></th>
+                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_disc) ?></th>
+                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_total) ?></th>
+                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_profit) ?></th>
+                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_curr) ?></th>
+                        <th><?= htmlspecialchars($lbl_col_place) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($processed_rows)): ?>
+                    <tr class="no-data">
+                        <td colspan="9" class="no-data"><?= $isKm ? 'គ្មានទិន្នន័យ' : 'No data' ?></td>
+                    </tr>
+                    <?php else: ?>
+                    <?php foreach ($processed_rows as $r): ?>
+                    <tr>
+                        <td style="text-align:center;font-weight:600;"><?= $r['no'] ?></td>
+                        <td><?= $r['date'] ?></td>
+                        <td><?= $r['customer'] ?></td>
+                        <td style="text-align:right;"><?= $r['price'] ?></td>
+                        <td style="text-align:right;"><?= $r['discount'] ?></td>
+                        <td style="text-align:right;font-weight:bold;color:#d1904b;"><?= $r['total'] ?></td>
+                        <td style="text-align:right;font-weight:bold;color:#55e087;"><?= $r['profit'] ?></td>
+                        <td style="text-align:center;"><?= $r['currency'] ?></td>
+                        <td><?= $r['place_by'] ?></td>
+                    </tr>
                     <?php endforeach; ?>
-                  </div>
-                  <div class="dr-hours" role="img" aria-label="Orders per hour">
-                    <?php foreach ($hhData as $hb):
-                        $pct = $hhYMax > 0 ? ($hb['cnt'] / $hhYMax) * 100 : 0;
-                        $isPeak = $hhPeakVal > 0 && $hb['cnt'] === $hhPeakVal; ?>
-                      <span class="dr-hour<?= $isPeak ? ' is-peak' : '' ?>">
-                        <span class="dr-hour-fill" style="height:<?= $hb['cnt'] > 0 ? max(2, round($pct, 1)) : 0 ?>%"></span>
-                        <span class="dr-hour-tip"><?= $hb['hour'] ?> · <?= $hb['cnt'] ?> order<?= $hb['cnt'] === 1 ? '' : 's' ?></span>
-                      </span>
-                    <?php endforeach; ?>
-                  </div>
-                </div>
-                <div class="dr-hours-axis">
-                  <?php foreach ($hhData as $i => $hb): ?>
-                  <span><?= $i % 2 === 0 || $i === count($hhData) - 1 ? $hb['hour'] : '' ?></span>
-                  <?php endforeach; ?>
-                </div>
-              </div>
+                    <tr style="font-weight:bold;background:rgba(255,255,255,0.04);border-top:2px solid rgba(255,255,255,0.1);">
+                        <td colspan="3" style="text-align:center;"><?= htmlspecialchars($lbl_col_sum) ?></td>
+                        <td style="text-align:right;"><?= $fmt_sum_gross ?></td>
+                        <td style="text-align:right;"><?= $fmt_sum_disc ?></td>
+                        <td style="text-align:right;color:#d1904b;"><?= $fmt_sum_net ?></td>
+                        <td style="text-align:right;color:#55e087;"><?= $fmt_sum_profit ?></td>
+                        <td style="text-align:center;">$</td>
+                        <td></td>
+                    </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="er-summary-card">
+        <div class="er-summary-info">
+            <span><?= htmlspecialchars($lbl_date_from) ?> <strong><?= htmlspecialchars(date('j/n/Y', strtotime($filter_from))) ?></strong></span>
+            <span><?= htmlspecialchars($lbl_date_to) ?> <strong><?= htmlspecialchars(date('j/n/Y', strtotime($filter_to))) ?></strong></span>
+            <span><?= htmlspecialchars($lbl_doc_no) ?> <strong><?= count($processed_rows) ?></strong></span>
+        </div>
+        <div class="er-summary-stats">
+            <div class="er-summary-stat-item">
+                <span class="stat-label"><?= htmlspecialchars($lbl_gross_sales) ?></span>
+                <span class="stat-val"><?= $fmt_sum_gross ?></span>
             </div>
-            <?php if ($hhPeakVal > 0 && $hhBusiest !== null): ?>
-              <p class="dr-note">busiest at <?= $hhBusiest ?> · <?= $hhPeakVal ?> order<?= $hhPeakVal === 1 ? '' : 's' ?></p>
-            <?php else: ?>
-              <p class="dr-note"><?= htmlspecialchars($drZeroLine) ?></p>
-            <?php endif; ?>
-          </div>
-        <?php endif; ?>
+            <div class="er-summary-stat-item">
+                <span class="stat-label"><?= htmlspecialchars($lbl_total_disc) ?></span>
+                <span class="stat-val text-red-400"><?= $fmt_sum_disc ?></span>
+            </div>
+            <div class="er-summary-stat-item">
+                <span class="stat-label"><?= htmlspecialchars($lbl_net_revenue) ?></span>
+                <span class="stat-val text-amber-400"><?= $fmt_sum_net ?></span>
+            </div>
+            <div class="er-summary-stat-item">
+                <span class="stat-label"><?= htmlspecialchars($lbl_total_profit) ?></span>
+                <span class="stat-val text-emerald-400"><?= $fmt_sum_profit ?></span>
+            </div>
+        </div>
+    </div>
+</main>
+</div>
         </div>
 
-        <div class="dr-tall">
-          <div class="dr-card">
-            <div class="dr-k">best sellers</div>
-            <?php
-                $C2 = 2 * M_PI * 54;
-                $allProductRev = array_sum(array_column($byProductSorted, 'revenue'));
-                $topItems = array_slice($byProductSorted, 0, 5, true);
-                $bpSlices = [];
-                $bpAcc = 0.0;
-                if ($allProductRev > 0 && $topItems) {
-                    foreach ($topItems as $bpName => $bpRow) { $bpSlices[] = ['name'=>$bpName, 'revenue'=>(float)$bpRow['revenue']]; }
-                    $otherRev = $allProductRev - array_sum(array_column($bpSlices, 'revenue'));
-                    if ($otherRev > 0.005) { $bpSlices[] = ['name'=>'Other', 'revenue'=>$otherRev]; }
-                }
-                $bpColors = ['sel0','sel1','sel2','sel3','sel4','sel5']; ?>
-              <div class="dr-donut-row">
-                <svg class="dr-donut" viewBox="0 0 140 140" role="img" aria-label="Revenue share by product">
-                  <circle cx="70" cy="70" r="54" class="dr-donut-track"></circle>
-                  <?php foreach ($bpSlices as $si => $sl):
-                      $frac = $allProductRev > 0 ? $sl['revenue'] / $allProductRev : 0;
-                      $len  = $frac * $C2;
-                      $colCls = $bpColors[$si % count($bpColors)]; ?>
-                    <g class="dr-donut-group">
-                      <circle cx="70" cy="70" r="54" class="dr-donut-seg <?= $colCls ?>"
-                              fill="transparent"
-                              stroke-dasharray="<?= round($len, 2) ?> <?= round($C2 - $len, 2) ?>"
-                              stroke-dashoffset="<?= round(-$bpAcc * $C2, 2) ?>"
-                              data-label="<?= htmlspecialchars($sl['name']) ?>"
-                              data-amt="<?= number_format($sl['revenue'], 2) ?>"
-                              data-pct="<?= round($frac * 100) ?>"
-                              data-cls="<?= $colCls ?>"></circle>
-                    </g>
-                  <?php $bpAcc += $frac; endforeach; ?>
-                  <text x="70" y="66" class="dr-donut-mid">$<?= number_format($allProductRev, 2) ?></text>
-                  <text x="70" y="82" class="dr-donut-sub">revenue</text>
-                </svg>
-                <ul class="dr-legend">
-                  <?php if ($bpSlices): ?>
-                  <?php foreach ($bpSlices as $si => $sl):
-                      $frac = $allProductRev > 0 ? $sl['revenue'] / $allProductRev : 0;
-                      $colCls = $bpColors[$si % count($bpColors)]; ?>
-                    <li>
-                      <span class="dr-legend-left">
-                        <span class="dr-dot <?= $colCls ?>"></span><?= htmlspecialchars($sl['name']) ?>
-                      </span>
-                      <b>$<?= number_format($sl['revenue'], 2) ?> · <?= round($frac * 100) ?>%</b>
-                    </li>
-                  <?php endforeach; ?>
-                  <?php else: ?>
-                    <li class="dr-note"><?= htmlspecialchars($drZeroLine) ?></li>
-                  <?php endif; ?>
-                </ul>
-              </div>
-          </div>
 
-          <div class="dr-card">
-            <div class="dr-k">best add-on price</div>
-            <?php
-                $C = 2 * M_PI * 54;
-                $topAddons = array_slice($addonSales, 0, 5, true);
-                $addonSlices = [];
-                if ($totalAddonRev > 0 && $topAddons) {
-                    foreach ($topAddons as $adName => $adRow) {
-                        $addonSlices[] = [
-                            'name' => $adName,
-                            'price' => (float)$adRow['price'],
-                            'qty' => (int)$adRow['qty'],
-                            'revenue' => (float)$adRow['revenue']
-                        ];
-                    }
-                    $otherAddonRev = $totalAddonRev - array_sum(array_column($addonSlices, 'revenue'));
-                    if ($otherAddonRev > 0.005) {
-                        $addonSlices[] = [
-                            'name' => 'Other',
-                            'price' => 0,
-                            'qty' => 0,
-                            'revenue' => $otherAddonRev
-                        ];
-                    }
-                } elseif ($topAddons) {
-                    foreach ($topAddons as $adName => $adRow) {
-                        $addonSlices[] = [
-                            'name' => $adName,
-                            'price' => (float)$adRow['price'],
-                            'qty' => (int)$adRow['qty'],
-                            'revenue' => 0.0
-                        ];
-                    }
-                }
-                $catAcc = 0.0;
-                $catColors = ['cat0','cat1','cat2','cat3','cat4','cat0']; ?>
-              <div class="dr-donut-row">
-                <svg class="dr-donut" viewBox="0 0 140 140" role="img" aria-label="Share of revenue by add-on">
-                  <circle cx="70" cy="70" r="54" class="dr-donut-track"></circle>
-                  <?php foreach ($addonSlices as $ci => $ad):
-                      $frac = $totalAddonRev > 0 ? $ad['revenue'] / $totalAddonRev : 0;
-                      $len  = $frac * $C;
-                      $colCls = $catColors[$ci % count($catColors)]; ?>
-                    <g class="dr-donut-group">
-                      <circle cx="70" cy="70" r="54" class="dr-donut-seg <?= $colCls ?>"
-                              fill="transparent"
-                              stroke-dasharray="<?= round($len, 2) ?> <?= round($C - $len, 2) ?>"
-                              stroke-dashoffset="<?= round(-$catAcc * $C, 2) ?>"
-                              data-label="<?= htmlspecialchars($ad['name'] . ($ad['price'] > 0 ? ' ($' . number_format($ad['price'], 2) . ')' : '')) ?>"
-                              data-amt="<?= number_format((float)$ad['revenue'], 2) ?>"
-                              data-pct="<?= round($frac * 100) ?>"
-                              data-cls="<?= $colCls ?>"></circle>
-                    </g>
-                  <?php $catAcc += $frac; endforeach; ?>
-                  <text x="70" y="66" class="dr-donut-mid">$<?= number_format($totalAddonRev, 2) ?></text>
-                  <text x="70" y="82" class="dr-donut-sub">addon price</text>
-                </svg>
-                <ul class="dr-legend">
-                  <?php if ($addonSlices): ?>
-                  <?php foreach ($addonSlices as $ci => $ad):
-                      $frac = $totalAddonRev > 0 ? $ad['revenue'] / $totalAddonRev : 0;
-                      $colCls = $catColors[$ci % count($catColors)]; ?>
-                    <li>
-                      <span class="dr-legend-left">
-                        <span class="dr-dot <?= $colCls ?>"></span><?= htmlspecialchars($ad['name']) ?><?php if ($ad['price'] > 0): ?> <small style="color:var(--muted2); font-weight:400;">($<?= number_format($ad['price'], 2) ?>)</small><?php endif; ?>
-                      </span>
-                      <b>$<?= number_format((float)$ad['revenue'], 2) ?><?php if ($totalAddonRev > 0): ?> · <?= round($frac * 100) ?>%<?php else: ?> (<?= (int)$ad['qty'] ?> sold)<?php endif; ?></b>
-                    </li>
-                  <?php endforeach; ?>
-                  <?php else: ?>
-                    <li class="dr-note">no add-ons sold in this period</li>
-                  <?php endif; ?>
-                </ul>
-              </div>
-          </div>
-
-          <div class="dr-card">
-            <div class="dr-k">how the money came in</div>
-            <?php
-                $C3 = 2 * M_PI * 54;
-                $slices = $gotToday > 0 ? array_values(array_filter([
-                    ['cash', 'cash', $gotCash], ['bakong', 'bakong', $gotBakong],
-                    ['later', 'pay later', $gotLater], ['other', 'Riel', $gotOther],
-                ], fn($s) => $s[2] > 0.005)) : [];
-                $acc = 0.0; ?>
-              <div class="dr-donut-row">
-                <svg class="dr-donut" viewBox="0 0 140 140" role="img" aria-label="Share of money by how it was paid">
-                  <circle cx="70" cy="70" r="54" class="dr-donut-track"></circle>
-                  <?php foreach ($slices as [$cls, $lbl, $amt]):
-                      $frac = $gotToday > 0 ? $amt / $gotToday : 0;
-                      $len  = $frac * $C3; ?>
-                    <g class="dr-donut-group">
-                      <circle cx="70" cy="70" r="54" class="dr-donut-seg seg-<?= $cls ?>"
-                              fill="transparent"
-                              stroke-dasharray="<?= round($len, 2) ?> <?= round($C3 - $len, 2) ?>"
-                              stroke-dashoffset="<?= round(-$acc * $C3, 2) ?>"
-                              data-label="<?= htmlspecialchars($lbl) ?>"
-                              data-amt="<?= number_format($amt, 2) ?>"
-                              data-pct="<?= round($frac * 100) ?>"
-                              data-cls="seg-<?= $cls ?>"></circle>
-                    </g>
-                  <?php $acc += $frac; endforeach; ?>
-                  <text x="70" y="66" class="dr-donut-mid">$<?= number_format($gotToday, 2) ?></text>
-                  <text x="70" y="82" class="dr-donut-sub">collected</text>
-                </svg>
-                <ul class="dr-legend">
-                  <?php if ($gotToday > 0): ?>
-                  <?php foreach ($slices as [$cls, $lbl, $amt]): ?>
-                    <li>
-                      <span class="dr-legend-left">
-                        <span class="dr-dot seg-<?= $cls ?>"></span><?= htmlspecialchars($lbl) ?>
-                      </span>
-                      <b>$<?= number_format($amt, 2) ?></b>
-                    </li>
-                  <?php endforeach; ?>
-                  <?php else: ?>
-                    <li class="dr-note"><?= htmlspecialchars($drZeroLine) ?></li>
-                  <?php endif; ?>
-                </ul>
-              </div>
-            <?php if ($gotToday > 0 && $notPaidYet > 0): ?>
-              <p class="dr-note">$<?= number_format($notPaidYet, 2) ?> not paid yet<?= $isRange ? '' : '. We count it only when the customer pays' ?>.</p>
-            <?php endif; ?>
-          </div>
-        </div>
     </div>
     <div class="dr-panel" id="panel-orders" hidden></div>
     <div class="dr-panel" id="panel-stock"  hidden></div>
@@ -2190,5 +2010,7 @@ window.addEventListener('storage', function (e) {
 });
 </script>
 
+</main>
+</div>
 </body>
 </html>

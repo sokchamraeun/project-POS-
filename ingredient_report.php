@@ -6,8 +6,8 @@ if (!can('ingredients')) { header("Location: dashboard.php?denied=1"); exit; }
 /* ── DATE RANGE ── */
 $today     = date('Y-m-d');
 $default_f = date('Y-m-d', strtotime('-30 days'));
-$date_from = trim($_GET['from'] ?? $default_f);
-$date_to   = trim($_GET['to']   ?? $today);
+$date_from = trim($_GET['from_date'] ?? $_GET['from'] ?? $default_f);
+$date_to   = trim($_GET['to_date']   ?? $_GET['to']   ?? $today);
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from)) $date_from = $default_f;
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to))   $date_to   = $today;
 if ($date_from > $date_to) [$date_from, $date_to] = [$date_to, $date_from];
@@ -75,555 +75,138 @@ function he($s)   { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ingredient Report | Bird's Nest Coffee</title>
-<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');}());</script>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Inventory Report | Bird's Nest Coffee</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<style>
-:root {
-    --bg:#0b0b0b; --bg-card:#131313; --bg-card-hover:#1a1a1a; --bg-input:#1a1a1a;
-    --border:#222; --border-hover:#333;
-    --accent:#d1904b; --accent-light:#e8b87a; --accent-dark:#a0702a;
-    --text:#f5f5f5; --text-muted:#888; --text-light:#fff;
-    --ok:#55e087; --low:#f1c40f; --danger:#ff5f5f; --blue:#3498db; --purple:#9b59b6;
-    --shadow-sm:0 2px 8px rgba(0,0,0,.35); --shadow-md:0 4px 20px rgba(0,0,0,.45);
-    --shadow-accent:0 0 0 3px rgba(209,144,75,.12);
-    --radius:14px; --transition:all .22s cubic-bezier(.4,0,.2,1);
-}
-[data-theme="light"] {
-    --bg:#F0F2F5; --bg-card:#FFFFFF; --bg-card-hover:#F5F7FA; --bg-input:#F9FAFB;
-    --border:#E5E7EB; --border-hover:#D1D5DB;
-    --text:#111827; --text-muted:#6B7280; --text-light:#111827;
-    --shadow-sm:0 2px 8px rgba(0,0,0,.06); --shadow-md:0 4px 20px rgba(0,0,0,.08);
-}
-[data-theme="light"] .topbar { background:rgba(255,255,255,.97); }
-[data-theme="light"] thead th { background:#fff; }
-[data-theme="light"] tr:hover td { background:rgba(0,0,0,.02); }
-[data-theme="light"] input,[data-theme="light"] select { background:var(--bg-input)!important; color:var(--text)!important; border-color:var(--border)!important; color-scheme:light; }
-
-*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding-bottom:48px; }
-::-webkit-scrollbar { width:5px; height:5px; }
-::-webkit-scrollbar-thumb { background:var(--accent); border-radius:10px; }
-
-/* TOPBAR */
-.topbar {
-    position:sticky; top:0; z-index:200;
-    display:flex; align-items:center; gap:10px; padding:10px 24px;
-    background:rgba(11,11,11,.97); backdrop-filter:blur(20px);
-    border-bottom:1px solid var(--border); flex-wrap:wrap;
-}
-.brand-icon  { width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,var(--accent-dark),var(--accent)); display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; flex-shrink:0; }
-.brand-text  { display:flex; flex-direction:column; line-height:1.2; }
-.brand-title { font-size:15px; font-weight:700; color:var(--text-light); }
-.brand-sub   { font-size:10px; color:var(--text-muted); }
-.topbar-sep  { width:1px; height:22px; background:var(--border); flex-shrink:0; }
-.topbar-right { display:flex; align-items:center; gap:6px; margin-left:auto; flex-wrap:wrap; }
-
-.btn-nav {
-    display:inline-flex; align-items:center; gap:6px; padding:7px 14px;
-    border-radius:50px; border:1px solid var(--border); background:var(--bg-input);
-    color:var(--text-muted); text-decoration:none; font-size:12px; font-weight:500;
-    transition:var(--transition); cursor:pointer; white-space:nowrap; font-family:'Poppins',sans-serif;
-}
-.btn-nav:hover { border-color:var(--accent); color:var(--accent); }
-.btn-nav.icon-only { padding:7px 10px; }
-
-/* DATE RANGE FORM */
-.range-bar {
-    margin:14px 24px 0; padding:14px 18px;
-    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
-    display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;
-}
-.range-group { display:flex; flex-direction:column; gap:5px; }
-.range-label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
-.range-input {
-    padding:7px 12px; border-radius:8px; border:1px solid var(--border);
-    background:var(--bg-input); color:var(--text); font-size:13px;
-    font-family:'Poppins',sans-serif; outline:none; transition:var(--transition);
-}
-.range-input:focus { border-color:var(--accent); box-shadow:var(--shadow-accent); }
-.range-actions { display:flex; gap:8px; margin-left:auto; align-items:flex-end; }
-.btn-apply {
-    padding:7px 18px; border-radius:8px; border:1px solid var(--accent);
-    background:var(--accent); color:#000; font-size:13px; font-weight:700;
-    cursor:pointer; font-family:'Poppins',sans-serif; transition:var(--transition);
-}
-.btn-apply:hover { background:var(--accent-light); }
-.btn-quick {
-    padding:6px 12px; border-radius:8px; border:1px solid var(--border);
-    background:transparent; color:var(--text-muted); font-size:12px; font-weight:600;
-    cursor:pointer; font-family:'Poppins',sans-serif; transition:var(--transition);
-}
-.btn-quick:hover { border-color:var(--accent); color:var(--accent); }
-.period-label { font-size:12px; color:var(--text-muted); padding:7px 0; }
-
-/* STATS */
-.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:14px 24px 0; }
-.stat-card {
-    background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:16px 18px; display:flex; align-items:center; gap:12px; position:relative; overflow:hidden;
-}
-.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:var(--radius) var(--radius) 0 0; }
-.stat-card.s-consumed::before { background:linear-gradient(90deg,#c0392b,var(--danger)); }
-.stat-card.s-added::before    { background:linear-gradient(90deg,#2ecc71,var(--ok)); }
-.stat-card.s-net::before      { background:linear-gradient(90deg,#2471a3,var(--blue)); }
-.stat-card.s-events::before   { background:linear-gradient(90deg,var(--accent-dark),var(--accent-light)); }
-.stat-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
-.stat-icon.consumed { background:rgba(255,95,95,.12);  color:var(--danger); }
-.stat-icon.added    { background:rgba(85,224,135,.12);  color:var(--ok); }
-.stat-icon.net      { background:rgba(52,152,219,.12);  color:var(--blue); }
-.stat-icon.events   { background:rgba(209,144,75,.12);  color:var(--accent); }
-.stat-label { font-size:10px; color:var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:.5px; }
-.stat-num   { font-size:18px; font-weight:800; line-height:1.2; }
-.stat-hint  { font-size:10px; color:var(--text-muted); margin-top:1px; }
-.s-consumed .stat-num { color:var(--danger); }
-.s-added    .stat-num { color:var(--ok); }
-.s-net      .stat-num { color:var(--blue); }
-.s-events   .stat-num { color:var(--accent); }
-
-/* TABLE */
-.table-card { margin:14px 24px 0; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm); }
-.table-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); gap:10px; flex-wrap:wrap; }
-.table-title { font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; }
-.table-wrap { overflow:auto; max-height:calc(100vh - 360px); }
-table { width:100%; border-collapse:collapse; font-size:13px; }
-thead { position:sticky; top:0; z-index:10; }
-th { padding:10px 14px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--text-muted); background:var(--bg-card); border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; }
-th:hover { color:var(--accent); }
-th.sorted { color:var(--accent); }
-th .si { margin-left:4px; opacity:.3; font-size:9px; }
-th.sorted .si { opacity:1; }
-td { padding:11px 14px; border-bottom:1px solid var(--border); color:var(--text); white-space:nowrap; vertical-align:middle; }
-tr:last-child td { border-bottom:none; }
-tr:hover td { background:rgba(255,255,255,.025); }
-tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px solid var(--border); color:var(--text-muted); background:rgba(255,255,255,.015); }
-
-/* INGREDIENT NAME */
-.ing-cell { display:flex; align-items:center; gap:9px; }
-.ing-dot  { width:26px; height:26px; border-radius:7px; background:rgba(209,144,75,.1); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--accent); flex-shrink:0; }
-
-/* DAYS REMAINING */
-.days-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:50px; font-size:11px; font-weight:700; }
-.days-ok       { background:rgba(85,224,135,.1);  color:var(--ok);     border:1px solid rgba(85,224,135,.2); }
-.days-warn     { background:rgba(241,196,15,.1);  color:var(--low);    border:1px solid rgba(241,196,15,.2); }
-.days-critical { background:rgba(255,95,95,.1);   color:var(--danger); border:1px solid rgba(255,95,95,.2); }
-.days-none     { color:var(--text-muted); font-size:11px; }
-
-/* USAGE BAR */
-.usage-wrap { display:flex; align-items:center; gap:8px; min-width:120px; }
-.usage-bar  { flex:1; height:5px; background:rgba(255,255,255,.07); border-radius:4px; overflow:hidden; }
-.usage-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#c0392b,var(--danger)); }
-
-/* SEARCH */
-.search-wrap { display:flex; align-items:center; gap:8px; padding:7px 12px; border-radius:50px; border:1px solid var(--border); background:var(--bg-input); transition:var(--transition); max-width:240px; }
-.search-wrap:focus-within { border-color:var(--accent); }
-.search-wrap i { color:var(--text-muted); font-size:12px; }
-.search-wrap input { border:none; background:transparent; outline:none; color:var(--text); font-size:12px; font-family:'Poppins',sans-serif; width:100%; }
-.search-wrap input::placeholder { color:var(--text-muted); }
-
-/* TOAST */
-#toast-cnt { position:fixed; bottom:24px; right:20px; z-index:99999; display:flex; flex-direction:column-reverse; gap:8px; pointer-events:none; }
-.toast { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:11px 16px; font-size:13px; font-weight:500; color:var(--text); box-shadow:var(--shadow-md); display:flex; align-items:center; gap:10px; min-width:220px; max-width:320px; transform:translateX(120%); transition:transform .3s cubic-bezier(.34,1.56,.64,1); pointer-events:auto; }
-.toast.show { transform:translateX(0); }
-.toast.success { border-left:3px solid var(--ok); }
-.toast.error   { border-left:3px solid var(--danger); }
-
-/* PAGINATION */
-tr.hidden { display:none !important; }
-.pg-wrap { padding:14px 18px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
-.pg-nav { display:flex; gap:4px; flex-wrap:wrap; }
-.pg-btn { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-size:13px; font-weight:600; text-decoration:none; transition:var(--transition); }
-.pg-btn:hover { border-color:var(--accent); color:var(--accent); }
-.pg-active { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; background:var(--accent); border:1px solid var(--accent); color:#000; font-size:13px; font-weight:700; }
-.pg-disabled { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; border:1px solid var(--border); color:var(--text-muted); font-size:13px; opacity:.35; cursor:default; }
-.pg-ellipsis { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; color:var(--text-muted); font-size:13px; }
-.pg-info { font-size:12px; color:var(--text-muted); }
-
-/* EMPTY */
-.empty-state { text-align:center; padding:60px 20px; }
-.empty-state .ei { font-size:42px; color:var(--border-hover); margin-bottom:14px; }
-.empty-state h3  { font-size:16px; font-weight:600; margin-bottom:6px; }
-.empty-state p   { font-size:13px; color:var(--text-muted); }
-
-@media (max-width:900px)  { .stats-row { grid-template-columns:repeat(2,1fr); } }
-@media (max-width:640px)  { .stats-row,.range-bar,.table-card { margin-left:14px; margin-right:14px; } .topbar { padding:10px 14px; } }
-@media print {
-    .topbar,.range-bar { display:none!important; }
-    body { background:#fff; color:#000; }
-    .table-card { box-shadow:none; border:1px solid #ccc; margin:0; }
-    .table-wrap { max-height:none; overflow:visible; }
-}
-</style>
 </head>
 <body>
+<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto er-container">
+    <?php
+    $report_category = 'Inventory';
+    $report_title    = 'Inventory Report';
+    $filter_stock    = trim($_GET['stock_status'] ?? '');
+    
+    $filter_options  = [
+        [
+            'name' => 'stock_status',
+            'label' => 'Stock Alert Status',
+            'options' => ['' => 'All Items', 'low' => 'Low Stock Warning', 'out' => 'Out of Stock'],
+            'selected' => $filter_stock
+        ]
+    ];
+    $export_excel_url = "#";
+    $export_pdf_url   = "ingredients_pdf.php";
+    require __DIR__ . '/report_header.php';
 
-<!-- TOPBAR -->
-<div class="topbar">
-    <a href="ingredients.php" class="btn-nav icon-only" title="Back to Ingredients"><i class="fa-solid fa-arrow-left"></i></a>
-    <div class="brand-icon"><i class="fa-solid fa-chart-bar"></i></div>
-    <div class="brand-text">
-        <span class="brand-title">Consumption Report</span>
-        <span class="brand-sub">Bird's Nest Coffee &rsaquo; Inventory</span>
-    </div>
-    <div class="topbar-right">
-        <a href="ingredient_history.php" class="btn-nav"><i class="fa-solid fa-clock-rotate-left"></i> History</a>
-        <button class="btn-nav" onclick="exportCSV()" title="Export to CSV"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
-        <button class="btn-nav icon-only" onclick="toggleTheme()" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
-    </div>
-</div>
+    // Apply stock filter
+    $filtered_rows = [];
+    $low_count = 0;
+    $out_count = 0;
+    foreach ($rows as $r) {
+        $stk = (float)$r['stock_quantity'];
+        $min = (float)$r['minimum_stock'];
+        if ($stk <= 0) $out_count++;
+        elseif ($stk <= $min) $low_count++;
 
-<!-- DATE RANGE FORM -->
-<form method="get" class="range-bar">
-    <div class="range-group">
-        <label class="range-label">From</label>
-        <input type="date" name="from" class="range-input" value="<?= he($date_from) ?>">
-    </div>
-    <div class="range-group">
-        <label class="range-label">To</label>
-        <input type="date" name="to" class="range-input" value="<?= he($date_to) ?>">
-    </div>
-    <div class="range-actions">
-        <button type="button" class="btn-quick" onclick="setRange(7)">Last 7d</button>
-        <button type="button" class="btn-quick" onclick="setRange(30)">Last 30d</button>
-        <button type="button" class="btn-quick" onclick="setRange(90)">Last 90d</button>
-        <button type="submit" class="btn-apply"><i class="fa-solid fa-filter"></i> Apply</button>
-    </div>
-    <span class="period-label" style="margin-left:4px">
-        <i class="fa-regular fa-calendar-days" style="color:var(--accent)"></i>
-        <?= $days_in_range ?> day<?= $days_in_range !== 1 ? 's' : '' ?>
-        &mdash; <?= date('d M Y', strtotime($date_from)) ?> to <?= date('d M Y', strtotime($date_to)) ?>
-    </span>
-</form>
+        if ($filter_stock === 'low' && $stk > $min) continue;
+        if ($filter_stock === 'out' && $stk > 0) continue;
+        $filtered_rows[] = $r;
+    }
+    ?>
 
-<!-- STATS -->
-<div class="stats-row">
-    <div class="stat-card s-consumed">
-        <div class="stat-icon consumed"><i class="fa-solid fa-arrow-trend-down"></i></div>
-        <div>
-            <div class="stat-label">Total Consumed</div>
-            <div class="stat-num"><?= fmtR($grand_consumed) ?></div>
-            <div class="stat-hint">units deducted</div>
-        </div>
-    </div>
-    <div class="stat-card s-added">
-        <div class="stat-icon added"><i class="fa-solid fa-arrow-trend-up"></i></div>
-        <div>
-            <div class="stat-label">Total Added</div>
-            <div class="stat-num"><?= fmtR($grand_added) ?></div>
-            <div class="stat-hint">units restocked</div>
-        </div>
-    </div>
-    <div class="stat-card s-net">
-        <div class="stat-icon net"><i class="fa-solid fa-scale-balanced"></i></div>
-        <div>
-            <div class="stat-label">Net Change</div>
-            <div class="stat-num" style="color:<?= $grand_net >= 0 ? 'var(--ok)' : 'var(--danger)' ?>">
-                <?= ($grand_net >= 0 ? '+' : '') . fmtR($grand_net) ?>
-            </div>
-            <div class="stat-hint">added minus consumed</div>
-        </div>
-    </div>
-    <div class="stat-card s-events">
-        <div class="stat-icon events"><i class="fa-solid fa-list-ul"></i></div>
-        <div>
-            <div class="stat-label">Total Events</div>
-            <div class="stat-num"><?= $grand_events ?></div>
-            <div class="stat-hint"><?= $active_ings ?> active ingredients</div>
-        </div>
-    </div>
-</div>
-
-<!-- TABLE -->
-<div class="table-card">
-    <div class="table-header">
-        <div class="table-title"><i class="fa-solid fa-chart-bar" style="color:var(--accent)"></i> Per-Ingredient Summary</div>
-        <div style="display:flex;align-items:center;gap:10px">
-            <div class="search-wrap">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input id="searchInput" placeholder="Search ingredient…" autocomplete="off" oninput="liveSearch(this.value)">
-            </div>
-            <span style="font-size:12px;color:var(--text-muted)" id="rowCount"><?= count($rows) ?> ingredients</span>
-        </div>
-    </div>
-    <div class="table-wrap">
-        <?php if (empty($rows)): ?>
-        <div class="empty-state">
-            <div class="ei"><i class="fa-solid fa-chart-bar"></i></div>
-            <h3>No ingredients found</h3>
-            <p>Add ingredients to start tracking consumption.</p>
-        </div>
-        <?php else: ?>
-        <table id="reportTable">
-            <thead>
-                <tr>
-                    <th onclick="sortTable(0)" data-col="0">Ingredient <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(1)" data-col="1">Unit <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(2)" data-col="2">Consumed <i class="fa-solid fa-sort-down si" style="opacity:1"></i></th>
-                    <th onclick="sortTable(3)" data-col="3">Added <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(4)" data-col="4">Net Change <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(5)" data-col="5">Avg / Day <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(6)" data-col="6">Days Left <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(7)" data-col="7">Events <i class="fa-solid fa-sort si"></i></th>
-                </tr>
-            </thead>
-            <tbody id="reportBody">
-            <?php
-            $max_consumed = max(array_column($rows, 'total_consumed') ?: [0]);
-            foreach ($rows as $r):
-                $consumed   = $r['consumed'];
-                $added      = $r['added'];
-                $net        = $r['net'];
-                $daily      = $r['daily_avg'];
-                $days_left  = $r['days_left'];
-                $unit       = he($r['unit'] ?? '');
-                $bar_pct    = $max_consumed > 0 ? min(100, round($consumed / $max_consumed * 100)) : 0;
-
-                if ($days_left === null)       { $days_cls = 'days-none';     $days_txt = '—'; }
-                elseif ($days_left <= 2)       { $days_cls = 'days-critical'; $days_txt = "~$days_left day" . ($days_left !== 1 ? 's' : ''); }
-                elseif ($days_left <= 7)       { $days_cls = 'days-warn';     $days_txt = "~$days_left days"; }
-                else                           { $days_cls = 'days-ok';       $days_txt = "~$days_left days"; }
-            ?>
-            <tr data-name="<?= he(strtolower($r['ingredient_name'])) ?>"
-                data-0="<?= he($r['ingredient_name']) ?>"
-                data-1="<?= he($r['unit'] ?? '') ?>"
-                data-2="<?= $consumed ?>"
-                data-3="<?= $added ?>"
-                data-4="<?= $net ?>"
-                data-5="<?= round($daily, 4) ?>"
-                data-6="<?= $days_left ?? -1 ?>"
-                data-7="<?= (int)$r['event_count'] ?>">
-                <td>
-                    <div class="ing-cell">
-                        <div class="ing-dot"><i class="fa-solid fa-leaf"></i></div>
-                        <a href="ingredient_history.php?ingredient_id=<?= (int)$r['ingredient_id'] ?>&from=<?= he($date_from) ?>&to=<?= he($date_to) ?>"
-                           style="color:var(--text);text-decoration:none;font-weight:500">
-                            <?= he($r['ingredient_name']) ?>
-                        </a>
-                    </div>
-                </td>
-                <td style="color:var(--text-muted)"><?= $unit ?: '—' ?></td>
-                <td>
-                    <div class="usage-wrap">
-                        <span style="color:var(--danger);font-weight:700;min-width:60px"><?= $consumed > 0 ? fmtR($consumed) : '<span style="color:var(--text-muted)">0</span>' ?></span>
-                        <?php if ($bar_pct > 0): ?>
-                        <div class="usage-bar"><div class="usage-fill" style="width:<?= $bar_pct ?>%"></div></div>
-                        <?php endif; ?>
-                    </div>
-                </td>
-                <td style="color:var(--ok);font-weight:<?= $added > 0 ? '700' : '400' ?>">
-                    <?= $added > 0 ? fmtR($added) : '<span style="color:var(--text-muted)">0</span>' ?>
-                </td>
-                <td style="font-weight:700;color:<?= $net >= 0 ? 'var(--ok)' : 'var(--danger)' ?>">
-                    <?= ($net >= 0 ? '+' : '') . fmtR($net) ?>
-                </td>
-                <td style="color:var(--text-muted);font-size:12px">
-                    <?= $daily > 0 ? fmtR($daily) . ($unit ? ' '.$unit : '') : '<span style="color:var(--border-hover)">—</span>' ?>
-                </td>
-                <td>
-                    <?php if ($days_left === null): ?>
-                    <span class="<?= $days_cls ?>">—</span>
+    <!-- Data Table -->
+    <div class="er-table-card">
+        <div class="er-table-wrap">
+            <table class="er-table">
+                <thead>
+                    <tr>
+                        <th>Doc. Type</th>
+                        <th>Item ID</th>
+                        <th>Ingredient Name</th>
+                        <th>Unit</th>
+                        <th>Qty Consumed</th>
+                        <th>Qty Restocked</th>
+                        <th>Net Usage</th>
+                        <th>Current Stock</th>
+                        <th>Min Stock Alert</th>
+                        <th>Est. Days Left</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($filtered_rows)): ?>
+                    <tr class="no-data">
+                        <td colspan="11" class="no-data">No data</td>
+                    </tr>
                     <?php else: ?>
-                    <span class="days-chip <?= $days_cls ?>">
-                        <i class="fa-solid fa-clock" style="font-size:9px"></i> <?= $days_txt ?>
-                    </span>
+                    <?php foreach ($filtered_rows as $r): ?>
+                    <?php
+                        $stk = (float)$r['stock_quantity'];
+                        $min = (float)$r['minimum_stock'];
+                        $is_out = ($stk <= 0);
+                        $is_low = ($stk > 0 && $stk <= $min);
+                    ?>
+                    <tr>
+                        <td><span class="px-2 py-0.5 rounded text-xs bg-cyan-500/10 text-cyan-400 font-medium">Stock Item</span></td>
+                        <td class="font-bold text-slate-400">#ING-<?= (int)$r['ingredient_id'] ?></td>
+                        <td class="font-bold text-white"><?= htmlspecialchars($r['ingredient_name']) ?></td>
+                        <td><span class="px-2 py-0.5 rounded text-xs bg-slate-800 text-slate-300"><?= htmlspecialchars($r['unit']) ?></span></td>
+                        <td class="text-amber-400 font-semibold"><?= fmtR($r['consumed']) ?></td>
+                        <td class="text-emerald-400 font-semibold"><?= fmtR($r['added']) ?></td>
+                        <td class="font-semibold <?= $r['net'] >= 0 ? 'text-emerald-400' : 'text-red-400' ?>"><?= fmtR($r['net']) ?></td>
+                        <td class="font-bold text-white"><?= fmtR($stk) ?></td>
+                        <td class="text-slate-400"><?= fmtR($min) ?></td>
+                        <td>
+                            <?php if ($r['days_left'] !== null): ?>
+                                <span class="px-2 py-0.5 rounded text-xs font-bold <?= $r['days_left'] <= 3 ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400' ?>">
+                                    ~<?= $r['days_left'] ?> days
+                                </span>
+                            <?php else: ?>
+                                <span class="text-slate-500 text-xs">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($is_out): ?>
+                                <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-500/20 text-red-400">OUT OF STOCK</span>
+                            <?php elseif ($is_low): ?>
+                                <span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-400">LOW STOCK</span>
+                            <?php else: ?>
+                                <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/15 text-emerald-400">OK</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                     <?php endif; ?>
-                </td>
-                <td style="color:var(--text-muted);font-size:12px"><?= (int)$r['event_count'] ?></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="2" style="color:var(--text-muted)"><?= count($rows) ?> ingredients total</td>
-                    <td style="color:var(--danger)"><?= fmtR($grand_consumed) ?></td>
-                    <td style="color:var(--ok)"><?= fmtR($grand_added) ?></td>
-                    <td style="color:<?= $grand_net >= 0 ? 'var(--ok)' : 'var(--danger)' ?>;font-size:13px">
-                        <?= ($grand_net >= 0 ? '+' : '') . fmtR($grand_net) ?>
-                    </td>
-                    <td colspan="3" style="color:var(--text-muted)"><?= $grand_events ?> total events</td>
-                </tr>
-            </tfoot>
-        </table>
-        <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
-    <?php if (!empty($rows)): ?>
-    <div class="pg-wrap" id="pgWrap" style="display:none">
-        <span id="pgInfo" class="pg-info"></span>
-        <nav id="pgNav" class="pg-nav"></nav>
+
+    <!-- Summary Card -->
+    <div class="er-summary-card">
+        <div class="er-summary-info">
+            <span>Date From : <strong><?= htmlspecialchars($date_from) ?></strong></span>
+            <span>Date To : <strong><?= htmlspecialchars($date_to) ?></strong></span>
+            <span>Doc.Count : <strong><?= count($filtered_rows) ?></strong></span>
+        </div>
+        <div class="er-summary-stats">
+            <div class="er-summary-stat-item">
+                <span class="stat-label">Total Consumed</span>
+                <span class="stat-val text-amber-400"><?= fmtR($grand_consumed) ?></span>
+            </div>
+            <div class="er-summary-stat-item">
+                <span class="stat-label">Total Restocked</span>
+                <span class="stat-val text-emerald-400"><?= fmtR($grand_added) ?></span>
+            </div>
+            <div class="er-summary-stat-item">
+                <span class="stat-label">Low Stock Alerts</span>
+                <span class="stat-val text-red-400"><?= $low_count + $out_count ?></span>
+            </div>
+        </div>
     </div>
-    <?php endif; ?>
+</main>
 </div>
-
-<div id="toast-cnt"></div>
-
-<script>
-/* ── DATE QUICK SELECT ── */
-function setRange(days) {
-    const to   = new Date();
-    const from = new Date(); from.setDate(to.getDate() - days + 1);
-    const fmt  = d => d.toISOString().slice(0,10);
-    document.querySelector('input[name="from"]').value = fmt(from);
-    document.querySelector('input[name="to"]').value   = fmt(to);
-    document.querySelector('form').submit();
-}
-
-/* ── CLIENT-SIDE PAGINATION ── */
-const PER_PAGE = 12;
-let currentPage  = 1;
-let lastFiltered = [];
-
-function rebuildFiltered() {
-    const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
-    lastFiltered = [...document.querySelectorAll('#reportBody tr[data-name]')]
-        .filter(tr => !q || tr.dataset.name.includes(q));
-}
-
-function renderPage() {
-    const total      = lastFiltered.length;
-    const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-    currentPage      = Math.min(currentPage, totalPages);
-    const start      = (currentPage - 1) * PER_PAGE;
-    const pageRows   = lastFiltered.slice(start, start + PER_PAGE);
-
-    document.querySelectorAll('#reportBody tr[data-name]').forEach(r => r.classList.add('hidden'));
-    pageRows.forEach(r => r.classList.remove('hidden'));
-
-    document.getElementById('rowCount').textContent = total + ' ingredient' + (total !== 1 ? 's' : '');
-    renderPagination(total, totalPages);
-}
-
-function renderPagination(total, totalPages) {
-    const wrap = document.getElementById('pgWrap');
-    if (!wrap) return;
-    if (totalPages <= 1) { wrap.style.display = 'none'; return; }
-    wrap.style.display = 'flex';
-    document.getElementById('pgInfo').textContent =
-        `Page ${currentPage} of ${totalPages} · ${total} shown`;
-    const nav = document.getElementById('pgNav');
-    let html = currentPage > 1
-        ? `<a href="#" class="pg-btn" onclick="goPage(1);return false;">«</a><a href="#" class="pg-btn" onclick="goPage(${currentPage - 1});return false;">‹</a>`
-        : `<span class="pg-disabled">«</span><span class="pg-disabled">‹</span>`;
-    const ws = Math.max(1, currentPage - 2);
-    const we = Math.min(totalPages, currentPage + 2);
-    if (ws > 1) html += `<span class="pg-ellipsis">…</span>`;
-    for (let i = ws; i <= we; i++) {
-        html += i === currentPage
-            ? `<span class="pg-active">${i}</span>`
-            : `<a href="#" class="pg-btn" onclick="goPage(${i});return false;">${i}</a>`;
-    }
-    if (we < totalPages) html += `<span class="pg-ellipsis">…</span>`;
-    html += currentPage < totalPages
-        ? `<a href="#" class="pg-btn" onclick="goPage(${currentPage + 1});return false;">›</a><a href="#" class="pg-btn" onclick="goPage(${totalPages});return false;">»</a>`
-        : `<span class="pg-disabled">›</span><span class="pg-disabled">»</span>`;
-    nav.innerHTML = html;
-}
-
-function goPage(p) {
-    currentPage = p;
-    renderPage();
-    const tw = document.querySelector('.table-wrap');
-    if (tw) tw.scrollTop = 0;
-}
-
-/* ── SORT ── */
-let sortDir = { 2: 'desc' };
-function sortTable(col) {
-    const tbody = document.getElementById('reportBody');
-    const rows  = [...tbody.querySelectorAll('tr[data-name]')];
-    const asc   = sortDir[col] !== 'asc';
-    sortDir = {}; sortDir[col] = asc ? 'asc' : 'desc';
-
-    document.querySelectorAll('th').forEach((th, i) => {
-        th.classList.toggle('sorted', i === col);
-        const ic = th.querySelector('.si');
-        if (ic) ic.className = i === col
-            ? `fa-solid ${asc ? 'fa-sort-up' : 'fa-sort-down'} si`
-            : 'fa-solid fa-sort si';
-        if (i === col) ic.style.opacity = '1'; else if(ic) ic.style.opacity = '.3';
-    });
-
-    rows.sort((a, b) => {
-        const av = a.dataset[col] ?? '';
-        const bv = b.dataset[col] ?? '';
-        const an = parseFloat(av), bn = parseFloat(bv);
-        if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
-        return asc ? av.localeCompare(bv) : bv.localeCompare(av);
-    });
-    rows.forEach(r => tbody.appendChild(r));
-
-    // Re-apply the current search filter (in the new order) and re-paginate
-    rebuildFiltered();
-    renderPage();
-}
-
-/* ── LIVE SEARCH ── */
-function liveSearch(q) {
-    currentPage = 1;
-    rebuildFiltered();
-    renderPage();
-}
-
-/* ── EXPORT CSV ── */
-function exportCSV() {
-    const headers = ['Ingredient','Unit','Consumed','Added','Net Change','Avg/Day','Days Left','Events'];
-    const rows = [];
-    // Export every row matching the current search (all pages), not just the visible page
-    const source = lastFiltered.length ? lastFiltered
-                 : [...document.querySelectorAll('#reportBody tr[data-name]')];
-    source.forEach(tr => {
-        rows.push([
-            tr.dataset[0] || '',
-            tr.dataset[1] || '',
-            tr.dataset[2] || '',
-            tr.dataset[3] || '',
-            tr.dataset[4] || '',
-            tr.dataset[5] || '',
-            tr.dataset[6] === '-1' ? '' : tr.dataset[6],
-            tr.dataset[7] || '',
-        ]);
-    });
-    const csv  = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-    const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `ingredient_report_<?= $date_from ?>_to_<?= $date_to ?>.csv`;
-    a.click(); URL.revokeObjectURL(a.href);
-    showToast(`Exported ${rows.length} rows`, 'success');
-}
-
-/* ── THEME ── */
-function toggleTheme() {
-    const html = document.documentElement;
-    const icon = document.getElementById('themeIcon');
-    const light = html.getAttribute('data-theme') === 'light';
-    if (light) { html.removeAttribute('data-theme'); icon.className = 'fa-solid fa-moon'; localStorage.setItem('theme','dark'); }
-    else        { html.setAttribute('data-theme','light'); icon.className = 'fa-solid fa-sun'; localStorage.setItem('theme','light'); }
-}
-
-/* ── TOAST ── */
-function showToast(msg, type = 'success') {
-    const c = document.getElementById('toast-cnt');
-    const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation';
-    const col  = type === 'success' ? 'var(--ok)' : 'var(--danger)';
-    t.innerHTML = `<i class="fa-solid ${icon}" style="color:${col};flex-shrink:0"></i><span>${msg}</span>`;
-    c.appendChild(t);
-    requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
-    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 380); }, 3500);
-}
-
-/* ── INIT ── */
-document.addEventListener('DOMContentLoaded', () => {
-    if (localStorage.getItem('theme') === 'light')
-        document.getElementById('themeIcon').className = 'fa-solid fa-sun';
-    // Initial pagination render
-    if (document.getElementById('reportBody')) {
-        rebuildFiltered();
-        renderPage();
-    }
-});
-</script>
 </body>
 </html>
