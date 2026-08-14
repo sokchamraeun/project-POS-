@@ -17,7 +17,7 @@
  */
 require 'auth.php';
 require 'config.php';
-if (!can('report')) { header("Location: dashboard.php?denied=1"); exit; }
+if (!can('report') && !can('report_sale') && !can('report_employee')) { header("Location: dashboard.php?denied=1"); exit; }
 require 'vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -65,7 +65,16 @@ if ($dateFrom !== '' && $dateTo !== '') {
         if ($dateFrom <= $dateTo && $dateTo <= $today) { $isRange = true; }
     }
 }
+$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
+$filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+if (!$_is_mgr) {
+    $filter_user = (int)$_SESSION['user_id'];
+}
+
 $dateExpr = $isRange ? "business_date BETWEEN '$dateFrom' AND '$dateTo'" : "business_date = '$date'";
+if ($filter_user > 0) {
+    $dateExpr .= " AND (user_id = $filter_user OR employee_id = $filter_user)";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The period's figures

@@ -2,7 +2,7 @@
 require 'auth.php';
 require 'config.php';
 require_once 'lang.php';
-if (!can('report')) { header("Location: dashboard.php?denied=1"); exit; }
+if (!can('report_product')) { header("Location: dashboard.php?denied=1"); exit; }
 
 date_default_timezone_set("Asia/Phnom_Penh");
 
@@ -137,6 +137,8 @@ if (count($orderIds) > 0) {
             oi.milk,
             oi.quantity,
             oi.price,
+            COALESCE(oi.orig_price, oi.price) AS orig_price,
+            COALESCE(oi.promo_percent, 0) AS promo_percent,
             COALESCE(NULLIF(p.category, ''), 'Uncategorized') AS category
         FROM order_items oi
         LEFT JOIN products p ON p.product_id = oi.product_id
@@ -230,13 +232,25 @@ if (count($orderIds) > 0) {
 
         $itemRevenue = (float)($it['price'] ?? 0) * $qty;
 
+        $origPrice = (float)($it['orig_price'] > 0 ? $it['orig_price'] : $it['price']);
+        $sellingPrice = (float)($it['price'] ?? 0);
+        $promoPct = (float)($it['promo_percent'] ?? 0);
+        $itemDiscUnit = 0;
+        if ($origPrice > $sellingPrice) {
+            $itemDiscUnit = $origPrice - $sellingPrice;
+        } elseif ($promoPct > 0) {
+            $itemDiscUnit = $sellingPrice * ($promoPct / 100);
+        }
+        $itemTotalDisc = $itemDiscUnit * $qty;
+
         if (!isset($topProducts[$pname])) {
-            $topProducts[$pname] = ["qty" => 0, "cogs" => 0, "revenue" => 0, "category" => $category];
+            $topProducts[$pname] = ["qty" => 0, "cogs" => 0, "revenue" => 0, "discount" => 0, "category" => $category];
         }
 
-        $topProducts[$pname]["qty"]     += $qty;
-        $topProducts[$pname]["cogs"]    += $itemCost;
-        $topProducts[$pname]["revenue"] += $itemRevenue;
+        $topProducts[$pname]["qty"]      += $qty;
+        $topProducts[$pname]["cogs"]     += $itemCost;
+        $topProducts[$pname]["revenue"]  += $itemRevenue;
+        $topProducts[$pname]["discount"] += $itemTotalDisc;
 
         if (!isset($categorySales[$category])) {
             $categorySales[$category] = [
@@ -500,13 +514,14 @@ if ($mode === 'daily') {
 <html>
 <head>
 <meta charset="UTF-8" />
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <title>Product Report | Bird's Nest Coffee</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-<div class="flex h-screen w-full overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-full overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto er-container">
     <?php
@@ -540,10 +555,11 @@ if ($mode === 'daily') {
     $selected_cat = trim($_GET['category'] ?? '');
 
     $user_options = ['' => 'All Staff'];
-    $q_users = $conn->query("SELECT u.user_id, u.username, r.slug AS role FROM users u LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.username ASC");
+    $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
     if ($q_users) {
         while ($ur = $q_users->fetch_assoc()) {
-            $user_options[$ur['user_id']] = $ur['username'] . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+            $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+            $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
         }
     }
 
@@ -567,6 +583,7 @@ if ($mode === 'daily') {
     $lbl_category     = $isKm ? 'ប្រភេទ' : 'Category';
     $lbl_qty_sold     = $isKm ? 'ចំនួនលក់' : 'Qty Sold';
     $lbl_price_cup    = $isKm ? 'តម្លៃ/កែវ' : 'Price Per Cup';
+    $lbl_disc         = $isKm ? 'បញ្ចុះតម្លៃ' : 'Disc';
     $lbl_total_rev    = $isKm ? 'ចំណូលសរុប' : 'Total Revenue';
     $lbl_total_cogs   = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
     $lbl_gross_profit = $isKm ? 'ប្រាក់ចំណេញ' : 'Gross Profit';
@@ -593,15 +610,12 @@ if ($mode === 'daily') {
             <table class="er-table">
                 <thead>
                     <tr>
-                        <th><?= $lbl_doc_type ?></th>
-                        <th><?= $lbl_product_name ?></th>
-                        <th><?= $lbl_category ?></th>
-                        <th><?= $lbl_qty_sold ?></th>
-                        <th><?= $lbl_price_cup ?></th>
-                        <th><?= $lbl_total_rev ?></th>
-                        <th><?= $lbl_total_cogs ?></th>
-                        <th><?= $lbl_gross_profit ?></th>
-                        <th><?= $lbl_margin ?></th>
+                        <th style="text-align:center"><?= $lbl_doc_type ?></th>
+                        <th style="text-align:center"><?= $lbl_product_name ?></th>
+                        <th style="text-align:center"><?= $lbl_category ?></th>
+                        <th style="text-align:center"><?= $lbl_qty_sold ?></th>
+                        <th style="text-align:center"><?= $lbl_price_cup ?></th>
+                        <th style="text-align:center"><?= $lbl_total_rev ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -626,36 +640,46 @@ if ($mode === 'daily') {
                     ?>
                     <?php if (empty($filtered_products)): ?>
                     <tr class="no-data">
-                        <td colspan="9" class="no-data"><?= $lbl_no_data ?></td>
+                        <td colspan="6" class="no-data" style="text-align:center"><?= $lbl_no_data ?></td>
                     </tr>
                     <?php else: ?>
                     <?php foreach ($filtered_products as $pname => $pdata): ?>
                     <?php
                         $p_qty   = (int)$pdata['qty'];
-                        $p_cogs  = (float)$pdata['cogs'];
                         $p_rev   = (float)$pdata['revenue'];
-                        $p_prof  = $p_rev - $p_cogs;
-                        $p_marg  = $p_rev > 0 ? round(($p_prof / $p_rev) * 100, 1) : 0;
+                        $p_disc  = (float)($pdata['discount'] ?? 0);
                         $avg_pr  = $p_qty > 0 ? $p_rev / $p_qty : 0;
                         $raw_cat = !empty($pdata['category']) ? $pdata['category'] : 'Uncategorized';
                         $cat_name = $cat_slug_to_name[$raw_cat] ?? $raw_cat;
                     ?>
                     <tr>
-                        <td><span class="px-2 py-0.5 rounded text-xs bg-emerald-500/10 text-emerald-400 font-medium"><?= $lbl_doc_item ?></span></td>
-                        <td class="font-bold text-white"><?= htmlspecialchars($pname) ?></td>
-                        <td><span class="px-2 py-0.5 rounded text-xs bg-slate-700/50 text-slate-300"><?= htmlspecialchars($cat_name) ?></span></td>
-                        <td class="font-semibold text-center"><?= $p_qty ?></td>
-                        <td>$<?= number_format($avg_pr, 2) ?></td>
-                        <td class="font-bold text-amber-400">$<?= number_format($p_rev, 2) ?></td>
-                        <td class="text-slate-400">$<?= number_format($p_cogs, 2) ?></td>
-                        <td class="font-semibold <?= $p_prof >= 0 ? 'text-emerald-400' : 'text-red-400' ?>">$<?= number_format($p_prof, 2) ?></td>
-                        <td>
-                            <span class="px-2 py-0.5 rounded text-xs font-bold <?= $p_marg >= 50 ? 'bg-emerald-500/15 text-emerald-400' : ($p_marg >= 20 ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400') ?>">
-                                <?= $p_marg ?>%
-                            </span>
-                        </td>
+                        <td style="text-align:center"><span class="er-badge-doc"><?= $lbl_doc_item ?></span></td>
+                        <td style="text-align:center" class="er-prod-name"><?= htmlspecialchars($pname) ?></td>
+                        <td style="text-align:center"><span class="er-badge-cat"><?= htmlspecialchars($cat_name) ?></span></td>
+                        <td style="text-align:center"><?= $p_qty ?></td>
+                        <td style="text-align:center">$<?= number_format($avg_pr, 2) ?></td>
+                        <td style="text-align:center" class="er-total-rev">$<?= number_format($p_rev, 2) ?></td>
                     </tr>
                     <?php endforeach; ?>
+                    <?php
+                        $tot_qty = 0; $tot_rev = 0;
+                        foreach ($filtered_products as $fpd) {
+                            $tot_qty  += (int)($fpd['qty'] ?? 0);
+                            $tot_rev  += (float)($fpd['revenue'] ?? 0);
+                        }
+                    ?>
+                    <tr class="total-summary-row">
+                        <td colspan="3" style="text-align:center; padding: 0.85rem 1rem;">
+                            <span class="er-badge-total">
+                                <i class="fa-solid fa-calculator" style="font-size:0.75rem;"></i> Total
+                            </span>
+                        </td>
+                        <td style="text-align:center; padding: 0.85rem 1rem;">
+                            <span class="er-qty-pill"><?= $tot_qty ?></span>
+                        </td>
+                        <td></td>
+                        <td style="text-align:center;" class="er-total-rev">$<?= number_format($tot_rev, 2) ?></td>
+                    </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -664,13 +688,10 @@ if ($mode === 'daily') {
 
     <!-- Summary Card -->
     <?php
-    $filtered_sales  = 0;
-    $filtered_cogs   = 0;
+    $filtered_sales = 0;
     foreach ($filtered_products as $fpdata) {
         $filtered_sales += (float)($fpdata['revenue'] ?? 0);
-        $filtered_cogs  += (float)($fpdata['cogs'] ?? 0);
     }
-    $filtered_profit = $filtered_sales - $filtered_cogs;
     ?>
     <div class="er-summary-card">
         <div class="er-summary-info">
@@ -682,14 +703,6 @@ if ($mode === 'daily') {
             <div class="er-summary-stat-item">
                 <span class="stat-label"><?= $lbl_stat_rev ?></span>
                 <span class="stat-val">$<?= number_format($filtered_sales, 2) ?></span>
-            </div>
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= $lbl_stat_cogs ?></span>
-                <span class="stat-val text-slate-400">$<?= number_format($filtered_cogs, 2) ?></span>
-            </div>
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= $lbl_stat_profit ?></span>
-                <span class="stat-val <?= $filtered_profit >= 0 ? 'text-emerald-400' : 'text-red-400' ?>">$<?= number_format($filtered_profit, 2) ?></span>
             </div>
         </div>
     </div>

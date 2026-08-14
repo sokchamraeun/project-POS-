@@ -1,7 +1,7 @@
 <?php
 require 'auth.php';
 require_once 'config.php';
-if (!can('find_orders')) { header('Location: dashboard.php?denied=1'); exit; }
+if (!can('take_order')) { header('Location: dashboard.php?denied=1'); exit; }
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -260,8 +260,8 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Apply theme before paint (default dark, matching the rest of the app) to avoid a flash -->
-  <script>(function(){if((localStorage.getItem('theme')||'dark')!=='light')document.documentElement.setAttribute('data-theme','dark');})();</script>
+  <!-- Apply theme before paint to avoid flash -->
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <title>POS | Bird's Nest Coffee</title>
   <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -502,6 +502,27 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       border: 1px solid rgba(231,76,60,.18); cursor: pointer; font-size: 11px; transition: all .18s;
     }
     .cp-remove:hover { background: #e74c3c; color: #fff; border-color: #e74c3c; }
+    .cp-item-disc-btn {
+      background: rgba(209,144,75,0.12);
+      border: 1px solid rgba(209,144,75,0.35);
+      color: #d1904b;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .cp-item-disc-btn:hover {
+      background: #d1904b;
+      color: #000;
+      border-color: #d1904b;
+    }
     .cp-free-icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: linear-gradient(135deg,#e8f5e9,#f0fff4); border-radius: 7px; flex-shrink: 0; }
     .cp-free-badge { background: #27ae60; color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 20px; font-weight: 700; vertical-align: middle; }
 
@@ -671,7 +692,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     [data-theme="dark"] #cpDiscountForm { background: rgba(209,144,75,.06); border-color: rgba(209,144,75,.25); }
 
     /* ── Payment modal ── */
-    .cp-paymodal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(6px); z-index: 10000; align-items: center; justify-content: center; padding: 20px; }
+    .cp-paymodal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 99999; align-items: center; justify-content: center; padding: 20px; }
     .cp-paymodal.active { display: flex; }
     .cp-paymodal-card { background: var(--bg-card,#fff); border: 1px solid var(--border,#e0d4c4); border-radius: 16px; width: 100%; max-width: 420px; padding: 22px 22px 18px; box-shadow: 0 12px 48px rgba(90,60,20,.18); position: relative; animation: cpPmIn .22s ease both; }
     @keyframes cpPmIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -730,9 +751,99 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       border-color: #f59e0b !important;
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.3) !important;
     }
+
+    /* ══ LIGHT THEME CUSTOMIZATION MODAL COMPLETE FIX ══ */
+    [data-theme="light"] #product-modal,
+    [data-theme="light"] .cp-paymodal {
+      background-color: rgba(0,0,0,0.2) !important;
+      backdrop-filter: blur(4px) !important;
+      -webkit-backdrop-filter: blur(4px) !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-card,
+    [data-theme="light"] .modal-card {
+      background-color: #ffffff !important;
+      border: 1px solid #e0d4c4 !important;
+      box-shadow: 0 20px 45px rgba(90, 60, 20, 0.2) !important;
+      color: #1a1410 !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-header,
+    [data-theme="light"] #product-modal #modalName,
+    [data-theme="light"] #product-modal .modal-name,
+    [data-theme="light"] #product-modal h2,
+    [data-theme="light"] #product-modal h3 {
+      color: #1a1410 !important;
+    }
+
+    [data-theme="light"] #product-modal #modalDesc {
+      color: #5a4a3a !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-close {
+      background-color: #ede8e0 !important;
+      color: #1a1410 !important;
+      border-color: #e0d4c4 !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-close:hover {
+      background-color: #e0d4c4 !important;
+      color: #000000 !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-price-row {
+      background-color: #f8f3ed !important;
+      border-color: #e0d4c4 !important;
+    }
+
+    [data-theme="light"] #product-modal .qty-control,
+    [data-theme="light"] .qty-control {
+      background-color: #ede8e0 !important;
+      border-color: #e0d4c4 !important;
+    }
+
+    [data-theme="light"] #product-modal #modalQtyDisplay,
+    [data-theme="light"] #product-modal .qty-control span {
+      color: #1a1410 !important;
+    }
+
+    [data-theme="light"] #product-modal .option-label {
+      color: #5a4a3a !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-footer,
+    [data-theme="light"] .modal-footer {
+      background-color: #fdfaf6 !important;
+      border-top: 1px solid #e0d4c4 !important;
+    }
+
+    [data-theme="light"] #product-modal .modal-total,
+    [data-theme="light"] #product-modal #modalTotalDisplay {
+      color: #1a1410 !important;
+    }
+
+    /* Light Theme Option Pills */
+    [data-theme="light"] .option-pill {
+      background: #ede8e0 !important;
+      color: #5a4a3a !important;
+      border: 1px solid #e0d4c4 !important;
+    }
+
+    [data-theme="light"] .option-pill:hover {
+      border-color: #d1904b !important;
+      color: #1a1410 !important;
+    }
+
+    [data-theme="light"] .option-pill.active {
+      background: #f59e0b !important;
+      color: #000000 !important;
+      font-weight: 800 !important;
+      border-color: #f59e0b !important;
+      box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35) !important;
+    }
   </style>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require __DIR__ . '/sidebar.php'; ?>
 <main class="flex-1 h-full overflow-y-auto app-main flex flex-col">
 
@@ -759,15 +870,9 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       <img src="images/Newlogo.jpg" alt="Logo">
       <span class="brand-name">Bird's Nest</span>
     </div>
-    <button type="button" class="btn-nav relative flex items-center justify-center p-2 rounded-xl bg-[#1e1e24] text-white hover:text-amber-400" id="cart-toggle-btn" onclick="toggleCartSidebar()" title="Toggle Cart">
+    <button type="button" class="btn-nav relative flex items-center justify-center p-2 rounded-xl" id="cart-toggle-btn" onclick="toggleCartSidebar()" title="Toggle Cart">
       <i class="fa-solid fa-cart-shopping text-base"></i>
       <span id="cart-badge" class="badge absolute -top-1 -right-1 bg-amber-500 text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center"><?= $cart_count ?></span>
-    </button>
-    <button id="chatToggle" onclick="toggleChat()" title="AI Assistant">
-      <i class="fa-solid fa-robot"></i>
-    </button>
-    <button class="btn-theme" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
-      <i class="fa-solid fa-moon" id="themeIcon"></i>
     </button>
   </div>
 </header>
@@ -840,44 +945,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     <div class="menu-scroll" id="menuScroll">
       <main class="menu-main">
 
-        <?php if (!$is_price_sort && !empty($top_sellers)): ?>
-        <!-- TOP SELLERS -->
-        <section class="top-sellers">
-          <div class="section-header">
-            <h2><i class="fa-solid fa-fire" style="color:#e74c3c;"></i> <?= __('top_sellers', 'Top Sellers') ?></h2>
-          </div>
-          <div class="sellers-strip">
-            <?php foreach ($top_sellers as $idx => $t): ?>
-            <div class="seller-card js-open-product"
-                 data-product-id="<?= (int)$t['product_id'] ?>"
-                 data-product-name="<?= e($t['name']) ?>"
-                 data-product-price="<?= e($t['price']) ?>"
-                 data-product-image="<?= e($t['image']) ?>"
-                 data-product-category="<?= e($t['category']) ?>"
-                 data-product-desc="<?= e($t['description']) ?>"
-                 data-product-badge="<?= e(product_badge_label($t)) ?>"
-                 data-product-promo="<?= (int)($t['promo_percent'] ?? 0) ?>"
-                 data-product-has-sizes="<?= (int)($t['has_sizes'] ?? 0) ?>"
-                 data-product-sizes='<?= htmlspecialchars(json_encode($sizesByProduct[(int)$t['product_id']] ?? []), ENT_QUOTES) ?>'
-                 data-product-addons='<?= htmlspecialchars(json_encode($addonsByProduct[(int)$t['product_id']] ?? []), ENT_QUOTES) ?>'
-                 data-is-bestseller="<?= $t['name']===$bestSellerName?'1':'0' ?>"
-                 role="button" tabindex="0">
-              <div class="seller-img-wrap">
-                <img src="<?= e($t['image']) ?>" loading="lazy" alt="<?= e($t['name']) ?>">
-                <?php $__badge = product_badge_label($t); if ($__badge !== ''): ?>
-                <span class="product-badge seller-badge"><?= e($__badge) ?></span>
-                <?php endif; ?>
-              </div>
-              <div class="seller-info">
-                <div class="seller-rank"><?= $idx===0 ? '&#x1F3C6; '.__('seller_num_1', '#1 Seller') : '&#x1F525; '.__('top_pick', 'Top Pick') ?></div>
-                <h4><?= e($t['name']) ?></h4>
-                <div class="seller-price">$<?= number_format($t['price'], 2) ?></div>
-              </div>
-            </div>
-            <?php endforeach; ?>
-          </div>
-        </section>
-        <?php endif; ?>
+
 
         <!-- PRODUCTS -->
         <?php if ($is_price_sort && !empty($flat_products)): ?>
@@ -1065,13 +1133,31 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
               <?php if ($__pp > 0): ?><span style="color:#e74c3c;font-size:9px;font-weight:700;margin-left:4px;"><?= $__pp ?>% OFF</span><?php endif; ?>
             </div>
           </div>
-          <div class="cp-item-actions">
-            <div class="cp-qty">
-              <button onclick="cpChangeQty(<?= $i ?>, -1)">−</button>
-              <input type="number" id="cp-qty-<?= $i ?>" value="<?= $qty ?>" min="1" onchange="cpSetQty(<?= $i ?>,this.value)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();cpSetQty(<?= $i ?>,this.value);this.blur();}">
-              <button onclick="cpChangeQty(<?= $i ?>, 1)">+</button>
+          <div class="cp-item-actions" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <div class="cp-qty">
+                <button onclick="cpChangeQty(<?= $i ?>, -1)">−</button>
+                <input type="number" id="cp-qty-<?= $i ?>" value="<?= $qty ?>" min="1" onchange="cpSetQty(<?= $i ?>,this.value)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();cpSetQty(<?= $i ?>,this.value);this.blur();}">
+                <button onclick="cpChangeQty(<?= $i ?>, 1)">+</button>
+              </div>
+              <button class="cp-remove" onclick="cpRemoveItem(<?= $i ?>)" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
             </div>
-            <button class="cp-remove" onclick="cpRemoveItem(<?= $i ?>)" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
+            <?php
+              $itemDiscType = $item['discount_type'] ?? '';
+              $itemDiscAmt  = (float)($item['discount_amount'] ?? 0);
+              $hasItemDisc  = $itemDiscAmt > 0;
+              $itemDiscLabel = '';
+              if ($hasItemDisc) {
+                  if ($itemDiscType === 'percent') {
+                      $itemDiscLabel = (int)$itemDiscAmt . '%';
+                  } else {
+                      $itemDiscLabel = '$' . number_format($itemDiscAmt, 2);
+                  }
+              }
+            ?>
+            <?php if ($hasItemDisc): ?>
+            <button type="button" class="cp-item-disc-btn active" onclick="cpOpenItemDiscount(<?= $i ?>)" title="Edit Discount" style="color:#2ecc71;border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.1);"><i class="fa-solid fa-check"></i> Discount <?= $itemDiscLabel ?> <span onclick="event.stopPropagation();cpClearItemDiscount(<?= $i ?>)" title="Remove item discount" style="margin-left:5px;color:#e74c3c;font-weight:bold;cursor:pointer;padding:0 3px;">&times;</span></button>
+            <?php endif; ?>
           </div>
         </div>
         <?php endforeach; ?>
@@ -1101,17 +1187,15 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
         </div>
 
         <!-- Discount panel -->
-        <div id="cpDiscountPanel">
+        <div id="cpDiscountPanel" style="display:none !important;">
           <?php if ($cp_manual > 0): ?>
           <button type="button" class="cp-discount-toggle remove" onclick="cpClearDiscount()">
             <i class="fa-solid fa-xmark"></i> Remove Discount
           </button>
           <?php else: ?>
-          <?php if (false): ?>
           <button type="button" class="cp-discount-toggle" id="cpAddDiscBtn" onclick="cpOpenDiscount()">
             <i class="fa-solid fa-tag"></i> Add Discount
           </button>
-          <?php endif; ?>
           <?php endif; ?>
           <div id="cpDiscountForm" style="display:none">
             <div class="cp-dtype-row">
@@ -1129,26 +1213,12 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
           </div>
         </div>
 
-        <div class="cp-sum-row">
+        <div class="cp-sum-row" id="cpTaxRow" style="<?= (float)$cp_tax > 0 ? '' : 'display:none;' ?>">
           <span><?= __('tax', 'Tax') ?> (<?= TAX_RATE ?>%)</span>
           <span id="cpTax">$<?= number_format($cp_tax, 2) ?></span>
         </div>
 
         <?php if (!$add_to_order_mode): ?>
-        <!-- Order type -->
-        <div class="cp-section">
-          <div class="cp-section-label" style="margin-bottom:6px;"><i class="fa-solid fa-mug-hot"></i> <?= __('order_type', 'Order Type') ?></div>
-          <div class="cp-order-row" style="display:flex;align-items:center;">
-            <div class="cp-drink-type" style="width:100%;display:flex;gap:6px;margin:0;">
-              <button type="button" class="cp-drink-btn active" id="cpBtnDrinkIn" onclick="cpSetDrinkType('drink_in')" style="flex:1;padding:8px 4px;font-size:11.5px;white-space:nowrap;">
-                <i class="fa-solid fa-mug-hot"></i> <?= __('dine_in', 'Drink In') ?>
-              </button>
-              <button type="button" class="cp-drink-btn" id="cpBtnDrinkOut" onclick="cpSetDrinkType('drink_out')" style="flex:1;padding:8px 4px;font-size:11.5px;white-space:nowrap;">
-                <i class="fa-solid fa-bag-shopping"></i> <?= __('takeaway', 'Drink Out') ?>
-              </button>
-            </div>
-          </div>
-        </div>
 
         <!-- Direct Payment Method Selector -->
         <div class="cp-section" style="margin-top:10px;">
@@ -1201,7 +1271,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 </div><!-- /pos-layout -->
 
 <!-- PRODUCT MODAL (DRINK CUSTOMIZATION) -->
-<div id="product-modal" class="modal fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4" style="display:none;">
+<div id="product-modal" class="modal fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4" style="display:none; z-index:99999;">
   <div class="modal-card bg-[#121215]/95 border border-amber-500/20 rounded-3xl max-w-md w-full shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden flex flex-col max-h-[90vh] text-white">
     
     <!-- Header with Mini Square Image & Close Button -->
@@ -1441,23 +1511,10 @@ window.CP_KHR_RATE     = window.CP_KHR_RATE     || <?= defined('KHR_RATE') ? (in
 var CP_KHR_RATE        = window.CP_KHR_RATE;
 var CP_SHOW_DISCOUNT   = false;
 
-// ── Theme ──
-(function() {
-  var saved = localStorage.getItem('theme') || 'dark';
-  if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-})();
-
-function toggleTheme() {
-  var html = document.documentElement, isDark = html.getAttribute('data-theme') === 'dark';
-  if (isDark) { html.removeAttribute('data-theme'); localStorage.setItem('theme','light'); document.getElementById('themeIcon').className='fa-solid fa-moon'; }
-  else        { html.setAttribute('data-theme','dark'); localStorage.setItem('theme','dark'); document.getElementById('themeIcon').className='fa-solid fa-sun'; }
-}
-document.addEventListener('DOMContentLoaded', function() {
-  if ((localStorage.getItem('theme') || 'dark') === 'dark') document.getElementById('themeIcon').className = 'fa-solid fa-sun';
-});
-
 // ── Constants from PHP ──
 var CSRF        = '<?= e($_SESSION['csrf_token']) ?>';
+window.CSRF     = CSRF;
+window.MENU_CONFIG = { csrfToken: CSRF };
 var CATEGORY_OPTS = <?= json_encode($categoryOpts, JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 var MILK_DEFAULT = <?= json_encode($defaultMilk, JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
 var BUY_X_COUNT = <?= (int)BUY_X_COUNT ?>;
@@ -1583,6 +1640,7 @@ function loadCartPanel() {
     .then(function(data) { renderCartPanel(data); })
     .catch(function() {});
 }
+window.loadCartPanel = loadCartPanel;
 
 function renderCartPanel(data) {
   // Update header count & badge
@@ -1615,6 +1673,35 @@ function renderCartPanel(data) {
       item.milk       ? 'Milk: '  + item.milk       : '',
     ].filter(Boolean).join(' • ');
 
+    var itemLineTotal = Number(item.price || 0) * Number(item.qty || 1);
+    var itemDisc = Number(item.item_discount || 0);
+
+    var itemDiscBtnHtml = '';
+    if (itemDisc > 0) {
+      var discLabel = '';
+      if (item.discount_type === 'percent' && item.discount_amount > 0) {
+        discLabel = (parseFloat(item.discount_amount) || 0) + '%';
+      } else if (item.discount_type === 'flat' && item.discount_amount > 0) {
+        discLabel = '$' + Number(item.discount_amount).toFixed(2);
+      } else {
+        discLabel = '-$' + itemDisc.toFixed(2);
+      }
+      itemDiscBtnHtml = '<button type="button" class="cp-item-disc-btn active" onclick="cpOpenItemDiscount(' + item.index + ')" title="Edit Discount" style="color:#2ecc71;border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.1);"><i class="fa-solid fa-check"></i> Discount ' + discLabel + ' <span onclick="event.stopPropagation();cpClearItemDiscount(' + item.index + ')" title="Remove item discount" style="margin-left:5px;color:#e74c3c;font-weight:bold;cursor:pointer;padding:0 3px;">&times;</span></button>';
+    }
+
+    var priceHtml = '';
+    if (itemDisc > 0) {
+      var finalItemPrice = Math.max(0, itemLineTotal - itemDisc);
+      priceHtml = '<s style="color:#888;font-size:11px;margin-right:5px;">$' + itemLineTotal.toFixed(2) + '</s>' +
+        '<span style="color:#2ecc71;font-weight:700;">$' + finalItemPrice.toFixed(2) + '</span>' +
+        '<span style="color:#e74c3c;font-size:9.5px;font-weight:700;margin-left:6px;background:rgba(231,76,60,0.12);padding:1px 5px;border-radius:4px;"><i class="fa-solid fa-tag"></i> -$' + itemDisc.toFixed(2) + '</span>';
+    } else {
+      priceHtml = ((item.promo_percent > 0 && item.orig_price > item.price)
+        ? '<s style="color:#aaa;font-size:11px;margin-right:5px;">$' + Number(item.orig_price * item.qty).toFixed(2) + '</s>' : '') +
+        '$<span id="cp-line-' + item.index + '">' + itemLineTotal.toFixed(2) + '</span>' +
+        (item.promo_percent > 0 ? '<span style="color:#e74c3c;font-size:9px;font-weight:700;margin-left:4px;">' + item.promo_percent + '% OFF</span>' : '');
+    }
+
     itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '">' +
       '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
       '<div class="cp-item-info js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
@@ -1623,20 +1710,18 @@ function renderCartPanel(data) {
         (item.addons && item.addons.length
           ? '<div class="cp-item-meta">' + item.addons.map(function(a){ return escH(a.name); }).join(', ') + '</div>'
           : '') +
-        '<div class="cp-item-price">' +
-          ((item.promo_percent > 0 && item.orig_price > item.price)
-            ? '<s style="color:#aaa;font-size:11px;margin-right:5px;">$' + Number(item.orig_price).toFixed(2) + '</s>' : '') +
-          '$<span id="cp-line-' + item.index + '">' + item.price.toFixed(2) + '</span>' +
-          (item.promo_percent > 0 ? '<span style="color:#e74c3c;font-size:9px;font-weight:700;margin-left:4px;">' + item.promo_percent + '% OFF</span>' : '') +
-        '</div>' +
+        '<div class="cp-item-price">' + priceHtml + '</div>' +
       '</div>' +
-      '<div class="cp-item-actions">' +
-        '<div class="cp-qty">' +
-          '<button onclick="cpChangeQty(' + item.index + ',-1)">−</button>' +
-          '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" onchange="cpSetQty(' + item.index + ',this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ',this.value);this.blur();}">' +
-          '<button onclick="cpChangeQty(' + item.index + ',1)">+</button>' +
+      '<div class="cp-item-actions" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">' +
+        '<div style="display:flex; align-items:center; gap:6px;">' +
+          '<div class="cp-qty">' +
+            '<button onclick="cpChangeQty(' + item.index + ',-1)">−</button>' +
+            '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" max="1000" oninput="if(parseInt(this.value)>1000)this.value=1000;if(parseInt(this.value)<1)this.value=1;" onchange="cpSetQty(' + item.index + ',this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ',this.value);this.blur();}">' +
+            '<button onclick="cpChangeQty(' + item.index + ',1)">+</button>' +
+          '</div>' +
+          '<button class="cp-remove" onclick="cpRemoveItem(' + item.index + ')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>' +
         '</div>' +
-        '<button class="cp-remove" onclick="cpRemoveItem(' + item.index + ')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>' +
+        itemDiscBtnHtml +
       '</div>' +
     '</div>';
   });
@@ -1644,22 +1729,43 @@ function renderCartPanel(data) {
 
   if (body) body.innerHTML = itemsHtml;
 
-  // Update summary values safely without duplicating or re-rendering footer HTML
+  // Update summary values safely
   var subtotalEl = document.getElementById('cpSubtotal');
   if (subtotalEl) subtotalEl.textContent = '$' + data.subtotal;
 
+  var taxRow = document.getElementById('cpTaxRow');
   var taxEl = document.getElementById('cpTax');
+  var taxVal = parseFloat(data.tax) || 0;
   if (taxEl) taxEl.textContent = '$' + data.tax;
+  if (taxRow) taxRow.style.display = taxVal > 0 ? 'flex' : 'none';
 
   var totalEl = document.getElementById('cpTotal');
   if (totalEl) totalEl.textContent = '$' + data.total;
+
+  // Update Manual Discount row
+  var manualRow = document.getElementById('cpManualRow');
+  var manualLabel = document.getElementById('cpManualLabel');
+  var manualAmt = document.getElementById('cpManualAmt');
+  var discForm = document.getElementById('cpDiscountForm');
+  var addDiscBtn = document.getElementById('cpAddDiscBtn');
+
+  if (parseFloat(data.manual) > 0) {
+    if (manualRow) manualRow.style.display = 'flex';
+    if (manualLabel) manualLabel.innerHTML = '🏷️ ' + escH(data.manual_label);
+    if (manualAmt) manualAmt.textContent = '-$' + data.manual;
+    if (discForm) discForm.style.display = 'none';
+    if (addDiscBtn) addDiscBtn.style.display = 'none';
+  } else {
+    if (manualRow) manualRow.style.display = 'none';
+    if (addDiscBtn) addDiscBtn.style.display = 'none';
+  }
 }
 
 // ── CART ITEM OPERATIONS ──
 function cpChangeQty(index, delta) {
   var inp = document.getElementById('cp-qty-' + index);
   if (!inp) return;
-  var qty = Math.max(1, parseInt(inp.value) + delta);
+  var qty = Math.max(1, Math.min(1000, (parseInt(inp.value) || 1) + delta));
   inp.value = qty;
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+qty })
     .then(function(r) { return r.json(); })
@@ -1667,7 +1773,7 @@ function cpChangeQty(index, delta) {
 }
 
 function cpSetQty(index, val) {
-  var qty = Math.max(1, parseInt(val) || 1);
+  var qty = Math.max(1, Math.min(1000, parseInt(val) || 1));
   var inp = document.getElementById('cp-qty-' + index);
   if (inp) inp.value = qty;
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+qty })
@@ -1720,36 +1826,71 @@ function cpRefreshSummaryFromData(data) {
 
 // ── DISCOUNT PANEL ──
 var _cpDiscountType = 'percent';
-function cpOpenDiscount() {
+var _cpTargetItemIndex = null;
+
+function cpOpenItemDiscount(itemIndex) {
+  _cpTargetItemIndex = itemIndex;
   var btn = document.getElementById('cpAddDiscBtn');
   if (btn) btn.style.display = 'none';
   var form = document.getElementById('cpDiscountForm');
   if (form) { form.style.display = 'block'; }
   var amtInput = document.getElementById('cpDiscAmount');
-  if (amtInput) amtInput.focus();
+  if (amtInput) { amtInput.value = ''; amtInput.focus(); }
 }
+
+function cpOpenDiscount() {
+  _cpTargetItemIndex = null;
+  var btn = document.getElementById('cpAddDiscBtn');
+  if (btn) btn.style.display = 'none';
+  var form = document.getElementById('cpDiscountForm');
+  if (form) { form.style.display = 'block'; }
+  var amtInput = document.getElementById('cpDiscAmount');
+  if (amtInput) { amtInput.value = ''; amtInput.focus(); }
+}
+
 function cpCloseDiscount() {
+  _cpTargetItemIndex = null;
   var form = document.getElementById('cpDiscountForm');
   if (form) form.style.display = 'none';
   var btn = document.getElementById('cpAddDiscBtn');
   if (btn) btn.style.display = '';
 }
+
 function cpSetDType(type) {
   _cpDiscountType = type;
   var p = document.getElementById('cpDtypePercent'), f = document.getElementById('cpDtypeFlat');
   if (p) p.classList.toggle('active', type === 'percent');
   if (f) f.classList.toggle('active', type === 'flat');
   var inp = document.getElementById('cpDiscAmount');
-  if (inp) inp.placeholder = type === 'percent' ? '0  (e.g. 10 = 10%)' : '0.00  (e.g. 5.00)';
+  if (inp) inp.placeholder = type === 'percent' ? '0  (e.g. 10 = 10%)' : '0.00  (e.g. 0.50)';
 }
+
 function cpApplyDiscount() {
   var amount = parseFloat(document.getElementById('cpDiscAmount').value) || 0;
   var reason = document.getElementById('cpDiscReason').value.trim();
   if (amount <= 0) { alert('Please enter a discount amount.'); return; }
-  fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:'ajax_apply_discount=1&type='+encodeURIComponent(_cpDiscountType)+'&amount='+amount+'&reason='+encodeURIComponent(reason) })
+
+  var bodyData = '';
+  if (_cpTargetItemIndex !== null && _cpTargetItemIndex >= 0) {
+    bodyData = 'ajax_apply_item_discount=1&index=' + _cpTargetItemIndex + '&type=' + encodeURIComponent(_cpDiscountType) + '&amount=' + amount;
+  } else {
+    bodyData = 'ajax_apply_discount=1&type=' + encodeURIComponent(_cpDiscountType) + '&amount=' + amount + '&reason=' + encodeURIComponent(reason);
+  }
+
+  fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: bodyData })
+    .then(function() {
+      _cpTargetItemIndex = null;
+      var form = document.getElementById('cpDiscountForm');
+      if (form) form.style.display = 'none';
+      loadCartPanel();
+    });
+}
+
+function cpClearItemDiscount(itemIndex) {
+  fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_clear_item_discount=1&index='+itemIndex })
     .then(function() { loadCartPanel(); });
 }
+
 function cpClearDiscount() {
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_clear_discount=1' })
     .then(function() { loadCartPanel(); });
@@ -1791,6 +1932,20 @@ function cpGetCartTotal() {
   var el = document.getElementById('cpTotal');
   if (!el) return 0;
   return parseFloat(el.textContent.replace('$','').replace(/,/g,'')) || 0;
+}
+
+function cpGetCartCount() {
+  var el = document.getElementById('cpCount');
+  if (el) {
+    var count = parseInt(el.textContent) || 0;
+    if (count > 0) return count;
+  }
+  var items = document.querySelectorAll('#cpItems .cp-item');
+  return items.length;
+}
+
+function cpHasCartItems() {
+  return cpGetCartCount() > 0;
 }
 
 /* Seed "Amount Received" with what the customer actually owes in cash.
@@ -2022,14 +2177,14 @@ function cpRequireStand(onOk) {
 // B/C/P/R shortcuts, which call this directly. cpRequireStand is async when it
 // has to look up occupancy, so the real modal body lives in cpOpenPayModalNow.
 function cpOpenPayModal() {
-  if (cpGetCartTotal() <= 0) return; // empty cart guard
+  if (!cpHasCartItems()) return; // empty cart guard
   if (document.getElementById('cpStandGate')) return; // gate already up
   cpRequireStand(cpOpenPayModalNow);
 }
 
 function cpOpenPayModalNow() {
+  if (!cpHasCartItems()) return; // empty cart guard
   var total = cpGetCartTotal();
-  if (total <= 0) return; // empty cart guard
   var sub = total / (1 + CP_TAX_RATE / 100);
   var tax = total - sub;
   document.getElementById('cpPmSubtotal').textContent = '$' + sub.toFixed(2);
@@ -2092,44 +2247,48 @@ function cpSelectDirectPayment(el, method) {
 }
 window.cpSelectDirectPayment = cpSelectDirectPayment;
 
+function cpSilentClearCart() {
+  fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_clear=1' })
+    .then(function() { loadCartPanel(); });
+}
+
 function cpOnConfirmOrderClick() {
-  if (cpGetCartTotal() <= 0) {
+  if (!cpHasCartItems()) {
     alert('Your cart is empty!');
     return;
   }
   if (!confirmOrderSubmit()) return;
 
-  var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
-  var methodVal = selectedCb ? selectedCb.value : 'cash';
+  var form = document.getElementById('cpCheckoutForm');
+  if (form) {
+    var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
+    var methodVal = selectedCb ? selectedCb.value : 'cash';
+    var totalVal = cpGetCartTotal();
 
-  // If Bakong payment is selected, submit form directly to create order and show Bakong KHQR modal!
-  if (methodVal === 'bakong') {
-    var form = document.getElementById('cpCheckoutForm');
-    if (form) {
-      var directCb = form.querySelector('#cpDirectPayMethods input[name="payment_methods[]"][value="bakong"]');
-      if (directCb) directCb.checked = true;
+    var inputsContainer = document.getElementById('cpPaymentInputs');
+    if (inputsContainer) {
+      inputsContainer.innerHTML =
+        '<input type="hidden" name="payment_methods[]" value="' + methodVal + '">' +
+        '<input type="hidden" name="payment_amounts[]" value="' + totalVal + '">' +
+        '<input type="hidden" name="payment_references[]" value="">';
+    }
+
+    if (methodVal === 'cash' || methodVal === 'bakong' || methodVal === 'riel') {
+      var popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+      if (popupWin) {
+        try { popupWin.focus(); } catch(e) {}
+        form.target = 'receipt_win';
+      } else {
+        form.target = '_self';
+      }
       form.submit();
-      return;
-    }
-  }
-
-  // Open payment modal so cashier can enter received money ($ / Riel) and see change back
-  cpOpenPayModal();
-
-  var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
-  var methodVal = selectedCb ? selectedCb.value : 'cash';
-
-  var modalMethod = document.querySelector('#cpPayMethods .cp-pay-method[data-method="' + methodVal + '"]');
-  if (modalMethod) {
-    var cb = modalMethod.querySelector('input[type="checkbox"]');
-    if (cb && !cb.checked) {
-      cpTogglePayment(modalMethod);
-    }
-  } else {
-    var defaultCash = document.querySelector('#cpPayMethods .cp-pay-method[data-method="cash"]');
-    if (defaultCash) {
-      var cb = defaultCash.querySelector('input[type="checkbox"]');
-      if (cb && !cb.checked) cpTogglePayment(defaultCash);
+      setTimeout(function() {
+        form.target = '_self';
+        cpSilentClearCart();
+      }, 300);
+    } else {
+      form.target = '_self';
+      form.submit();
     }
   }
 }
@@ -2840,9 +2999,9 @@ if (isset($_GET['print_order_id'])) {
 <script>
 function printReceipt(orderId) {
     if (!orderId) return;
-    var printWin = window.open('receipt_print.php?order_id=' + orderId + '&auto_print=1', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
-    if (printWin) {
-        try { printWin.focus(); } catch(e) {}
+    var win = window.open('receipt_print.php?order_id=' + orderId, 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+    if (win) {
+        try { win.focus(); } catch(e) {}
     }
 }
 
@@ -2858,26 +3017,6 @@ document.addEventListener("DOMContentLoaded", function() {
     if (printOrderId > 0) {
         // Automatically open receipt popup for printing
         printReceipt(printOrderId);
-
-        var existingFrame = document.getElementById('receiptPrintFrame');
-        if (existingFrame) existingFrame.remove();
-
-        var iframe = document.createElement('iframe');
-        iframe.id = 'receiptPrintFrame';
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '10px';
-        iframe.style.height = '10px';
-        iframe.style.opacity = '0';
-        iframe.style.pointerEvents = 'none';
-        iframe.style.border = '0';
-        iframe.src = 'receipt_print.php?order_id=' + printOrderId + '&auto_print=1';
-        document.body.appendChild(iframe);
-
-        setTimeout(function() {
-            if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-        }, 60000);
     }
 
     if (window.history && window.history.replaceState) {
@@ -2888,7 +3027,6 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 <?php endif; ?>
-<script src="assets/js/menu.js?v=<?= filemtime(__DIR__.'/assets/js/menu.js') ?>"></script>
 </main>
 </div>
 <?php include __DIR__ . '/bakong_modal_partial.php'; ?>

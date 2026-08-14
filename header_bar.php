@@ -29,18 +29,32 @@ $_page_subtitle = $page_subtitle ?? '';
             <?php endif; ?>
         </div>
     </div>
-    
-    <!-- Top Right Actions: Theme Toggle -->
-    <div class="flex items-center gap-2.5 header-actions" style="display: flex; align-items: center; gap: 10px;">
-
-        <!-- Theme Toggle -->
-        <button type="button" 
-                onclick="toggleTheme()" 
-                class="top-theme-toggle"
-                style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 10px; font-size: 12px; font-weight: 600; background: var(--surface-2, rgba(255,255,255,0.06)); border: 1px solid var(--border-hi, rgba(255,255,255,0.12)); color: var(--text, #fff); cursor: pointer; transition: all 0.2s;"
-                title="Toggle Theme">
-            <i class="fa-solid fa-moon" id="topThemeIcon"></i>
-            <span id="topThemeText"><?= __('dark_mode', 'Dark') ?></span>
-        </button>
-    </div>
 </div>
+
+<script>
+if (typeof window.toggleTheme !== 'function') {
+    window.toggleTheme = function() {
+        var html = document.documentElement;
+        var isLight = html.getAttribute('data-theme') === 'light';
+        var nextTheme = isLight ? 'dark' : 'light';
+        html.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('theme', nextTheme);
+
+        document.querySelectorAll('#topThemeIcon, #themeIcon').forEach(function(icon) {
+            icon.className = nextTheme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        });
+        document.querySelectorAll('#topThemeText, #themeText').forEach(function(txt) {
+            txt.textContent = nextTheme === 'light' ? 'Light' : 'Dark';
+        });
+        if (typeof initCharts === 'function') initCharts();
+    };
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var theme = localStorage.getItem('theme') || (document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.querySelectorAll('#topThemeIcon, #themeIcon').forEach(function(icon) { icon.className = 'fa-solid fa-sun'; });
+        document.querySelectorAll('#topThemeText, #themeText').forEach(function(txt) { txt.textContent = 'Light'; });
+    }
+});
+</script>

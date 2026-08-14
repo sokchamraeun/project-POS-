@@ -38,6 +38,7 @@ $_translations = [
         'nav_employees' => 'Employees',
         'nav_users' => 'Users',
         'nav_manage_roles' => 'Manage Roles',
+        'nav_user_management' => 'User Management',
         'nav_settings' => 'Settings',
         'nav_my_profile' => 'My Profile',
         'nav_stock_count' => 'Stock Count',
@@ -52,8 +53,8 @@ $_translations = [
         // Report Submenu
         'nav_report_sale' => 'Report Sale',
         'nav_report_product' => 'Report Product',
-        'nav_inventory_report' => 'Inventory',
-        'nav_employee_report' => 'Employee',
+        'nav_inventory_report' => 'Report Ingredient',
+        'nav_employee_report' => 'Report User',
 
         // Sections
         'sec_orders' => 'Orders',
@@ -329,6 +330,7 @@ $_translations = [
         'nav_employees' => 'បុគ្គលិក',
         'nav_users' => 'អ្នកប្រើប្រាស់',
         'nav_manage_roles' => 'គ្រប់គ្រងតួនាទី',
+        'nav_user_management' => 'គ្រប់គ្រងអ្នកប្រើប្រាស់',
         'nav_settings' => 'ការកំណត់',
         'nav_my_profile' => 'គណនីរបស់ខ្ញុំ',
         'nav_stock_count' => 'រាប់ស្តុក',
@@ -343,8 +345,8 @@ $_translations = [
         // Report Submenu
         'nav_report_sale' => 'របាយការណ៍លក់',
         'nav_report_product' => 'របាយការណ៍ទំនិញ',
-        'nav_inventory_report' => 'របាយការណ៍ស្តុក',
-        'nav_employee_report' => 'របាយការណ៍បុគ្គលិក',
+        'nav_inventory_report' => 'របាយការណ៍គ្រឿងផ្សំ',
+        'nav_employee_report' => 'របាយការណ៍អ្នកប្រើប្រាស់',
 
         // Sections
         'sec_orders' => 'ការកុម្ម៉ង់',

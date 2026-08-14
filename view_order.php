@@ -1,6 +1,7 @@
 <?php
 require 'auth.php';
 require 'config.php';
+if (!can('view_orders')) { header("Location: dashboard.php?denied=1"); exit; }
 
 date_default_timezone_set("Asia/Phnom_Penh");
 
@@ -151,10 +152,16 @@ if ($action === ""):
         font-family: 'Poppins', sans-serif;
         color: var(--text);
         margin: 0;
-        padding: 40px;
-        min-height: 100vh;
+        padding: 0;
+        height: 100vh;
+        width: 100vw;
         position: relative;
-        overflow-x: hidden;
+        overflow: hidden;
+    }
+
+    .vo-page-wrapper {
+        padding: 24px;
+        padding-bottom: 60px;
     }
 
     /* ── Coffee Steam Animation ── */
@@ -593,9 +600,9 @@ if ($action === ""):
         width: 100% !important;
         min-width: 100% !important;
         max-width: 100% !important;
-        display: block !important;
         box-sizing: border-box;
-        overflow-x: auto;
+        overflow-y: auto !important;
+        overflow-x: auto !important;
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
@@ -608,7 +615,8 @@ if ($action === ""):
         width: 100% !important;
         min-width: 100% !important;
         table-layout: fixed !important;
-        border-collapse: collapse;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
         text-align: left;
         font-size: 13.5px;
     }
@@ -619,6 +627,9 @@ if ($action === ""):
     }
 
     .vo-table th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 10 !important;
         padding: 14px 16px;
         font-size: 11px;
         font-weight: 700;
@@ -626,7 +637,7 @@ if ($action === ""):
         text-transform: uppercase;
         white-space: nowrap;
         color: var(--accent, #d1904b);
-        background: #16161a;
+        background: #16161a !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     }
 
@@ -932,23 +943,112 @@ if ($action === ""):
         transform: translateY(-1px);
     }
 
-    /* Light Theme Table Overrides */
+    /* Light Theme Comprehensive Overrides */
     [data-theme="light"] .vo-table-wrapper {
-        background: #FFFFFF;
-        border-color: #E2E5EA;
+        background: #FFFFFF !important;
+        border-color: #E2E5EA !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.05) !important;
     }
-    [data-theme="light"] .vo-table thead tr {
-        background: #0d9488;
-        color: #FFFFFF;
+    [data-theme="light"] .vo-table thead tr,
+    [data-theme="light"] .vo-table th {
+        background: #F1F5F9 !important;
+        color: #1E293B !important;
+        border-bottom: 1px solid #E2E8F0 !important;
     }
     [data-theme="light"] .vo-table tbody tr {
-        border-bottom-color: #ECEEF2;
+        border-bottom-color: #F1F5F9 !important;
     }
     [data-theme="light"] .vo-table tbody tr:hover {
-        background: #F5F7FA;
+        background: #F8FAFC !important;
+    }
+    [data-theme="light"] .vo-table td {
+        color: #0F172A !important;
     }
     [data-theme="light"] .vo-col-stand {
-        color: #5A6373;
+        color: #64748B !important;
+    }
+
+    /* Stat Cards in Light Mode */
+    [data-theme="light"] .vo-stat-box {
+        background: #FFFFFF !important;
+        border-color: #E2E5EA !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.05) !important;
+    }
+    [data-theme="light"] .vo-stat-title {
+        color: #64748B !important;
+    }
+    [data-theme="light"] .vo-stat-value {
+        color: #0F172A !important;
+    }
+    [data-theme="light"] .vo-stat-sub {
+        color: #64748B !important;
+    }
+
+    /* Search Bar, Staff Select & Clear Button in Light Mode */
+    [data-theme="light"] #searchInput {
+        background: #FFFFFF !important;
+        border-color: #E2E5EA !important;
+        color: #0F172A !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+    }
+    [data-theme="light"] #searchInput::placeholder {
+        color: #94A3B8 !important;
+    }
+    [data-theme="light"] #staffFilterSelect {
+        background: #FFFFFF !important;
+        border-color: #E2E5EA !important;
+        color: #0F172A !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+    }
+    [data-theme="light"] #staffFilterSelect option {
+        background: #FFFFFF !important;
+        color: #0F172A !important;
+    }
+    [data-theme="light"] .btn-clear {
+        background: #FFFFFF !important;
+        border-color: #E2E5EA !important;
+        color: #475569 !important;
+    }
+    [data-theme="light"] .btn-clear:hover {
+        background: #F1F5F9 !important;
+        color: #0F172A !important;
+    }
+
+    /* Date Filter Range Pills in Light Mode */
+    [data-theme="light"] .vo-date-pill {
+        background: #FFFFFF !important;
+        border-color: #E2E5EA !important;
+        color: #475569 !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+    }
+    [data-theme="light"] .vo-date-pill:hover {
+        background: rgba(209, 144, 75, 0.12) !important;
+        color: #d1904b !important;
+        border-color: rgba(209, 144, 75, 0.4) !important;
+    }
+    [data-theme="light"] .vo-date-pill.active {
+        background: #d1904b !important;
+        color: #FFFFFF !important;
+        border-color: #d1904b !important;
+        box-shadow: 0 2px 8px rgba(209, 144, 75, 0.3) !important;
+    }
+
+    /* Action Buttons in Light Mode */
+    [data-theme="light"] .complete-btn {
+        background: rgba(209, 144, 75, 0.12) !important;
+        color: #b37330 !important;
+        border-color: rgba(209, 144, 75, 0.35) !important;
+    }
+    [data-theme="light"] .complete-btn:hover {
+        background: rgba(209, 144, 75, 0.22) !important;
+    }
+    [data-theme="light"] .print-btn {
+        background: rgba(59, 130, 246, 0.12) !important;
+        color: #2563eb !important;
+        border-color: rgba(59, 130, 246, 0.35) !important;
+    }
+    [data-theme="light"] .print-btn:hover {
+        background: rgba(59, 130, 246, 0.22) !important;
     }
 
     /* ── Receipt Modal Styling ── */
@@ -1184,31 +1284,41 @@ if ($action === ""):
         box-shadow: var(--shadow-accent);
     }
 
-    /* ── Page Wrapper & Sidebar Gap ── */
+    /* ── Page Wrapper & Layout ── */
     .vo-page-wrapper {
-        padding: 40px 36px 40px 36px;
+        padding: 0;
         width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
         box-sizing: border-box;
     }
 
-    .app-main, .main-content-container, main, .bmain {
-        padding-top: 40px !important;
-        padding-left: 36px !important;
-        padding-right: 36px !important;
+    .app-main, .main-content-container, main {
+        padding: 20px 28px !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        overflow: hidden !important;
         box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .header-bar, .vo-stats-grid, .search-bar, .vo-date-filter-bar {
+        flex: 0 0 auto;
     }
 
     @media (max-width: 768px) {
         .vo-page-wrapper {
-            padding: 16px;
+            padding: 0;
         }
-        .app-main, .main-content-container, main, .bmain {
-            padding-left: 16px !important;
-            padding-right: 16px !important;
+        .app-main, .main-content-container, main {
+            padding: 14px !important;
         }
     }
 
-    /* ── Container Overrides for 100% Full Width ── */
+    /* ── Container Overrides for 100% Full Width & Table Scroll ── */
     .container, .vo-table-container {
         width: 100% !important;
         max-width: 100% !important;
@@ -1216,18 +1326,37 @@ if ($action === ""):
         padding: 0 !important;
         position: relative;
         z-index: 1;
-    }
-
-    /* ── Orders Grid ── */
-    .orders-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-        gap: 18px;
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
     }
 
     .orders-table-wrapper-container {
-        display: block !important;
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        height: 100% !important;
         width: 100% !important;
+        overflow: hidden !important;
+    }
+
+    .vo-table-wrapper {
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: auto !important;
+    }
+    /* ── Orders Grid ── */
+    .orders-grid:not(.orders-table-wrapper-container) {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 18px;
     }
 
     /* ── Order Card ── */
@@ -2279,7 +2408,7 @@ body.barista-mode { padding: 0; }
     </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <div class="app-main flex-1 h-full overflow-y-auto">
 
@@ -2521,6 +2650,11 @@ function showClockToast(msg, isErr) {
     <input type="text" id="searchInput" placeholder="<?= __('search_orders_ph', 'Search by customer name, order #, or status...') ?>"
            oninput="searchOrders()" onkeydown="if(event.key==='Escape')clearSearch()"
            style="flex:1; width:100%; min-width:240px; padding:11px 18px; border-radius:10px; border:1px solid rgba(255,255,255,0.09); background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--text); font-family:'Poppins',sans-serif; font-size:14px; outline:none; transition:var(--transition); box-shadow:0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);">
+    <select id="staffFilterSelect" onchange="filterByStaff(this.value)"
+            style="padding:11px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:#18181c; color:var(--text); font-family:'Poppins',sans-serif; font-size:13.5px; font-weight:500; outline:none; cursor:pointer; min-width:150px;">
+        <option value="mine" <?= (($_GET['staff'] ?? 'mine') === 'mine') ? 'selected' : '' ?>><?= __('filter_my_orders', 'My Orders') ?></option>
+        <option value="all" <?= (($_GET['staff'] ?? '') === 'all') ? 'selected' : '' ?>><?= __('filter_all_orders', 'All Orders') ?></option>
+    </select>
     <button class="btn" onclick="searchOrders()" 
             style="padding:11px 22px; border-radius:10px; border:none; background:var(--accent); color:#000; font-weight:600; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
         <i class="fa-solid fa-magnifying-glass"></i> <?= __('search', 'Search') ?>
@@ -2661,7 +2795,14 @@ function showClockToast(msg, isErr) {
 <script>
 const tbody = document.getElementById("ordersBody");
 const known = new Set();
-let currentFilter = '<?= (in_array($_SESSION['role'] ?? '', ['admin', 'manager'])) ? 'all' : (($_SESSION['role'] ?? '') === 'barista' ? 'New' : 'Completed') ?>';
+let currentFilter = '<?= (($_SESSION['role'] ?? '') === 'barista') ? 'New' : 'all' ?>';
+let currentStaffFilter = '<?= (isset($_GET['staff']) && $_GET['staff'] === 'all') ? 'all' : 'mine' ?>';
+const myUsername = <?= json_encode($_SESSION['username'] ?? '') ?>;
+
+function filterByStaff(val) {
+    currentStaffFilter = val;
+    applyFilters();
+}
 let showCompleted = true;
 let searchQuery = '';
 let currentCancelId = 0;
@@ -3143,6 +3284,8 @@ function applyFilters() {
 
         if (o && !isOrderInDateRange(o, currentDateRange)) {
             visible = false;
+        } else if (currentStaffFilter === 'mine' && o && (o.employee_name || '').trim().toLowerCase() !== (myUsername || '').trim().toLowerCase()) {
+            visible = false;
         } else if (query) {
             // While searching, cross all tabs — match on text content
             const text = card.textContent.toLowerCase();
@@ -3162,6 +3305,17 @@ function applyFilters() {
 
         card.style.display = visible ? '' : 'none';
     });
+
+    const staffAndDateFiltered = (allOrders || []).filter(o => {
+        if (!isOrderInDateRange(o, currentDateRange)) return false;
+        if (currentStaffFilter === 'mine') {
+            const empName = (o.employee_name || '').trim().toLowerCase();
+            const myName = (myUsername || '').trim().toLowerCase();
+            if (empName !== myName) return false;
+        }
+        return true;
+    });
+    updateCounts(staffAndDateFiltered);
 
     // Show empty state if no visible cards
     const anyVisible = Array.from(cards).some(c => c.style.display !== 'none');
@@ -3343,12 +3497,27 @@ function renderTableView() {
     const container = document.getElementById('ordersBody');
     if (!container) return;
     container.className = 'orders-table-wrapper-container';
-    updateCounts(allOrders);
+
+    const staffAndDateFiltered = (allOrders || []).filter(o => {
+        if (!isOrderInDateRange(o, currentDateRange)) return false;
+        if (currentStaffFilter === 'mine') {
+            const empName = (o.employee_name || '').trim().toLowerCase();
+            const myName = (myUsername || '').trim().toLowerCase();
+            if (empName !== myName) return false;
+        }
+        return true;
+    });
+    updateCounts(staffAndDateFiltered);
 
     const query = searchQuery.toLowerCase().trim();
     const now = new Date();
     const filteredOrders = (allOrders || []).filter(o => {
         if (!isOrderInDateRange(o, currentDateRange)) return false;
+        if (currentStaffFilter === 'mine') {
+            const empName = (o.employee_name || '').trim().toLowerCase();
+            const myName = (myUsername || '').trim().toLowerCase();
+            if (empName !== myName) return false;
+        }
         const boardSt = boardState(o);
         if (query) {
             const text = (o.daily_order_no + ' ' + (o.customer_name||'') + ' ' + boardSt + ' ' + (o.employee_name||'')).toLowerCase();
@@ -3436,6 +3605,10 @@ function renderTableView() {
         `;
     }).join('');
 
+    const prevWrapper = container.querySelector('.vo-table-wrapper');
+    const savedScrollTop = prevWrapper ? prevWrapper.scrollTop : 0;
+    const savedScrollLeft = prevWrapper ? prevWrapper.scrollLeft : 0;
+
     container.innerHTML = `
         <div class="vo-table-wrapper">
             <table class="vo-table">
@@ -3455,6 +3628,12 @@ function renderTableView() {
             </table>
         </div>
     `;
+
+    const newWrapper = container.querySelector('.vo-table-wrapper');
+    if (newWrapper) {
+        newWrapper.scrollTop = savedScrollTop;
+        newWrapper.scrollLeft = savedScrollLeft;
+    }
 }
 
 // ── View Toggle ──
@@ -3496,7 +3675,7 @@ applyFilters = function() {
 
 let currentModalOrderId = null;
 
-// ── View Order Detail Modal Functions ──
+// ── View Order Detail Modal Functions (View-Only Receipt Style) ──
 function openOrderDetailModal(orderId) {
     const o = (allOrders || []).find(item => Number(item.order_id) === Number(orderId));
     if (!o) return;
@@ -3506,80 +3685,124 @@ function openOrderDetailModal(orderId) {
     const content = document.getElementById('orderDetailContent');
     if (!modal || !content) return;
 
-    const boardSt = boardState(o);
-    const itemsRows = (o.items || []).map(i => {
-        const unitPrice = parseFloat(i.price || 0) || (parseFloat(o.total || 0) / (o.items.length || 1));
-        const lineTotal = unitPrice * parseInt(i.quantity, 10);
-        const sub = [i.sweetness, i.ice, i.milk].filter(Boolean).join(', ');
+    const orderNoPaddedModal = String(o.daily_order_no || o.order_id || '').padStart(3, '0');
+    const promoDisc = parseFloat(o.promotion_discount || 0);
+    const manualDisc = parseFloat(o.manual_discount || 0);
+    const totalDisc = promoDisc + manualDisc;
+    const grandTotal = parseFloat(o.total || 0);
+    const subtotalCalc = grandTotal + totalDisc;
+    const grandTotalKhr = Math.round(grandTotal * 4000).toLocaleString('en-US');
+
+    const rcptItemsRows = (o.items || []).map((i, idx) => {
+        const unitPrice = parseFloat(i.price || 0);
+        const qty = parseInt(i.quantity, 10) || 1;
+        const lineTotal = unitPrice * qty;
+        const promoPct = parseInt(i.promo_percent || 0, 10);
+
+        const sub = [i.size, i.sweetness, i.ice, i.milk].concat(i.addons || []).filter(Boolean).join(', ');
+        const noteText = i.note ? `(${i.note})` : '';
+        const subtext = [noteText, sub].filter(Boolean).join(' ');
+
         return `
-            <tr>
-                <td style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
-                    <div style="font-weight:700;font-size:15px;color:#ffffff;">${escapeHtml(i.product_name)}</div>
-                    ${sub ? `<div style="font-size:12.5px;color:#a1a1aa;margin-top:2px;">${escapeHtml(sub)}</div>` : ''}
+            <tr style="border-bottom:1px solid #000000;">
+                <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:600;">${idx + 1}</td>
+                <td style="border:1px solid #000000;padding:5px 4px;text-align:left;">
+                    <div style="font-weight:700;color:#000000;font-size:11.5px;">${escapeHtml(i.product_name)}</div>
+                    ${subtext ? `<div style="font-size:9.5px;color:#555555;margin-top:1px;">${escapeHtml(subtext)}</div>` : ''}
                 </td>
-                <td style="text-align:center;padding:12px;border-bottom:1px solid rgba(255,255,255,0.07);font-weight:700;font-size:15px;color:#ffffff;">×${i.quantity}</td>
-                <td style="text-align:right;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.07);font-weight:700;font-size:15px;color:#d1904b;">$${lineTotal.toFixed(2)}</td>
+                <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;font-size:11px;">${qty}</td>
+                <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-size:11px;">$${unitPrice.toFixed(2)}</td>
+                <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-size:11px;">${promoPct > 0 ? promoPct + '%' : '0%'}</td>
+                <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;font-size:11px;">$${lineTotal.toFixed(2)}</td>
             </tr>
         `;
     }).join('');
 
-    let modalTimeBadge = '';
-    if (boardSt === 'New' && o.order_date) {
-        const orderTime = new Date(o.order_date.replace(/-/g, '/'));
-        const diffMs = Math.max(0, new Date() - orderTime);
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffSecs = Math.floor((diffMs % 60000) / 1000);
-        const formattedDiff = diffMins > 0 ? `${diffMins}m ${diffSecs}s` : `${diffSecs}s`;
-        const isLate = diffMins >= 10;
-        modalTimeBadge = `
-            <span class="vo-time-elapsed-badge" style="font-size:12px;padding:3px 10px;border-radius:8px;background:${isLate ? 'rgba(239, 68, 68, 0.2)' : 'rgba(15, 118, 110, 0.2)'};color:${isLate ? '#ef4444' : '#0f766e'};display:inline-flex;align-items:center;gap:5px;font-weight:700;margin-left:6px;">
-                <i class="fa-regular fa-clock"></i> ${formattedDiff}
-            </span>
-        `;
-    }
-
-    const orderNoPaddedModal = String(o.daily_order_no || '').padStart(3, '0');
-
     content.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:20px;">
-            <h3 style="font-size:22px;font-weight:800;color:#ffffff;margin:0;display:flex;align-items:center;gap:12px;">
-                <i class="fa-solid fa-receipt" style="color:#d1904b"></i> Order #${escapeHtml(orderNoPaddedModal)} Details
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:16px;">
+            <h3 style="font-size:18px;font-weight:700;color:#ffffff;margin:0;display:flex;align-items:center;gap:10px;">
+                <i class="fa-solid fa-receipt" style="color:#d1904b"></i> Order #${escapeHtml(orderNoPaddedModal)} Receipt Details
             </h3>
-            <button onclick="closeOrderDetailModal()" style="background:none;border:none;color:#a1a1aa;font-size:22px;cursor:pointer;">
+            <button onclick="closeOrderDetailModal()" style="background:none;border:none;color:#a1a1aa;font-size:20px;cursor:pointer;">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;background:rgba(255,255,255,0.04);padding:18px 20px;border-radius:14px;font-size:14px;border:1px solid rgba(255,255,255,0.08);">
-            <div><span style="color:#a1a1aa;">Placed By:</span> <strong style="color:#ffffff;">${escapeHtml(o.employee_name || 'Staff')}</strong></div>
-            <div><span style="color:#a1a1aa;">Payment:</span> <strong style="color:#ffffff;text-transform:uppercase;">${escapeHtml(o.payment_method || 'Cash')}</strong></div>
-            <div style="grid-column: span 2; display:flex;align-items:center;flex-wrap:wrap;"><span style="color:#a1a1aa;margin-right:4px;">Date & Time:</span> <strong style="color:#ffffff;">${escapeHtml(o.order_date || '')}</strong></div>
+        <!-- 80mm Thermal Receipt Canvas (View Only) -->
+        <div style="width:100%;max-width:380px;margin:0 auto;background:#ffffff;color:#000000;padding:20px 18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.5);font-family:'Kantumruy Pro','Poppins',sans-serif;font-size:11.5px;line-height:1.4;">
+            <!-- Header -->
+            <div style="text-align:center;margin-bottom:12px;">
+                <h1 style="font-size:19px;font-weight:800;color:#000000;margin:0;line-height:1.2;"><?= htmlspecialchars(defined('RECEIPT_SHOP_NAME') ? RECEIPT_SHOP_NAME : 'The Bird Nest Cafe') ?></h1>
+                <p style="font-size:11px;color:#555555;margin:2px 0 0 0;"><?= htmlspecialchars(defined('RECEIPT_LOCATION') ? RECEIPT_LOCATION : 'Phnom Penh') ?></p>
+                <?php if (defined('RECEIPT_PHONE') && RECEIPT_PHONE !== ''): ?>
+                <p style="font-size:11px;color:#555555;margin:1px 0 0 0;"><?= htmlspecialchars(RECEIPT_PHONE) ?></p>
+                <?php endif; ?>
+                <h2 style="font-size:15px;font-weight:700;color:#000000;margin:8px 0 2px 0;letter-spacing:1px;">វិក្កយបត្រ / RECEIPT</h2>
+            </div>
+
+            <!-- Meta Data Grid -->
+            <div style="font-size:11px;line-height:1.5;margin-bottom:12px;border-bottom:1px dashed #666666;padding-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;">
+                    <span>អ្នកគិតលុយ : <b>${escapeHtml(o.employee_name || 'admin')}</b></span>
+                    <span>លេខវិក្កយបត្រ : <b>#${escapeHtml(orderNoPaddedModal)}</b></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:2px;">
+                    <span>អតិថិជន : <b>${escapeHtml(o.customer_name || 'General Customer')}</b></span>
+                    <span>ម៉ោងចេញ : <b>${escapeHtml(o.order_date || '')}</b></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:2px;">
+                    <span>បង់តាម : <b>${escapeHtml(o.payment_method || 'Cash')}</b></span>
+                </div>
+            </div>
+
+            <!-- Bordered Item Table -->
+            <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin:10px 0;border:1px solid #000000;">
+                <thead>
+                    <tr style="background:#f3f4f6;border-bottom:1px solid #000000;color:#000000;">
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:8%;">ល.រ</th>
+                        <th style="border:1px solid #000000;padding:5px 4px;text-align:left;font-weight:700;width:40%;">បរិយាយ</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:12%;">ចំនួន</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:13%;">តម្លៃ</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:13%;">បញ្ចុះ</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:14%;">សរុប</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rcptItemsRows}
+                </tbody>
+            </table>
+
+            <!-- Totals Section -->
+            <div style="font-size:11.5px;line-height:1.6;margin-top:10px;">
+                ${totalDisc > 0 ? `
+                <div style="display:flex;justify-content:space-between;color:#444444;">
+                    <span>ប្រាក់សរុប (Subtotal) :</span>
+                    <span>USD $${subtotalCalc.toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;color:#dc2626;">
+                    <span>បញ្ចុះតម្លៃ (Discount) :</span>
+                    <span>-$${totalDisc.toFixed(2)}</span>
+                </div>
+                ` : ''}
+                <div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px;border-top:1px solid #000000;padding-top:6px;margin-top:4px;">
+                    <span>ប្រាក់សរុបចុងក្រោយ :</span>
+                    <span>USD $${grandTotal.toFixed(2)}</span>
+                </div>
+                <div style="text-align:right;font-weight:700;font-size:11px;color:#333333;margin-top:2px;">
+                    <span>KHR ${grandTotalKhr} ៛</span>
+                </div>
+            </div>
+
+            <!-- Footer Divider -->
+            <div style="border-top:1px dashed #000000;margin:14px 0 8px 0;"></div>
+            <div style="text-align:center;font-size:11px;color:#444444;font-weight:600;">
+                សូមអរគុណ! Thank You!
+            </div>
         </div>
 
-        <h4 style="font-size:13px;font-weight:700;color:#a1a1aa;text-transform:uppercase;margin-bottom:10px;letter-spacing:0.04em;">Order Items</h4>
-        <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px;color:#ffffff;">
-            <thead>
-                <tr style="text-align:left;color:#a1a1aa;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;text-transform:uppercase;">
-                    <th style="padding-bottom:8px;color:#a1a1aa;">Item</th>
-                    <th style="text-align:center;padding-bottom:8px;color:#a1a1aa;">Qty</th>
-                    <th style="text-align:right;padding-bottom:8px;color:#a1a1aa;">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${itemsRows}
-            </tbody>
-        </table>
-
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:16px;border-top:1px dashed rgba(255,255,255,0.15);margin-bottom:24px;">
-            <span style="font-size:16px;font-weight:700;color:#ffffff;">TOTAL AMOUNT</span>
-            <span style="font-size:24px;font-weight:800;color:#d1904b;">$${parseFloat(o.total || 0).toFixed(2)}</span>
-        </div>
-
-        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);">
-            <button onclick="printReceipt(${Number(o.order_id)})" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(155,89,182,0.4);background:rgba(155,89,182,0.2);color:#c87bd9;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;display:flex;align-items:center;gap:6px;">
-                <i class="fa-solid fa-print"></i> Print
-            </button>
-            <button onclick="closeOrderDetailModal()" style="padding:10px 20px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#ffffff;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;font-size:13.5px;">
+        <!-- Footer Buttons (ONLY VIEW - NO PRINT) -->
+        <div style="display:flex;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1);">
+            <button onclick="closeOrderDetailModal()" style="padding:10px 24px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.1);color:#ffffff;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;font-size:14px;transition:all 0.2s;">
                 Close
             </button>
         </div>
@@ -3821,7 +4044,6 @@ async function loadOrders() {
         
         // Apply filters after loading
         applyFilters();
-        setOrdersView(currentViewMode);
         updateBaristaStats();
     } catch (err) {
         console.error("Fetch failed:", err);
@@ -4644,6 +4866,8 @@ if ($action === "fetch") {
             o.order_type,
             o.payment_method,
             o.is_open,
+            o.promotion_discount,
+            o.manual_discount,
             COUNT(rm.id) AS remake_count,
             oc.cancel_reason,
             oc.cancelled_by,
@@ -4652,6 +4876,9 @@ if ($action === "fetch") {
             (SELECT GROUP_CONCAT(reason ORDER BY remade_at ASC SEPARATOR '|||') FROM order_remakes rml WHERE rml.order_id = o.order_id) AS remake_reasons,
             oi.item_id,
             oi.product_name,
+            oi.price,
+            oi.orig_price,
+            oi.promo_percent,
             oi.sweetness,
             oi.ice,
             oi.milk,
@@ -4672,7 +4899,7 @@ if ($action === "fetch") {
         LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id
         LEFT JOIN order_refunds orr ON orr.order_id = o.order_id
         WHERE {$where_sql}
-        GROUP BY o.order_id, oi.item_id, oi.product_name, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category
+        GROUP BY o.order_id, oi.item_id, oi.product_name, oi.price, oi.orig_price, oi.promo_percent, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category
         ORDER BY o.order_id DESC
     ");
 
@@ -4712,6 +4939,8 @@ if ($action === "fetch") {
                 "remake_reasons" => $r['remake_reasons'] ? explode('|||', $r['remake_reasons']) : [],
                 // Needed by getStatusBadge to tell a queued 'Paid' order (is_open=1) from a
                 // settled pay-later tab (is_open=0) — same status, opposite meanings.
+                "promotion_discount" => (float)($r['promotion_discount'] ?? 0),
+                "manual_discount"    => (float)($r['manual_discount'] ?? 0),
                 "is_open" => (int)($r['is_open'] ?? 0),
                 // Needed to hide Refund on a pay-later tab that hasn't been settled yet.
                 "payment_method" => $r['payment_method'] ?? '',
@@ -4736,10 +4965,13 @@ if ($action === "fetch") {
             $made_qty = (int)$r["made_qty"];
             $is_made  = ($qty > 0 && $made_qty >= $qty) ? 1 : 0;   // row fully made — from the count, not made_at
             $item = [
-                "item_id"      => (int)$r["item_id"],
-                "product_id"   => (int)$r["product_id"],   // picks this drink's allowed add-ons on remake
-                "product_name" => $r["product_name"],
-                "size"         => $r["size_label"],
+                "item_id"       => (int)$r["item_id"],
+                "product_id"    => (int)$r["product_id"],
+                "product_name"  => $r["product_name"],
+                "price"         => (float)($r["price"] ?? 0),
+                "orig_price"    => (float)($r["orig_price"] ?? 0),
+                "promo_percent" => (int)($r["promo_percent"] ?? 0),
+                "size"          => $r["size_label"],
                 "sweetness"    => $r["sweetness"],
                 "ice"          => $r["ice"],
                 "milk"         => $r["milk"],

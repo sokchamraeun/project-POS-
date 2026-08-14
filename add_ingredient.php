@@ -102,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Add Ingredient | Obsidian Cafe</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
 <script>(function(){var t=localStorage.getItem('theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 
 <style>
@@ -168,12 +169,6 @@ body {
     color: var(--text);
     line-height: 1.6;
     min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    position: relative;
 }
 
 /* ── Background decorative elements ── */
@@ -209,7 +204,7 @@ body::after {
 
 /* ── Back Button ── */
 .back-btn {
-    position: fixed;
+    position: absolute;
     top: 24px;
     left: 24px;
     display: flex;
@@ -577,7 +572,10 @@ label i {
 </style>
 </head>
 
-<body>
+<body style="margin:0; padding:0; background:var(--bg); height:100vh; overflow:hidden;">
+<div class="flex h-screen w-screen overflow-hidden bg-[#0c0c0c] app-layout" style="display:flex; width:100vw; height:100vh; overflow:hidden;">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 h-full overflow-y-auto" style="flex:1; height:100%; overflow-y:auto; padding:24px; display:flex; align-items:center; justify-content:center; position:relative;">
 
 <!-- Back Button -->
 <a class="back-btn" href="ingredients.php">
@@ -785,6 +783,8 @@ window.addEventListener('storage', function (e) {
     }
 });
 </script>
-
+</div>
+</main>
+</div>
 </body>
 </html>

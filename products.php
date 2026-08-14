@@ -158,10 +158,138 @@ $availPct = $totalProducts > 0 ? round($availCount / $totalProducts * 100) : 0;
     --border-hover: #D1D5DB;
     --text: #111827;
     --text-muted: #6B7280;
-    --text-light: #ffffff;
+    --text-light: #111827;
     --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
     --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
     --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
+}
+
+[data-theme="light"] body,
+[data-theme="light"] .app-layout,
+[data-theme="light"] .app-main {
+    background-color: #F0F2F5 !important;
+    color: #111827 !important;
+}
+
+[data-theme="light"] .products-sticky-header {
+    background: #F0F2F5 !important;
+    border-bottom-color: #E5E7EB !important;
+}
+
+[data-theme="light"] .header-bar h1 {
+    color: #111827 !important;
+}
+[data-theme="light"] .header-bar {
+    border-bottom-color: #E2E8F0 !important;
+}
+[data-theme="light"] .sidebar-toggle-btn,
+[data-theme="light"] .top-theme-toggle {
+    background: #FFFFFF !important;
+    border-color: #CBD5E1 !important;
+    color: #334155 !important;
+}
+
+/* Stat Cards in Light Mode */
+[data-theme="light"] .stat-card {
+    background: #FFFFFF !important;
+    border-color: #E5E7EB !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.05) !important;
+}
+[data-theme="light"] .stat-card:hover {
+    border-color: #D1D5DB !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+}
+[data-theme="light"] .stat-card .stat-label {
+    color: #6B7280 !important;
+}
+[data-theme="light"] .stat-card .stat-value {
+    color: #111827 !important;
+}
+[data-theme="light"] .stat-card.avail .stat-value {
+    color: #059669 !important;
+}
+[data-theme="light"] .stat-card.unavail .stat-value {
+    color: #dc2626 !important;
+}
+[data-theme="light"] .stat-card .stat-sub {
+    color: #6B7280 !important;
+}
+
+/* Search Box & Controls in Light Mode */
+[data-theme="light"] .search-box input {
+    background: #FFFFFF !important;
+    border-color: #E5E7EB !important;
+    color: #111827 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+[data-theme="light"] .search-box input::placeholder {
+    color: #9CA3AF !important;
+}
+[data-theme="light"] select.cat-filter-select {
+    background-color: #FFFFFF !important;
+    border-color: #E5E7EB !important;
+    color: #111827 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+[data-theme="light"] select.cat-filter-select option {
+    background: #FFFFFF !important;
+    color: #111827 !important;
+}
+[data-theme="light"] .view-mode-toggle {
+    background: #FFFFFF !important;
+    border-color: #E5E7EB !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+[data-theme="light"] .view-btn {
+    color: #6B7280 !important;
+}
+[data-theme="light"] .view-btn:hover:not(.active) {
+    background: #F3F4F6 !important;
+    color: #111827 !important;
+}
+[data-theme="light"] .results-info {
+    color: #6B7280 !important;
+}
+[data-theme="light"] .results-info strong {
+    color: #111827 !important;
+}
+
+/* List View Table Header in Light Mode */
+[data-theme="light"] .list-table-header {
+    background: #F1F5F9 !important;
+    color: #1E293B !important;
+    border-bottom-color: #E2E8F0 !important;
+}
+
+/* Product Card & Row in Light Mode */
+[data-theme="light"] .products-scroll-wrap:has(.product-grid.list-view),
+[data-theme="light"] .products-scroll-wrap.list-view-box {
+    background: #FFFFFF !important;
+    border-color: #E5E7EB !important;
+}
+[data-theme="light"] .product-card {
+    background: #FFFFFF !important;
+    border-color: #E5E7EB !important;
+}
+[data-theme="light"] .product-card.list-row {
+    background: #FFFFFF !important;
+    border-bottom-color: #F1F5F9 !important;
+}
+[data-theme="light"] .product-card.list-row:hover {
+    background: #F8FAFC !important;
+}
+[data-theme="light"] .product-card .title,
+[data-theme="light"] .product-card .name,
+[data-theme="light"] .product-card h3 {
+    color: #111827 !important;
+}
+[data-theme="light"] .product-card .price {
+    color: #111827 !important;
+}
+[data-theme="light"] .product-card .category,
+[data-theme="light"] .product-card .cat-badge {
+    background: #F3F4F6 !important;
+    color: #4B5563 !important;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -376,15 +504,33 @@ body {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 24px 24px 100px !important;
+    padding: 0 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+}
+
+/* ========== STICKY TOP HEADER & CONTROLS BOX ========== */
+.products-sticky-header {
+    position: relative;
+    top: 0;
+    z-index: 40;
+    background: #0e0e10;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* ========== STATS BAR (ORDER PAGE STYLE) ========== */
 .stats-bar {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 12px;
+    margin-bottom: 12px;
     width: 100%;
 }
 @media (max-width: 1024px) {
@@ -397,13 +543,13 @@ body {
 .stat-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 18px 20px;
+    border-radius: 14px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 16px;
-    min-height: 92px;
+    gap: 14px;
+    min-height: 76px;
     cursor: pointer;
     user-select: none;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -608,8 +754,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin-bottom: 10px;
     flex-wrap: wrap;
     padding: 0;
 }
@@ -839,9 +985,36 @@ select.cat-filter-select option {
 }
 
 /* Scroll Container for Product List */
+.app-main {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 20px 28px !important;
+    box-sizing: border-box;
+}
+
+.container {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+}
+
+.products-sticky-header {
+    flex: 0 0 auto !important;
+}
+
 .products-scroll-wrap {
-    max-height: calc(100vh - 270px);
-    overflow-y: auto;
+    flex: 1 1 0% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
     padding-right: 4px;
     border-radius: 14px;
     transition: all 0.3s ease;
@@ -892,17 +1065,18 @@ select.cat-filter-select option {
     padding-left: 14px;
 }
 .list-table-header .th-name {
-    flex: 1;
-    min-width: 140px;
+    flex: 2;
+    min-width: 180px;
 }
 .list-table-header .th-cat {
-    width: 110px;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
 }
 .list-table-header .th-price {
-    width: 95px;
-    flex-shrink: 0;
-    text-align: right;
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
 }
 .list-table-header .th-cogs {
     width: 95px;
@@ -915,7 +1089,7 @@ select.cat-filter-select option {
     text-align: right;
 }
 .list-table-header .th-actions {
-    width: 150px;
+    width: 160px;
     flex-shrink: 0;
     text-align: right;
 }
@@ -1018,9 +1192,29 @@ select.cat-filter-select option {
     flex: 1; display: flex; align-items: center; gap: 14px;
     padding: 8px 0 8px 14px; flex-wrap: nowrap;
 }
-.product-grid.list-view .product-card .content h3 { flex: 1; min-width: 140px; margin-bottom: 0; }
-.product-grid.list-view .product-card .content .top-row { margin: 0; width: 110px; flex-shrink: 0; }
-.product-grid.list-view .product-card .content .price { margin-top: 0; width: 95px; flex-shrink: 0; text-align: right; font-size: 15px; }
+.product-grid.list-view .product-card .content h3 {
+    flex: 2;
+    min-width: 180px;
+    margin-bottom: 0;
+}
+.product-grid.list-view .product-card .content .top-row {
+    margin: 0;
+    flex: 1;
+    min-width: 120px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.product-grid.list-view .product-card .content .price {
+    margin-top: 0;
+    flex: 1;
+    min-width: 100px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+}
 .product-grid.list-view .col-cogs {
     display: block;
     width: 95px;
@@ -1033,7 +1227,12 @@ select.cat-filter-select option {
     flex-shrink: 0;
     text-align: right;
 }
-.product-grid.list-view .product-card .content .actions { margin-top: 0; width: 150px; flex-shrink: 0; justify-content: flex-end; }
+.product-grid.list-view .product-card .content .actions {
+    margin-top: 0;
+    width: 160px;
+    flex-shrink: 0;
+    justify-content: flex-end;
+}
 .product-grid.list-view .product-card .content .product-id { display: none; }
 .product-grid.list-view .product-card:hover {
     background: rgba(255, 255, 255, 0.04);
@@ -1785,101 +1984,103 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 </head>
 
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
-<main class="app-main flex-1 h-full overflow-y-auto p-6">
+<main class="app-main flex-1 h-full overflow-hidden p-6 flex flex-col">
 
 <!-- ========== MAIN ========== -->
 <div class="container">
-    <?php $page_title = __('nav_products', 'Products'); require __DIR__ . '/header_bar.php'; ?>
+    <div class="products-sticky-header">
+        <?php $page_title = __('nav_products', 'Products'); require __DIR__ . '/header_bar.php'; ?>
 
-    <!-- ── Stats Bar ── -->
-    <div class="stats-bar">
-        <div class="stat-card total active" id="statTotal" data-stat="total" role="button" tabindex="0" title="Click to show all products">
-            <div class="stat-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
-            <div class="stat-body">
-                <div class="stat-label"><?= __('total', 'Total') ?></div>
-                <div class="stat-value"><?= $totalProducts ?></div>
-                <div class="stat-sub"><?= __('nav_products', 'products') ?></div>
-            </div>
-        </div>
-
-        <div class="stat-card avail" id="statAvail" data-stat="avail" role="button" tabindex="0" title="Click to filter active products">
-            <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
-            <div class="stat-body">
-                <div class="stat-label"><?= __('active', 'Active') ?></div>
-                <div class="stat-value"><?= $availCount ?></div>
-                <div class="stat-sub"><?= __('products_on_menu', 'products on menu') ?></div>
-            </div>
-        </div>
-
-        <div class="stat-card unavail" id="statUnavail" data-stat="unavail" role="button" tabindex="0" title="Click to filter inactive products">
-            <div class="stat-icon"><i class="fa-solid fa-circle-xmark"></i></div>
-            <div class="stat-body">
-                <div class="stat-label"><?= __('inactive', 'Inactive') ?></div>
-                <div class="stat-value"><?= $unavailCount ?></div>
-                <div class="stat-sub"><?= $unavailCount ?> <?= __('off_menu', 'items off menu') ?></div>
-            </div>
-        </div>
-
-        <?php if ($top): ?>
-        <div class="stat-card top-cat" id="statTopCat" data-stat="top-cat" data-cat="<?= htmlspecialchars($top) ?>" role="button" tabindex="0" title="Click to filter by top category (<?= htmlspecialchars($top) ?>)">
-            <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
-            <div class="stat-body">
-                <div class="stat-label"><?= __('top_category', 'Top Category') ?></div>
-                <div class="stat-value" style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($top) ?></div>
-                <div class="stat-sub"><?= $catCounts[$top] ?> <?= __('nav_products', 'products') ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
-
-    <!-- ── Controls & Filter Bar ── -->
-    <div class="prod-controls-bar">
-        <div class="prod-controls-left">
-            <!-- Search Box with Clear Button -->
-            <div class="search-box">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" placeholder="<?= __('search_products_ph', 'Search products… (Press /)') ?>" autocomplete="off">
-                <button class="search-clear-btn" id="searchClear" title="Clear search (Esc)">
-                    <i class="fa-solid fa-circle-xmark"></i>
-                </button>
+        <!-- ── Stats Bar ── -->
+        <div class="stats-bar">
+            <div class="stat-card total active" id="statTotal" data-stat="total" role="button" tabindex="0" title="Click to show all products">
+                <div class="stat-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+                <div class="stat-body">
+                    <div class="stat-label"><?= __('total', 'Total') ?></div>
+                    <div class="stat-value"><?= $totalProducts ?></div>
+                    <div class="stat-sub"><?= __('nav_products', 'products') ?></div>
+                </div>
             </div>
 
-            <!-- Category Filter Select -->
-            <div class="filter-select-wrap">
-                <i class="fa-solid fa-filter filter-icon"></i>
-                <select id="catSelect" class="cat-filter-select">
-                    <option value="all">All Categories (<?= $totalProducts ?>)</option>
-                    <?php foreach ($filterCats as $fc): ?>
-                    <option value="<?= htmlspecialchars($fc['slug']) ?>">
-                        <?= htmlspecialchars($fc['slug']) ?> (<?= (int)$fc['count'] ?>)
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-        </div>
-
-        <div class="prod-controls-right">
-            <div class="results-info">
-                Showing <strong id="resultsCount"><?= $totalProducts ?></strong> of <strong><?= $totalProducts ?></strong> products
+            <div class="stat-card avail" id="statAvail" data-stat="avail" role="button" tabindex="0" title="Click to filter active products">
+                <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+                <div class="stat-body">
+                    <div class="stat-label"><?= __('active', 'Active') ?></div>
+                    <div class="stat-value"><?= $availCount ?></div>
+                    <div class="stat-sub"><?= __('products_on_menu', 'products on menu') ?></div>
+                </div>
             </div>
 
-            <!-- View Mode Switcher -->
-            <div class="view-mode-toggle">
-                <button class="view-btn active" id="gridViewBtn" title="Grid View">
-                    <i class="fa-solid fa-border-all"></i>
-                </button>
-                <button class="view-btn" id="listViewBtn" title="List View">
-                    <i class="fa-solid fa-list-ul"></i>
-                </button>
+            <div class="stat-card unavail" id="statUnavail" data-stat="unavail" role="button" tabindex="0" title="Click to filter inactive products">
+                <div class="stat-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+                <div class="stat-body">
+                    <div class="stat-label"><?= __('inactive', 'Inactive') ?></div>
+                    <div class="stat-value"><?= $unavailCount ?></div>
+                    <div class="stat-sub"><?= $unavailCount ?> <?= __('off_menu', 'items off menu') ?></div>
+                </div>
             </div>
 
-            <?php if ($_can_manage_products): ?>
-            <a href="add_product.php" class="btn-add-product">
-                <i class="fa-solid fa-plus"></i> Add Product
-            </a>
+            <?php if ($top): ?>
+            <div class="stat-card top-cat" id="statTopCat" data-stat="top-cat" data-cat="<?= htmlspecialchars($top) ?>" role="button" tabindex="0" title="Click to filter by top category (<?= htmlspecialchars($top) ?>)">
+                <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
+                <div class="stat-body">
+                    <div class="stat-label"><?= __('top_category', 'Top Category') ?></div>
+                    <div class="stat-value" style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($top) ?></div>
+                    <div class="stat-sub"><?= $catCounts[$top] ?> <?= __('nav_products', 'products') ?></div>
+                </div>
+            </div>
             <?php endif; ?>
+        </div>
+
+        <!-- ── Controls & Filter Bar ── -->
+        <div class="prod-controls-bar">
+            <div class="prod-controls-left">
+                <!-- Search Box with Clear Button -->
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="searchInput" placeholder="<?= __('search_products_ph', 'Search products… (Press /)') ?>" autocomplete="off">
+                    <button class="search-clear-btn" id="searchClear" title="Clear search (Esc)">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Category Filter Select -->
+                <div class="filter-select-wrap">
+                    <i class="fa-solid fa-filter filter-icon"></i>
+                    <select id="catSelect" class="cat-filter-select">
+                        <option value="all">All Categories (<?= $totalProducts ?>)</option>
+                        <?php foreach ($filterCats as $fc): ?>
+                        <option value="<?= htmlspecialchars($fc['slug']) ?>">
+                            <?= htmlspecialchars($fc['slug']) ?> (<?= (int)$fc['count'] ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <div class="prod-controls-right">
+                <div class="results-info">
+                    Showing <strong id="resultsCount"><?= $totalProducts ?></strong> of <strong id="totalCountSummary"><?= $totalProducts ?></strong> products
+                </div>
+
+                <!-- View Mode Switcher -->
+                <div class="view-mode-toggle">
+                    <button type="button" class="view-btn active" id="gridViewBtn" title="Grid View">
+                        <i class="fa-solid fa-border-all"></i>
+                    </button>
+                    <button type="button" class="view-btn" id="listViewBtn" title="List View">
+                        <i class="fa-solid fa-list-ul"></i>
+                    </button>
+                </div>
+
+                <?php if ($_can_manage_products): ?>
+                <a href="add_product.php" class="btn-add-product">
+                    <i class="fa-solid fa-plus"></i> Add Product
+                </a>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -1892,8 +2093,6 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                 <div class="th-col th-name">Product Name</div>
                 <div class="th-col th-cat">Category</div>
                 <div class="th-col th-price">Sell Price</div>
-                <div class="th-col th-cogs">Cost Price</div>
-                <div class="th-col th-margin">Gross Margin</div>
                 <div class="th-col th-actions">Actions</div>
             </div>
         </div>
@@ -1937,7 +2136,7 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                              loading="lazy"
                              onerror="this.src='uploads/no-image.png'">
                         <?php if (!$available): ?>
-                        <div class="sold-out-badge">Sold Out</div>
+                        <div class="sold-out-badge">Inactive</div>
                         <?php endif; ?>
                         <?php $__badge = product_badge_label($row); if ($__badge !== ''): ?>
                         <span class="product-badge"><?= htmlspecialchars($__badge) ?></span>
@@ -1956,12 +2155,6 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                             <span class="price" data-pid="<?= $row['product_id'] ?>" title="Double-click to edit price">
                                 $<?= number_format($row['price'], 2) ?>
                             </span>
-                            <span class="col-cogs" title="Recipe Cost Price">
-                                Cost: $<?= number_format($costP, 2) ?>
-                            </span>
-                            <span class="col-margin <?= $mDol > 0 ? 'high-margin' : ($mDol < 0 ? 'low-margin' : 'no-margin') ?>" title="Gross Profit Margin: $<?= number_format($mDol, 2) ?> (<?= number_format($mPct, 1) ?>%)">
-                                <?= $mDol < 0 ? 'Loss: -$'.number_format(abs($mDol), 2) : 'Margin: $'.number_format($mDol, 2) ?>
-                            </span>
                         </div>
                         <?php if (!empty($missing[(int)$row['product_id']])): ?>
                         <span class="badge badge-danger" title="has_sizes is on but no size prices set">missing size prices</span>
@@ -1974,12 +2167,12 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                             </a>
                             <button type="button" class="btn-action <?= $available ? 'avail-on' : 'avail-off' ?>"
                                     onclick="toggleAvailability(<?= $row['product_id'] ?>, this, event)"
-                                    title="<?= $available ? 'Mark as sold out' : 'Mark as available' ?>">
+                                    title="<?= $available ? 'Mark as inactive' : 'Mark as available' ?>">
                                 <i class="fa-solid <?= $available ? 'fa-eye' : 'fa-eye-slash' ?>"></i>
                                 <?= $available ? 'On' : 'Off' ?>
                             </button>
-                            <button class="btn-action delete"
-                                    onclick="confirmDelete(<?= $row['product_id'] ?>, '<?= htmlspecialchars(addslashes($row['name'])) ?>')">
+                            <button type="button" class="btn-action delete"
+                                    onclick="confirmDelete(<?= $row['product_id'] ?>, '<?= htmlspecialchars(addslashes($row['name'])) ?>', event)">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </div>
@@ -2054,7 +2247,7 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
     <button class="qv-close" onclick="closeQV()"><i class="fa-solid fa-xmark"></i></button>
     <div class="qv-img-wrap">
         <img id="qvImg" src="" alt="">
-        <div id="qvSoldBadge" class="qv-sold-badge">Sold Out</div>
+        <div id="qvSoldBadge" class="qv-sold-badge">Inactive</div>
         <div id="qvStarBadge" class="qv-star-badge"></div>
     </div>
     <div class="qv-body" id="qvBody">
@@ -2074,7 +2267,7 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 // ── Card data ──
 let allCards    = Array.from(document.querySelectorAll('.product-card'));
 let activeFilter     = 'all';
-let activeAvail      = 'all'; // 'all', '1' (Available), '0' (Sold Out)
+let activeAvail      = 'all'; // 'all', '1' (Available), '0' (Inactive)
 let activeSearch     = '';
 let activeSort       = 'default';
 let activePriceMin   = 0;
@@ -2142,6 +2335,24 @@ function updateStatCounts() {
 
     const elUnavail = document.querySelector('#statUnavail .stat-value');
     if (elUnavail) elUnavail.textContent = unavail;
+
+    const elTotalSum = document.getElementById('totalCountSummary');
+    if (elTotalSum) elTotalSum.textContent = total;
+}
+
+function updateRowNumbersAndCounts() {
+    updateStatCounts();
+    const visibleCards = Array.from(document.querySelectorAll('#productGrid .product-card:not([style*="display: none"])'));
+    visibleCards.forEach((c, idx) => {
+        const colNo = c.querySelector('.col-no');
+        if (colNo) colNo.textContent = idx + 1;
+    });
+
+    const resCount = document.getElementById('resultsCount');
+    if (resCount) resCount.textContent = visibleCards.length;
+
+    const filterEmpty = document.getElementById('filterEmpty');
+    if (filterEmpty) filterEmpty.style.display = visibleCards.length === 0 ? 'block' : 'none';
 }
 
 // ─────────────────────────────────────────────
@@ -2416,7 +2627,7 @@ function bulkToggle() {
             if (!isAvail && !badge) {
                 const b = document.createElement('div');
                 b.className = 'sold-out-badge';
-                b.textContent = 'Sold Out';
+                b.textContent = 'Inactive';
                 card.querySelector('.image-wrapper').appendChild(b);
             }
         });
@@ -2471,7 +2682,7 @@ function bulkDelete() {
                 setTimeout(() => {
                     allCards = allCards.filter(c => c !== card);
                     card.remove();
-                    applyFilters();
+                    updateRowNumbersAndCounts();
                 }, 300);
             }
         });
@@ -2600,7 +2811,7 @@ document.querySelectorAll('.price').forEach(span => {
 function paintAvailBtn(btn, isAvail) {
     if (!btn) return;
     btn.className = btn.className.replace(/avail-(on|off)/, isAvail ? 'avail-on' : 'avail-off');
-    btn.title     = isAvail ? 'Mark as sold out' : 'Mark as available';
+    btn.title     = isAvail ? 'Mark as inactive' : 'Mark as available';
     btn.textContent = '';
     const icon = document.createElement('i');
     icon.className = 'fa-solid ' + (isAvail ? 'fa-eye' : 'fa-eye-slash');
@@ -2633,10 +2844,10 @@ function toggleAvailability(id, btn, e) {
             if (!badge) {
                 const b = document.createElement('div');
                 b.className = 'sold-out-badge';
-                b.textContent = 'Sold Out';
+                b.textContent = 'Inactive';
                 card.querySelector('.image-wrapper').appendChild(b);
             }
-            showToast('Marked as sold out', 'error');
+            showToast('Marked as inactive', 'error');
         }
         updateStatCounts();
         if (typeof activeAvail !== 'undefined' && activeAvail !== 'all') {
@@ -2655,7 +2866,8 @@ function toggleAvailability(id, btn, e) {
 // ─────────────────────────────────────────────
 let deleteTarget = null;
 
-function confirmDelete(id, name) {
+function confirmDelete(id, name, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
     deleteTarget = id;
     document.getElementById('deleteProductName').textContent = name;
     document.getElementById('deleteModal').classList.add('open');
@@ -2664,7 +2876,8 @@ function closeDeleteModal() {
     document.getElementById('deleteModal').classList.remove('open');
     deleteTarget = null;
 }
-document.getElementById('deleteConfirmBtn').addEventListener('click', async function () {
+document.getElementById('deleteConfirmBtn').addEventListener('click', async function (e) {
+    if (e) e.preventDefault();
     if (!deleteTarget) return;
     const btn = this;
     btn.disabled = true;
@@ -2685,8 +2898,7 @@ document.getElementById('deleteConfirmBtn').addEventListener('click', async func
                 setTimeout(() => {
                     allCards = allCards.filter(c => c !== card);
                     card.remove();
-                    updateStatCounts();
-                    applyFilters();
+                    updateRowNumbersAndCounts();
                 }, 260);
             }
             closeDeleteModal();
@@ -2771,7 +2983,7 @@ function openQV(id) {
                      <span class="qv-cat">${_qvEscHtml(p.category || 'Uncategorized')}</span>
                      <div class="qv-status ${p.is_available ? 'available' : 'unavailable'}">
                          <i class="fa-solid ${p.is_available ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
-                         ${p.is_available ? 'Available' : 'Sold Out'}
+                         ${p.is_available ? 'Available' : 'Inactive'}
                      </div>
                  </div>
                  <h2 class="qv-name">${_qvEscHtml(p.name)}</h2>

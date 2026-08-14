@@ -17,24 +17,84 @@ if (!isset($_SESSION['user_id'])) {
 // every page load. The two disagree on 186 orders, and disagree about every
 // order between midnight and 06:00 — the tail of a trading day belongs to the
 // day before, which is exactly when a late shift is watching this screen.
-$business_date = business_date_today();
+$admin_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Admin';
+$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
+$filter_user = 0;
+if ($_is_mgr) {
+    $filter_user = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+} else {
+    $filter_user = (int)$_SESSION['user_id'];
+}
+
+$user_clause_w = $filter_user > 0 ? " AND (user_id = $filter_user OR employee_id = $filter_user)" : "";
+$user_clause_o = $filter_user > 0 ? " AND (o.user_id = $filter_user OR o.employee_id = $filter_user)" : "";
+
+$_now = new DateTime();
+$business_date = (int)$_now->format("H") < 6
+    ? (clone $_now)->modify("-1 day")->format("Y-m-d")
+    : $_now->format("Y-m-d");
+
+$_has_filter_param = isset($_GET['quick_range']) || isset($_GET['select_month']);
+$_quick_range  = trim($_GET['quick_range'] ?? '');
+$_select_month = trim($_GET['select_month'] ?? '');
+
+if (!$_has_filter_param) {
+    $_quick_range  = 'today';
+    $_select_month = (string)date('n');
+}
+
+$months_list = [
+    1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
+    5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+    9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+];
+
+$date_start = $business_date;
+$date_end   = $business_date;
+$period_badge_label = 'Today';
+
+if ($_quick_range === 'today') {
+    $date_start = $business_date;
+    $date_end   = $business_date;
+    $period_badge_label = 'Today';
+} elseif ($_quick_range === 'this_week' || $_quick_range === 'week') {
+    $date_start = date('Y-m-d', strtotime('monday this week'));
+    $date_end   = date('Y-m-d', strtotime('sunday this week'));
+    $period_badge_label = 'This Week';
+} elseif ($_quick_range === 'this_month' || $_quick_range === 'month') {
+    $date_start = date('Y-m-01');
+    $date_end   = date('Y-m-t');
+    $period_badge_label = 'This Month';
+} elseif ($_quick_range === 'this_year' || $_quick_range === 'year') {
+    $date_start = date('Y-01-01');
+    $date_end   = date('Y-12-31');
+    $period_badge_label = 'This Year';
+} elseif (!empty($_select_month) && isset($months_list[(int)$_select_month])) {
+    $m_num = sprintf('%02d', (int)$_select_month);
+    $curr_yr = date('Y');
+    $date_start = "$curr_yr-$m_num-01";
+    $date_end   = date('Y-m-t', strtotime($date_start));
+    $period_badge_label = $months_list[(int)$_select_month];
+}
+
+if ($date_start === $date_end) {
+    $date_cond_w = "business_date = '$date_start'";
+    $date_cond_o = "o.business_date = '$date_start'";
+} else {
+    $date_cond_w = "business_date BETWEEN '$date_start' AND '$date_end'";
+    $date_cond_o = "o.business_date BETWEEN '$date_start' AND '$date_end'";
+}
 
 // ── TODAY SALES ──
 $sales_sql = "
 SELECT IFNULL(SUM(total),0) AS total_sales
 FROM orders
-WHERE business_date = ? AND " . paid_orders_where() . "
+WHERE $date_cond_w " . $user_clause_w . " AND " . paid_orders_where() . "
 ";
-$stmt = $conn->prepare($sales_sql);
-$stmt->bind_param("s", $business_date);
-$stmt->execute();
-$sales = $stmt->get_result()->fetch_assoc()['total_sales'];
+$sales = (float)$conn->query($sales_sql)->fetch_assoc()['total_sales'];
 
 // ── TOTAL ORDERS TODAY ──
-$stmt = $conn->prepare("SELECT COUNT(*) AS total_orders FROM orders WHERE business_date = ?");
-$stmt->bind_param("s", $business_date);
-$stmt->execute();
-$total_orders = $stmt->get_result()->fetch_assoc()['total_orders'];
+$total_orders = (int)$conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w " . $user_clause_w)->fetch_assoc()['total_orders'];
 
 // ── UNPAID ORDERS COUNT ──
 $unpaid_sql = "
@@ -68,13 +128,12 @@ $total_refunds = $refund_data['total_refunds'];
 $refund_count = $refund_data['refund_count'];
 
 // ── STATUS COUNTS ──
-$stmt = $conn->prepare("SELECT status, COUNT(*) as count FROM orders WHERE business_date = ? GROUP BY status");
-$stmt->bind_param("s", $business_date);
-$stmt->execute();
-$status_result = $stmt->get_result();
+$stmt_status = $conn->query("SELECT status, COUNT(*) as count FROM orders WHERE $date_cond_w " . $user_clause_w . " GROUP BY status");
 $status_counts = [];
-while ($row = mysqli_fetch_assoc($status_result)) {
-    $status_counts[$row['status']] = $row['count'];
+if ($stmt_status) {
+    while ($row = $stmt_status->fetch_assoc()) {
+        $status_counts[$row['status']] = $row['count'];
+    }
 }
 
 $pending_count = $status_counts['PendingPayment'] ?? 0;
@@ -87,7 +146,7 @@ $cancelled_count = $status_counts['Cancelled'] ?? 0;
 $unpaid_orders_sql = "
 SELECT order_id, daily_order_no, customer_name, total, status, DATE_FORMAT(order_date, '%d %b %H:%i') as date, is_open
 FROM orders
-WHERE status = 'PendingPayment'
+WHERE status = 'PendingPayment' " . $user_clause_w . "
 ORDER BY order_date DESC
 LIMIT 5
 ";
@@ -98,30 +157,27 @@ while ($row = mysqli_fetch_assoc($unpaid_orders_result)) {
 }
 
 // ── KITCHEN QUEUE (LIMIT 5) ──
-$stmt = $conn->prepare("
+$stmt_k = $conn->query("
 SELECT order_id, daily_order_no, customer_name, total, token_number, order_date
 FROM orders
-WHERE business_date = ?
+WHERE business_date = '$business_date' " . $user_clause_w . "
 AND status = 'Preparing'
 ORDER BY order_date ASC
 LIMIT 5
 ");
-$stmt->bind_param("s", $business_date);
-$stmt->execute();
-$kitchen_result = $stmt->get_result();
 $kitchen_orders = [];
-while ($row = mysqli_fetch_assoc($kitchen_result)) {
-    $kitchen_orders[] = $row;
+if ($stmt_k) {
+    while ($row = $stmt_k->fetch_assoc()) {
+        $kitchen_orders[] = $row;
+    }
 }
 
 // ── ITEMS SOLD TODAY ──
-$stmt_items = $conn->prepare("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.business_date=? AND oi.product_id <> 0 AND " . paid_orders_where('o'));
-$stmt_items->bind_param("s", $business_date);
-$stmt_items->execute();
-$items_sold = (int)$stmt_items->get_result()->fetch_assoc()['total_items'];
+$stmt_items = $conn->query("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o'));
+$items_sold = (int)$stmt_items->fetch_assoc()['total_items'];
 
 // ── PROFIT TODAY ──
-$stmt_cogs = $conn->prepare("
+$stmt_cogs = $conn->query("
     SELECT IFNULL(SUM(
         oi.quantity * (
             SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
@@ -132,11 +188,9 @@ $stmt_cogs = $conn->prepare("
     ), 0) AS total_cogs
     FROM order_items oi
     JOIN orders o ON oi.order_id = o.order_id
-    WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o')
+    WHERE $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o')
 );
-$stmt_cogs->bind_param("s", $business_date);
-$stmt_cogs->execute();
-$cogs_today = (float)($stmt_cogs->get_result()->fetch_assoc()['total_cogs'] ?? 0);
+$cogs_today = (float)($stmt_cogs->fetch_assoc()['total_cogs'] ?? 0);
 $profit_today = $sales - $cogs_today;
 $margin_today = $sales > 0 ? round(($profit_today / $sales) * 100, 1) : 0;
 
@@ -148,12 +202,10 @@ for ($i = 6; $i >= 0; $i--) {
     $d_date = (new DateTime($business_date))->modify("-$i days")->format("Y-m-d");
     $d_label = (new DateTime($d_date))->format("D (j/n)");
     
-    $st_rev = $conn->prepare("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date=? AND " . paid_orders_where());
-    $st_rev->bind_param("s", $d_date);
-    $st_rev->execute();
-    $d_rev = (float)$st_rev->get_result()->fetch_assoc()['rev'];
+    $st_rev = $conn->query("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date='$d_date' " . $user_clause_w . " AND " . paid_orders_where());
+    $d_rev = (float)$st_rev->fetch_assoc()['rev'];
     
-    $st_cogs = $conn->prepare("
+    $st_cogs = $conn->query("
         SELECT IFNULL(SUM(
             oi.quantity * (
                 SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
@@ -164,11 +216,9 @@ for ($i = 6; $i >= 0; $i--) {
         ), 0) AS total_cogs
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.order_id
-        WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o')
+        WHERE o.business_date = '$d_date' " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o')
     );
-    $st_cogs->bind_param("s", $d_date);
-    $st_cogs->execute();
-    $d_cogs = (float)$st_cogs->get_result()->fetch_assoc()['total_cogs'];
+    $d_cogs = (float)$st_cogs->fetch_assoc()['total_cogs'];
     
     $chart_7days_labels[]  = $d_label;
     $chart_7days_revenue[] = round($d_rev, 2);
@@ -183,7 +233,7 @@ $st_cat = $conn->query("
     FROM order_items oi
     JOIN orders o ON oi.order_id = o.order_id
     JOIN products p ON oi.product_id = p.product_id
-    WHERE " . paid_orders_where('o') . " AND o.business_date = '{$business_date}' AND oi.product_id <> 0
+    WHERE " . paid_orders_where('o') . " AND $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0
     GROUP BY cat_name
     ORDER BY total_qty DESC
     LIMIT 6
@@ -220,20 +270,19 @@ for ($h = 0; $h < 6; $h++) {
     $hour_slots[$h] = ['cnt' => 0, 'sales' => 0.0, 'label' => date('g A', mktime($h, 0))];
 }
 
-$stmt_hr = $conn->prepare("
+$stmt_hr = $conn->query("
     SELECT HOUR(order_date) AS hr, COUNT(*) AS cnt, IFNULL(SUM(total), 0) AS total_sales
     FROM orders
-    WHERE business_date = ? AND " . paid_orders_where() . "
+    WHERE $date_cond_w " . $user_clause_w . " AND " . paid_orders_where() . "
     GROUP BY hr
 ");
-$stmt_hr->bind_param("s", $business_date);
-$stmt_hr->execute();
-$res_hr = $stmt_hr->get_result();
-while ($r_hr = $res_hr->fetch_assoc()) {
-    $h = (int)$r_hr['hr'];
-    if (isset($hour_slots[$h])) {
-        $hour_slots[$h]['cnt']   = (int)$r_hr['cnt'];
-        $hour_slots[$h]['sales'] = round((float)$r_hr['total_sales'], 2);
+if ($stmt_hr) {
+    while ($r_hr = $stmt_hr->fetch_assoc()) {
+        $h = (int)$r_hr['hr'];
+        if (isset($hour_slots[$h])) {
+            $hour_slots[$h]['cnt']   = (int)$r_hr['cnt'];
+            $hour_slots[$h]['sales'] = round((float)$r_hr['total_sales'], 2);
+        }
     }
 }
 
@@ -249,6 +298,7 @@ foreach ($hour_slots as $slot) {
 // ── RETURN JSON ──
 header('Content-Type: application/json');
 echo json_encode([
+    'period_badge_label' => $period_badge_label,
     'sales' => number_format($sales, 2),
     'profit_today' => number_format($profit_today, 2),
     'margin_today' => $margin_today,

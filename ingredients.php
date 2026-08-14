@@ -11,13 +11,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick
     $iid  = (int)($_POST['ingredient_id'] ?? 0);
     $amt  = (float)($_POST['amount'] ?? 0);
     $note = trim($_POST['note'] ?? '');
+    $total_cost = (float)($_POST['total_cost'] ?? 0);
     if ($iid <= 0 || $amt <= 0) { echo json_encode(['success'=>false,'message'=>'Invalid input']); exit; }
     $conn->begin_transaction();
     try {
         $s1 = $conn->prepare("UPDATE ingredients SET stock_quantity = stock_quantity + ? WHERE ingredient_id = ?");
         $s1->bind_param("di", $amt, $iid);
         $s1->execute();
+
+        $new_cpu = 0;
+        if ($total_cost > 0 && $amt > 0) {
+            $new_cpu = $total_cost / $amt;
+            $s_cost = $conn->prepare("UPDATE ingredients SET cost_per_unit = ?, cost_price = ?, purchase_qty = ? WHERE ingredient_id = ?");
+            $s_cost->bind_param("dddi", $new_cpu, $total_cost, $amt, $iid);
+            $s_cost->execute();
+        }
+
         $logNote = $note ?: "Quick restock: +$amt";
+        if ($total_cost > 0) $logNote .= " (Total Cost: $$total_cost)";
+
         if ($conn->query("SHOW TABLES LIKE 'stock_refills'")->num_rows > 0) {
             $s2 = $conn->prepare("INSERT INTO stock_refills (ingredient_id, purchase_qty, notes) VALUES (?, ?, ?)");
             $s2->bind_param("ids", $iid, $amt, $logNote);
@@ -28,11 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick
         $sh->bind_param("idss", $iid, $amt, $logNote, $by);
         $sh->execute();
         $conn->commit();
-        $s3 = $conn->prepare("SELECT stock_quantity, minimum_stock FROM ingredients WHERE ingredient_id = ?");
+        $s3 = $conn->prepare("SELECT stock_quantity, minimum_stock, cost_per_unit FROM ingredients WHERE ingredient_id = ?");
         $s3->bind_param("i", $iid);
         $s3->execute();
         $r = $s3->get_result()->fetch_assoc();
-        echo json_encode(['success'=>true,'new_stock'=>(float)$r['stock_quantity'],'min_stock'=>(float)$r['minimum_stock']]);
+        echo json_encode(['success'=>true, 'new_stock'=>(float)$r['stock_quantity'], 'min_stock'=>(float)$r['minimum_stock'], 'new_cpu'=>(float)$r['cost_per_unit']]);
     } catch (Throwable $e) {
         $conn->rollback();
         echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
@@ -84,9 +96,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
 
     $stock     = isset($_POST['stock_quantity']) ? (float)$_POST['stock_quantity'] : (float)$ing['stock_quantity'];
     $old_cpu   = (float)$ing['cost_per_unit'];
+    $bulk_cost = isset($_POST['bulk_cost']) ? (float)$_POST['bulk_cost'] : 0;
+    $uLc       = strtolower(trim($unit));
     $final_cpu = $old_cpu;
 
-    if ($buyqty > 0 && $cost > 0) {
+    if ($bulk_cost > 0) {
+        if ($uLc === 'ml' || $uLc === 'g') {
+            $final_cpu  = $bulk_cost / 1000;
+            $final_cost = $bulk_cost;
+            $final_qty  = 1000;
+        } else {
+            $final_cpu  = $bulk_cost;
+            $final_cost = $bulk_cost;
+            $final_qty  = 1;
+        }
+    } elseif ($buyqty > 0 && $cost > 0) {
         $final_cpu = $cost / $buyqty;
     } elseif ($cost > 0 && (float)($ing['purchase_qty'] ?? 0) > 0) {
         $final_cpu = $cost / (float)$ing['purchase_qty'];
@@ -115,30 +139,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
 }
 
 /* ══════════════════════════════════════════
+   AJAX: Create Ingredient (Add Modal)
+══════════════════════════════════════════ */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_ingredient') {
+    header('Content-Type: application/json');
+    $name   = trim($_POST['ingredient_name'] ?? '');
+    $unit   = trim($_POST['unit'] ?? '');
+    $cost   = (float)($_POST['cost_price'] ?? 0);
+    $buyqty = (float)($_POST['purchase_qty'] ?? 0);
+    $min    = (float)($_POST['minimum_stock'] ?? 0);
+
+    if ($name === '' || $unit === '' || $buyqty <= 0 || $cost < 0) {
+        echo json_encode(['success' => false, 'message' => 'Please fill all required fields correctly.']);
+        exit;
+    }
+
+    $safeName = mysqli_real_escape_string($conn, $name);
+    $safeUnit = mysqli_real_escape_string($conn, $unit);
+    $new_unit_cost = ($buyqty > 0) ? ($cost / $buyqty) : 0;
+
+    $check = mysqli_query($conn, "
+        SELECT ingredient_id, stock_quantity, minimum_stock, cost_per_unit
+        FROM ingredients
+        WHERE LOWER(ingredient_name) = LOWER('$safeName')
+        LIMIT 1
+    ");
+
+    if ($check && mysqli_num_rows($check) > 0) {
+        // Ingredient exists -> restock
+        $old = mysqli_fetch_assoc($check);
+        $ingredient_id = (int)$old['ingredient_id'];
+        $old_stock     = (float)$old['stock_quantity'];
+        $old_min       = (float)$old['minimum_stock'];
+        $old_cpu       = (float)$old['cost_per_unit'];
+
+        $new_stock = $old_stock + $buyqty;
+        $final_min = ($old_min > 0) ? $old_min : $min;
+
+        $old_value = $old_stock * $old_cpu;
+        $new_value = $buyqty * $new_unit_cost;
+        $final_cpu = ($new_stock > 0) ? (($old_value + $new_value) / $new_stock) : 0;
+
+        mysqli_query($conn, "
+            UPDATE ingredients
+            SET unit = '$safeUnit', stock_quantity = $new_stock, minimum_stock = $final_min, cost_price = $cost, purchase_qty = $buyqty, cost_per_unit = $final_cpu
+            WHERE ingredient_id = $ingredient_id
+        ");
+        echo json_encode(['success' => true, 'is_new' => false, 'message' => "Restocked existing ingredient \"$name\" (+ $buyqty $unit)."]);
+    } else {
+        // New ingredient
+        mysqli_query($conn, "
+            INSERT INTO ingredients
+            (ingredient_name, unit, stock_quantity, minimum_stock, cost_price, purchase_qty, cost_per_unit)
+            VALUES
+            ('$safeName', '$safeUnit', $buyqty, $min, $cost, $buyqty, $new_unit_cost)
+        ");
+        echo json_encode(['success' => true, 'is_new' => true, 'message' => "Ingredient \"$name\" created successfully."]);
+    }
+    exit;
+}
+
+/* ══════════════════════════════════════════
    AJAX: Delete Ingredient
 ══════════════════════════════════════════ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_ingredient') {
     header('Content-Type: application/json');
     $iid = (int)($_POST['ingredient_id'] ?? 0);
     if ($iid <= 0) { echo json_encode(['success'=>false,'message'=>'Invalid ID']); exit; }
-    if ($conn->query("SHOW TABLES LIKE 'product_ingredients'")->num_rows > 0) {
-        $chk = $conn->prepare("SELECT COUNT(*) AS cnt FROM product_ingredients WHERE ingredient_id = ?");
-        $chk->bind_param("i", $iid);
-        $chk->execute();
-        $cnt = $chk->get_result()->fetch_assoc()['cnt'];
-        if ($cnt > 0) { echo json_encode(['success'=>false,'message'=>"Used in $cnt recipe(s) — remove from recipes first"]); exit; }
+
+    $conn->query("SET FOREIGN_KEY_CHECKS = 0");
+
+    $tables = ['product_ingredients', 'purchase_order_items', 'ingredient_history', 'stock_adjustments', 'stock_refills', 'daily_stock_log', 'supplier_ingredients', 'recipe_items'];
+    foreach ($tables as $t) {
+        $has = $conn->query("SHOW TABLES LIKE '$t'");
+        if ($has && $has->num_rows > 0) {
+            $conn->query("DELETE FROM `$t` WHERE ingredient_id = $iid");
+        }
     }
-    if ($conn->query("SHOW TABLES LIKE 'purchase_order_items'")->num_rows > 0) {
-        $chk2 = $conn->prepare("SELECT COUNT(*) AS cnt FROM purchase_order_items WHERE ingredient_id = ?");
-        $chk2->bind_param("i", $iid);
-        $chk2->execute();
-        $cnt2 = $chk2->get_result()->fetch_assoc()['cnt'];
-        if ($cnt2 > 0) { echo json_encode(['success'=>false,'message'=>"Linked to $cnt2 purchase order item(s) — cannot delete"]); exit; }
-    }
+
     $del = $conn->prepare("DELETE FROM ingredients WHERE ingredient_id = ?");
     $del->bind_param("i", $iid);
-    $del->execute();
-    echo json_encode(['success' => $del->affected_rows > 0, 'message' => $del->affected_rows > 0 ? '' : 'Delete failed']);
+    $ok = $del->execute();
+    $affected = $del->affected_rows;
+
+    $conn->query("SET FOREIGN_KEY_CHECKS = 1");
+
+    if ($ok && $affected > 0) {
+        echo json_encode(['success' => true, 'message' => 'Ingredient deleted successfully']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Delete failed from database']);
+    }
     exit;
 }
 
@@ -346,7 +436,7 @@ while ($r = mysqli_fetch_assoc($res)) {
     $cpu   = (float)$r['cost_per_unit'];
     if ($cpu <= 0 && (float)($r['purchase_qty'] ?? 0) > 0)
         $cpu = (float)$r['cost_price'] / (float)$r['purchase_qty'];
-    $value = $stock * $cpu;
+    $value = is_finite($stock * $cpu) ? max(0, $stock * $cpu) : 0;
     $pct   = $min > 0 ? min(100, round($stock / $min * 100)) : 100;
     if ($stock <= 0)       $status = 'out';
     elseif ($stock < $min) $status = 'low';
@@ -362,7 +452,7 @@ $total    = count($rows);
 $cnt_ok   = count(array_filter($rows, fn($r) => $r['status']==='ok'));
 $cnt_low  = count(array_filter($rows, fn($r) => $r['status']==='low'));
 $cnt_out  = count(array_filter($rows, fn($r) => $r['status']==='out'));
-$stk_val  = array_sum(array_column($rows, 'value'));
+$stk_val  = (float)array_sum(array_map(fn($v) => is_numeric($v) && is_finite((float)$v) ? (float)$v : 0, array_column($rows, 'value')));
 $critical = $cnt_low + $cnt_out;
 
 
@@ -370,8 +460,18 @@ function fmt($n)       { return rtrim(rtrim(number_format((float)$n,2,'.','' ),'
 function money($n)     { return number_format((float)$n,2); }
 function money_cpu($n) {
     $n = (float)$n;
-    if ($n <= 0) return '0.00';
-    if ($n < 0.01) return rtrim(rtrim(number_format($n, 4, '.', ''), '0'), '.');
+    if ($n <= 0) return '0.000';
+    if ($n < 1) {
+        $str = rtrim(rtrim(number_format($n, 4, '.', ''), '0'), '.');
+        if (strpos($str, '.') !== false) {
+            $parts = explode('.', $str);
+            if (strlen($parts[1]) < 3) {
+                $parts[1] = str_pad($parts[1], 3, '0');
+            }
+            return implode('.', $parts);
+        }
+        return number_format($n, 3);
+    }
     return number_format($n, 2);
 }
 function h($s)         { return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8'); }
@@ -644,7 +744,7 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 .fill-low   { background:linear-gradient(90deg,#d4ac0d,var(--low)); }
 .fill-out   { background:var(--danger); }
 .stock-pct      { font-size:10px; color:var(--text-muted); }
-.stock-forecast { font-size:10px; display:flex; align-items:center; gap:3px; margin-top:2px; font-weight:600; }
+.stock-forecast { display: none !important; }
 .fc-ok          { color:var(--ok); }
 .fc-warn        { color:var(--low); }
 .fc-critical    { color:var(--danger); }
@@ -792,7 +892,7 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 .toast.error   { border-left:3px solid var(--danger); }
 
 /* ── SHORTCUTS BAR ── */
-.sc-bar { position:fixed; bottom:16px; left:20px; display:flex; gap:14px; font-size:11px; color:var(--text-muted); pointer-events:none; }
+.sc-bar { position:fixed; bottom:16px; left:280px; display:flex; gap:14px; font-size:11px; color:var(--text-muted); pointer-events:none; z-index:10; }
 .sc-bar span { display:flex; align-items:center; gap:4px; }
 .sc-key { background:rgba(255,255,255,.06); border:1px solid var(--border); border-radius:4px; padding:1px 5px; font-family:monospace; font-size:10px; }
 
@@ -844,9 +944,7 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 .h-ref  { font-size:11px; color:var(--text); margin-top:3px; word-break:break-word; }
 .h-meta { font-size:10px; color:var(--text-muted); margin-top:4px; }
 
-/* Hide per-row Stock Value column — footer total still shows */
-#ingredientTable th:nth-child(6),
-#ingredientTable td:nth-child(6) { display:none; }
+
 
 /* Pagination */
 .pg-wrap { padding:14px 18px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
@@ -860,7 +958,7 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-6">
 
@@ -868,9 +966,7 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
 <div class="topbar" style="justify-content: flex-end;">
     <div class="topbar-right">
         <a href="ingredient_history.php" class="btn-nav" title="View stock movement history"><i class="fa-solid fa-clock-rotate-left"></i> <?= __('btn_history', 'History') ?></a>
-        <a href="ingredient_report.php" class="btn-nav" title="Consumption summary report"><i class="fa-solid fa-chart-bar"></i> <?= __('nav_report', 'Report') ?></a>
-        <button class="btn-nav" onclick="window.open('ingredients_pdf.php','_blank')" title="Export stock report as PDF"><i class="fa-solid fa-file-pdf"></i> <?= __('btn_export_pdf', 'Export PDF') ?></button>
-        <a href="add_ingredient.php" class="btn-nav primary" title="Add new ingredient (N)"><i class="fa-solid fa-plus"></i> <?= __('add', 'Add') ?></a>
+        <button type="button" class="btn-nav primary" onclick="openAddIngredientModal()" title="Add new ingredient (N)"><i class="fa-solid fa-plus"></i> <?= __('add', 'Add') ?></button>
         <button class="btn-nav icon-only" onclick="toggleTheme()" id="themeBtn" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
     </div>
 </div>
@@ -939,13 +1035,12 @@ tfoot td { padding:10px 14px; font-size:11px; font-weight:700; border-top:2px so
             <thead>
                 <tr>
                     <th style="width:50px; text-align:center;"><?= __('col_no', 'No.') ?></th>
-                    <th style="width:60px; text-align:center;"><?= __('image', 'Image') ?></th>
-                    <th onclick="sortTable(2)" data-col="2"><?= __('ingredient_name', 'Name') ?> <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(3)" data-col="3"><?= __('stock_level', 'Stock Level') ?> <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(4)" data-col="4" title="Double-click minimum stock value to edit"><?= __('min_stock', 'Reorder Level') ?> <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(5)" data-col="5"><?= __('unit', 'Unit') ?> <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(6)" data-col="6"><?= __('cost_per_unit', 'Cost Per Unit') ?> <i class="fa-solid fa-sort si"></i></th>
-                    <th onclick="sortTable(7)" data-col="7"><?= __('col_status', 'Status') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(1)" data-col="1"><?= __('ingredient_name', 'Name') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(2)" data-col="2"><?= __('stock_level', 'Stock Level') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(3)" data-col="3" title="Double-click minimum stock value to edit"><?= __('min_stock', 'Reorder Level') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(4)" data-col="4"><?= __('unit', 'Unit') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(5)" data-col="5"><?= __('unit_cost', 'Unit Cost') ?> <i class="fa-solid fa-sort si"></i></th>
+                    <th onclick="sortTable(6)" data-col="6"><?= __('col_status', 'Status') ?> <i class="fa-solid fa-sort si"></i></th>
                     <th style="text-align:right;"><?= __('actions', 'Actions') ?></th>
                 </tr>
             </thead>
@@ -971,17 +1066,7 @@ foreach ($rows as $row):
                     data-id="<?= $iid ?>">
                     <!-- 1. No. -->
                     <td class="text-center font-bold text-[#777] row-no-cell"><?= $rowNo++ ?></td>
-                    <!-- 2. Image -->
-                    <td class="text-center">
-                        <?php if (!empty($row['image']) && file_exists($row['image'])): ?>
-                            <img src="<?= h($row['image']) ?>" alt="<?= $ingName ?>" class="w-9 h-9 object-cover rounded-xl border border-[#333] inline-block">
-                        <?php else: ?>
-                            <div class="w-9 h-9 rounded-xl bg-[#d1904b]/10 text-[#d1904b] flex items-center justify-center font-bold text-xs inline-flex border border-[#d1904b]/20">
-                                <i class="fa-solid fa-leaf"></i>
-                            </div>
-                        <?php endif; ?>
-                    </td>
-                    <!-- 3. Name -->
+                    <!-- 2. Name -->
                     <td>
                         <span class="font-semibold text-white"><?= $ingName ?></span>
                     </td>
@@ -1010,7 +1095,7 @@ foreach ($rows as $row):
                             $c500  = $cVal * 500;
                         ?>
                             <div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">
-                                $<?= number_format($c1000, 2) ?>/L <span style="font-size:10px;color:#777;">($<?= number_format($c500, 2) ?>/500ml)</span>
+                                $<?= number_format($c1000, 2) ?>/L
                             </div>
                         <?php elseif ($uLower === 'g' && $cVal > 0): 
                             $c1000 = $cVal * 1000;
@@ -1035,9 +1120,6 @@ foreach ($rows as $row):
                             <button class="btn-row" onclick="openHistory(<?= $iid ?>,'<?= $ingName ?>')" title="View stock history">
                                 <i class="fa-solid fa-clock-rotate-left"></i><span>History</span>
                             </button>
-                            <button class="btn-row" onclick="openAdjust(<?= $iid ?>,'<?= $ingName ?>',<?= $row['stock'] ?>,'<?= $unit ?>')" title="Adjust stock">
-                                <i class="fa-solid fa-sliders"></i><span>Adjust</span>
-                            </button>
                             <button class="btn-row" onclick="openRestock(<?= $iid ?>,'<?= $ingName ?>',<?= $row['stock'] ?>,'<?= $unit ?>',<?= $row['min'] ?>)" title="Add Stock">
                                 <i class="fa-solid fa-plus"></i><span>Add Stock</span>
                             </button>
@@ -1051,7 +1133,7 @@ foreach ($rows as $row):
             </tbody>
             <tfoot id="tableFoot">
                 <tr>
-                    <td colspan="9" class="foot-label" id="footLabel">
+                    <td colspan="8" class="foot-label" id="footLabel">
                         <?= $total ?> ingredients total
                     </td>
                 </tr>
@@ -1066,14 +1148,71 @@ foreach ($rows as $row):
             <button class="btn-nav" onclick="resetFilters()"><i class="fa-solid fa-rotate-left"></i> Reset filters</button>
         </div>
     </div>
-    <div id="pgWrap" class="pg-wrap" style="display:none">
-        <span id="pgInfo" class="pg-info"></span>
-        <nav id="pgNav" class="pg-nav"></nav>
+    <div id="pgWrap" class="pg-wrap" style="display:none!important"></div>
+</div>
+
+<!-- ── ADD INGREDIENT MODAL ── -->
+<div class="modal-overlay" id="addIngredientModal">
+    <div class="modal-box" style="max-width:520px;">
+        <button class="modal-close" type="button" onclick="closeAddIngredientModal()"><i class="fa-solid fa-xmark"></i></button>
+        <div class="modal-title"><i class="fa-solid fa-box-open" style="color:var(--accent,#d1904b)"></i> <?= __('add_ingredient', 'Add Ingredient') ?></div>
+        <div class="modal-sub">New ingredient = create item • Existing ingredient = add stock</div>
+
+        <form id="addIngredientForm" onsubmit="submitAddIngredientModal(event)" style="margin-top:14px">
+            <label class="modal-label">Ingredient Name <span style="color:var(--danger)">*</span></label>
+            <input class="modal-input" type="text" id="addIngName" required placeholder="e.g. Coffee Bean" oninput="checkAddExistingIng()">
+            <div id="addExistingNotice" style="display:none; margin-top:-6px; margin-bottom:12px; padding:8px 12px; border-radius:8px; background:rgba(209,144,75,0.12); border:1px solid rgba(209,144,75,0.3); font-size:12px; color:var(--accent);"></div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div>
+                    <label class="modal-label">Unit <span style="color:var(--danger)">*</span></label>
+                    <select class="modal-input" id="addIngUnit" required style="margin-bottom:0;" onchange="updateAddCpuHelp()">
+                        <option value="ml">ml</option>
+                        <option value="g">g</option>
+                        <option value="l">l</option>
+                        <option value="kg">kg</option>
+                        <option value="pcs">pcs</option>
+                        <option value="pack">pack</option>
+                        <option value="bottle">bottle</option>
+                        <option value="can">can</option>
+                        <option value="box">box</option>
+                        <option value="bag">bag</option>
+                        <option value="shot">shot</option>
+                        <option value="slice">slice</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="modal-label">Minimum Stock (Reorder Level) <span style="color:var(--danger)">*</span></label>
+                    <input class="modal-input" type="number" step="any" min="0" id="addIngMin" required placeholder="e.g. 100" style="margin-bottom:0">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div>
+                    <label class="modal-label">Purchase Quantity <span style="color:var(--danger)">*</span></label>
+                    <input class="modal-input" type="number" step="any" min="0.001" id="addIngBuyQty" required placeholder="e.g. 1000" style="margin-bottom:0" oninput="updateAddCpuHelp()">
+                </div>
+                <div>
+                    <label class="modal-label">Total Purchase Cost ($) <span style="color:var(--danger)">*</span></label>
+                    <input class="modal-input" type="number" step="any" min="0" id="addIngCost" required placeholder="e.g. 12.00" style="margin-bottom:0" oninput="updateAddCpuHelp()">
+                </div>
+            </div>
+
+            <div id="addCpuHelp" style="margin-bottom:14px; padding:8px 12px; border-radius:8px; background:rgba(85,224,135,0.08); border:1px solid rgba(85,224,135,0.2); font-size:12.5px; color:var(--ok); font-weight:600; display:flex; justify-content:space-between; align-items:center;">
+                <span>Estimated Unit Cost:</span>
+                <span id="addCpuVal">$0.000 / ml</span>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+                <button type="button" class="btn-cancel" onclick="closeAddIngredientModal()">Cancel</button>
+                <button type="submit" class="btn-confirm" id="addIngSubmitBtn"><i class="fa-solid fa-check"></i> Add Ingredient</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <!-- ── EDIT INGREDIENT MODAL ── -->
-<div class="modal-overlay" id="editIngredientModal" onclick="if(event.target===this)closeEditModal()">
+<div class="modal-overlay" id="editIngredientModal">
     <div class="modal-box" style="max-width:540px;">
         <button class="modal-close" type="button" onclick="closeEditModal()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-title"><i class="fa-solid fa-pen-to-square" style="color:var(--accent,#d1904b)"></i> Edit Ingredient</div>
@@ -1085,57 +1224,45 @@ foreach ($rows as $row):
             <label class="modal-label">Ingredient Name <span style="color:var(--danger)">*</span></label>
             <input class="modal-input" type="text" id="editIngName" required placeholder="e.g. Almond Milk">
 
-            <div style="display:flex;gap:10px;margin-bottom:10px">
-                <div style="flex:1">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div>
                     <label class="modal-label">Current Stock Level <span style="color:var(--danger)">*</span></label>
                     <input class="modal-input" type="number" step="any" min="0" id="editIngStock" required placeholder="e.g. 49222" style="margin-bottom:0">
                 </div>
-                <div style="flex:1">
+                <div>
                     <label class="modal-label">Reorder Level (Min) <span style="color:var(--danger)">*</span></label>
                     <input class="modal-input" type="number" step="any" min="0" id="editIngMin" required placeholder="e.g. 500" style="margin-bottom:0">
                 </div>
-                <div style="flex:0.8">
+                <div>
                     <label class="modal-label">Unit <span style="color:var(--danger)">*</span></label>
-                    <input class="modal-input" type="text" id="editIngUnit" required placeholder="e.g. ml" oninput="calcEditModalCosts()" style="margin-bottom:0">
+                    <select class="modal-input" id="editIngUnit" onchange="updateEditBulkCostLabel()" style="margin-bottom:0; cursor:pointer;">
+                        <option value="ml">ml (Milliliter)</option>
+                        <option value="g">g (Gram)</option>
+                        <option value="l">l (Liter)</option>
+                        <option value="kg">kg (Kilogram)</option>
+                        <option value="pcs">pcs (Pieces)</option>
+                        <option value="pack">pack (Pack)</option>
+                        <option value="bottle">bottle (Bottle)</option>
+                        <option value="can">can (Can)</option>
+                        <option value="box">box (Box)</option>
+                        <option value="bag">bag (Bag)</option>
+                        <option value="shot">shot (Shot)</option>
+                        <option value="slice">slice (Slice)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="modal-label" id="editBulkCostLabel">Cost / Kg or L ($)</label>
+                    <input class="modal-input" type="number" step="any" min="0" id="editIngBulkCost" placeholder="e.g. 10.00" oninput="updateEditBulkCostLabel()" style="margin-bottom:0">
                 </div>
             </div>
 
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);margin-bottom:10px;">
-                <label class="modal-label" style="font-weight:600;color:var(--accent,#d1904b)">Purchase & Cost Reference</label>
-                
-                <div style="display:flex;gap:10px;margin-bottom:6px;margin-top:6px">
-                    <div style="flex:1">
-                        <label class="modal-label">Purchase Pack Size (Qty)</label>
-                        <input class="modal-input" type="number" step="any" min="0" id="editIngPurchaseQty" placeholder="e.g. 20000" oninput="calcEditModalCosts('qty')" style="margin-bottom:0">
-                    </div>
-                    <div style="flex:1">
-                        <label class="modal-label">Purchase Total Cost ($)</label>
-                        <input class="modal-input" type="number" step="any" min="0" id="editIngCostPrice" placeholder="e.g. 7000.00" oninput="calcEditModalCosts('cost')" style="margin-bottom:0">
-                    </div>
-                    <div style="flex:1">
-                        <label class="modal-label" id="editBulkCostLabel">Cost / Kg or L ($)</label>
-                        <input class="modal-input" type="number" step="any" min="0" id="editIngBulkCost" placeholder="e.g. 350.00" oninput="calcEditModalCosts('bulk')" style="margin-bottom:0">
-                    </div>
-                </div>
-
-                <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-                    <span style="font-size:11px;color:var(--text-muted);align-self:center;">Quick bottle/pack presets:</span>
-                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(500, 'ml')">500ml bottle</button>
-                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(1000, 'ml')">1000ml (1L)</button>
-                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(1000, 'g')">1kg (1000g)</button>
-                    <button type="button" class="btn-nav" style="padding:2px 8px;font-size:11px;" onclick="setPackPreset(5000, 'g')">5kg</button>
-                </div>
-
-                <div id="editCostHelp" style="display:none;background:rgba(209,144,75,0.08);border:1px solid rgba(209,144,75,0.25);border-radius:10px;padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:8px;"></div>
+            <div id="editUnitCostHelp" style="background:rgba(209,144,75,0.08); border:1px solid rgba(209,144,75,0.25); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--text); margin-bottom:14px; font-weight:600;">
+                <i class="fa-solid fa-calculator" style="color:var(--accent,#d1904b);margin-right:6px;"></i> Base Unit Cost: <strong>$0.000 / ml</strong>
             </div>
 
-            <label class="modal-label">Preferred Supplier</label>
-            <select class="modal-input" id="editIngSupplier" style="margin-bottom:14px;cursor:pointer;">
-                <option value="0">— None —</option>
-                <?php foreach ($supplierList as $sup): ?>
-                <option value="<?= $sup['supplier_id'] ?>"><?= htmlspecialchars($sup['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
+
+
+
 
             <button class="btn-confirm" id="editIngBtn" type="submit">
                 <i class="fa-solid fa-floppy-disk"></i> Save Changes
@@ -1146,7 +1273,7 @@ foreach ($rows as $row):
 </div>
 
 <!-- ── QUICK RESTOCK MODAL ── -->
-<div class="modal-overlay" id="restockModal" onclick="if(event.target===this)closeRestock()">
+<div class="modal-overlay" id="restockModal">
     <div class="modal-box">
         <button class="modal-close" onclick="closeRestock()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-title"><i class="fa-solid fa-arrow-trend-up" style="color:var(--ok)"></i> Add Stock</div>
@@ -1163,40 +1290,38 @@ foreach ($rows as $row):
 
         <!-- ── CONTAINER / PACK CALCULATOR ── -->
         <div style="background: rgba(209, 144, 75, 0.05); border: 1px dashed rgba(209, 144, 75, 0.3); border-radius: 14px; padding: 14px; margin-bottom: 16px;">
-            <div style="font-size: 11px; font-weight: 700; color: var(--accent, #d1904b); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
-                <span><i class="fa-solid fa-boxes-stacked" style="margin-right: 5px;"></i> Pack / Container Calculator</span>
-                <span style="font-size: 10px; font-weight: 500; opacity: 0.7; text-transform: none;">Auto-calculates total qty</span>
+
+            <!-- Column Headers -->
+            <div style="display: grid; grid-template-columns: 1fr 16px 1.5fr 36px; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 10px; font-weight: 700; color: var(--accent, #d1904b); letter-spacing: 0.4px; text-transform: uppercase;">
+                <div style="text-align: center;">Pack Qty</div>
+                <div></div>
+                <div style="text-align: center;" id="packHeaderSizeLabel">Pack Size</div>
+                <div></div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 8px; align-items: end;">
-                <div>
-                    <label class="modal-label" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap;">Pack Qty</label>
-                    <input class="modal-input no-spinner" type="number" id="packNumCans" placeholder="e.g. 5" min="1" step="any" oninput="calcPackRestock()" style="margin-bottom: 0; font-size: 13px; height: 38px; text-align: center;">
-                </div>
+            <!-- Dynamic Pack Rows Container -->
+            <div id="packRowsContainer"></div>
 
-                <div style="padding-bottom: 9px; color: var(--accent, #d1904b); font-weight: 700; font-size: 14px;">×</div>
-
-                <div>
-                    <label class="modal-label" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap;">Pack Size</label>
-                    <input class="modal-input no-spinner" type="number" id="packSizePerCan" placeholder="e.g. 1000" min="0.01" step="any" oninput="calcPackRestock()" style="margin-bottom: 0; font-size: 13px; height: 38px; text-align: center;">
-                </div>
-
-                <div style="padding-bottom: 9px; color: var(--border); font-weight: 700; font-size: 14px;">|</div>
-
-                <div>
-                    <label class="modal-label" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap;">Cost / Pack ($)</label>
-                    <input class="modal-input no-spinner" type="number" id="packCostPerCan" placeholder="e.g. 5.00" min="0" step="any" oninput="calcPackRestock()" style="margin-bottom: 0; font-size: 13px; height: 38px; text-align: center;">
-                </div>
+            <div style="display: flex; justify-content: flex-start; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(209,144,75,0.2);">
+                <button type="button" onclick="addPackRow()" style="background: rgba(209,144,75,0.12); border: 1px solid rgba(209,144,75,0.3); color: var(--accent,#d1904b); border-radius: 8px; padding: 7px 12px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
+                    <i class="fa-solid fa-plus" style="font-size: 10px;"></i> Add Bottle / Size
+                </button>
             </div>
-
-            <div id="packResultHint" style="font-size: 12px; color: var(--text); font-weight: 600; display: none; margin-top: 10px; background: rgba(209, 144, 75, 0.12); border: 1px solid rgba(209, 144, 75, 0.25); padding: 8px 12px; border-radius: 8px;"></div>
         </div>
 
-        <label class="modal-label">Quick amounts</label>
-        <div class="quick-amounts" id="qaWrap"></div>
-
-        <label class="modal-label">Total Qty to Add</label>
-        <input class="modal-input" type="number" id="restockAmt" placeholder="Amount to add…" min="0.01" step="any">
+        <div style="display:flex; gap:10px; margin-bottom:14px;">
+            <div style="flex:1;">
+                <label class="modal-label" id="restockTotalQtyLabel">Total Qty to Add <span style="font-size:10px;font-weight:normal;opacity:0.6">(Auto)</span></label>
+                <div style="position:relative; display:flex; align-items:center;">
+                    <input class="modal-input" type="number" id="restockAmt" readonly placeholder="0" min="0.01" step="any" style="margin-bottom:0; background:rgba(255,255,255,0.05); color:var(--text); cursor:not-allowed; padding-right:45px;">
+                    <span id="restockAmtUnit" style="position:absolute; right:10px; font-size:12px; font-weight:700; color:var(--accent, #d1904b); pointer-events:none;"></span>
+                </div>
+            </div>
+            <div style="flex:1;">
+                <label class="modal-label" id="restockCpuLabel">Cost / Unit ($)</label>
+                <input class="modal-input" type="text" id="restockCpu" readonly placeholder="—" style="margin-bottom:0; background:rgba(209, 144, 75, 0.08); border-color:rgba(209, 144, 75, 0.25); color:var(--accent, #d1904b); font-weight:600;">
+            </div>
+        </div>
 
         <label class="modal-label">Note <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
         <input class="modal-input note" type="text" id="restockNote" placeholder="e.g. Weekly delivery from supplier" maxlength="120">
@@ -1211,25 +1336,25 @@ foreach ($rows as $row):
 </div>
 
 <!-- ── DELETE CONFIRM MODAL ── -->
-<div class="modal-overlay" id="deleteModal" onclick="if(event.target===this)closeDelete()">
+<div class="modal-overlay" id="deleteModal">
     <div class="modal-box sm">
-        <button class="modal-close" onclick="closeDelete()"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" class="modal-close" onclick="closeDelete()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-title" style="color:var(--danger)"><i class="fa-solid fa-triangle-exclamation"></i> Delete Ingredient</div>
-        <div class="modal-sub">This cannot be undone. Ingredients used in a recipe cannot be deleted.</div>
+        <div class="modal-sub">This cannot be undone.</div>
         <div class="modal-row" style="border:1px solid rgba(255,95,95,.2);background:rgba(255,95,95,.04)">
             <span class="ml">Ingredient</span>
             <span class="mv" id="deleteName">—</span>
         </div>
         <input type="hidden" id="deleteId">
-        <button class="btn-confirm danger" id="deleteBtn" onclick="submitDelete()">
+        <button type="button" class="btn-confirm danger" id="deleteBtn" onclick="submitDelete(event)">
             <i class="fa-solid fa-trash-can"></i> Delete Permanently
         </button>
-        <button class="btn-cancel" onclick="closeDelete()">Cancel</button>
+        <button type="button" class="btn-cancel" onclick="closeDelete()">Cancel</button>
     </div>
 </div>
 
 <!-- ── MANUAL ADJUST MODAL ── -->
-<div class="modal-overlay" id="adjustModal" onclick="if(event.target===this)closeAdjust()">
+<div class="modal-overlay" id="adjustModal">
     <div class="modal-box">
         <button class="modal-close" onclick="closeAdjust()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-title"><i class="fa-solid fa-triangle-exclamation" style="color:var(--low)"></i> Stock Deduction</div>
@@ -1265,7 +1390,7 @@ foreach ($rows as $row):
 </div>
 
 <!-- ── UNREVIEWED ADJUSTMENTS AUDIT MODAL ── -->
-<div class="modal-overlay" id="reviewModal" onclick="if(event.target===this)closeReviewModal()">
+<div class="modal-overlay" id="reviewModal">
     <div class="modal-box" style="max-width:620px;">
         <button class="modal-close" onclick="closeReviewModal()"><i class="fa-solid fa-xmark"></i></button>
         <div class="modal-title" style="color:#3498db;"><i class="fa-solid fa-user-shield"></i> Audit Unreviewed Adjustments</div>
@@ -1288,7 +1413,7 @@ foreach ($rows as $row):
 </div>
 
 <!-- ── HISTORY DRAWER ── -->
-<div class="history-overlay" id="historyOverlay" onclick="if(event.target===this)closeHistory()">
+<div class="history-overlay" id="historyOverlay">
     <div class="history-drawer">
         <div class="history-hdr">
             <div>
@@ -1306,12 +1431,7 @@ foreach ($rows as $row):
 <!-- ── TOAST ── -->
 <div id="toast-cnt"></div>
 
-<!-- ── KEYBOARD SHORTCUTS ── -->
-<div class="sc-bar">
-    <span><span class="sc-key">/</span> Search</span>
-    <span><span class="sc-key">N</span> New ingredient</span>
-    <span><span class="sc-key">Esc</span> Close</span>
-</div>
+
 
 <?php
 $ingMap = [];
@@ -1334,19 +1454,176 @@ foreach ($rows as $r) {
 /* ── EDIT MODAL ── */
 const ING_MAP = <?= json_encode($ingMap) ?>;
 
+/* ── ADD INGREDIENT MODAL JS ── */
+function openAddIngredientModal() {
+    document.getElementById('addIngName').value = '';
+    document.getElementById('addIngUnit').value = 'ml';
+    document.getElementById('addIngMin').value = '100';
+    document.getElementById('addIngBuyQty').value = '1000';
+    document.getElementById('addIngCost').value = '';
+    document.getElementById('addExistingNotice').style.display = 'none';
+    updateAddCpuHelp();
+    document.getElementById('addIngredientModal').classList.add('open');
+    setTimeout(() => document.getElementById('addIngName').focus(), 150);
+}
+
+function closeAddIngredientModal() {
+    document.getElementById('addIngredientModal').classList.remove('open');
+}
+
+function updateAddCpuHelp() {
+    const u = (document.getElementById('addIngUnit').value || 'unit').toLowerCase();
+    const qty = parseFloat(document.getElementById('addIngBuyQty').value) || 0;
+    const cost = parseFloat(document.getElementById('addIngCost').value) || 0;
+    const helpVal = document.getElementById('addCpuVal');
+    if (qty > 0 && cost > 0) {
+        const cpu = cost / qty;
+        helpVal.textContent = '$' + cpu.toFixed(4) + ' / ' + u;
+    } else {
+        helpVal.textContent = '$0.000 / ' + u;
+    }
+}
+
+function checkAddExistingIng() {
+    const name = document.getElementById('addIngName').value.trim().toLowerCase();
+    const notice = document.getElementById('addExistingNotice');
+    let found = null;
+    for (let id in ING_MAP) {
+        if (ING_MAP[id].name.toLowerCase() === name) {
+            found = ING_MAP[id];
+            break;
+        }
+    }
+    if (found) {
+        notice.style.display = 'block';
+        notice.innerHTML = `<i class="fa-solid fa-circle-info"></i> Existing ingredient found (Current Stock: <strong>${found.stock} ${found.unit}</strong>). Submitting will add stock to this item.`;
+        if (found.unit) document.getElementById('addIngUnit').value = found.unit;
+    } else {
+        notice.style.display = 'none';
+    }
+}
+
+function submitAddIngredientModal(e) {
+    e.preventDefault();
+    const btn = document.getElementById('addIngSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    const fd = new FormData();
+    fd.append('action', 'create_ingredient');
+    fd.append('ingredient_name', document.getElementById('addIngName').value.trim());
+    fd.append('unit', document.getElementById('addIngUnit').value.trim());
+    fd.append('minimum_stock', document.getElementById('addIngMin').value);
+    fd.append('purchase_qty', document.getElementById('addIngBuyQty').value);
+    fd.append('cost_price', document.getElementById('addIngCost').value);
+
+    fetch('ingredients.php', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Add Ingredient';
+        if (data.success) {
+            closeAddIngredientModal();
+            showToast(data.message || 'Ingredient saved!', 'success');
+            setTimeout(() => window.location.reload(), 450);
+        } else {
+            showToast(data.message || 'Failed to save ingredient', 'error');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Add Ingredient';
+        showToast('Network error while saving', 'error');
+    });
+}
+
+function updateEditBulkCostLabel() {
+    const unit = (document.getElementById('editIngUnit')?.value || '').toLowerCase().trim();
+    const labelEl = document.getElementById('editBulkCostLabel');
+    if (labelEl) {
+        if (unit === 'ml') labelEl.textContent = 'Cost / Liter ($)';
+        else if (unit === 'g') labelEl.textContent = 'Cost / Kg ($)';
+        else labelEl.textContent = `Cost / ${unit || 'Unit'} ($)`;
+    }
+
+    const bulkInput = document.getElementById('editIngBulkCost');
+    const bulk = parseFloat(bulkInput?.value) || 0;
+    let cpu = 0;
+    if (bulk > 0) {
+        if (unit === 'ml' || unit === 'g') {
+            cpu = bulk / 1000;
+        } else {
+            cpu = bulk;
+        }
+    }
+
+    let fmtCpu = '0.000';
+    if (cpu > 0) {
+        if (cpu < 1) {
+            let str = (Math.round(cpu * 10000) / 10000).toString();
+            if (str.indexOf('.') !== -1) {
+                let parts = str.split('.');
+                if (parts[1].length < 3) parts[1] = parts[1].padEnd(3, '0');
+                fmtCpu = parts.join('.');
+            } else {
+                fmtCpu = cpu.toFixed(3);
+            }
+        } else {
+            fmtCpu = cpu.toFixed(2);
+        }
+    }
+
+    const helpEl = document.getElementById('editUnitCostHelp');
+    if (helpEl) {
+        helpEl.innerHTML = `<i class="fa-solid fa-calculator" style="color:var(--accent,#d1904b);margin-right:6px;"></i> Base Unit Cost: <strong>$${fmtCpu} / ${unit || 'unit'}</strong>`;
+    }
+}
+
 function openEditModal(id) {
     const ing = ING_MAP[id];
     if (!ing) return;
     document.getElementById('editIngId').value          = ing.id;
     document.getElementById('editIngName').value        = ing.name;
     document.getElementById('editIngStock').value       = ing.stock;
-    document.getElementById('editIngUnit').value        = ing.unit;
     document.getElementById('editIngMin').value         = ing.min;
-    document.getElementById('editIngPurchaseQty').value = ing.purchase_qty || '';
-    document.getElementById('editIngCostPrice').value   = ing.cost_price || '';
-    document.getElementById('editIngSupplier').value    = ing.supplier_id || 0;
+
+    const unitSelect = document.getElementById('editIngUnit');
+    if (unitSelect) {
+        const uVal = (ing.unit || '').trim();
+        let found = false;
+        for (let i = 0; i < unitSelect.options.length; i++) {
+            if (unitSelect.options[i].value.toLowerCase() === uVal.toLowerCase()) {
+                unitSelect.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found && uVal) {
+            const opt = document.createElement('option');
+            opt.value = uVal;
+            opt.textContent = uVal;
+            unitSelect.appendChild(opt);
+            unitSelect.value = uVal;
+        }
+    }
+
+    const uLc = (ing.unit || '').toLowerCase().trim();
+    const cpu = parseFloat(ing.cost_per_unit || 0);
+    let bulkVal = '';
+    if (cpu > 0) {
+        if (uLc === 'ml' || uLc === 'g') {
+            bulkVal = (cpu * 1000).toFixed(2);
+        } else {
+            bulkVal = (cpu < 1 ? cpu.toFixed(3) : cpu.toFixed(2));
+        }
+    }
+    const bulkInput = document.getElementById('editIngBulkCost');
+    if (bulkInput) bulkInput.value = bulkVal ? parseFloat(bulkVal) : '';
+
+    updateEditBulkCostLabel();
+    const supEl = document.getElementById('editIngSupplier');
+    if (supEl) supEl.value = ing.supplier_id || 0;
     document.getElementById('editModalSub').textContent = `Editing #${ing.id} — ${ing.name}`;
-    calcEditModalCosts('init');
     document.getElementById('editIngredientModal').classList.add('open');
     setTimeout(() => document.getElementById('editIngName').focus(), 100);
 }
@@ -1356,13 +1633,15 @@ function closeEditModal() {
 }
 
 function setPackPreset(qty, unit) {
-    document.getElementById('editIngPurchaseQty').value = qty;
+    const qtyEl = document.getElementById('editIngPurchaseQty');
+    if (qtyEl) qtyEl.value = qty;
     if (unit) document.getElementById('editIngUnit').value = unit;
     calcEditModalCosts('qty');
 }
 
 function calcEditModalCosts(changed) {
     const qtyInput  = document.getElementById('editIngPurchaseQty');
+    if (!qtyInput) return;
     const costInput = document.getElementById('editIngCostPrice');
     const bulkInput = document.getElementById('editIngBulkCost');
     const labelEl   = document.getElementById('editBulkCostLabel');
@@ -1424,7 +1703,7 @@ function calcEditModalCosts(changed) {
             if (unit === 'ml') {
                 const c1000 = (finalCpu * 1000).toFixed(2);
                 const c500  = (finalCpu * 500).toFixed(2);
-                txt += ` &nbsp;&bull;&nbsp; <strong>$${c1000} / 1L</strong> ($${c500} / 500ml bottle)`;
+                txt += ` &nbsp;&bull;&nbsp; <strong>$${c1000} / 1L</strong>`;
             } else if (unit === 'g') {
                 const c1000 = (finalCpu * 1000).toFixed(2);
                 txt += ` &nbsp;&bull;&nbsp; <strong>$${c1000} / 1kg</strong>`;
@@ -1439,14 +1718,30 @@ function calcEditModalCosts(changed) {
 
 function renderCostCellHTML(cpu, unit) {
     const uLower = (unit || '').toLowerCase().trim();
-    const fmtCpu = (cpu <= 0) ? '0.00' : (cpu < 0.01 ? (Math.round(cpu * 10000) / 10000) : cpu.toFixed(2));
+    let fmtCpu;
+    if (cpu <= 0) {
+        fmtCpu = '0.000';
+    } else if (cpu < 1) {
+        let str = (Math.round(cpu * 10000) / 10000).toString();
+        if (str.indexOf('.') !== -1) {
+            let parts = str.split('.');
+            if (parts[1].length < 3) {
+                parts[1] = parts[1].padEnd(3, '0');
+            }
+            fmtCpu = parts.join('.');
+        } else {
+            fmtCpu = cpu.toFixed(3);
+        }
+    } else {
+        fmtCpu = cpu.toFixed(2);
+    }
     const sfx = unit ? ('/' + unit) : '';
     let html = `<span class="cost-hl">$${fmtCpu}</span><small style="font-size:10px;color:var(--text-muted);margin-left:1px">${sfx}</small>`;
 
     if (uLower === 'ml' && cpu > 0) {
         const c1000 = (cpu * 1000).toFixed(2);
         const c500  = (cpu * 500).toFixed(2);
-        html += `<div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">$${c1000}/L <span style="font-size:10px;color:#777;">($${c500}/500ml)</span></div>`;
+        html += `<div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">$${c1000}/L</div>`;
     } else if (uLower === 'g' && cpu > 0) {
         const c1000 = (cpu * 1000).toFixed(2);
         html += `<div style="font-size:11px;color:#a0a0a0;margin-top:2px;font-weight:500;">$${c1000}/kg</div>`;
@@ -1456,14 +1751,13 @@ function renderCostCellHTML(cpu, unit) {
 
 async function submitEditModal(e) {
     e.preventDefault();
-    const id          = document.getElementById('editIngId').value;
-    const name        = document.getElementById('editIngName').value.trim();
-    const stock       = parseFloat(document.getElementById('editIngStock').value) || 0;
-    const unit        = document.getElementById('editIngUnit').value.trim();
-    const min         = parseFloat(document.getElementById('editIngMin').value) || 0;
-    const purchaseQty = parseFloat(document.getElementById('editIngPurchaseQty').value) || 0;
-    const costPrice   = parseFloat(document.getElementById('editIngCostPrice').value) || 0;
-    const supplierId  = parseInt(document.getElementById('editIngSupplier').value) || 0;
+    const id         = document.getElementById('editIngId').value;
+    const name       = document.getElementById('editIngName').value.trim();
+    const stock      = parseFloat(document.getElementById('editIngStock').value) || 0;
+    const unit       = document.getElementById('editIngUnit').value.trim();
+    const min        = parseFloat(document.getElementById('editIngMin').value) || 0;
+    const bulkCost   = parseFloat(document.getElementById('editIngBulkCost')?.value) || 0;
+    const supplierId = parseInt(document.getElementById('editIngSupplier')?.value || 0) || 0;
 
     if (!name) { showToast('Ingredient name is required', 'error'); return; }
 
@@ -1472,7 +1766,7 @@ async function submitEditModal(e) {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
 
     try {
-        const body = `action=update_ingredient&ingredient_id=${id}&ingredient_name=${encodeURIComponent(name)}&stock_quantity=${stock}&unit=${encodeURIComponent(unit)}&minimum_stock=${min}&purchase_qty=${purchaseQty}&cost_price=${costPrice}&supplier_id=${supplierId}`;
+        const body = `action=update_ingredient&ingredient_id=${id}&ingredient_name=${encodeURIComponent(name)}&stock_quantity=${stock}&unit=${encodeURIComponent(unit)}&minimum_stock=${min}&bulk_cost=${bulkCost}&supplier_id=${supplierId}`;
         const res  = await fetch('ingredients.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1485,8 +1779,6 @@ async function submitEditModal(e) {
                 ING_MAP[id].stock        = data.new_stock !== undefined ? data.new_stock : stock;
                 ING_MAP[id].unit         = unit;
                 ING_MAP[id].min          = min;
-                ING_MAP[id].purchase_qty = purchaseQty;
-                ING_MAP[id].cost_price   = costPrice;
                 ING_MAP[id].supplier_id  = supplierId;
                 if (data.new_cpu !== undefined) ING_MAP[id].cost_per_unit = data.new_cpu;
             }
@@ -1512,10 +1804,10 @@ function updateIngredientRowDOM(id, name, unit, minStock, cpu, stock) {
 
     row.dataset.name = name.toLowerCase();
 
-    const nameSpan = row.children[2]?.querySelector('span');
+    const nameSpan = row.children[1]?.querySelector('span');
     if (nameSpan) nameSpan.textContent = name;
 
-    const sc = row.children[3];
+    const sc = row.children[2];
     const curStock = (stock !== undefined) ? stock : parseFloat(sc?.dataset?.val || 0);
     if (sc) {
         sc.dataset.val = curStock;
@@ -1523,16 +1815,16 @@ function updateIngredientRowDOM(id, name, unit, minStock, cpu, stock) {
         sv.innerHTML = fmt(curStock) + (unit ? ` <small style="font-size:11px;color:var(--text-muted);font-weight:normal">${unit}</small>` : '');
     }
 
-    const mc = row.children[4];
+    const mc = row.children[3];
     if (mc) {
         mc.dataset.val = minStock;
         mc.innerHTML = `<span class="editable" ondblclick="startInlineEdit(this,${id},${minStock},'${unit}')" title="Double-click to edit">${fmt(minStock)}</span>` + (unit ? ` <small style="font-size:11px;color:var(--text-muted);font-weight:normal">${unit}</small>` : '');
     }
 
-    const uc = row.children[5]?.querySelector('span');
+    const uc = row.children[4]?.querySelector('span');
     if (uc) uc.textContent = unit || '—';
 
-    const cc = row.children[6];
+    const cc = row.children[5];
     if (cc) {
         cc.dataset.val = cpu;
         cc.innerHTML = renderCostCellHTML(cpu, unit);
@@ -1643,50 +1935,27 @@ function applyFilters() {
 }
 
 function renderPageIng() {
-    const total      = lastFilteredIng.length;
-    const totalPages = Math.max(1, Math.ceil(total / PER_PAGE_ING));
-    currentPageIng   = Math.min(currentPageIng, totalPages);
-    const start      = (currentPageIng - 1) * PER_PAGE_ING;
-    const pageRows   = lastFilteredIng.slice(start, start + PER_PAGE_ING);
+    const total = lastFilteredIng.length;
 
     document.querySelectorAll('#tableBody tr[data-name]').forEach(r => r.classList.add('hidden'));
-    pageRows.forEach((r, idx) => {
+    lastFilteredIng.forEach((r, idx) => {
         r.classList.remove('hidden');
         const noCell = r.querySelector('.row-no-cell');
-        if (noCell) noCell.textContent = start + idx + 1;
+        if (noCell) noCell.textContent = idx + 1;
     });
 
     document.getElementById('emptyState').style.display = total === 0 ? 'block' : 'none';
     const rc = document.getElementById('rowCount');
     if (rc) rc.textContent = `Showing ${total} of ${TOTAL}`;
-    document.getElementById('footLabel').textContent = `Showing ${total} of ${TOTAL} ingredients`;
+    document.getElementById('footLabel').textContent = `${total} ingredients total`;
 
-    renderPaginationIng(total, totalPages);
+    const wrap = document.getElementById('pgWrap');
+    if (wrap) wrap.style.display = 'none';
 }
 
 function renderPaginationIng(total, totalPages) {
     const wrap = document.getElementById('pgWrap');
-    if (totalPages <= 1) { wrap.style.display = 'none'; return; }
-    wrap.style.display = 'flex';
-    document.getElementById('pgInfo').textContent =
-        `Page ${currentPageIng} of ${totalPages} · ${total} shown`;
-    const nav = document.getElementById('pgNav');
-    let html = currentPageIng > 1
-        ? `<a href="#" class="pg-btn" onclick="goPageIng(1);return false;">«</a><a href="#" class="pg-btn" onclick="goPageIng(${currentPageIng - 1});return false;">‹</a>`
-        : `<span class="pg-disabled">«</span><span class="pg-disabled">‹</span>`;
-    const ws = Math.max(1, currentPageIng - 2);
-    const we = Math.min(totalPages, currentPageIng + 2);
-    if (ws > 1) html += `<span class="pg-ellipsis">…</span>`;
-    for (let i = ws; i <= we; i++) {
-        html += i === currentPageIng
-            ? `<span class="pg-active">${i}</span>`
-            : `<a href="#" class="pg-btn" onclick="goPageIng(${i});return false;">${i}</a>`;
-    }
-    if (we < totalPages) html += `<span class="pg-ellipsis">…</span>`;
-    html += currentPageIng < totalPages
-        ? `<a href="#" class="pg-btn" onclick="goPageIng(${currentPageIng + 1});return false;">›</a><a href="#" class="pg-btn" onclick="goPageIng(${totalPages});return false;">»</a>`
-        : `<span class="pg-disabled">›</span><span class="pg-disabled">»</span>`;
-    nav.innerHTML = html;
+    if (wrap) wrap.style.display = 'none';
 }
 
 function goPageIng(p) {
@@ -1752,7 +2021,7 @@ function startInlineEdit(span, id, curMin, unit) {
                 showToast(`Minimum updated → ${fmt(val)} ${unit}`, 'success');
                 const row = td.closest('tr');
                 if (row) {
-                    const curStock = parseFloat(row.children[3]?.dataset?.val || 0);
+                    const curStock = parseFloat(row.children[2]?.dataset?.val || 0);
                     updateRow(id, curStock, val, unit);
                 }
             } else restore();
@@ -1772,52 +2041,120 @@ function openRestock(id, name, stock, unit, minStock) {
     document.getElementById('restockSub').textContent = name;
     document.getElementById('restockCurrent').textContent = fmt(stock) + (unit ? ' ' + unit : '');
     document.getElementById('restockMin').textContent     = fmt(minStock) + (unit ? ' ' + unit : '');
-    document.getElementById('restockAmt').value  = '';
     document.getElementById('restockNote').value = '';
 
-    // Clear & initialize Pack Calculator inputs
-    document.getElementById('packNumCans').value = '';
-    document.getElementById('packSizePerCan').value = (ING_MAP[id]?.purchase_qty > 0 ? ING_MAP[id].purchase_qty : (unit==='ml'||unit==='g' ? 1000 : ''));
-    document.getElementById('packCostPerCan').value = (ING_MAP[id]?.cost_price > 0 ? ING_MAP[id].cost_price : '');
-    const hint = document.getElementById('packResultHint');
-    if (hint) hint.style.display = 'none';
-
-    const needed = minStock - stock;
-    const qa = document.getElementById('qaWrap');
-    let btns = '';
-    if (needed > 0) btns += `<button class="qa smart" onclick="setAmt(${+needed.toFixed(2)})" title="Reach minimum">To min (+${Math.ceil(needed)})</button>`;
-    [100, 250, 500, 1000].forEach(n => { btns += `<button class="qa" onclick="setAmt(${n})">+${n}</button>`; });
-    qa.innerHTML = btns;
+    const container = document.getElementById('packRowsContainer');
+    if (container) {
+        const uLc = (unit || '').toLowerCase().trim();
+        let defaultSize = 1000;
+        if (ING_MAP[id]?.purchase_qty > 0) {
+            defaultSize = ING_MAP[id].purchase_qty;
+        } else if (uLc === 'ml' || uLc === 'l' || uLc === 'g' || uLc === 'kg') {
+            defaultSize = 1000;
+        } else {
+            defaultSize = 1;
+        }
+        container.innerHTML = createPackRowHTML(1, defaultSize, unit);
+    }
 
     document.getElementById('restockModal').classList.add('open');
-    setTimeout(() => document.getElementById('packNumCans').focus(), 100);
+    calcPackRestock();
+    setTimeout(() => {
+        const firstNum = container?.querySelector('.pack-num');
+        if (firstNum) firstNum.focus();
+    }, 100);
+}
+
+function createPackRowHTML(qty = 1, size = '', unit = '') {
+    return `
+    <div class="pack-calc-row" style="display:grid; grid-template-columns: 1fr 16px 1.5fr 36px; gap:8px; align-items:center; margin-bottom:8px;">
+        <div>
+            <input class="modal-input pack-num no-spinner" type="number" value="${qty || ''}" placeholder="Qty" min="1" step="any" oninput="calcPackRestock()" style="margin-bottom:0; font-size:13px; height:38px; text-align:center;">
+        </div>
+        <div style="color:var(--accent,#d1904b); font-weight:700; font-size:14px; text-align:center;">×</div>
+        <div style="position:relative; display:flex; align-items:center;">
+            <input class="modal-input pack-size no-spinner" type="number" value="${size || ''}" placeholder="Size" min="0.01" step="any" oninput="calcPackRestock()" style="margin-bottom:0; font-size:13px; height:38px; text-align:center; padding-right:32px;">
+            <span class="pack-unit-badge" style="position:absolute; right:8px; font-size:11px; font-weight:700; color:var(--accent,#d1904b); pointer-events:none;">${unit}</span>
+        </div>
+        <button type="button" class="btn-del-row" onclick="removePackRow(this)" style="background:rgba(255,95,95,0.1); border:1px solid rgba(255,95,95,0.25); color:var(--danger,#ff5f5f); border-radius:8px; width:36px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="Remove row">
+            <i class="fa-solid fa-trash-can" style="font-size:12px;"></i>
+        </button>
+    </div>`;
+}
+
+function addPackRow() {
+    const container = document.getElementById('packRowsContainer');
+    const unit = document.getElementById('restockUnit').value || '';
+    if (container) {
+        container.insertAdjacentHTML('beforeend', createPackRowHTML(1, '', unit));
+        calcPackRestock();
+    }
+}
+
+function removePackRow(btn) {
+    const rows = document.querySelectorAll('#packRowsContainer .pack-calc-row');
+    if (rows.length > 1) {
+        btn.closest('.pack-calc-row').remove();
+    } else {
+        const row = btn.closest('.pack-calc-row');
+        if (row) {
+            const n = row.querySelector('.pack-num'); if (n) n.value = '';
+            const s = row.querySelector('.pack-size'); if (s) s.value = '';
+        }
+    }
+    calcPackRestock();
 }
 
 function calcPackRestock() {
-    const cans = parseFloat(document.getElementById('packNumCans').value) || 0;
-    const size = parseFloat(document.getElementById('packSizePerCan').value) || 0;
-    const cost = parseFloat(document.getElementById('packCostPerCan').value) || 0;
     const unit = document.getElementById('restockUnit').value || '';
-    const hint = document.getElementById('packResultHint');
-    const amtInput = document.getElementById('restockAmt');
+    const unitTxt = unit ? unit : '';
 
-    if (cans > 0 && size > 0) {
-        const totalQty = cans * size;
-        amtInput.value = totalQty;
-        
-        let txt = `Total Qty: <strong>+${fmt(totalQty)} ${unit}</strong> (${cans} packs × ${fmt(size)}${unit})`;
-        if (cost > 0) {
-            const totalCost = (cans * cost).toFixed(2);
-            txt += ` &bull; Total Cost: <strong>$${totalCost}</strong> ($${cost.toFixed(2)}/pack)`;
+    const headerSizeLabel = document.getElementById('packHeaderSizeLabel');
+    if (headerSizeLabel) headerSizeLabel.textContent = `Pack Size${unitTxt ? ' (' + unitTxt + ')' : ''}`;
+
+    const totalQtyLabel = document.getElementById('restockTotalQtyLabel');
+    if (totalQtyLabel) totalQtyLabel.innerHTML = `Total Qty to Add${unitTxt ? ' (' + unitTxt + ')' : ''} <span style="font-size:10px;font-weight:normal;opacity:0.6">(Auto)</span>`;
+
+    const restockAmtUnit = document.getElementById('restockAmtUnit');
+    if (restockAmtUnit) restockAmtUnit.textContent = unitTxt;
+
+    const labelEl = document.getElementById('restockCpuLabel');
+    if (labelEl) labelEl.textContent = `Cost / ${unitTxt || 'Unit'} ($)`;
+
+    let totalQty = 0;
+    document.querySelectorAll('#packRowsContainer .pack-calc-row').forEach(row => {
+        const q = parseFloat(row.querySelector('.pack-num')?.value) || 0;
+        const s = parseFloat(row.querySelector('.pack-size')?.value) || 0;
+        if (q > 0 && s > 0) totalQty += (q * s);
+    });
+
+    const amtInput = document.getElementById('restockAmt');
+    if (amtInput) {
+        amtInput.value = totalQty > 0 ? totalQty : '';
+    }
+
+    const id = document.getElementById('restockId').value;
+    const cpu = ING_MAP[id]?.cost_per_unit > 0 ? ING_MAP[id].cost_per_unit : 0;
+
+    const cpuInput = document.getElementById('restockCpu');
+    if (cpuInput) {
+        if (cpu <= 0) {
+            cpuInput.value = '$0.000';
+        } else if (cpu < 1) {
+            let str = (Math.round(cpu * 10000) / 10000).toString();
+            if (str.indexOf('.') !== -1) {
+                let parts = str.split('.');
+                if (parts[1].length < 3) parts[1] = parts[1].padEnd(3, '0');
+                cpuInput.value = '$' + parts.join('.');
+            } else {
+                cpuInput.value = '$' + cpu.toFixed(3);
+            }
+        } else {
+            cpuInput.value = '$' + cpu.toFixed(2);
         }
-        if (hint) {
-            hint.innerHTML = `<i class="fa-solid fa-calculator" style="color:var(--accent)"></i> ` + txt;
-            hint.style.display = 'block';
-        }
-    } else {
-        if (hint) hint.style.display = 'none';
     }
 }
+
 function closeRestock() { document.getElementById('restockModal').classList.remove('open'); }
 function setAmt(n) { document.getElementById('restockAmt').value = n; document.getElementById('restockAmt').focus(); }
 
@@ -1836,7 +2173,10 @@ async function submitRestock() {
         let data;
         try { data = JSON.parse(text); } catch { throw new Error('Invalid response from server'); }
         if (data.success) {
-            updateRow(parseInt(id), data.new_stock, data.min_stock, unit);
+            if (data.new_cpu !== undefined && data.new_cpu > 0 && ING_MAP[id]) {
+                ING_MAP[id].cost_per_unit = data.new_cpu;
+            }
+            updateIngredientRowDOM(id, ING_MAP[id]?.name || '', unit, data.min_stock, data.new_cpu !== undefined ? data.new_cpu : (ING_MAP[id]?.cost_per_unit || 0), data.new_stock);
             closeRestock();
             showToast(`+${fmt(amt)}${unit ? ' '+unit : ''} added to stock`, 'success');
         } else {
@@ -1855,8 +2195,8 @@ function updateRow(id, newStock, minStock, unit, dailyAvg) {
     const badges = { ok:['OK','fa-circle-check'], low:['LOW','fa-triangle-exclamation'], out:['OUT','fa-circle-exclamation'] };
     const [lbl, ico] = badges[status];
 
-    // Stock cell (index 3)
-    const sc = row.children[3];
+    // Stock cell (index 2)
+    const sc = row.children[2];
     if (sc) {
         sc.dataset.val = newStock;
         const sv = sc.querySelector('.stock-val') || sc;
@@ -1870,34 +2210,31 @@ function updateRow(id, newStock, minStock, unit, dailyAvg) {
         if (spct) spct.textContent = pct + '% of minimum';
     }
 
-    // Forecast chip
-    if (dailyAvg !== undefined && sc) {
+    // Forecast chip removed
+    if (sc) {
         let fc = sc.querySelector('.stock-forecast');
-        const da = parseFloat(dailyAvg) || 0;
-        const daysRem = (da > 0 && newStock > 0) ? Math.round(newStock / da) : null;
-        if (daysRem !== null) {
-            const fcCls = daysRem <= 2 ? 'fc-critical' : (daysRem <= 7 ? 'fc-warn' : 'fc-ok');
-            if (!fc) { fc = document.createElement('div'); fc.className = 'stock-forecast'; sc.appendChild(fc); }
-            fc.className = 'stock-forecast ' + fcCls;
-            fc.innerHTML = `<i class="fa-solid fa-clock" style="font-size:9px"></i> ~${daysRem} day${daysRem !== 1 ? 's' : ''} remaining`;
-        } else if (fc) { fc.remove(); }
+        if (fc) fc.remove();
     }
 
-    // Minimum Stock cell (index 4)
-    const mc = row.children[4];
+    // Minimum Stock cell (index 3)
+    const mc = row.children[3];
     if (mc) {
         mc.dataset.val = minStock;
         const ed = mc.querySelector('.editable');
         if (ed) ed.textContent = fmt(minStock);
     }
 
-    // Status cell (index 7)
-    const stCell = row.children[7];
+    // Status cell (index 6)
+    const stCell = row.children[6];
     if (stCell) {
         stCell.dataset.val = status;
-        const badge = stCell.querySelector('.badge') || stCell;
-        badge.className = 'badge ' + status;
-        badge.innerHTML = `<i class="fa-solid ${ico}"></i> ${lbl}`;
+        const badge = stCell.querySelector('.badge');
+        if (badge) {
+            badge.className = 'badge ' + status;
+            badge.innerHTML = `<i class="fa-solid ${ico}"></i> ${lbl}`;
+        } else {
+            stCell.innerHTML = `<span class="badge ${status}"><i class="fa-solid ${ico}"></i> ${lbl}</span>`;
+        }
     }
 
     // Row state
@@ -2114,7 +2451,8 @@ function confirmDelete(id, name) {
 }
 function closeDelete() { document.getElementById('deleteModal').classList.remove('open'); }
 
-async function submitDelete() {
+async function submitDelete(e) {
+    if (e) e.preventDefault();
     const id  = document.getElementById('deleteId').value;
     const btn = document.getElementById('deleteBtn');
     btn.disabled = true;
@@ -2127,7 +2465,7 @@ async function submitDelete() {
             if (row) {
                 row.style.transition = 'opacity .25s, transform .25s';
                 row.style.opacity = '0'; row.style.transform = 'scale(.97)';
-                setTimeout(() => { row.remove(); applyFilters(); }, 260);
+                setTimeout(() => { row.remove(); refreshStatCards(); applyFilters(); }, 260);
             }
             closeDelete();
             showToast('Ingredient deleted', 'success');
@@ -2238,12 +2576,13 @@ async function pollIngredients() {
         // Update changed rows
         data.ingredients.forEach(ing => {
             const row = document.querySelector(`#tableBody tr[data-id="${ing.id}"]`);
-            if (!row) { location.reload(); return; }
-            const curStock = parseFloat(row.children[3]?.dataset?.val || 0);
-            const curMin   = parseFloat(row.children[4]?.dataset?.val || 0);
-            if (Math.abs(curStock - ing.stock) > 0.0001 || Math.abs(curMin - ing.min) > 0.0001) {
-                updateRow(ing.id, ing.stock, ing.min, ing.unit, ing.daily_avg);
-                flashRow(row);
+            if (row) {
+                const curStock = parseFloat(row.children[2]?.dataset?.val || 0);
+                const curMin   = parseFloat(row.children[3]?.dataset?.val || 0);
+                if (Math.abs(curStock - ing.stock) > 0.0001 || Math.abs(curMin - ing.min) > 0.0001) {
+                    updateRow(ing.id, ing.stock, ing.min, ing.unit, ing.daily_avg);
+                    flashRow(row);
+                }
             }
         });
 
@@ -2342,8 +2681,8 @@ function refreshStatCards() {
     const total = allRows.length;
     let totalVal = 0;
     allRows.forEach(r => {
-        const stock = parseFloat(r.children[3]?.dataset?.val || 0);
-        const cpu   = parseFloat(r.children[6]?.dataset?.val || 0);
+        const stock = parseFloat(r.children[2]?.dataset?.val || 0);
+        const cpu   = parseFloat(r.children[5]?.dataset?.val || 0);
         totalVal += (stock * cpu);
     });
 

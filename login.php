@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: login.php?error=locked&mins=" . $mins); exit;
     }
 
-    $stmt = $conn->prepare("SELECT u.*, r.slug AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.username = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT u.*, r.slug AS role, COALESCE(e.name, u.username) AS emp_name FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN employees e ON e.user_id = u.user_id OR e.employee_id = u.user_id WHERE u.username = ? LIMIT 1");
     $stmt->bind_param("s", $username); $stmt->execute();
     $result = $stmt->get_result();
 
@@ -45,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_regenerate_id(true);
             $_SESSION['user_id']           = $user['user_id'];
             $_SESSION['username']          = $user['username'];
+            $_SESSION['emp_name']          = $user['emp_name'] ?: $user['username'];
             $_SESSION['role']              = $user['role'];
             $_SESSION['role_id']           = (int)$user['role_id'];
             $_SESSION['last_activity']     = time();

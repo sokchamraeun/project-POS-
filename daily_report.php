@@ -1,7 +1,7 @@
 <?php
 require 'auth.php';
 require 'config.php';
-if (!can('report')) { header("Location: dashboard.php?denied=1"); exit; }
+if (!can('report_sale')) { header("Location: dashboard.php?denied=1"); exit; }
 
 // ── View mode: daily, monthly, yearly, range ──
 $today = business_date_today();
@@ -14,7 +14,11 @@ if (!$dateOk || $date > $today) { $date = $today; }
 
 $dateFrom = is_string($_GET['from_date'] ?? $_GET['date_from'] ?? null) ? trim($_GET['from_date'] ?? $_GET['date_from']) : '';
 $dateTo   = is_string($_GET['to_date']   ?? $_GET['date_to']   ?? null) ? trim($_GET['to_date']   ?? $_GET['date_to'])   : '';
+$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 $filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+if (!$_is_mgr) {
+    $filter_user = (int)$_SESSION['user_id'];
+}
 
 if ($dateFrom !== '' && $dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
     if ($dateFrom > $dateTo) [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
@@ -43,7 +47,7 @@ if ($isRange) {
 }
 
 if ($filter_user > 0) {
-    $dateExpr .= " AND user_id = $filter_user";
+    $dateExpr .= " AND (user_id = $filter_user OR employee_id = $filter_user)";
 }
 
 switch ($view) {
@@ -1392,7 +1396,9 @@ if ($filter_from > $filter_to) [$filter_from, $filter_to] = [$filter_to, $filter
 
 $filter_status  = trim($_GET['status'] ?? '');
 $filter_payment = trim($_GET['payment_method'] ?? '');
-$filter_user    = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+if (!$_is_mgr) {
+    $filter_user = (int)$_SESSION['user_id'];
+}
 
 $where_conds = ["o.business_date BETWEEN '$filter_from' AND '$filter_to'"];
 if ($filter_status !== '') {
@@ -1402,15 +1408,16 @@ if ($filter_payment !== '') {
     $where_conds[] = "o.payment_method = '" . $conn->real_escape_string($filter_payment) . "'";
 }
 if ($filter_user > 0) {
-    $where_conds[] = "o.user_id = $filter_user";
+    $where_conds[] = "(o.user_id = $filter_user OR o.employee_id = $filter_user)";
 }
 $where_str = implode(' AND ', $where_conds);
 
 $sql_table_orders = "SELECT o.order_id, o.daily_order_no, o.order_date, o.customer_name, o.table_number, o.order_type, o.total, o.payment_method, o.status,
                             IFNULL(o.promotion_discount, 0) + IFNULL(o.manual_discount, 0) AS discount_amount,
-                            u.username as staff_name 
+                            COALESCE(e.name, u.username) as staff_name 
                      FROM orders o 
                      LEFT JOIN users u ON u.user_id = o.user_id 
+                     LEFT JOIN employees e ON e.user_id = o.user_id OR e.employee_id = o.user_id
                      WHERE $where_str 
                      ORDER BY o.order_id DESC";
 $res_table_orders = $conn->query($sql_table_orders);
@@ -1481,7 +1488,9 @@ if ($table_orders) {
 $sum_gross  = 0.0;
 $sum_disc   = 0.0;
 $sum_net    = 0.0;
+$sum_cogs   = 0.0;
 $sum_profit = 0.0;
+$sum_qty    = 0;
 
 $processed_rows = [];
 $idx = 0;
@@ -1496,10 +1505,18 @@ foreach ($table_orders as $to) {
     $ocogs = (float)($cogsByOrder[$oid] ?? 0.0);
     $profit = $net - $ocogs;
 
+    $o_its = $items_by_order[$oid] ?? [];
+    $o_qty = 0;
+    foreach ($o_its as $oit) {
+        $o_qty += max(1, (int)($oit['quantity'] ?? 1));
+    }
+
     $sum_gross  += $gross;
     $sum_disc   += $disc;
     $sum_net    += $net;
+    $sum_cogs   += $ocogs;
     $sum_profit += $profit;
+    $sum_qty    += $o_qty;
 
     $date_str = date('g:i j/n/Y', strtotime($to['order_date']));
     $cust = htmlspecialchars($to['customer_name'] ?: 'General');
@@ -1508,17 +1525,19 @@ foreach ($table_orders as $to) {
     $fmt_gross  = ($gross == floor($gross) ? number_format($gross, 0) : number_format($gross, 2)) . '$';
     $fmt_disc   = $disc > 0 ? (($disc == floor($disc) ? number_format($disc, 0) : number_format($disc, 2)) . '$') : '0';
     $fmt_net    = ($net == floor($net) ? number_format($net, 0) : number_format($net, 2)) . '$';
+    $fmt_cogs   = ($ocogs == floor($ocogs) ? number_format($ocogs, 0) : number_format($ocogs, 2)) . '$';
     $fmt_profit = ($profit == floor($profit) ? number_format($profit, 0) : number_format($profit, 2)) . '$';
 
     $processed_rows[] = [
         'no'         => $orderNoStr,
         'date'       => $date_str,
         'customer'   => $cust,
+        'qty_item'   => $o_qty,
         'price'      => $fmt_gross,
         'discount'   => $fmt_disc,
         'total'      => $fmt_net,
         'profit'     => $fmt_profit,
-        'currency'   => '$',
+        'cogs'       => $fmt_cogs,
         'place_by'   => $staff,
     ];
 }
@@ -1526,10 +1545,11 @@ foreach ($table_orders as $to) {
 $fmt_sum_gross  = ($sum_gross == floor($sum_gross) ? number_format($sum_gross, 0) : number_format($sum_gross, 2)) . '$';
 $fmt_sum_disc   = ($sum_disc == floor($sum_disc) ? number_format($sum_disc, 0) : number_format($sum_disc, 2)) . '$';
 $fmt_sum_net    = ($sum_net == floor($sum_net) ? number_format($sum_net, 0) : number_format($sum_net, 2)) . '$';
+$fmt_sum_cogs   = ($sum_cogs == floor($sum_cogs) ? number_format($sum_cogs, 0) : number_format($sum_cogs, 2)) . '$';
 $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit, 0) : number_format($sum_profit, 2)) . '$';
 ?>
 <body>
-<div class="flex h-screen w-full overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-full overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto er-container">
     <?php
@@ -1538,12 +1558,20 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
     $date_from       = $filter_from;
     $date_to         = $filter_to;
 
-    $user_options = ['' => 'All Staff'];
-    $q_users = $conn->query("SELECT u.user_id, u.username, r.slug AS role FROM users u LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.username ASC");
-    if ($q_users) {
-        while ($ur = $q_users->fetch_assoc()) {
-            $user_options[$ur['user_id']] = $ur['username'] . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+    $user_options = [];
+    if ($_is_mgr) {
+        $user_options[''] = 'All Staff';
+        $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
+        if ($q_users) {
+            while ($ur = $q_users->fetch_assoc()) {
+                $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+                $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+            }
         }
+    } else {
+        $my_uid = (int)$_SESSION['user_id'];
+        $my_name = $_SESSION['username'] ?? 'My Sales';
+        $user_options[$my_uid] = $my_name;
     }
 
     $filter_options  = [
@@ -1569,17 +1597,17 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
     $lbl_col_date     = $isKm ? 'កាលបរិច្ឆេទ' : 'Date';
     $lbl_col_cust     = $isKm ? 'អតិថិជន' : 'Customer';
     $lbl_col_price    = $isKm ? 'តម្លៃ' : 'Price';
-    $lbl_col_disc     = $isKm ? 'បញ្ចុះតម្លៃ' : 'Disc';
+    $lbl_col_qty      = $isKm ? 'ចំនួនទំនិញ' : 'Qty Item';
     $lbl_col_total    = $isKm ? 'ចំណូល' : 'Revenue';
     $lbl_col_profit   = $isKm ? 'ប្រាក់ចំណេញ' : 'Profit';
-    $lbl_col_curr     = $isKm ? 'រូបិយប័ណ្ណ' : 'Currency';
+    $lbl_col_cogs     = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
     $lbl_col_place    = $isKm ? 'អ្នកលក់' : 'Place by';
     $lbl_col_sum      = $isKm ? 'សរុប' : 'Total';
     $lbl_date_from    = $isKm ? 'ចាប់ពីថ្ងៃ :' : 'Date From :';
     $lbl_date_to      = $isKm ? 'ដល់ថ្ងៃ :' : 'Date To :';
     $lbl_doc_no       = $isKm ? 'ចំនួន Order :' : 'Order :';
     $lbl_gross_sales  = $isKm ? 'ការលក់សរុប' : 'Total Gross Sales';
-    $lbl_total_disc   = $isKm ? 'បញ្ចុះតម្លៃសរុប' : 'Total Discounts';
+    $lbl_total_items  = $isKm ? 'ទំនិញសរុប' : 'Total Items';
     $lbl_net_revenue  = $isKm ? 'ចំណូលសុទ្ធសរុប' : 'Total Net Revenue';
     $lbl_total_profit = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit';
     ?>
@@ -1594,17 +1622,15 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
                         <th><?= htmlspecialchars($lbl_col_date) ?></th>
                         <th><?= htmlspecialchars($lbl_col_cust) ?></th>
                         <th style="text-align:right"><?= htmlspecialchars($lbl_col_price) ?></th>
-                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_disc) ?></th>
+                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_qty) ?></th>
                         <th style="text-align:right"><?= htmlspecialchars($lbl_col_total) ?></th>
-                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_profit) ?></th>
-                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_curr) ?></th>
                         <th><?= htmlspecialchars($lbl_col_place) ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($processed_rows)): ?>
                     <tr class="no-data">
-                        <td colspan="9" class="no-data"><?= $isKm ? 'គ្មានទិន្នន័យ' : 'No data' ?></td>
+                        <td colspan="7" class="no-data"><?= $isKm ? 'គ្មានទិន្នន័យ' : 'No data' ?></td>
                     </tr>
                     <?php else: ?>
                     <?php foreach ($processed_rows as $r): ?>
@@ -1613,20 +1639,22 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
                         <td><?= $r['date'] ?></td>
                         <td><?= $r['customer'] ?></td>
                         <td style="text-align:right;"><?= $r['price'] ?></td>
-                        <td style="text-align:right;"><?= $r['discount'] ?></td>
+                        <td style="text-align:center;font-weight:600;"><?= $r['qty_item'] ?></td>
                         <td style="text-align:right;font-weight:bold;color:#d1904b;"><?= $r['total'] ?></td>
-                        <td style="text-align:right;font-weight:bold;color:#55e087;"><?= $r['profit'] ?></td>
-                        <td style="text-align:center;"><?= $r['currency'] ?></td>
                         <td><?= $r['place_by'] ?></td>
                     </tr>
                     <?php endforeach; ?>
-                    <tr style="font-weight:bold;background:rgba(255,255,255,0.04);border-top:2px solid rgba(255,255,255,0.1);">
-                        <td colspan="3" style="text-align:center;"><?= htmlspecialchars($lbl_col_sum) ?></td>
-                        <td style="text-align:right;"><?= $fmt_sum_gross ?></td>
-                        <td style="text-align:right;"><?= $fmt_sum_disc ?></td>
-                        <td style="text-align:right;color:#d1904b;"><?= $fmt_sum_net ?></td>
-                        <td style="text-align:right;color:#55e087;"><?= $fmt_sum_profit ?></td>
-                        <td style="text-align:center;">$</td>
+                    <tr class="total-summary-row" style="font-weight:700; background: linear-gradient(90deg, rgba(209, 144, 75, 0.15) 0%, rgba(20, 20, 28, 0.95) 100%); border-top: 2px solid #d1904b; border-bottom: 2px solid rgba(209, 144, 75, 0.3);">
+                        <td colspan="3" style="text-align:center; padding: 0.85rem 1rem;">
+                            <span style="display:inline-flex; align-items:center; gap:0.4rem; padding: 0.25rem 0.75rem; border-radius: 6px; background: rgba(209, 144, 75, 0.2); color: #d1904b; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid rgba(209, 144, 75, 0.35);">
+                                <i class="fa-solid fa-calculator" style="font-size:0.75rem;"></i> <?= htmlspecialchars($lbl_col_sum) ?>
+                            </span>
+                        </td>
+                        <td style="text-align:right; color: #38bdf8; font-size: 0.95rem; font-weight: 700;"><?= $fmt_sum_gross ?></td>
+                        <td style="text-align:center; padding: 0.85rem 1rem;">
+                            <span style="display:inline-block; padding: 0.15rem 0.6rem; border-radius: 9999px; background: rgba(167, 139, 250, 0.18); color: #c084fc; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(167, 139, 250, 0.3);"><?= $sum_qty ?></span>
+                        </td>
+                        <td style="text-align:right; color: #fbbf24; font-size: 1rem; font-weight: 800; text-shadow: 0 0 10px rgba(251,191,36,0.25);"><?= $fmt_sum_net ?></td>
                         <td></td>
                     </tr>
                     <?php endif; ?>
@@ -1648,16 +1676,12 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
                 <span class="stat-val"><?= $fmt_sum_gross ?></span>
             </div>
             <div class="er-summary-stat-item">
-                <span class="stat-label"><?= htmlspecialchars($lbl_total_disc) ?></span>
-                <span class="stat-val text-red-400"><?= $fmt_sum_disc ?></span>
+                <span class="stat-label"><?= htmlspecialchars($lbl_total_items) ?></span>
+                <span class="stat-val text-blue-400"><?= $sum_qty ?></span>
             </div>
             <div class="er-summary-stat-item">
                 <span class="stat-label"><?= htmlspecialchars($lbl_net_revenue) ?></span>
                 <span class="stat-val text-amber-400"><?= $fmt_sum_net ?></span>
-            </div>
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= htmlspecialchars($lbl_total_profit) ?></span>
-                <span class="stat-val text-emerald-400"><?= $fmt_sum_profit ?></span>
             </div>
         </div>
     </div>
@@ -1671,10 +1695,7 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
     <div class="dr-panel" id="panel-stock"  hidden></div>
     <div class="dr-panel" id="panel-staff"  hidden></div>
 
-    <footer class="dr-foot-bar">
-      <span>The Bird's Nest Coffee · POS</span>
-      <span id="drSync">read at <?= date('H:i') ?></span>
-    </footer>
+
 
 </div>
 

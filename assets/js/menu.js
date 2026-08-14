@@ -1,5 +1,11 @@
-let product = {};
-const csrfToken = (window.MENU_CONFIG && window.MENU_CONFIG.csrfToken) ? window.MENU_CONFIG.csrfToken : '';
+var product = window.product || {};
+
+function getCsrfToken() {
+    if (window.MENU_CONFIG && window.MENU_CONFIG.csrfToken) return window.MENU_CONFIG.csrfToken;
+    if (typeof window.CSRF !== 'undefined' && window.CSRF) return window.CSRF;
+    if (typeof CSRF !== 'undefined' && CSRF) return CSRF;
+    return '';
+}
 
 // ── Initialization Hook ──
 function initMenu() {
@@ -29,7 +35,11 @@ document.addEventListener('pageLoaded', function(e) {
 //  MODAL
 // ─────────────────────────────────────────────
 function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addons, promo) {
-    product = { id, name, price: Number(price) || 0, cat, promo: promo || 0 };
+    const p = Number(price) || 0;
+    product = { id, name, price: p, cat, promo: promo || 0 };
+    if (typeof modalQty !== 'undefined') window.modalQty = 1;
+    if (typeof modalUnitPrice !== 'undefined') window.modalUnitPrice = p;
+    if (typeof modalAddonTotal !== 'undefined') window.modalAddonTotal = 0;
 
     const modalImg   = document.getElementById('modalImg')   || document.getElementById('modalImage');
     const modalName  = document.getElementById('modalName');
@@ -40,7 +50,7 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
     if (modalImg)   modalImg.src            = img || '';
     if (modalName)  modalName.textContent  = name || '';
     if (modalDesc)  modalDesc.textContent  = desc || '';
-    if (modalPrice) modalPrice.textContent = '$' + (Number(price) || 0).toFixed(2);
+    if (modalPrice) modalPrice.textContent = '$' + p.toFixed(2);
 
     const isJuice = cat === 'Juice';
     const isHot   = cat === 'Hot';
@@ -48,6 +58,8 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
     _show('sweetnessGroup', !isJuice);
     _show('iceGroup',       !isJuice && !isHot);
     _show('milkGroup',      !isJuice);
+
+    if (typeof updateModalTotal === 'function') updateModalTotal();
 
     if (modalEl) {
         modalEl.style.display = 'flex';
@@ -61,6 +73,7 @@ function closeModal() {
         modalEl.style.display = 'none';
         modalEl.setAttribute('aria-hidden', 'true');
     }
+    document.body.style.overflow = '';
 }
 
 let _modalDismissBound = false;
@@ -81,47 +94,77 @@ function _bindModalDismiss() {
 //  ADD TO CART (from modal)
 // ─────────────────────────────────────────────
 function addToCart() {
-    const params = new URLSearchParams({ id: product.id });
+    const token = getCsrfToken();
+    const pId = (typeof product !== 'undefined' && product.id) ? product.id : 0;
+    if (!pId) return;
 
-    if (_isVisible('sweetnessGroup')) {
-        params.append('sweetness', document.getElementById('sweetnessSelect').value);
-    }
-    if (_isVisible('iceGroup')) {
-        params.append('ice', document.getElementById('iceSelect').value);
-    }
-    if (_isVisible('milkGroup')) {
-        params.append('milk', document.getElementById('milkSelect').value);
-    }
+    const qtyVal = (typeof modalQty !== 'undefined' ? modalQty : 1);
+    const params = new URLSearchParams({ id: pId, qty: qtyVal, csrf_token: token });
 
-    params.append('csrf_token', csrfToken);
+    if (typeof getPillValue === 'function') {
+        const _optSw = document.getElementById('optSweetness');
+        if (_optSw && _optSw.style.display !== 'none') params.append('sweetness', getPillValue('sweetnessPills'));
+        const _optIce = document.getElementById('optIce');
+        if (_optIce && _optIce.style.display !== 'none') params.append('ice', getPillValue('icePills'));
+    } else {
+        if (_isVisible('sweetnessGroup')) {
+            const swEl = document.getElementById('sweetnessSelect');
+            if (swEl) params.append('sweetness', swEl.value);
+        }
+        if (_isVisible('iceGroup')) {
+            const iceEl = document.getElementById('iceSelect');
+            if (iceEl) params.append('ice', iceEl.value);
+        }
+        if (_isVisible('milkGroup')) {
+            const milkEl = document.getElementById('milkSelect');
+            if (milkEl) params.append('milk', milkEl.value);
+        }
+    }
 
     _postCart(params).then(data => {
         if (!data || !data.success) {
-            showToast((data && data.message) ? data.message : '❌ Error adding to cart', 'error');
+            showToast((data && data.message) ? data.message : 'Error adding to cart', 'error');
             return;
         }
-        showToast('✅ ' + data.message);
-        closeModal();
+        showToast(data.message || 'Added to cart!', 'success');
+        if (typeof closeModal === 'function') closeModal();
         _updateCartCount(data.cart_count);
-    }).catch(() => showToast('❌ Network error. Please try again.', 'error'));
+        if (typeof window.loadCartPanel === 'function') {
+            window.loadCartPanel();
+        } else if (typeof loadCartPanel === 'function') {
+            loadCartPanel();
+        }
+    }).catch(err => {
+        showToast((err && err.message) ? err.message : 'Error adding to cart', 'error');
+    });
 }
 
 // ─────────────────────────────────────────────
 //  QUICK ADD (no customisation)
 // ─────────────────────────────────────────────
-function quickAdd(productId, event) {
-    if (event && event.stopPropagation) event.stopPropagation();
+function quickAdd(productId, eventOrPrice) {
+    if (eventOrPrice && typeof eventOrPrice.stopPropagation === 'function') {
+        eventOrPrice.stopPropagation();
+    }
 
-    const params = new URLSearchParams({ id: productId, csrf_token: csrfToken });
+    const token = getCsrfToken();
+    const params = new URLSearchParams({ id: productId, qty: 1, csrf_token: token });
 
     _postCart(params).then(data => {
         if (!data || !data.success) {
-            showToast((data && data.message) ? '❌ ' + data.message : '❌ Error adding to cart', 'error');
+            showToast((data && data.message) ? data.message : 'Error adding to cart', 'error');
             return;
         }
-        showToast('✅ ' + data.message);
+        showToast(data.message || 'Added!', 'success');
         _updateCartCount(data.cart_count);
-    }).catch(() => showToast('❌ Network error. Please try again.', 'error'));
+        if (typeof window.loadCartPanel === 'function') {
+            window.loadCartPanel();
+        } else if (typeof loadCartPanel === 'function') {
+            loadCartPanel();
+        }
+    }).catch(err => {
+        showToast((err && err.message) ? err.message : 'Error adding to cart', 'error');
+    });
 }
 
 // ─────────────────────────────────────────────
@@ -136,9 +179,8 @@ function _postCart(params) {
         },
         body: params.toString()
     }).then(res => {
-        if (!res.ok) return res.json().then(d => { throw d; });
-        return res.json();
-    });
+        return res.json().catch(() => ({ success: false, message: 'HTTP ' + res.status + ' error' }));
+    }).catch(err => ({ success: false, message: err.message || 'Network error' }));
 }
 
 // ─────────────────────────────────────────────
@@ -198,10 +240,12 @@ function _bindProductCards() {
         // Quick Add button check
         const quickBtn = e.target.closest('.quick-add-btn, [data-quick-add]');
         if (quickBtn) {
-            e.stopPropagation();
             const pid = quickBtn.dataset.productId || quickBtn.dataset.quickAdd || quickBtn.dataset.id;
-            if (pid && typeof quickAdd === 'function') quickAdd(pid, e);
-            return;
+            if (pid && typeof quickAdd === 'function' && !quickBtn.getAttribute('onclick')) {
+                e.stopPropagation();
+                quickAdd(pid, e);
+                return;
+            }
         }
 
         // Open Product modal check for cart items or grid drink cards
@@ -219,7 +263,7 @@ function _bindProductCards() {
 
         // Open Product modal check for drink cards
         const card = e.target.closest('.js-open-product, .product-card, .seller-card, .drink-card, [data-product-id], [data-id]');
-        if (card && !e.target.closest('button, a, input, select, .quick-add-btn, [data-quick-add]')) {
+        if (card && !e.target.closest('button, a, input, select, .quick-add-btn, [data-quick-add]') && !card.getAttribute('onclick')) {
             if (typeof openModalFromCard === 'function') {
                 openModalFromCard(card);
             } else if (typeof openModal === 'function') {

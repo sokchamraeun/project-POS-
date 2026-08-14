@@ -275,37 +275,251 @@ html, body {
     font-weight: 500;
 }
 
-/* Light theme overrides matching reference screenshot */
+/* Light theme overrides matching app design system */
 [data-theme="light"] .er-container {
-    background-color: #ebf3f7;
-    color: #222;
+    background-color: #f4efe9 !important;
+    color: #1a1410 !important;
 }
+[data-theme="light"] .er-breadcrumb {
+    color: #5a4a3a !important;
+    font-weight: 400 !important;
+}
+[data-theme="light"] .er-breadcrumb a {
+    color: #5a4a3a !important;
+    font-weight: 400 !important;
+}
+[data-theme="light"] .er-breadcrumb .er-current {
+    color: #1a1410 !important;
+    font-weight: 500 !important;
+}
+
 [data-theme="light"] .er-filter-card,
 [data-theme="light"] .er-table-card,
 [data-theme="light"] .er-summary-card {
-    background: #ffffff;
-    border-color: #d2e0e6;
+    background: #ffffff !important;
+    border-color: #e0d4c4 !important;
+    box-shadow: 0 4px 16px rgba(90,60,20,0.06) !important;
+}
+[data-theme="light"] .er-field-group label {
+    color: #1a1410 !important;
+    font-weight: 500 !important;
 }
 [data-theme="light"] .er-input,
 [data-theme="light"] .er-select,
-[data-theme="light"] .er-btn-icon {
-    background: #f4f8fa;
-    border-color: #cce0e8;
-    color: #222;
+[data-theme="light"] .er-btn-icon,
+[data-theme="light"] .er-btn-preset {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+[data-theme="light"] .er-input[type="date"] {
+    color-scheme: light !important;
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+[data-theme="light"] .er-input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: none !important;
+}
+[data-theme="light"] .er-select option {
+    background: #ffffff !important;
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+[data-theme="light"] .er-search-box i {
+    color: #5a4a3a !important;
 }
 [data-theme="light"] .er-table th {
-    background: #c3dbe0;
-    color: #1f424c;
-    border-bottom-color: #b0cad0;
-    border-right-color: #b0cad0;
+    background: #ede8e0 !important;
+    color: #1a1410 !important;
+    border-bottom: 2px solid #e0d4c4 !important;
+    border-right: 1px solid #e0d4c4 !important;
+    font-weight: 600 !important;
 }
 [data-theme="light"] .er-table td {
-    border-bottom-color: #e4edf0;
-    border-right-color: #e4edf0;
-    color: #333;
+    border-bottom: 1px solid #f0e8e0 !important;
+    border-right: 1px solid #f0e8e0 !important;
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+[data-theme="light"] .er-table td.font-bold,
+[data-theme="light"] .er-table td.font-semibold,
+[data-theme="light"] .er-table td .font-bold,
+[data-theme="light"] .er-table td .font-semibold {
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+/* Default badge helper styles (Dark Mode) */
+.er-badge-doc {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: #34d399;
+}
+.er-badge-cat {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    background: rgba(51, 65, 85, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    color: #cbd5e1;
+}
+.er-prod-name {
+    color: #ffffff;
+    font-weight: 400;
+}
+.er-badge-total {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    background: rgba(209, 144, 75, 0.2);
+    color: #d1904b;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid rgba(209, 144, 75, 0.35);
+    font-weight: 500;
+}
+.er-qty-pill {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 9999px;
+    background: rgba(167, 139, 250, 0.18);
+    color: #c084fc;
+    font-weight: 400;
+    font-size: 0.9rem;
+    border: 1px solid rgba(167, 139, 250, 0.3);
+}
+.er-total-rev {
+    color: #fbbf24;
+    font-size: 1rem;
+    font-weight: 500;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.25);
+}
+
+/* Light mode table badges & pills - Black/Dark text, clean light backgrounds */
+[data-theme="light"] .er-badge-doc,
+[data-theme="light"] .er-badge-cat,
+[data-theme="light"] .er-badge-total,
+[data-theme="light"] .er-qty-pill,
+[data-theme="light"] .er-table td .bg-emerald-500\/10,
+[data-theme="light"] .er-table td .bg-slate-700\/50,
+[data-theme="light"] .er-table td .bg-slate-800,
+[data-theme="light"] .er-table td .bg-amber-500\/15 {
+    background: #ede8e0 !important;
+    border: 1px solid #e0d4c4 !important;
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+[data-theme="light"] .er-prod-name {
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+[data-theme="light"] .er-total-rev {
+    color: #1a1410 !important;
+    font-weight: 500 !important;
+    text-shadow: none !important;
+}
+
+[data-theme="light"] .er-table td .text-emerald-400,
+[data-theme="light"] .er-table td .text-slate-300,
+[data-theme="light"] .er-table td .text-slate-400,
+[data-theme="light"] .er-table td .text-white,
+[data-theme="light"] .er-table td .text-amber-400 {
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+/* Action View Button in Light Mode */
+[data-theme="light"] .er-table td button,
+[data-theme="light"] .er-table td a.er-btn-preset,
+[data-theme="light"] .er-table td .bg-amber-500\/10 {
+    background: #ede8e0 !important;
+    border-color: #d1904b !important;
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+[data-theme="light"] .er-table td button:hover,
+[data-theme="light"] .er-table td a.er-btn-preset:hover {
+    background: #d1904b !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .er-table tbody tr:nth-child(even) {
+    background-color: #fdfaf6 !important;
 }
 [data-theme="light"] .er-table tbody tr:hover {
-    background-color: #e8f4f7;
+    background-color: rgba(209,144,75,0.12) !important;
+}
+
+/* Total summary row in Light Mode */
+[data-theme="light"] .er-table tr.total-summary-row {
+    background: #fcf8f3 !important;
+    border-top: 2px solid #d1904b !important;
+    border-bottom: 2px solid #e0d4c4 !important;
+}
+
+[data-theme="light"] .er-table tr.total-summary-row td {
+    color: #1a1410 !important;
+    font-weight: 500 !important;
+}
+
+[data-theme="light"] .er-table tr.total-summary-row span {
+    background: #f4efe9 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+    font-weight: 500 !important;
+}
+
+/* Bottom Summary Card (Footer Info & Stats) */
+[data-theme="light"] .er-summary-card {
+    background: #ffffff !important;
+    border-color: #e0d4c4 !important;
+}
+
+[data-theme="light"] .er-summary-info {
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+[data-theme="light"] .er-summary-info span {
+    color: #1a1410 !important;
+    font-weight: 400 !important;
+}
+
+[data-theme="light"] .er-summary-info span strong {
+    color: #1a1410 !important;
+    font-weight: 500 !important;
+}
+
+[data-theme="light"] .stat-label {
+    color: #1a1410 !important;
+    font-weight: 500 !important;
+}
+
+[data-theme="light"] .stat-val,
+[data-theme="light"] .stat-val.text-amber-400,
+[data-theme="light"] .stat-val.text-emerald-400 {
+    color: #d1904b !important;
+    font-weight: 600 !important;
+}
+
+[data-theme="light"] .er-btn-preset:hover {
+    background: rgba(209,144,75,0.15) !important;
+    border-color: #d1904b !important;
+    color: #d1904b !important;
 }
 
 /* Summary Box Footer */
@@ -387,11 +601,6 @@ html, body {
         <i class="fa-solid fa-chevron-right er-sep"></i>
         <span class="er-current"><?= htmlspecialchars($_cur_report_title) ?></span>
     </div>
-    <div class="flex items-center gap-2" style="display:flex;align-items:center;gap:8px;">
-        <button type="button" class="er-btn-icon" onclick="toggleTheme()" title="Toggle Theme">
-            <i class="fa-solid fa-moon" id="themeIcon"></i>
-        </button>
-    </div>
 </div>
 
 <!-- Filter Bar -->
@@ -414,7 +623,7 @@ html, body {
             12 => ['en' => 'December',  'km' => 'ធ្នូ'],
         ];
         ?>
-        <!-- Row 1: Date & Presets -->
+        <!-- All Filters & Actions in 1 Row -->
         <div class="er-filter-row">
             <div class="er-field-group">
                 <label><?= $_isKm_hdr ? 'ចាប់ពីថ្ងៃ' : 'Date From' ?></label>
@@ -450,29 +659,6 @@ html, body {
                 </select>
             </div>
 
-            <div class="er-toolbar-actions">
-                <button type="button" class="er-btn-icon" onclick="window.location.reload();" title="Refresh">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                </button>
-                <?php if ($_export_excel_url !== '#'): ?>
-                <a href="<?= htmlspecialchars($_export_excel_url) ?>" class="er-btn-icon" title="Export Excel">
-                    <i class="fa-solid fa-file-excel text-emerald-400"></i>
-                </a>
-                <?php endif; ?>
-                <?php if ($_export_pdf_url !== '#'): ?>
-                <a href="<?= htmlspecialchars($_export_pdf_url) ?>" target="_blank" rel="noopener" class="er-btn-icon" title="Print PDF">
-                    <i class="fa-solid fa-print text-amber-400"></i>
-                </a>
-                <?php endif; ?>
-                <div class="er-search-box">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="erTableSearch" placeholder="Search..." class="er-input">
-                </div>
-            </div>
-        </div>
-
-        <!-- Row 2: Category Filters & Submit Button -->
-        <div class="er-filter-row">
             <?php foreach ($_filters as $f): ?>
             <div class="er-field-group">
                 <label><?= htmlspecialchars($f['label']) ?></label>
@@ -490,6 +676,21 @@ html, body {
                 <button type="submit" class="er-btn-filter">
                     <i class="fa-solid fa-filter"></i> <?= $_isKm_hdr ? 'តម្រង' : 'Filter' ?>
                 </button>
+            </div>
+
+            <div class="er-toolbar-actions">
+                <button type="button" class="er-btn-icon" onclick="window.location.reload();" title="Refresh">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <?php if ($_export_pdf_url !== '#'): ?>
+                <a href="<?= htmlspecialchars($_export_pdf_url) ?>" target="_blank" rel="noopener" class="er-btn-icon" title="Print PDF">
+                    <i class="fa-solid fa-print text-amber-400"></i>
+                </a>
+                <?php endif; ?>
+                <div class="er-search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="erTableSearch" placeholder="Search..." class="er-input">
+                </div>
             </div>
         </div>
     </form>
@@ -607,5 +808,39 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.style.display = text.includes(val) ? '' : 'none';
         });
     });
+});
+</script>
+
+<script>
+if (typeof window.toggleTheme !== 'function') {
+    window.toggleTheme = function() {
+        var html = document.documentElement;
+        var isLight = html.getAttribute('data-theme') === 'light';
+        var nextTheme = isLight ? 'dark' : 'light';
+        html.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('theme', nextTheme);
+
+        document.querySelectorAll('#topThemeIcon, #themeIcon').forEach(function(icon) {
+            icon.className = nextTheme === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        });
+        document.querySelectorAll('#topThemeText, #themeText').forEach(function(txt) {
+            txt.textContent = nextTheme === 'light' ? 'Light' : 'Dark';
+        });
+        if (typeof initCharts === 'function') initCharts();
+    };
+}
+(function() {
+    var theme = localStorage.getItem('theme') || (document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+})();
+document.addEventListener('DOMContentLoaded', function() {
+    var theme = localStorage.getItem('theme') || (document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+    if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.querySelectorAll('#topThemeIcon, #themeIcon').forEach(function(icon) { icon.className = 'fa-solid fa-sun'; });
+        document.querySelectorAll('#topThemeText, #themeText').forEach(function(txt) { txt.textContent = 'Light'; });
+    }
 });
 </script>

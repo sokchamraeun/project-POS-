@@ -118,6 +118,41 @@ if (isset($_POST['ajax_apply_discount'])) {
 }
 
 /* ======================
+   AJAX APPLY ITEM DISCOUNT
+====================== */
+if (isset($_POST['ajax_apply_item_discount'])) {
+    header('Content-Type: application/json');
+    $idx    = (int)($_POST['index'] ?? -1);
+    $type   = in_array($_POST['type'] ?? '', ['percent', 'flat']) ? $_POST['type'] : 'percent';
+    $amount = max(0, (float)($_POST['amount'] ?? 0));
+    if ($type === 'percent') $amount = min(100, $amount);
+
+    if (isset($_SESSION['cart'][$idx])) {
+        if ($amount > 0) {
+            $_SESSION['cart'][$idx]['discount_type']   = $type;
+            $_SESSION['cart'][$idx]['discount_amount'] = $amount;
+        } else {
+            unset($_SESSION['cart'][$idx]['discount_type'], $_SESSION['cart'][$idx]['discount_amount']);
+        }
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+/* ======================
+   AJAX CLEAR ITEM DISCOUNT
+====================== */
+if (isset($_POST['ajax_clear_item_discount'])) {
+    header('Content-Type: application/json');
+    $idx = (int)($_POST['index'] ?? -1);
+    if (isset($_SESSION['cart'][$idx])) {
+        unset($_SESSION['cart'][$idx]['discount_type'], $_SESSION['cart'][$idx]['discount_amount']);
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+/* ======================
    AJAX CLEAR MANUAL DISCOUNT
 ====================== */
 if (isset($_POST['ajax_clear_discount'])) {
@@ -132,7 +167,7 @@ if (isset($_POST['ajax_clear_discount'])) {
 ====================== */
 if (isset($_POST['ajax_update'])) {
     $i = intval($_POST['index']);
-    $qty = max(1, intval($_POST['qty']));
+    $qty = max(1, min(1000, intval($_POST['qty'])));
 
     if (isset($_SESSION['cart'][$i])) {
         $_SESSION['cart'][$i]['qty'] = $qty;
@@ -1294,7 +1329,7 @@ body {
             </div>
         </div>
 
-        <div class="summary-row">
+        <div class="summary-row" id="cartPageTaxRow" style="<?= (float)($tax ?? 0) > 0 ? '' : 'display:none;' ?>">
             <span>Tax (<?= TAX_RATE ?>%)</span>
             <span id="summary-tax">$<?= $tax_formatted ?></span>
         </div>

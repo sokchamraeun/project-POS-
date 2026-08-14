@@ -3,8 +3,26 @@ require 'auth.php';
 require_once "config.php";
 require_once __DIR__ . '/nav_menu.php';   // canonical permission->nav registry
 
-$admin_name = $_SESSION['username'] ?? 'Admin';
-$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'supervisor']);
+$admin_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Admin';
+$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
+$filter_user = 0;
+$user_options = [];
+if ($_is_mgr) {
+    $user_options[0] = 'All Staff';
+    $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
+    if ($q_users) {
+        while ($ur = $q_users->fetch_assoc()) {
+            $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+            $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+        }
+    }
+    $filter_user = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+} else {
+    $filter_user = (int)$_SESSION['user_id'];
+}
+
+$user_clause_w = $filter_user > 0 ? " AND (user_id = $filter_user OR employee_id = $filter_user)" : "";
+$user_clause_o = $filter_user > 0 ? " AND (o.user_id = $filter_user OR o.employee_id = $filter_user)" : "";
 
 // Load roles for badge colours and nav icon lookups
 $_roles_db = [];
@@ -39,12 +57,62 @@ $business_date = (int)$_now->format("H") < 6
 // itself. business_date is what every other page uses — this is the single definition.
 $prev_business_date = (new DateTime($business_date))->modify('-1 day')->format('Y-m-d');
 
-$stmt_sales = $conn->prepare("SELECT IFNULL(SUM(total),0) AS total_sales FROM orders WHERE business_date=? AND " . paid_orders_where());
-$stmt_sales->bind_param("s", $business_date);
-$stmt_sales->execute();
-$sales = $stmt_sales->get_result()->fetch_assoc()['total_sales'];
+// ── QUICK RANGE & MONTH FILTER ──
+$_has_filter_param = isset($_GET['quick_range']) || isset($_GET['select_month']);
+$_quick_range  = trim($_GET['quick_range'] ?? '');
+$_select_month = trim($_GET['select_month'] ?? '');
 
-$stmt_yest = $conn->prepare("SELECT IFNULL(SUM(total),0) AS yesterday_sales FROM orders WHERE business_date=? AND " . paid_orders_where());
+if (!$_has_filter_param) {
+    $_quick_range  = 'today';
+    $_select_month = (string)date('n');
+}
+
+$months_list = [
+    1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
+    5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+    9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+];
+
+$date_start = $business_date;
+$date_end   = $business_date;
+$period_badge_label = 'Today';
+
+if ($_quick_range === 'today') {
+    $date_start = $business_date;
+    $date_end   = $business_date;
+    $period_badge_label = 'Today';
+} elseif ($_quick_range === 'this_week' || $_quick_range === 'week') {
+    $date_start = date('Y-m-d', strtotime('monday this week'));
+    $date_end   = date('Y-m-d', strtotime('sunday this week'));
+    $period_badge_label = 'This Week';
+} elseif ($_quick_range === 'this_month' || $_quick_range === 'month') {
+    $date_start = date('Y-m-01');
+    $date_end   = date('Y-m-t');
+    $period_badge_label = 'This Month';
+} elseif ($_quick_range === 'this_year' || $_quick_range === 'year') {
+    $date_start = date('Y-01-01');
+    $date_end   = date('Y-12-31');
+    $period_badge_label = 'This Year';
+} elseif (!empty($_select_month) && isset($months_list[(int)$_select_month])) {
+    $m_num = sprintf('%02d', (int)$_select_month);
+    $curr_yr = date('Y');
+    $date_start = "$curr_yr-$m_num-01";
+    $date_end   = date('Y-m-t', strtotime($date_start));
+    $period_badge_label = $months_list[(int)$_select_month];
+}
+
+if ($date_start === $date_end) {
+    $date_cond_w = "business_date = '$date_start'";
+    $date_cond_o = "o.business_date = '$date_start'";
+} else {
+    $date_cond_w = "business_date BETWEEN '$date_start' AND '$date_end'";
+    $date_cond_o = "o.business_date BETWEEN '$date_start' AND '$date_end'";
+}
+
+$stmt_sales = $conn->query("SELECT IFNULL(SUM(total),0) AS total_sales FROM orders WHERE $date_cond_w " . $user_clause_w . " AND " . paid_orders_where());
+$sales = (float)$stmt_sales->fetch_assoc()['total_sales'];
+
+$stmt_yest = $conn->prepare("SELECT IFNULL(SUM(total),0) AS yesterday_sales FROM orders WHERE business_date=? " . $user_clause_w . " AND " . paid_orders_where());
 $stmt_yest->bind_param("s", $prev_business_date);
 $stmt_yest->execute();
 $yesterday_sales   = $stmt_yest->get_result()->fetch_assoc()['yesterday_sales'];
@@ -52,10 +120,8 @@ $sales_trend       = $yesterday_sales > 0 ? round(($sales - $yesterday_sales) / 
 $trend_class       = $sales_trend >= 0 ? 'up' : 'down';
 $trend_icon        = $sales_trend >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
 
-$stmt_ord = $conn->prepare("SELECT COUNT(*) AS total_orders FROM orders WHERE business_date=?");
-$stmt_ord->bind_param("s", $business_date);
-$stmt_ord->execute();
-$total_orders = $stmt_ord->get_result()->fetch_assoc()['total_orders'];
+$stmt_ord = $conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w " . $user_clause_w);
+$total_orders = (int)$stmt_ord->fetch_assoc()['total_orders'];
 
 $low_result  = mysqli_query($conn, "SELECT COUNT(*) AS low_count FROM ingredients WHERE stock_quantity < minimum_stock");
 $low_stock   = mysqli_fetch_assoc($low_result)['low_count'];
@@ -128,79 +194,68 @@ if (can('announcements')) {
     $_ar->close();
 }
 
-$stmt_unpaid = $conn->prepare("SELECT COUNT(*) AS unpaid_count FROM orders WHERE status='PendingPayment' AND business_date=?");
+$stmt_unpaid = $conn->prepare("SELECT COUNT(*) AS unpaid_count FROM orders WHERE status='PendingPayment' AND business_date=?" . $user_clause_w);
 $stmt_unpaid->bind_param("s", $business_date);
 $stmt_unpaid->execute();
 $unpaid_count = $stmt_unpaid->get_result()->fetch_assoc()['unpaid_count'];
 
-$paylater_result = mysqli_query($conn, "SELECT COUNT(*) AS cnt FROM orders WHERE payment_method='paylater' AND status IN ('Preparing','PendingPayment','Completed')");
+$paylater_result = mysqli_query($conn, "SELECT COUNT(*) AS cnt FROM orders WHERE payment_method='paylater' AND status IN ('Preparing','PendingPayment','Completed')" . $user_clause_w);
 $paylater_count  = (int)mysqli_fetch_assoc($paylater_result)['cnt'];
 
-$unpaid_orders_result = mysqli_query($conn, "SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number FROM orders WHERE status='PendingPayment' ORDER BY order_date DESC LIMIT 5");
+$unpaid_orders_result = mysqli_query($conn, "SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number FROM orders WHERE status='PendingPayment'" . $user_clause_w . " ORDER BY order_date DESC LIMIT 5");
 
-$paid_open_result = mysqli_query($conn, "SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number FROM orders WHERE status='Preparing' AND is_open=0 ORDER BY order_date DESC LIMIT 5");
+$paid_open_result = mysqli_query($conn, "SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number FROM orders WHERE status='Preparing' AND is_open=0" . $user_clause_w . " ORDER BY order_date DESC LIMIT 5");
 
 $refund_result = mysqli_query($conn, "SELECT IFNULL(SUM(refund_amount),0) AS total_refunds, COUNT(*) AS refund_count FROM order_refunds WHERE DATE(refunded_at)=CURDATE()");
 $refund_data   = mysqli_fetch_assoc($refund_result);
 $total_refunds = $refund_data['total_refunds'];
 $refund_count  = $refund_data['refund_count'];
 
-$stmt_status = $conn->prepare("SELECT status, COUNT(*) as count FROM orders WHERE business_date=? GROUP BY status");
-$stmt_status->bind_param("s", $business_date);
-$stmt_status->execute();
-$status_result = $stmt_status->get_result();
+$stmt_status = $conn->query("SELECT status, COUNT(*) as count FROM orders WHERE $date_cond_w " . $user_clause_w . " GROUP BY status");
 $status_counts = [];
-while ($row = mysqli_fetch_assoc($status_result)) { $status_counts[$row['status']] = $row['count']; }
+if ($stmt_status) {
+    while ($row = $stmt_status->fetch_assoc()) { $status_counts[$row['status']] = $row['count']; }
+}
 $pending_count   = $status_counts['PendingPayment'] ?? 0;
 $preparing_count = $status_counts['Preparing']      ?? 0;
 $completed_count = $status_counts['Completed']      ?? 0;
 $cancelled_count = $status_counts['Cancelled']      ?? 0;
 
-// product_id <> 0 drops loyalty redemptions, matching cogs_cups() on the daily
-// report this card now links to. Without it the dashboard read 92 items on
-// 1 June while the report it opens read 70 cups for the same day.
-$stmt_items = $conn->prepare("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE o.business_date=? AND oi.product_id <> 0 AND " . paid_orders_where('o'));
-$stmt_items->bind_param("s", $business_date);
-$stmt_items->execute();
-$items_sold = $stmt_items->get_result()->fetch_assoc()['total_items'];
+$stmt_items = $conn->query("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o'));
+$items_sold = (int)$stmt_items->fetch_assoc()['total_items'];
 
 // ── Profit Today calculation ──
-$stmt_cogs = $conn->prepare("
-    SELECT IFNULL(SUM(
-        oi.quantity * (
-            SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id = oi.product_id
-        )
-    ), 0) AS total_cogs
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.order_id
-    WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o')
-);
-$stmt_cogs->bind_param("s", $business_date);
-$stmt_cogs->execute();
-$cogs_today = (float)($stmt_cogs->get_result()->fetch_assoc()['total_cogs'] ?? 0);
+$stmt_today_ids = $conn->prepare("SELECT o.order_id FROM orders o WHERE o.business_date = ? " . $user_clause_o . " AND " . paid_orders_where('o'));
+$stmt_today_ids->bind_param("s", $business_date);
+$stmt_today_ids->execute();
+$res_today_ids = $stmt_today_ids->get_result();
+$today_order_ids = [];
+while ($r_oid = $res_today_ids->fetch_assoc()) {
+    $today_order_ids[] = (int)$r_oid['order_id'];
+}
+$costMap_dash = ingredient_cost_map($conn);
+$cogs_info_today = order_cogs($conn, $today_order_ids, $costMap_dash);
+$cogs_today = (float)$cogs_info_today['total'];
 $profit_today = $sales - $cogs_today;
 $margin_today = $sales > 0 ? round(($profit_today / $sales) * 100, 1) : 0;
 
-$stmt_kitchen = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, order_date, token_number FROM orders WHERE business_date=? AND status='Preparing' ORDER BY order_date ASC LIMIT 8");
+$stmt_kitchen = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, order_date, token_number FROM orders WHERE business_date=?" . $user_clause_w . " AND status='Preparing' ORDER BY order_date ASC LIMIT 8");
 $stmt_kitchen->bind_param("s", $business_date);
 $stmt_kitchen->execute();
 $kitchen_result = $stmt_kitchen->get_result();
 
-$stmt_recent = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, status, order_date FROM orders WHERE business_date=? ORDER BY order_date DESC LIMIT 20");
+$stmt_recent = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, status, order_date FROM orders WHERE business_date=?" . $user_clause_w . " ORDER BY order_date DESC LIMIT 20");
 $stmt_recent->bind_param("s", $business_date);
 $stmt_recent->execute();
 $recent_orders = $stmt_recent->get_result();
 
-$top_selling_result = mysqli_query($conn, "SELECT p.name, p.image, SUM(oi.quantity) as total_sold, p.price FROM products p JOIN order_items oi ON p.product_id=oi.product_id JOIN orders o ON oi.order_id=o.order_id WHERE " . paid_orders_where('o') . " GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 5");
+$top_selling_result = mysqli_query($conn, "SELECT p.name, p.image, SUM(oi.quantity) as total_sold, p.price FROM products p JOIN order_items oi ON p.product_id=oi.product_id JOIN orders o ON oi.order_id=o.order_id WHERE " . paid_orders_where('o') . $user_clause_o . " GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 5");
 
-$activity_result = mysqli_query($conn, "SELECT * FROM (SELECT 'order' as type, order_id as ref_id, customer_name as name, total as amount, status, order_date as date FROM orders UNION ALL SELECT 'stock' as type, ingredient_id as ref_id, ingredient_name as name, purchase_qty as amount, 'restocked' as status, NULL as date FROM ingredients) as activity ORDER BY date DESC LIMIT 5");
+$activity_result = mysqli_query($conn, "SELECT * FROM (SELECT 'order' as type, order_id as ref_id, customer_name as name, total as amount, status, order_date as date FROM orders WHERE 1=1 " . $user_clause_w . " UNION ALL SELECT 'stock' as type, ingredient_id as ref_id, ingredient_name as name, purchase_qty as amount, 'restocked' as status, NULL as date FROM ingredients) as activity ORDER BY date DESC LIMIT 5");
 
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 if ($filter_status) {
-    $stmt_filter = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, status, order_date FROM orders WHERE business_date=? AND status=? ORDER BY order_date DESC LIMIT 20");
+    $stmt_filter = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, status, order_date FROM orders WHERE business_date=? AND status=?" . $user_clause_w . " ORDER BY order_date DESC LIMIT 20");
     $stmt_filter->bind_param("ss", $business_date, $filter_status);
     $stmt_filter->execute();
     $recent_orders = $stmt_filter->get_result();
@@ -218,27 +273,21 @@ for ($i = 6; $i >= 0; $i--) {
     $d_date = (new DateTime($business_date))->modify("-$i days")->format("Y-m-d");
     $d_label = (new DateTime($d_date))->format("D (j/n)");
     
-    $st_rev = $conn->prepare("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date=? AND " . paid_orders_where());
+    $st_rev = $conn->prepare("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date=? " . $user_clause_w . " AND " . paid_orders_where());
     $st_rev->bind_param("s", $d_date);
     $st_rev->execute();
     $d_rev = (float)$st_rev->get_result()->fetch_assoc()['rev'];
     
-    $st_cogs = $conn->prepare("
-        SELECT IFNULL(SUM(
-            oi.quantity * (
-                SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
-                FROM product_ingredients pi
-                JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-                WHERE pi.product_id = oi.product_id
-            )
-        ), 0) AS total_cogs
-        FROM order_items oi
-        JOIN orders o ON oi.order_id = o.order_id
-        WHERE o.business_date = ? AND oi.product_id <> 0 AND " . paid_orders_where('o')
-    );
-    $st_cogs->bind_param("s", $d_date);
-    $st_cogs->execute();
-    $d_cogs = (float)$st_cogs->get_result()->fetch_assoc()['total_cogs'];
+    $st_day_ids = $conn->prepare("SELECT o.order_id FROM orders o WHERE o.business_date = ? " . $user_clause_o . " AND " . paid_orders_where('o'));
+    $st_day_ids->bind_param("s", $d_date);
+    $st_day_ids->execute();
+    $res_day_ids = $st_day_ids->get_result();
+    $day_order_ids = [];
+    while ($r_oid = $res_day_ids->fetch_assoc()) {
+        $day_order_ids[] = (int)$r_oid['order_id'];
+    }
+    $day_cogs_info = order_cogs($conn, $day_order_ids, $costMap_dash);
+    $d_cogs = (float)$day_cogs_info['total'];
     
     $chart_7days_labels[]  = $d_label;
     $chart_7days_revenue[] = round($d_rev, 2);
@@ -252,7 +301,7 @@ $st_cat = $conn->query("
     FROM order_items oi
     JOIN orders o ON oi.order_id = o.order_id
     JOIN products p ON oi.product_id = p.product_id
-    WHERE " . paid_orders_where('o') . " AND o.business_date = '{$business_date}' AND oi.product_id <> 0
+    WHERE " . paid_orders_where('o') . " AND $date_cond_o AND oi.product_id <> 0 " . $user_clause_o . "
     GROUP BY cat_name
     ORDER BY total_qty DESC
     LIMIT 6
@@ -289,20 +338,19 @@ for ($h = 0; $h < 6; $h++) {
     $hour_slots[$h] = ['cnt' => 0, 'sales' => 0.0, 'label' => date('g A', mktime($h, 0))];
 }
 
-$stmt_hr = $conn->prepare("
+$stmt_hr = $conn->query("
     SELECT HOUR(order_date) AS hr, COUNT(*) AS cnt, IFNULL(SUM(total), 0) AS total_sales
-    FROM orders
-    WHERE business_date = ? AND " . paid_orders_where() . "
+    FROM orders o
+    WHERE $date_cond_o " . $user_clause_o . " AND " . paid_orders_where('o') . "
     GROUP BY hr
 ");
-$stmt_hr->bind_param("s", $business_date);
-$stmt_hr->execute();
-$res_hr = $stmt_hr->get_result();
-while ($r_hr = $res_hr->fetch_assoc()) {
-    $h = (int)$r_hr['hr'];
-    if (isset($hour_slots[$h])) {
-        $hour_slots[$h]['cnt']   = (int)$r_hr['cnt'];
-        $hour_slots[$h]['sales'] = round((float)$r_hr['total_sales'], 2);
+if ($stmt_hr) {
+    while ($r_hr = $stmt_hr->fetch_assoc()) {
+        $h = (int)$r_hr['hr'];
+        if (isset($hour_slots[$h])) {
+            $hour_slots[$h]['cnt']   = (int)$r_hr['cnt'];
+            $hour_slots[$h]['sales'] = round((float)$r_hr['total_sales'], 2);
+        }
     }
 }
 
@@ -329,11 +377,11 @@ foreach ($hour_slots as $slot) {
 /* ── DASHBOARD CHARTS GRID ── */
 .dash-charts-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
     margin-bottom: 18px;
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .dash-charts-grid { grid-template-columns: 1fr; }
 }
 
@@ -461,26 +509,46 @@ foreach ($hour_slots as $slot) {
     --shadow:    0 1px 3px rgba(0,0,0,.07), 0 4px 14px rgba(0,0,0,.06);
     --shadow-lg: 0 4px 20px rgba(0,0,0,.09), 0 1px 4px rgba(0,0,0,.05);
 }
-[data-theme="light"] body {
-    -webkit-font-smoothing: subpixel-antialiased;
-    -moz-osx-font-smoothing: auto;
+[data-theme="light"] body,
+[data-theme="light"] .layout,
+[data-theme="light"] .main {
+    background-color: #ECEEF2 !important;
+    color: #111827 !important;
 }
-/* crisp sidebar border in light mode */
-[data-theme="light"] .sidebar {
-    border-right-color: #D8DCE3;
-    box-shadow: 2px 0 12px rgba(0,0,0,.05);
-}
-/* cards need a resting shadow in light mode so they lift off the page */
-[data-theme="light"] .kpi-card,
+[data-theme="light"] .dash-header h1 { color: #111827 !important; }
+[data-theme="light"] .header-sub { color: #5A6373 !important; }
+[data-theme="light"] .kpi-label { color: #5A6373 !important; }
+[data-theme="light"] .kpi-value { color: #111827 !important; }
+[data-theme="light"] .kpi-drill { color: #5A6373 !important; }
+[data-theme="light"] .kpi-watermark { opacity: 0.05 !important; color: #000000 !important; }
+[data-theme="light"] .kpi-pill { background: #F3F4F6 !important; border-color: #E5E7EB !important; color: #4B5563 !important; }
+
+[data-theme="light"] .chart-panel,
 [data-theme="light"] .panel {
-    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.05);
-    background: #FFFFFF;
-    border-color: #E2E5EA;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.05) !important;
+    background: #FFFFFF !important;
+    border-color: #E2E5EA !important;
 }
-[data-theme="light"] .kpi-card:hover {
-    box-shadow: 0 4px 20px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
-    transform: translateY(-2px);
-}
+[data-theme="light"] .panel-head h3 { color: #111827 !important; }
+[data-theme="light"] .period-badge { background: #F3F4F6 !important; color: #4B5563 !important; border-color: #E5E7EB !important; }
+[data-theme="light"] #catTotalLabel { color: #64748b !important; }
+[data-theme="light"] #catTotalVal { color: #0f172a !important; }
+[data-theme="light"] .dash-tab-buttons { background: #F3F4F6 !important; border-color: #E5E7EB !important; }
+[data-theme="light"] .dash-tab-btn { color: #4B5563 !important; }
+[data-theme="light"] .dash-tab-btn.active { background: #FFFFFF !important; color: #d1904b !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; }
+[data-theme="light"] .theme-toggle { background: #FFFFFF !important; border-color: #CBD5E1 !important; color: #334155 !important; }
+[data-theme="light"] .theme-toggle:hover { border-color: #94A3B8 !important; color: #0F172A !important; }
+
+[data-theme="light"] .k-item,
+[data-theme="light"] .recent-row { background: #F8FAFC !important; border-color: #E2E8F0 !important; }
+[data-theme="light"] .k-name,
+[data-theme="light"] .recent-name { color: #0F172A !important; }
+[data-theme="light"] .k-no,
+[data-theme="light"] .recent-no { color: #64748B !important; }
+[data-theme="light"] .k-total,
+[data-theme="light"] .recent-total { color: #0F172A !important; }
+[data-theme="light"] .k-empty,
+[data-theme="light"] .recent-empty { color: #64748B !important; }
 
 /* ── RESET ── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
@@ -577,6 +645,137 @@ body.no-sidebar{--sidebar-w:0px;}
 
 .header-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
 
+/* ── COLORED FILTER BUTTONS / SELECTS ── */
+.filter-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.filter-wrapper i {
+    position: absolute;
+    left: 12px;
+    pointer-events: none;
+    font-size: 12px;
+    z-index: 2;
+    transition: color .2s var(--ease);
+}
+.dash-filter-select {
+    padding: 8px 30px 8px 32px !important;
+    border-radius: 12px !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    font-family: 'Poppins', sans-serif !important;
+    outline: none !important;
+    cursor: pointer !important;
+    transition: all .2s var(--ease) !important;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+}
+
+/* Quick Range Theme (Amber) */
+.filter-wrapper.range-filter i { color: #d1904b; }
+.dash-filter-select.filter-range {
+    background-color: #161412 !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d1904b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    border: 1px solid rgba(209, 144, 75, 0.4) !important;
+    color: #f3cb98 !important;
+    box-shadow: 0 2px 8px rgba(209, 144, 75, 0.1);
+}
+.dash-filter-select.filter-range:hover, .dash-filter-select.filter-range:focus {
+    border-color: #d1904b !important;
+    box-shadow: 0 0 14px rgba(209, 144, 75, 0.35);
+    background-color: #1e1914 !important;
+}
+
+/* Month Filter Theme (Cyan/Blue) */
+.filter-wrapper.month-filter i { color: #3498db; }
+.dash-filter-select.filter-month {
+    background-color: #10161d !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233498db' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    border: 1px solid rgba(52, 152, 219, 0.4) !important;
+    color: #a4d8fa !important;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+}
+.dash-filter-select.filter-month:hover, .dash-filter-select.filter-month:focus {
+    border-color: #3498db !important;
+    box-shadow: 0 0 14px rgba(52, 152, 219, 0.35);
+    background-color: #15202b !important;
+}
+
+/* Staff Filter Theme (Purple/Magenta) */
+.filter-wrapper.user-filter i { color: #9b59b6; }
+.dash-filter-select.filter-user {
+    background-color: #16121a !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239b59b6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    border: 1px solid rgba(155, 89, 182, 0.4) !important;
+    color: #e5c3f7 !important;
+    box-shadow: 0 2px 8px rgba(155, 89, 182, 0.1);
+}
+.dash-filter-select.filter-user:hover, .dash-filter-select.filter-user:focus {
+    border-color: #9b59b6 !important;
+    box-shadow: 0 0 14px rgba(155, 89, 182, 0.35);
+    background-color: #201726 !important;
+}
+
+/* Dropdown option menu colors */
+.dash-filter-select option {
+    background-color: #181818 !important;
+    color: #f5f5f5 !important;
+}
+
+/* Light Theme support */
+[data-theme="light"] .dash-filter-select option {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+}
+[data-theme="light"] .dash-filter-select.filter-range {
+    background-color: #fff9f2 !important;
+    color: #92581d !important;
+    border-color: rgba(209, 144, 75, 0.5) !important;
+}
+[data-theme="light"] .dash-filter-select.filter-month {
+    background-color: #f2f9ff !important;
+    color: #186399 !important;
+    border-color: rgba(52, 152, 219, 0.5) !important;
+}
+[data-theme="light"] .dash-filter-select.filter-user {
+    background-color: #fcf4ff !important;
+    color: #6a2485 !important;
+    border-color: rgba(155, 89, 182, 0.5) !important;
+}
+
+/* Clear / Reset Filter Button */
+.dash-reset-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    cursor: pointer;
+    transition: all .2s var(--ease);
+}
+.dash-reset-btn:hover {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: #ef4444;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+    transform: translateY(-1px);
+}
+[data-theme="light"] .dash-reset-btn {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
 .role-badge{
     display:inline-flex;align-items:center;gap:8px;
     background:var(--glass);border:1px solid var(--border);
@@ -620,9 +819,19 @@ body.no-sidebar{--sidebar-w:0px;}
 /* ── KPI ROW ── */
 .kpi-row{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(3,1fr);
     gap:16px;
     margin-bottom:18px;
+}
+
+.dash-charts-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:16px;
+    margin-bottom:18px;
+}
+@media(max-width:820px){
+    .dash-charts-grid{grid-template-columns:1fr;}
 }
 
 .kpi-card{
@@ -1218,18 +1427,15 @@ body.inv-mode .toast-container{top:20px;bottom:auto;right:20px}
 </head>
 <?php
 $_bodyClasses = [];
-if (!$_is_mgr) { $_bodyClasses[] = 'no-sidebar'; }
 if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mode'; }
 ?>
 <body<?= $_bodyClasses ? ' class="' . htmlspecialchars(implode(' ', $_bodyClasses)) . '"' : '' ?>>
 
-<?php if ($_is_mgr): ?>
 <button class="menu-toggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
 <div class="overlay" onclick="toggleSidebar()"></div>
-<?php endif; ?>
 <div class="toast-container" id="toastContainer"></div>
 
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] layout app-layout">
+<div class="flex h-screen w-screen overflow-hidden layout app-layout">
 
 <!-- ═══ SIDEBAR ═══ -->
 <?php require_once __DIR__ . '/sidebar.php'; ?>
@@ -1266,6 +1472,48 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             </p>
         </div>
         <div class="header-actions">
+            <form id="dashFilterForm" method="GET" action="dashboard.php" style="margin:0;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <!-- Quick Range Dropdown -->
+                <div class="filter-wrapper range-filter">
+                    <i class="fa-solid fa-calendar-day"></i>
+                    <select id="dashQuickRange" name="quick_range" class="dash-filter-select filter-range">
+                        <option value=""><?= __('quick_range', '-- Quick Range --') ?></option>
+                        <option value="today" <?= $_quick_range === 'today' ? 'selected' : '' ?>>Today</option>
+                        <option value="this_week" <?= $_quick_range === 'this_week' ? 'selected' : '' ?>>This Week</option>
+                        <option value="this_month" <?= $_quick_range === 'this_month' ? 'selected' : '' ?>>This Month</option>
+                        <option value="this_year" <?= $_quick_range === 'this_year' ? 'selected' : '' ?>>This Year</option>
+                    </select>
+                </div>
+
+                <!-- Month Dropdown -->
+                <div class="filter-wrapper month-filter">
+                    <i class="fa-solid fa-calendar-week"></i>
+                    <select id="dashMonthSelect" name="select_month" class="dash-filter-select filter-month">
+                        <option value=""><?= __('select_month', '-- Select Month --') ?></option>
+                        <?php foreach ($months_list as $mnum => $mname): ?>
+                        <option value="<?= $mnum ?>" <?= (string)$_select_month === (string)$mnum ? 'selected' : '' ?>><?= $mname ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <?php if ($_is_mgr && !empty($user_options)): ?>
+                <!-- Staff Member Dropdown -->
+                <div class="filter-wrapper user-filter">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <select id="dashUserSelect" name="user_id" class="dash-filter-select filter-user">
+                        <?php foreach ($user_options as $uid => $uname): ?>
+                        <option value="<?= $uid ?>" <?= $filter_user == $uid ? 'selected' : '' ?>><?= htmlspecialchars($uname) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+
+                <!-- Clear / Reset Filter Button -->
+                <button type="button" id="dashResetBtn" class="dash-reset-btn" title="Reset filter to current date/time" onclick="resetDashFilter()">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>Clear</span>
+                </button>
+            </form>
             <button class="theme-toggle" onclick="toggleTheme()">
                 <i class="fa-solid fa-moon" id="themeIcon"></i>
                 <span id="themeText"><?= __('dark_mode', 'Dark') ?></span>
@@ -1296,40 +1544,18 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         </div>
     </div>
 
-
+    <?php $user_param = $filter_user > 0 ? '&user_id=' . $filter_user : ''; ?>
 
     <?php if ($_is_mgr): ?>
     <!-- KPI ROW -->
     <div class="kpi-row fu" style="animation-delay:.1s">
 
         <!-- Revenue Today -->
-        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-amber" title="Open today's sales report">
+        <a href="daily_report.php?date=<?= urlencode($business_date) ?><?= $user_param ?>" class="kpi-card c-amber" title="Open today's sales report">
             <i class="kpi-watermark fa-solid fa-dollar-sign"></i>
             <span class="kpi-drill"><?= __('view_report', 'View report') ?> <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label"><?= __('revenue_today', 'Revenue Today') ?></div>
             <div class="kpi-value">$<span id="kpiRevenue"><?= number_format($sales, 2) ?></span></div>
-            <?php if ($sales <= 0): ?>
-            <span class="kpi-pill flat"><i class="fa-solid fa-hourglass-start"></i> <?= __('no_sales_today', 'No sales yet today') ?></span>
-            <?php elseif ($sales_trend != 0): ?>
-            <span class="kpi-pill <?= $trend_class ?>">
-                <i class="fa-solid <?= $trend_icon ?>"></i>
-                <?= abs($sales_trend) ?>% <?= __('vs_yesterday', 'vs yesterday') ?>
-            </span>
-            <?php else: ?>
-            <span class="kpi-pill flat"><i class="fa-solid fa-minus"></i> <?= __('no_data_yesterday', 'No data yesterday') ?></span>
-            <?php endif; ?>
-        </a>
-
-        <!-- Profit Today -->
-        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-green" title="Open today's profit breakdown">
-            <i class="kpi-watermark fa-solid fa-sack-dollar"></i>
-            <span class="kpi-drill"><?= __('view_breakdown', 'View breakdown') ?> <i class="fa-solid fa-arrow-right"></i></span>
-            <div class="kpi-label"><?= __('profit_today', 'Profit Today') ?></div>
-            <div class="kpi-value">$<span id="kpiProfit"><?= number_format($profit_today, 2) ?></span></div>
-            <span class="kpi-pill <?= $profit_today >= 0 ? 'up' : 'down' ?>" id="kpiMarginPill">
-                <i class="fa-solid <?= $profit_today >= 0 ? 'fa-chart-line' : 'fa-arrow-down' ?>"></i>
-                <span id="kpiMargin"><?= $margin_today ?></span>% <?= __('margin', 'margin') ?>
-            </span>
         </a>
 
         <!-- Orders Today -->
@@ -1345,7 +1571,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         </a>
 
         <!-- Items Sold -->
-        <a href="daily_report.php?date=<?= urlencode($business_date) ?>" class="kpi-card c-purple" title="Open the item breakdown">
+        <a href="report.php?date=<?= urlencode($business_date) ?><?= $user_param ?>" class="kpi-card c-purple" title="Open the item breakdown">
             <i class="kpi-watermark fa-solid fa-mug-hot"></i>
             <span class="kpi-drill"><?= __('view_items', 'View items') ?> <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label"><?= __('items_sold', 'Items Sold') ?></div>
@@ -1357,53 +1583,14 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         </a>
     </div>
 
-    <!-- ═══ 4-CARD ANALYTICS CHARTS GRID (Image 2 style) ═══ -->
+    <!-- ═══ 2-CARD ANALYTICS CHARTS GRID (Row 1: Category Sales & Sales Trend) ═══ -->
     <div class="dash-charts-grid fu" style="animation-delay:.15s">
 
-        <!-- Panel 1: Profit and Loss (Horizontal Comparison Bar Graph) -->
-        <div class="panel chart-panel">
-            <div class="panel-head flex items-center justify-between">
-                <h3><i class="fa-solid fa-scale-balanced text-amber-400"></i> <?= __('profit_loss', 'Profit & Loss') ?></h3>
-                <span class="period-badge"><?= __('today', 'Today') ?></span>
-            </div>
-            <div class="chart-body p-5">
-                <div class="pnl-val-header flex items-baseline justify-between">
-                    <div>
-                        <span class="pnl-amount block text-2xl font-extrabold tracking-tight" id="pnlAmount">$<?= number_format($profit_today, 2) ?></span>
-                    </div>
-                </div>
-                <div class="pnl-bars-container mt-4 space-y-4">
-                    <div>
-                        <div class="flex justify-between text-xs font-semibold mb-1.5">
-                            <span class="text-emerald-400 flex items-center gap-1.5"><i class="fa-solid fa-arrow-trend-up"></i> <?= __('revenue_income', 'REVENUE / INCOME') ?></span>
-                            <span class="text-slate-100 font-bold" id="pnlIncome">$<?= number_format($sales, 2) ?></span>
-                        </div>
-                        <div class="h-2.5 rounded-full bg-slate-800/80 overflow-hidden shadow-inner">
-                            <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-700 shadow-sm" style="width: 100%;"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between text-xs font-semibold mb-1.5">
-                            <span class="text-cyan-400 flex items-center gap-1.5"><i class="fa-solid fa-receipt"></i> <?= __('cogs_ingredient_cost', 'COGS / INGREDIENT COST') ?></span>
-                            <span class="text-slate-100 font-bold" id="pnlCogs">$<?= number_format($cogs_today, 2) ?></span>
-                        </div>
-                        <div class="h-2.5 rounded-full bg-slate-800/80 overflow-hidden shadow-inner">
-                            <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-700 shadow-sm" id="pnlCogsBar" style="width: <?= $sales > 0 ? min(100, round(($cogs_today / $sales) * 100)) : 0 ?>%;"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
-                    <span><?= __('margin_rate', 'Margin Rate') ?>: <strong class="text-emerald-400 font-bold" id="pnlMarginRate"><?= $margin_today ?>%</strong></span>
-                    <span><?= __('gross_margin', 'Gross Profit') ?>: <strong class="text-amber-400 font-bold" id="pnlGross">$<?= number_format($profit_today, 2) ?></strong></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Panel 2: Expenses / Category Sales (Donut Chart) -->
+        <!-- Panel 1: Expenses / Category Sales (Donut Chart) -->
         <div class="panel chart-panel">
             <div class="panel-head flex items-center justify-between">
                 <h3><i class="fa-solid fa-chart-pie text-cyan-400"></i> <?= __('category_sales', 'Category Sales') ?></h3>
-                <span class="period-badge"><?= __('today', 'Today') ?></span>
+                <span class="period-badge"><?= htmlspecialchars($period_badge_label) ?></span>
             </div>
             <div class="chart-body p-4 flex flex-col sm:flex-row items-center justify-center gap-4 min-h-[220px]">
                 <div class="relative w-[150px] h-[150px] flex-shrink-0 flex items-center justify-center">
@@ -1419,18 +1606,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             </div>
         </div>
 
-        <!-- Panel 3: Hourly Orders (Bar Chart) -->
-        <div class="panel chart-panel">
-            <div class="panel-head flex items-center justify-between">
-                <h3><i class="fa-solid fa-clock text-blue-400"></i> <?= __('hourly_orders', 'Hourly Orders') ?></h3>
-                <span class="period-badge"><?= __('today', 'Today') ?></span>
-            </div>
-            <div class="chart-body p-4 min-h-[220px] relative">
-                <canvas id="chartStatus" height="180"></canvas>
-            </div>
-        </div>
-
-        <!-- Panel 4: Sales Trend (Line Chart) -->
+        <!-- Panel 2: Sales Trend (Line Chart) -->
         <div class="panel chart-panel">
             <div class="panel-head flex items-center justify-between">
                 <h3><i class="fa-solid fa-chart-column text-emerald-400"></i> <?= __('sales_trend', 'Sales Trend') ?></h3>
@@ -1438,6 +1614,19 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             </div>
             <div class="chart-body p-4 min-h-[220px] relative">
                 <canvas id="chartSalesTrend" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ HOURLY ORDERS (Row 2: Moved to New Separate Row Below) ═══ -->
+    <div class="fu" style="animation-delay:.2s; margin-bottom:18px;">
+        <div class="panel chart-panel">
+            <div class="panel-head flex items-center justify-between">
+                <h3><i class="fa-solid fa-clock text-blue-400"></i> <?= __('hourly_orders', 'Hourly Orders') ?></h3>
+                <span class="period-badge"><?= htmlspecialchars($period_badge_label) ?></span>
+            </div>
+            <div class="chart-body p-4 min-h-[220px] relative">
+                <canvas id="chartStatus" height="180"></canvas>
             </div>
         </div>
     </div>
@@ -1828,6 +2017,7 @@ function toggleTheme(){
         text.textContent='Light';
         localStorage.setItem('theme','light');
     }
+    if (typeof initCharts === 'function') initCharts();
 }
 document.addEventListener('DOMContentLoaded',()=>{
     if(localStorage.getItem('theme')==='light'){
@@ -2076,15 +2266,7 @@ function initCharts() {
                         backgroundColor: '#d1904b',
                         borderColor: '#d1904b',
                         borderRadius: 4,
-                        maxBarThickness: 20
-                    },
-                    {
-                        label: 'Profit ($)',
-                        data: initChartData.trendProfit,
-                        backgroundColor: '#55e087',
-                        borderColor: '#55e087',
-                        borderRadius: 4,
-                        maxBarThickness: 20
+                        maxBarThickness: 24
                     }
                 ]
             },
@@ -2147,17 +2329,23 @@ function renderCatLegend(labels, data, colors) {
     const total = data.reduce((a, b) => a + b, 0);
     if (totalEl) totalEl.textContent = total + (total === 1 ? ' item' : ' items');
 
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const labelClass = isLight ? 'text-slate-700' : 'text-slate-300';
+    const valClass = isLight ? 'text-slate-900' : 'text-slate-100';
+    const pctClass = isLight ? 'text-slate-600 bg-slate-100' : 'text-slate-400 bg-white/5';
+    const hoverClass = isLight ? 'hover:bg-slate-100' : 'hover:bg-white/5';
+
     el.innerHTML = labels.map((l, i) => {
         const val = data[i] || 0;
         const pct = total > 0 ? Math.round((val / total) * 100) : 0;
-        return `<div class="flex items-center justify-between gap-2 p-1 rounded-lg transition-colors hover:bg-white/5">
+        return `<div class="flex items-center justify-between gap-2 p-1 rounded-lg transition-colors ${hoverClass}">
             <span class="flex items-center gap-2 truncate">
                 <span class="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0 shadow-sm" style="background:${colors[i % colors.length]}"></span>
-                <span class="truncate text-slate-300 font-medium text-xs">${l}</span>
+                <span class="truncate ${labelClass} font-medium text-xs">${l}</span>
             </span>
-            <span class="font-bold text-slate-100 text-xs flex items-center gap-1.5 whitespace-nowrap">
+            <span class="font-bold ${valClass} text-xs flex items-center gap-1.5 whitespace-nowrap">
                 ${val} ${val === 1 ? 'item' : 'items'}
-                <span class="text-[10px] font-semibold text-slate-400 bg-white/5 px-1.5 py-0.5 rounded-full">${pct}%</span>
+                <span class="text-[10px] font-semibold ${pctClass} px-1.5 py-0.5 rounded-full">${pct}%</span>
             </span>
         </div>`;
     }).join('');
@@ -2195,7 +2383,11 @@ document.addEventListener('DOMContentLoaded', initCharts);
 var OVERDUE_MINUTES = <?= (int)OVERDUE_MINUTES ?>;
 var WARN_MINUTES    = Math.max(1, Math.floor(OVERDUE_MINUTES * 0.7));
 function fetchDashboardData(){
-    fetch('dashboard_data.php')
+    const form = document.getElementById('dashFilterForm');
+    const params = form ? new URLSearchParams(new FormData(form)).toString() : '';
+    const url = 'dashboard_data.php' + (params ? '?' + params : '');
+
+    fetch(url)
         .then(r=>r.json())
         .then(d=>{
             const lu=document.getElementById('lastUpdated');
@@ -2211,6 +2403,14 @@ function fetchDashboardData(){
             if(ord) ord.textContent=d.total_orders;
             if(itm && d.items_sold!==undefined) itm.textContent=d.items_sold;
             if(mgn && d.margin_today!==undefined) mgn.textContent=d.margin_today;
+
+            if (d.period_badge_label) {
+                document.querySelectorAll('.period-badge').forEach(el => {
+                    if (!el.textContent.includes('7 Days')) {
+                        el.textContent = d.period_badge_label;
+                    }
+                });
+            }
 
             const pnlAmt = document.getElementById('pnlAmount');
             const pnlInc = document.getElementById('pnlIncome');
@@ -2259,6 +2459,43 @@ function fetchDashboardData(){
         })
         .catch(()=>{});
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const qSelect = document.getElementById('dashQuickRange');
+    const mSelect = document.getElementById('dashMonthSelect');
+    const uSelect = document.getElementById('dashUserSelect');
+
+    if (qSelect) {
+        qSelect.addEventListener('change', function() {
+            if (this.value && mSelect) mSelect.value = '';
+            fetchDashboardData();
+        });
+    }
+    if (mSelect) {
+        mSelect.addEventListener('change', function() {
+            if (this.value && qSelect) qSelect.value = '';
+            fetchDashboardData();
+        });
+    }
+    if (uSelect) {
+        uSelect.addEventListener('change', function() {
+            fetchDashboardData();
+        });
+    }
+});
+
+function resetDashFilter() {
+    const qSelect = document.getElementById('dashQuickRange');
+    const mSelect = document.getElementById('dashMonthSelect');
+    const uSelect = document.getElementById('dashUserSelect');
+
+    if (qSelect) qSelect.value = 'today';
+    if (mSelect) mSelect.value = '';
+    if (uSelect) uSelect.value = '0';
+
+    fetchDashboardData();
+}
+
 setInterval(fetchDashboardData,5000);
 fetchDashboardData();
 

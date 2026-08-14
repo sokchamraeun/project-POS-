@@ -16,11 +16,13 @@ if ($order_id <= 0) {
 
 // ── FETCH ORDER ──
 $stmt = $conn->prepare("
-    SELECT order_id, customer_name, total, order_date, daily_order_no, status, employee_name,
-           IFNULL(order_type,'drink_in') AS order_type, completed_at, table_number, started_at,
-           IFNULL(promotion_discount, 0) AS promotion_discount, IFNULL(manual_discount, 0) AS manual_discount
-    FROM orders
-    WHERE order_id = ?
+    SELECT o.order_id, o.customer_name, o.total, o.order_date, o.daily_order_no, o.status, o.employee_name, o.employee_id,
+           emp.name AS emp_real_name,
+           IFNULL(o.order_type,'drink_in') AS order_type, o.completed_at, o.table_number, o.started_at,
+           IFNULL(o.promotion_discount, 0) AS promotion_discount, IFNULL(o.manual_discount, 0) AS manual_discount
+    FROM orders o
+    LEFT JOIN employees emp ON emp.employee_id = o.employee_id
+    WHERE o.order_id = ?
 ");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();
@@ -28,6 +30,14 @@ $order = $stmt->get_result()->fetch_assoc();
 
 if (!$order) {
     die("Order not found");
+}
+
+$c_name = $order['employee_name'] ?: 'admin';
+$e_real = trim($order['emp_real_name'] ?? '');
+if (!empty($e_real) && strtolower($e_real) !== strtolower($c_name)) {
+    $cashier_display = $c_name . '(' . $e_real . ')';
+} else {
+    $cashier_display = $c_name;
 }
 
 // Backfill completed_at for paid orders that predate the column
@@ -39,7 +49,7 @@ if (empty($order['completed_at']) && in_array($order['status'], ['Paid', 'Comple
 
 // ── FETCH ITEMS ──
 $stmt = $conn->prepare("
-    SELECT product_name, price, quantity, sweetness, ice, milk, size_label, addons_snapshot, promo_percent
+    SELECT product_name, price, quantity, sweetness, ice, milk, size_label, addons_snapshot, promo_percent, orig_price
     FROM order_items
     WHERE order_id = ?
 ");
@@ -51,7 +61,16 @@ $items = [];
 $subtotal = 0;
 while ($row = $items_res->fetch_assoc()) {
     $items[] = $row;
-    $subtotal += $row['price'] * $row['quantity'];
+    $itemOrig  = (float)($row['orig_price'] ?? 0);
+    $itemPrice = (float)($row['price'] ?? 0);
+    $qty       = (float)($row['quantity'] ?? 1);
+    if ($itemOrig > $itemPrice) {
+        $subtotal += $itemOrig * $qty;
+    } elseif ((int)($row['promo_percent'] ?? 0) > 0 && (int)$row['promo_percent'] < 100) {
+        $subtotal += ($itemPrice / (1 - (int)$row['promo_percent'] / 100)) * $qty;
+    } else {
+        $subtotal += $itemPrice * $qty;
+    }
 }
 
 $discount = (float)($order['promotion_discount'] ?? 0) + (float)($order['manual_discount'] ?? 0);
@@ -130,7 +149,7 @@ if ($change_total_usd > 0) {
 
 $wifi_pass = defined('WIFI_PASSWORD') ? WIFI_PASSWORD : '';
 $order_time = date("d-m-Y h:i A", strtotime(!empty($order['started_at']) ? $order['started_at'] : $order['order_date']));
-$invoice_no = str_pad($order['daily_order_no'], 8, '0', STR_PAD_LEFT);
+$invoice_no = str_pad($order['daily_order_no'], 4, '0', STR_PAD_LEFT);
 ?>
 <!DOCTYPE html>
 <html lang="km">
@@ -293,15 +312,18 @@ body {
 <div class="receipt">
     <!-- Header -->
     <div class="text-center">
-        <div class="shop-name">The Bird Nest Cafe</div>
-        <div class="shop-sub">Phnom Penh</div>
+        <div class="shop-name"><?= htmlspecialchars(defined('RECEIPT_SHOP_NAME') ? RECEIPT_SHOP_NAME : 'The Bird Nest Cafe') ?></div>
+        <div class="shop-sub"><?= htmlspecialchars(defined('RECEIPT_LOCATION') ? RECEIPT_LOCATION : 'Phnom Penh') ?></div>
+        <?php if (defined('RECEIPT_PHONE') && RECEIPT_PHONE !== ''): ?>
+        <div class="shop-sub"><?= htmlspecialchars(RECEIPT_PHONE) ?></div>
+        <?php endif; ?>
         <div class="receipt-title">វិក្កយបត្រ</div>
     </div>
 
     <!-- Metadata Section -->
     <table class="meta-table">
         <tr>
-            <td style="width: 55%;">អ្នកគិតលុយ : <?= htmlspecialchars($order['employee_name'] ?: 'admin') ?></td>
+            <td style="width: 55%;">អ្នកគិតលុយ : <?= htmlspecialchars($cashier_display) ?></td>
             <td class="right" style="width: 45%;">លេខវិក្កយបត្រ : <?= htmlspecialchars($invoice_no) ?></td>
         </tr>
         <tr>
@@ -318,20 +340,25 @@ body {
     <table class="items-table">
         <thead>
             <tr>
-                <th style="width: 7%;">ល.រ</th>
-                <th style="width: 43%;">បរិយាយ</th>
-                <th style="width: 12%;">ចំនួន</th>
-                <th style="width: 12%;">តម្លៃ</th>
-                <th style="width: 13%;">បញ្ចុះតម្លៃ</th>
-                <th style="width: 13%;">សរុប</th>
+                <th style="width: 8%;">ល.រ</th>
+                <th style="width: 48%;">បរិយាយ</th>
+                <th style="width: 14%;">ចំនួន</th>
+                <th style="width: 15%;">តម្លៃ</th>
+                <th style="width: 15%;">សរុប</th>
             </tr>
         </thead>
         <tbody>
             <?php
             $idx = 1;
             foreach ($items as $item):
-                $lineTotal = $item['price'] * $item['quantity'];
+                $unitPrice = (float)($item['price'] ?? 0);
+                $origPrice = (float)($item['orig_price'] ?? 0);
                 $promoPct  = (int)($item['promo_percent'] ?? 0);
+                $displayUnitPrice = ($origPrice > $unitPrice) ? $origPrice : $unitPrice;
+                if ($promoPct > 0 && $displayUnitPrice == $unitPrice && $promoPct < 100) {
+                    $displayUnitPrice = $unitPrice / (1 - $promoPct / 100);
+                }
+                $lineTotal = $unitPrice * $item['quantity'];
             ?>
             <tr>
                 <td class="col-no"><?= $idx++ ?></td>
@@ -360,8 +387,7 @@ body {
                     ?>
                 </td>
                 <td class="col-qty"><?= number_format($item['quantity'], 1) ?></td>
-                <td class="col-price"><?= number_format($item['price'], 2) ?></td>
-                <td class="col-disc"><?= $promoPct > 0 ? $promoPct.'%' : '0%' ?></td>
+                <td class="col-price"><?= number_format($displayUnitPrice, 2) ?></td>
                 <td class="col-total"><?= number_format($lineTotal, 2) ?></td>
             </tr>
             <?php endforeach; ?>
@@ -370,6 +396,7 @@ body {
 
     <!-- Totals & Payment Summary -->
     <div class="totals-area">
+        <?php if ($discount > 0): ?>
         <div class="totals-row">
             <span>ប្រាក់សរុប :</span>
             <span>USD <?= number_format($subtotal, 2) ?></span>
@@ -378,6 +405,7 @@ body {
             <span>បញ្ចុះតម្លៃ (<?= (int)$discount_percent ?>%) :</span>
             <span>USD <?= number_format($discount, 2) ?></span>
         </div>
+        <?php endif; ?>
         <div class="totals-row bold">
             <span>ប្រាក់សរុបចុងក្រោយ :</span>
             <span>USD <?= number_format($total, 2) ?></span>
@@ -385,25 +413,12 @@ body {
         <div class="totals-sub-khr">
             KHR <?= number_format($total_khr) ?>
         </div>
-
-        <div style="height: 4px;"></div>
-
-        <div class="totals-row">
-            <span>ប្រាក់ទទួល :</span>
-            <span><?= htmlspecialchars(function_exists('tender_received_text') ? tender_received_text($tender_parts, $tendered_usd) : ('USD ' . number_format($tendered_usd, 2))) ?></span>
-        </div>
-        <?php if ($is_cash_order): ?>
-        <div class="totals-row bold">
-            <span>ប្រាក់អាប់ :</span>
-            <span><?= htmlspecialchars($change_disp) ?></span>
-        </div>
-        <?php endif; ?>
     </div>
 
-    <!-- Footer -->
+    <!-- Footer / Thank You -->
     <div class="dotted-divider"></div>
-    <div class="footer-wifi">
-        Password WiFi: <?= htmlspecialchars($wifi_pass) ?>
+    <div style="text-align: center; margin-top: 6px; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
+        <?= htmlspecialchars(defined('RECEIPT_FOOTER_MSG') ? RECEIPT_FOOTER_MSG : 'Thank You!') ?>
     </div>
 </div>
 
@@ -422,13 +437,12 @@ body {
         }
     }
 
-    if (document.readyState === 'complete') {
-        setTimeout(triggerPrint, 250);
-    } else {
-        window.addEventListener('load', function() {
-            setTimeout(triggerPrint, 250);
-        });
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(triggerPrint, 50);
     }
+    document.addEventListener('DOMContentLoaded', triggerPrint);
+    window.addEventListener('load', triggerPrint);
+    setTimeout(triggerPrint, 300);
 })();
 </script>
 <?php endif; ?>

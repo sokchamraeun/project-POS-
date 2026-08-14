@@ -35,9 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm  = $_POST['confirm_password'] ?? '';
-    $roleRaw  = $_POST['role'] ?? 'staff';
-    // POS access: ON = real login + role; OFF = display-only staff (cleaner, waiter…), no account.
-    $is_pos   = isset($_POST['pos_access']) ? 1 : 0;
+    $roleRaw  = trim($_POST['role'] ?? 'staff');
+    $is_pos   = 0;
     
     // Validate against DB roles
     $_vrole = $conn->prepare("SELECT slug FROM roles WHERE slug=?");
@@ -161,6 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Add Employee | Bird's Nest Coffee</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>(function(){var t=localStorage.getItem('theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
@@ -260,9 +260,10 @@ body {
 
 /* ── PAGE ── */
 .page-wrapper {
-    max-width: 980px;
+    width: 100%;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 32px 24px 80px;
+    padding: 20px 24px 60px;
 }
 
 .page-heading { margin-bottom: 28px; }
@@ -304,15 +305,14 @@ body {
 
 /* ── LAYOUT ── */
 .layout {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 20px;
-    align-items: start;
+    display: block;
+    max-width: 860px;
+    margin: 0 auto;
 }
 
 .left-panel {
     position: sticky;
-    top: 80px;
+    top: 20px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -827,7 +827,7 @@ kbd {
 }
 
 .orb {
-    position: fixed; border-radius: 50%; filter: blur(90px);
+    position: absolute; border-radius: 50%; filter: blur(90px);
     pointer-events: none; z-index: 0;
 }
 .orb-a {
@@ -939,24 +939,18 @@ kbd {
 </style>
 </head>
 <body>
+<div class="flex h-screen w-full overflow-hidden app-layout">
+<?php require_once __DIR__ . '/sidebar.php'; ?>
+<main class="app-main flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden p-6 relative">
+<?php 
+$page_title    = __('add_employee', 'Add Employee'); 
+$page_subtitle = 'Create a new employee profile and login account.'; 
+require __DIR__ . '/header_bar.php'; 
+?>
 <div class="orb orb-a"></div>
 <div class="orb orb-b"></div>
 
-<nav class="top-nav">
-    <a href="employees.php" class="nav-back">
-        <i class="fa-solid fa-arrow-left"></i>
-        <span>Employees</span>
-    </a>
-    <span class="nav-sep">/</span>
-    <span class="nav-title">Add Employee</span>
-</nav>
-
 <div class="page-wrapper">
-
-    <div class="page-heading">
-        <h1>Add <span>Employee</span></h1>
-        <p>Create a new employee profile and login account.</p>
-    </div>
 
     <?php if (!empty($errors)): ?>
     <div class="error-banner">
@@ -972,40 +966,7 @@ kbd {
     <form method="POST" enctype="multipart/form-data" id="addForm">
         <div class="layout">
 
-            <!-- LEFT: Photo + Preview -->
-            <aside class="left-panel">
-                <div class="panel-card">
-                    <div class="panel-card-title"><i class="fa-solid fa-image"></i> Profile Photo</div>
-                    <div class="photo-drop" id="photoDrop">
-                        <input type="file" name="photo" id="photoInput" accept="image/*">
-                        <img id="photoPreview" alt="Preview">
-                        <div class="photo-placeholder" id="photoPlaceholder">
-                            <i class="fa-solid fa-user-circle"></i>
-                            <span>Drop photo or click to browse</span>
-                        </div>
-                        <div class="photo-overlay">
-                            <i class="fa-solid fa-camera"></i>
-                            <span>Change</span>
-                        </div>
-                    </div>
-                    <div class="photo-filename" id="photoFilename">
-                        <i class="fa-solid fa-check ok-icon"></i>
-                        <span id="photoNameText">No photo chosen</span>
-                    </div>
-                </div>
 
-                <div class="panel-card">
-                    <div class="panel-card-title"><i class="fa-solid fa-id-card"></i> Preview</div>
-                    <div class="emp-preview">
-                        <div class="emp-avatar" id="previewAvatar">?</div>
-                        <div class="emp-info">
-                            <div class="emp-name" id="previewName">Full Name</div>
-                            <div class="emp-job" id="previewJob">Job Title</div>
-                            <div class="emp-role-pill" id="previewRole">Staff</div>
-                        </div>
-                    </div>
-                </div>
-            </aside>
 
             <!-- RIGHT: Form sections -->
             <div class="right-panel">
@@ -1035,18 +996,10 @@ kbd {
                         </div>
 
                         <div class="form-group">
-                            <label>Job Title <span class="req">*</span></label>
+                            <label><?= __('col_position', 'Position') ?> <span class="req">*</span></label>
                             <?php
-                            // POS job titles come from the roles; plus common non-POS positions.
+                            // Position titles come directly from DB roles
                             $job_titles = array_map(fn($r) => ['value' => $r['name'], 'icon' => $r['icon'], 'slug' => $r['slug']], $_all_roles);
-                            $job_titles = array_merge($job_titles, [
-                                ['value' => 'Cleaner',    'icon' => 'fa-broom',         'slug' => ''],
-                                ['value' => 'Waiter',     'icon' => 'fa-utensils',      'slug' => ''],
-                                ['value' => 'Security',   'icon' => 'fa-shield-halved', 'slug' => ''],
-                                ['value' => 'Cook',       'icon' => 'fa-kitchen-set',   'slug' => ''],
-                                ['value' => 'Dishwasher', 'icon' => 'fa-sink',          'slug' => ''],
-                                ['value' => 'Helper',     'icon' => 'fa-hands-helping', 'slug' => ''],
-                            ]);
                             $old_job = $old['job'] ?? '';
                             $display_label = $old_job;
                             $display_icon  = '';
@@ -1054,39 +1007,19 @@ kbd {
                             // Custom job title = a non-empty value not matching any known role
                             $is_other = $old_job !== '' && !in_array($old_job, array_column($job_titles, 'value'), true);
                             ?>
-                            <!-- Hidden real input submitted with form -->
-                            <input type="hidden" name="job_title" id="jobInput" value="<?= htmlspecialchars($old_job) ?>" required>
-
-                            <!-- Custom dropdown trigger -->
-                            <div class="cdd-wrap" id="cddWrap">
-                                <div class="cdd-trigger" id="cddTrigger" tabindex="0">
-                                    <i class="fa-solid <?= $display_icon ?: 'fa-briefcase' ?> cdd-trigger-icon" id="cddTriggerIcon"></i>
-                                    <span class="cdd-trigger-text" id="cddTriggerText"><?= $display_label ? htmlspecialchars($display_label) : '<span style="color:var(--text-dim)">— Select a position —</span>' ?></span>
-                                    <i class="fa-solid fa-chevron-down cdd-arrow" id="cddArrow"></i>
-                                </div>
-                                <div class="cdd-menu" id="cddMenu">
+                            <div class="input-wrapper" style="position:relative;">
+                                <i class="fa-solid fa-briefcase input-icon"></i>
+                                <select name="job_title" id="jobSelect" required
+                                    style="width:100%; padding:10px 36px 10px 38px; border-radius:10px; border:1px solid var(--border); background:var(--input); color:var(--text); font-size:13px; outline:none; appearance:none; -webkit-appearance:none; cursor:pointer;">
+                                    <option value="" disabled <?= empty($old_job) ? 'selected' : '' ?>>— Select a position —</option>
                                     <?php foreach ($job_titles as $jt): ?>
-                                    <div class="cdd-option <?= ($old_job === $jt['value']) ? 'selected' : '' ?>"
-                                         data-value="<?= htmlspecialchars($jt['value']) ?>"
-                                         data-icon="<?= htmlspecialchars($jt['icon']) ?>"
-                                         data-slug="<?= htmlspecialchars($jt['slug']) ?>">
-                                        <i class="fa-solid <?= htmlspecialchars($jt['icon']) ?> cdd-opt-icon"></i>
-                                        <span><?= htmlspecialchars($jt['value']) ?></span>
-                                        <?php if ($old_job === $jt['value']): ?><i class="fa-solid fa-check cdd-opt-check"></i><?php endif; ?>
-                                    </div>
+                                    <option value="<?= htmlspecialchars($jt['value']) ?>" <?= ($old_job === $jt['value']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($jt['value']) ?>
+                                    </option>
                                     <?php endforeach; ?>
-                                    <div class="cdd-option cdd-other" data-value="__other__" data-icon="fa-plus" data-slug=""
-                                         style="color:var(--accent);border-top:1px solid rgba(255,255,255,0.06)">
-                                        <i class="fa-solid fa-plus cdd-opt-icon"></i>
-                                        <span>Other (type your own)</span>
-                                    </div>
-                                </div>
+                                </select>
+                                <i class="fa-solid fa-chevron-down" style="position:absolute; right:14px; color:var(--text-muted); font-size:11px; pointer-events:none;"></i>
                             </div>
-                            <input type="text" name="job_title_custom" id="jobCustomInput"
-                                placeholder="Type the job title"
-                                class="cdd-custom-input"
-                                style="display:none"
-                                value="<?= $is_other ? htmlspecialchars($old_job) : '' ?>">
                         </div>
 
                         <div class="form-group full-width">
@@ -1128,116 +1061,7 @@ kbd {
                     </div>
                 </div>
 
-                <!-- Account & Security -->
-                <!-- Staff type: POS access toggle -->
-                <div class="section-card">
-                    <div class="section-header">
-                        <i class="fa-solid fa-id-badge"></i> Staff Type
-                    </div>
-                    <div class="section-body" style="grid-template-columns:1fr">
-                        <label for="posToggle" style="display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer;margin:0">
-                            <span>
-                                <strong style="display:block;color:var(--text)">POS Access</strong>
-                                <small style="color:var(--text-muted)">On = can log in &amp; take orders (needs role + password). Off = display-only staff like cleaner or waiter — no login, no POS.</small>
-                            </span>
-                            <input type="checkbox" name="pos_access" id="posToggle" value="1" checked onchange="togglePOS()"
-                                   style="width:22px;height:22px;flex:none;accent-color:var(--accent);cursor:pointer">
-                        </label>
-                    </div>
-                </div>
 
-                <div id="posSection">
-                <div class="section-card">
-                    <div class="section-header">
-                        <i class="fa-solid fa-shield-halved"></i> Account &amp; Security
-                    </div>
-                    <div class="section-body" style="grid-template-columns:1fr">
-                        <!-- Username -->
-                        <div class="form-group">
-                            <label>Username <span class="req">*</span></label>
-                            <div class="input-wrapper">
-                                <i class="fa-solid fa-at input-icon"></i>
-                                <input type="text" name="username" id="usernameInput"
-                                    placeholder="Choose a username"
-                                    value="<?= htmlspecialchars($old['username']) ?>"
-                                    required autocomplete="off">
-                                <span class="username-status" id="usernameStatus"></span>
-                            </div>
-                            <div class="field-hint" id="usernameHint"></div>
-                            <div class="username-suggestions" id="usernameSuggestions"></div>
-                        </div>
-
-                        <!-- Password -->
-                        <div class="form-group">
-                            <label>Password <span class="req">*</span>
-                                <button type="button" class="gen-pass-btn" onclick="generatePassword()">
-                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Strong
-                                </button>
-                            </label>
-                            <div class="input-wrapper">
-                                <i class="fa-solid fa-key input-icon"></i>
-                                <input type="password" name="password" id="passInput"
-                                    placeholder="Enter password" required autocomplete="new-password">
-                                <button type="button" class="copy-pass-btn" id="copyPassBtn" onclick="copyPassword()" title="Copy password" style="display:none" tabindex="-1">
-                                    <i class="fa-solid fa-copy"></i>
-                                </button>
-                                <button type="button" class="toggle-pass" onclick="togglePass('passInput',this)" tabindex="-1">
-                                    <i class="fa-solid fa-eye-slash"></i>
-                                </button>
-                            </div>
-                            <div class="strength-wrap">
-                                <div class="strength-bars">
-                                    <div class="bar" id="bar1"></div>
-                                    <div class="bar" id="bar2"></div>
-                                    <div class="bar" id="bar3"></div>
-                                    <div class="bar" id="bar4"></div>
-                                </div>
-                                <span class="strength-label" id="strengthLabel"></span>
-                            </div>
-                            <div class="req-badges">
-                                <span class="req-badge" id="req-len"><i class="fa-solid fa-xmark"></i> 8+ chars</span>
-                                <span class="req-badge" id="req-upper"><i class="fa-solid fa-xmark"></i> A–Z uppercase</span>
-                                <span class="req-badge" id="req-num"><i class="fa-solid fa-xmark"></i> 0–9 number</span>
-                                <span class="req-badge" id="req-sym"><i class="fa-solid fa-xmark"></i> !@# symbol</span>
-                            </div>
-                        </div>
-
-                        <!-- Confirm Password -->
-                        <div class="form-group">
-                            <label>Confirm Password <span class="req">*</span></label>
-                            <div class="input-wrapper">
-                                <i class="fa-solid fa-lock input-icon"></i>
-                                <input type="password" id="confirmPass" name="confirm_password"
-                                    class="confirm-pass-input"
-                                    placeholder="Re-enter password" required autocomplete="new-password">
-                                <span class="match-icon" id="matchIcon"></span>
-                                <button type="button" class="toggle-pass" onclick="togglePass('confirmPass',this)" tabindex="-1">
-                                    <i class="fa-solid fa-eye-slash"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Role -->
-                        <div class="form-group">
-                            <label>Role <span class="req">*</span></label>
-                            <div class="role-pills" style="grid-template-columns: repeat(<?= min(count($_all_roles), 3) ?>, 1fr)">
-                                <?php foreach ($_all_roles as $_ri): ?>
-                                <div class="role-pill <?= $old['role']===$_ri['slug']?'selected':'' ?>"
-                                     id="pill_<?= htmlspecialchars($_ri['slug']) ?>"
-                                     onclick="selectRole('<?= htmlspecialchars($_ri['slug']) ?>')">
-                                    <i class="fa-solid <?= htmlspecialchars($_ri['icon']) ?>"></i>
-                                    <span class="role-name"><?= htmlspecialchars($_ri['name']) ?></span>
-                                    <small><?= htmlspecialchars($_ri['description'] ?: '—') ?></small>
-                                    <input type="radio" name="role" value="<?= htmlspecialchars($_ri['slug']) ?>"
-                                           id="role_<?= htmlspecialchars($_ri['slug']) ?>"
-                                           <?= $old['role']===$_ri['slug']?'checked':'' ?> hidden>
-                                </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                </div><!-- /#posSection -->
 
                 <!-- Submit -->
                 <button type="submit" class="submit-btn" id="submitBtn">
@@ -1723,5 +1547,7 @@ window.addEventListener('storage', function (e) {
     }
 });
 </script>
+</main>
+</div>
 </body>
 </html>

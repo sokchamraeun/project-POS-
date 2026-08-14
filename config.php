@@ -13,21 +13,82 @@ require_once __DIR__ . '/lang.php';
 $servername = "localhost";
 $username   = "root";
 $password   = "";
-$dbname     = "db_coffeeshop_final_v1";
+$dbname     = "db_coffeeshop_final--";
 
 if (is_file(__DIR__ . '/db_config.local.php')) {
     require __DIR__ . '/db_config.local.php';
 }
 
-$conn = new mysqli($servername, $username, $password, $dbname);
+// ── ROBUST MYSQL CONNECTION & DIAGNOSTIC HANDLER ──
+mysqli_report(MYSQLI_REPORT_OFF);
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+$conn_error_msg = null;
+try {
+    $conn = @new mysqli($servername, $username, $password, $dbname);
+} catch (Throwable $e) {
+    $conn_error_msg = $e->getMessage();
+}
+
+if (!isset($conn) || $conn->connect_error || !empty($conn_error_msg)) {
+    $err_details = $conn_error_msg ?? ($conn->connect_error ?? 'Unknown database error');
+    http_response_code(200); // Prevent generic 500 server error
+    die('
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Database Setup Required</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #e0e0e0; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+            .box { background: #1e1e1e; border: 1px solid #333; border-radius: 12px; max-width: 600px; width: 100%; padding: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+            h2 { color: #f44336; margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 20px; }
+            .err-msg { background: rgba(244,67,54,0.1); border-left: 4px solid #f44336; padding: 12px 16px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #ff8a80; margin: 16px 0; word-break: break-all; }
+            ol { padding-left: 20px; line-height: 1.6; color: #b0b0b0; font-size: 14px; }
+            code { background: #2a2a2a; color: #d1904b; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+            .badge { display: inline-block; background: #d1904b; color: #000; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase; margin-bottom: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <span class="badge">Hosting Setup Guide</span>
+            <h2>⚠️ Cannot Connect to MySQL Database</h2>
+            <p style="color:#bbb;font-size:14px;">The application could not establish a connection to your MySQL server on hosting.</p>
+            
+            <div class="err-msg">Error: ' . htmlspecialchars($err_details) . '</div>
+
+            <h4 style="color:#d1904b;margin-bottom:8px;">How to fix this on your server:</h4>
+            <ol>
+                <li>In your hosting File Manager, create a file named <code>db_config.local.php</code> in the root folder.</li>
+                <li>Add your real hosting database credentials:
+                    <pre style="background:#111;padding:12px;border-radius:6px;color:#81c784;font-size:12px;overflow-x:auto;">&lt;?php
+$servername = "localhost";
+$username   = "YOUR_CPANEL_DB_USER";
+$password   = "YOUR_CPANEL_DB_PASSWORD";
+$dbname     = "YOUR_CPANEL_DB_NAME";</pre>
+                </li>
+                <li>Import <code>db_coffee_export.sql</code> into phpMyAdmin on your hosting server.</li>
+                <li>Refresh this page.</li>
+            </ol>
+        </div>
+    </body>
+    </html>
+    ');
 }
 
 // ── CRITICAL: Force utf8mb4 so 4-byte emoji are read correctly ──
 $conn->set_charset('utf8mb4');
-$conn->query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price DECIMAL(10,2) DEFAULT 0.00 AFTER price");
+
+if (session_status() === PHP_SESSION_NONE) {
+    @session_start();
+}
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+try {
+    @$conn->query("ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price DECIMAL(10,2) DEFAULT 0.00 AFTER price");
+} catch (Throwable $e) {}
 
 // --- Check if constants are already defined before defining them ---
 if (!defined('PAYMENT_API_URL')) {
@@ -39,8 +100,10 @@ if (!defined('PAYMENT_API_TOKEN')) {
 
 // ── LOAD SETTINGS FROM DB ──
 $_cafe_settings = [];
-$_sr = $conn->query("SELECT setting_key, setting_value FROM settings");
-if ($_sr) { while ($row = $_sr->fetch_assoc()) $_cafe_settings[$row['setting_key']] = $row['setting_value']; }
+try {
+    $_sr = @$conn->query("SELECT setting_key, setting_value FROM settings");
+    if ($_sr) { while ($row = $_sr->fetch_assoc()) $_cafe_settings[$row['setting_key']] = $row['setting_value']; }
+} catch (Throwable $e) {}
 
 // ── Date-range check for promotions ──
 $_today = date('Y-m-d');
@@ -71,6 +134,10 @@ if (!defined('PAYLATER_FOLLOWUP_MINUTES')) define('PAYLATER_FOLLOWUP_MINUTES', m
 if (!defined('LOYALTY_POINTS_PER'))    define('LOYALTY_POINTS_PER',    max(1, (int)($_cafe_settings['loyalty_points_per']    ?? 1)));
 if (!defined('LOYALTY_POINTS_DRINKS')) define('LOYALTY_POINTS_DRINKS', max(1, (int)($_cafe_settings['loyalty_points_drinks'] ?? 1)));
 if (!defined('LOYALTY_MODE'))          define('LOYALTY_MODE',          in_array($_cafe_settings['loyalty_mode'] ?? 'drinks', ['drinks', 'spend']) ? ($_cafe_settings['loyalty_mode'] ?? 'drinks') : 'drinks');
+if (!defined('RECEIPT_SHOP_NAME'))  define('RECEIPT_SHOP_NAME',  $_cafe_settings['receipt_shop_name']  ?? "The Bird Nest Cafe");
+if (!defined('RECEIPT_LOCATION'))   define('RECEIPT_LOCATION',   $_cafe_settings['receipt_location']   ?? "Phnom Penh");
+if (!defined('RECEIPT_PHONE'))      define('RECEIPT_PHONE',      $_cafe_settings['receipt_phone']      ?? "+855 12 345 678");
+if (!defined('RECEIPT_FOOTER_MSG')) define('RECEIPT_FOOTER_MSG', $_cafe_settings['receipt_footer_msg'] ?? "Thank You!");
 unset($_cafe_settings, $_sr, $_today, $_hh_sd, $_hh_ed, $_hh_in_range, $_bx_sd, $_bx_ed, $_bx_in_range);
 
 // ── Schema migrations tracker ──
@@ -103,10 +170,12 @@ _migrate($conn, 'employees_user_id', function($db) {
         $db->query("ALTER TABLE employees ADD COLUMN user_id INT NULL");
     }
 });
-_migrate($conn, 'employees_shift_v1', function($db) {
+_migrate($conn, 'employees_shift_v2', function($db) {
     $has = $db->query("SELECT COUNT(*) c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employees' AND COLUMN_NAME='shift'")->fetch_assoc()['c'] ?? 0;
     if ((int)$has === 0) {
-        $db->query("ALTER TABLE employees ADD COLUMN shift ENUM('morning','afternoon','night') NULL DEFAULT NULL");
+        $db->query("ALTER TABLE employees ADD COLUMN shift VARCHAR(50) NULL DEFAULT NULL");
+    } else {
+        $db->query("ALTER TABLE employees MODIFY COLUMN shift VARCHAR(50) NULL DEFAULT NULL");
     }
 });
 // Display-only / non-POS staff (cleaner, waiter, etc.): is_pos=0 means no login, no role.

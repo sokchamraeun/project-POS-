@@ -10,7 +10,6 @@ $NAV_REGISTRY = [
     'view_orders'         => ['view_order.php',            'fa-receipt'],
     'products'            => ['products.php',              'fa-cube'],
     'manage_categories'   => ['manage_categories.php',       'fa-tags'],
-    'ingredients'         => ['ingredients.php',           'fa-flask'],
 
     'report'              => ['daily_report.php',           'fa-chart-column'],
     'employees'           => ['employees.php',             'fa-user-tie'],

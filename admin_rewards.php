@@ -741,8 +741,8 @@ if (isset($_GET['edit'])) {
 <!-- HEADER -->
 <header class="ar-header">
     <div class="ar-header-left">
-        <a href="loyalty_dashboard.php" class="btn-nav">
-            <i class="fa-solid fa-arrow-left"></i> Loyalty Dashboard
+        <a href="dashboard.php" class="btn-nav">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
         </a>
         <div class="ar-brand">
             <i class="fa-solid fa-gift"></i>

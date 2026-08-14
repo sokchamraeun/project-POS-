@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_emp
     header('Content-Type: application/json');
     $eid = intval($_GET['eid'] ?? 0);
     if ($eid > 0) {
-        $s = $conn->prepare("SELECT e.*, CASE WHEN e.is_pos = 0 THEN 'general' ELSE COALESCE(r.slug,'staff') END AS emp_role FROM employees e LEFT JOIN users u ON u.user_id = e.user_id LEFT JOIN roles r ON r.id = u.role_id WHERE e.employee_id=?");
+        $s = $conn->prepare("SELECT e.*, COALESCE(r.slug, 'staff') AS emp_role FROM employees e LEFT JOIN users u ON u.user_id = COALESCE(e.user_id, e.employee_id) LEFT JOIN roles r ON r.id = u.role_id WHERE e.employee_id=?");
         $s->bind_param("i", $eid); $s->execute();
         $emp = $s->get_result()->fetch_assoc();
         if ($emp) { ob_end_clean(); echo json_encode(['ok' => true, 'emp' => $emp]); exit; }
@@ -24,6 +24,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_emp
     ob_end_clean();
     echo json_encode(['ok' => false]);
     exit;
+}
+
+/* ── Save employee from add modal (AJAX POST) ── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_employee') {
+    header('Content-Type: application/json');
+    if (!csrf_ok()) { ob_end_clean(); echo json_encode(['ok' => false, 'msg' => 'Invalid session token']); exit; }
+    $name     = trim($_POST['name'] ?? '');
+    $phone    = trim($_POST['phone'] ?? '');
+    $job      = trim($_POST['job_title'] ?? '');
+    $salary   = floatval($_POST['salary'] ?? 0);
+    $dob      = $_POST['date_of_birth'] ?? '';
+    $hire     = $_POST['hire_date'] ?? '';
+    $address  = trim($_POST['address'] ?? '');
+    $shift_raw = trim($_POST['shift'] ?? '');
+    $shift    = in_array($shift_raw, ['morning','afternoon','normal','night']) ? $shift_raw : null;
+
+    if ($name === '') {
+        ob_end_clean(); echo json_encode(['ok' => false, 'msg' => 'Full name is required']); exit;
+    }
+    if ($job === '') {
+        ob_end_clean(); echo json_encode(['ok' => false, 'msg' => 'Position is required']); exit;
+    }
+
+    $photo = '';
+    if (!empty($_FILES['photo']['name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+        $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+        if (in_array($_FILES['photo']['type'], $allowed)) {
+            if (!is_dir('uploads')) mkdir('uploads', 0777, true);
+            $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
+            $photo = 'uploads/' . time() . '_' . uniqid() . '.' . $ext;
+            move_uploaded_file($_FILES['photo']['tmp_name'], $photo);
+        }
+    }
+
+    $dob_val  = ($dob !== '') ? $dob : null;
+    $hire_val = ($hire !== '') ? $hire : date('Y-m-d');
+
+    $has_shift = $conn->query("SHOW COLUMNS FROM employees LIKE 'shift'")->num_rows > 0;
+    $has_is_pos = $conn->query("SHOW COLUMNS FROM employees LIKE 'is_pos'")->num_rows > 0;
+
+    if ($has_shift && $has_is_pos) {
+        $st = $conn->prepare("INSERT INTO employees (name, phone, job_title, salary, date_of_birth, hire_date, address, photo, shift, is_pos) VALUES (?,?,?,?,?,?,?,?,?,0)");
+        $st->bind_param("sssdsssss", $name, $phone, $job, $salary, $dob_val, $hire_val, $address, $photo, $shift);
+    } else if ($has_shift) {
+        $st = $conn->prepare("INSERT INTO employees (name, phone, job_title, salary, date_of_birth, hire_date, address, photo, shift) VALUES (?,?,?,?,?,?,?,?,?)");
+        $st->bind_param("sssdsssss", $name, $phone, $job, $salary, $dob_val, $hire_val, $address, $photo, $shift);
+    } else {
+        $st = $conn->prepare("INSERT INTO employees (name, phone, job_title, salary, date_of_birth, hire_date, address, photo) VALUES (?,?,?,?,?,?,?,?)");
+        $st->bind_param("sssdssss", $name, $phone, $job, $salary, $dob_val, $hire_val, $address, $photo);
+    }
+
+    if ($st && $st->execute()) {
+        ob_end_clean(); echo json_encode(['ok' => true, 'msg' => 'Employee added successfully']); exit;
+    } else {
+        ob_end_clean(); echo json_encode(['ok' => false, 'msg' => 'Failed to add employee: ' . ($conn->error ?: 'Database error')]); exit;
+    }
 }
 
 /* ── Real-time stats (AJAX GET) ── */
@@ -83,12 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
     $address  = trim($_POST['address'] ?? '');
     $new_role = trim($_POST['emp_role'] ?? '');
     $shift_raw = trim($_POST['shift'] ?? '');
-    $shift    = in_array($shift_raw, ['morning','afternoon','night']) ? $shift_raw : null;
+    $shift    = in_array($shift_raw, ['morning','afternoon','normal','night']) ? $shift_raw : null;
 
-    // Job title is derived from the chosen role (single source of truth) — the posted
-    // value is ignored so the title can never drift from the role.
+    // If job title was left blank, fallback to role name
     $_cur_is_admin = ($_SESSION['role'] ?? '') === 'admin';
-    if ($new_role !== '' && ($_cur_is_admin || $new_role !== 'admin')) {
+    if ($job === '' && $new_role !== '' && ($_cur_is_admin || $new_role !== 'admin')) {
         $rn = $conn->prepare("SELECT name FROM roles WHERE slug=?");
         $rn->bind_param("s", $new_role); $rn->execute();
         if ($rnr = $rn->get_result()->fetch_assoc()) $job = $rnr['name'];
@@ -133,12 +188,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
 
     $_cur_is_admin = ($_SESSION['role'] ?? '') === 'admin';
     if ($new_role !== '' && ($_cur_is_admin || $new_role !== 'admin')) {
-        $vr = $conn->prepare($_cur_is_admin ? "SELECT slug FROM roles WHERE slug=?" : "SELECT slug FROM roles WHERE slug=? AND slug!='admin'");
+        $vr = $conn->prepare("SELECT id, name FROM roles WHERE slug=?");
         $vr->bind_param("s", $new_role); $vr->execute();
-        if ($vr->get_result()->fetch_assoc()) {
-            $uid = !empty($er['user_id']) ? intval($er['user_id']) : intval($er['employee_id']);
-            $rs  = $conn->prepare("UPDATE users SET role_id=(SELECT id FROM roles WHERE slug=?) WHERE user_id=?");
-            $rs->bind_param("si", $new_role, $uid); $rs->execute();
+        $r_info = $vr->get_result()->fetch_assoc();
+        if ($r_info) {
+            $role_id = (int)$r_info['id'];
+            $job     = $r_info['name'];
+            
+            // 1. Ensure employees table has is_pos = 1 and updated job_title
+            $upd_emp = $conn->prepare("UPDATE employees SET is_pos=1, job_title=? WHERE employee_id=?");
+            $upd_emp->bind_param("si", $job, $eid); $upd_emp->execute();
+
+            // 2. Update user's role in users table
+            $target_uid = !empty($er['user_id']) ? (int)$er['user_id'] : $eid;
+            $chk_u = $conn->prepare("SELECT user_id FROM users WHERE user_id=?");
+            $chk_u->bind_param("i", $target_uid); $chk_u->execute();
+            if ($chk_u->get_result()->num_rows > 0) {
+                $rs = $conn->prepare("UPDATE users SET role_id=? WHERE user_id=?");
+                $rs->bind_param("ii", $role_id, $target_uid); $rs->execute();
+            } else {
+                // If user record doesn't exist, create user or assign user_id
+                $uname = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $name)) ?: 'emp' . $eid;
+                $def_pwd = password_hash('123456', PASSWORD_DEFAULT);
+                $ins_u = $conn->prepare("INSERT INTO users (user_id, username, password, role_id) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE role_id=?");
+                $ins_u->bind_param("issii", $target_uid, $uname, $def_pwd, $role_id, $role_id);
+                $ins_u->execute();
+
+                $link_e = $conn->prepare("UPDATE employees SET user_id=? WHERE employee_id=?");
+                $link_e->bind_param("ii", $target_uid, $eid); $link_e->execute();
+            }
         }
     }
     ob_end_clean();
@@ -198,7 +276,7 @@ if ($has_orders) {
     $emp_sql = "
         SELECT
             e.*,
-            CASE WHEN e.is_pos = 0 THEN 'general' ELSE COALESCE(r.slug, 'staff') END AS emp_role,
+            COALESCE(r.slug, 'staff') AS emp_role,
             COALESCE(s.total_orders,      0)    AS total_orders,
             COALESCE(s.total_revenue,     0)    AS total_revenue,
             COALESCE(s.orders_this_month, 0)    AS orders_this_month,
@@ -225,7 +303,7 @@ if ($has_orders) {
     ";
 } else {
     $emp_sql = "
-        SELECT e.*, CASE WHEN e.is_pos = 0 THEN 'general' ELSE COALESCE(r.slug,'staff') END AS emp_role,
+        SELECT e.*, COALESCE(r.slug, 'staff') AS emp_role,
                0 AS total_orders, 0 AS total_revenue,
                0 AS orders_this_month, 0 AS orders_today,
                0 AS avg_order_value, NULL AS last_order_date
@@ -580,10 +658,9 @@ tbody tr:hover .avatar, tbody tr:hover .avatar-img { border-color:var(--accent);
 /* ── ROW ACTIONS ── */
 .row-actions { display:flex; gap:5px; }
 .btn-row { display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:5px 9px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; text-decoration:none; transition:var(--transition); border:1px solid transparent; font-family:'Inter',sans-serif; }
-/* View = ghost text — hidden for now (kept in DOM; delete the display line to restore) */
-.btn-row.view { display:none; background:transparent; color:var(--text-muted); }
-.btn-row.view:hover { background:rgba(255,255,255,.06); color:var(--text-light); }
-[data-theme="light"] .btn-row.view:hover { background:rgba(0,0,0,.05); }
+.btn-row.view { display:inline-flex; background:rgba(255,255,255,.04); border-color:var(--border); color:var(--text-muted); padding:5px 11px; }
+.btn-row.view:hover { background:rgba(93,173,226,.12); border-color:#5dade2; color:#5dade2; }
+[data-theme="light"] .btn-row.view { background:rgba(0,0,0,.03); }
 /* Edit = subtle labelled button */
 .btn-row.edit { background:rgba(255,255,255,.04); border-color:var(--border); color:var(--text-muted); padding:5px 11px; }
 [data-theme="light"] .btn-row.edit { background:rgba(0,0,0,.03); }
@@ -726,7 +803,8 @@ tbody tr:hover .avatar, tbody tr:hover .avatar-img { border-color:var(--accent);
 .em-label i { font-size:10px; color:var(--accent); }
 .em-input { width:100%; background:transparent; border:none; outline:none; color:var(--text); font-size:13px; font-weight:500; font-family:'Inter',sans-serif; }
 .em-input::placeholder { color:var(--text-muted); font-weight:400; }
-.em-input[type="date"] { color-scheme:dark; }
+.em-input[type="date"], select.em-input { color-scheme:dark; }
+select.em-input option { background-color: #1e1e24 !important; color: #ffffff !important; padding: 6px 10px; }
 textarea.em-input { resize:vertical; min-height:62px; line-height:1.5; }
 .em-role-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
 .em-role-opt { display:none; }
@@ -801,59 +879,12 @@ textarea.em-input { resize:vertical; min-height:62px; line-height:1.5; }
 </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-6">
 <?php $page_title = __('nav_employees', 'Employees'); require __DIR__ . '/header_bar.php'; ?>
 
-<!-- ── STATS ── -->
-<div class="stats-row">
-    <div class="stat-card s-a">
-        <div class="stat-icon si-a"><i class="fa-solid fa-users"></i></div>
-        <div>
-            <div class="stat-label"><?= __('total_staff', 'Total Staff') ?></div>
-            <div class="stat-num" data-target="<?= $total_staff ?>"><?= $total_staff ?></div>
-            <div class="stat-hint"><?= __('employees_on_record', 'Employees on record') ?></div>
-        </div>
-    </div>
-    <div class="stat-card s-b">
-        <div class="stat-icon si-b"><i class="fa-solid fa-receipt"></i></div>
-        <div>
-            <div class="stat-label"><?= __('orders_this_month', 'Orders This Month') ?></div>
-            <div class="stat-num" data-target="<?= $total_this_month ?>"><?= $total_this_month ?></div>
-            <div class="stat-hint"><?= fmtnum($total_orders_all) ?> <?= __('all_time', 'all-time') ?></div>
-        </div>
-    </div>
-    <div class="stat-card s-c">
-        <div class="stat-icon si-c"><i class="fa-solid fa-trophy"></i></div>
-        <div>
-            <div class="stat-label"><?= __('top_this_month', 'Top This Month') ?></div>
-            <div class="stat-num" style="font-size:14px;font-weight:700;line-height:1.4;margin-top:2px">
-                <?= $top_month ? h($top_month['name']) : '—' ?>
-            </div>
-            <div class="stat-hint"><?= $top_month ? fmtnum($top_month['orders_this_month']) . ' ' . __('orders', 'orders') : __('no_data_yet', 'No data yet') ?></div>
-        </div>
-    </div>
-    <?php if ($sess_role === 'admin'): ?>
-    <div class="stat-card s-d">
-        <div class="stat-icon si-d"><i class="fa-solid fa-dollar-sign"></i></div>
-        <div>
-            <div class="stat-label"><?= __('revenue_served', 'Revenue Served') ?></div>
-            <div class="stat-num" data-target="<?= round($total_revenue, 2) ?>" data-prefix="$" data-dec="0">$<?= fmtnum($total_revenue) ?></div>
-            <div class="stat-hint"><?= __('all_time_all_staff', 'All-time, all staff') ?></div>
-        </div>
-    </div>
-    <?php else: ?>
-    <div class="stat-card s-d">
-        <div class="stat-icon si-d"><i class="fa-solid fa-mug-hot"></i></div>
-        <div>
-            <div class="stat-label"><?= __('all_time_orders', 'All-Time Orders') ?></div>
-            <div class="stat-num" data-target="<?= $total_orders_all ?>"><?= fmtnum($total_orders_all) ?></div>
-            <div class="stat-hint"><?= __('by_all_staff', 'By all staff') ?></div>
-        </div>
-    </div>
-    <?php endif; ?>
-</div>
+
 
 <!-- ── TOOLBAR ── -->
 <div class="emp-toolbar" style="display:flex; align-items:center; gap:12px; margin:16px 24px 12px; flex-wrap:wrap;">
@@ -872,9 +903,9 @@ textarea.em-input { resize:vertical; min-height:62px; line-height:1.5; }
         <i class="fa-solid fa-chevron-down" style="position:absolute; right:14px; color:var(--text-muted); font-size:11px; pointer-events:none;"></i>
     </div>
     <div style="display:flex; align-items:center; gap:10px; margin-left:auto;">
-        <a href="employee_add.php" class="btn-nav primary" style="display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:10px 28px; min-width:220px; border-radius:12px; background:var(--accent,#d1904b); color:#000; font-size:14px; font-weight:800; text-decoration:none; transition:all 0.2s; box-shadow:0 4px 16px rgba(209,144,75,0.25);">
+        <button type="button" onclick="openAddModal()" class="btn-nav primary" style="display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:10px 28px; min-width:220px; border-radius:12px; background:var(--accent,#d1904b); color:#000; font-size:14px; font-weight:800; text-decoration:none; border:none; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 16px rgba(209,144,75,0.25);">
             <i class="fa-solid fa-plus" style="font-size:15px"></i> <?= __('add_new_employee', 'Add New Employee') ?>
-        </a>
+        </button>
     </div>
 </div>
 
@@ -943,6 +974,7 @@ foreach ($sorted_employees as $idx => $emp):
                     <td data-val="<?= h($emp['shift'] ?? '') ?>">
                         <?php if (!empty($emp['shift'])):
                             $shiftMeta = [
+                                'normal'    => ['#ffffff','fa-clock', __('shift_normal', 'Normal')],
                                 'morning'   => ['#ffffff','fa-sun', __('shift_morning', 'Morning')],
                                 'afternoon' => ['#ffffff','fa-cloud-sun', __('shift_afternoon', 'Afternoon')],
                                 'night'     => ['#ffffff','fa-moon', __('shift_night', 'Night')]
@@ -956,9 +988,9 @@ foreach ($sorted_employees as $idx => $emp):
                     </td>
                     <td class="cell-actions" style="text-align:right">
                         <div class="row-actions" style="justify-content:flex-end">
-                            <a class="btn-row view" href="employee_view.php?id=<?= $eid ?>">
+                            <button type="button" class="btn-row view" onclick="openViewModal(<?= $eid ?>)" title="View employee details">
                                 <i class="fa-regular fa-eye"></i> <?= __('view_detail', 'View') ?>
-                            </a>
+                            </button>
                             <button class="btn-row edit" onclick="openEditModal(<?= $eid ?>)" title="Edit employee">
                                 <i class="fa-solid fa-pen-to-square"></i> <?= __('edit', 'Edit') ?>
                             </button>
@@ -1383,12 +1415,13 @@ document.addEventListener('keydown', e => {
     const tag = document.activeElement?.tagName;
     const inField = tag === 'INPUT' || tag === 'TEXTAREA';
     if (e.key === 'Escape') {
+        if (document.getElementById('viewOverlay') && document.getElementById('viewOverlay').classList.contains('open')) { closeViewModal(); return; }
         if (document.getElementById('editOverlay').classList.contains('open')) { closeEditModal(); return; }
         closeDelete(); return;
     }
     if (inField) return;
     if (e.key === '/' || e.key === 'f') { const si = document.getElementById('searchInput'); if (si) { e.preventDefault(); si.focus(); } }
-    if (e.key === 'n' || e.key === 'N') window.location.href = 'employee_add.php';
+    if (e.key === 'n' || e.key === 'N') openAddModal();
 });
 
 /* ── TABLE HEIGHT (fill remaining viewport) ── */
@@ -1410,6 +1443,327 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('resize', resizeTable);
 </script>
 <script src="animations.js?v=<?= time() ?>"></script>
+
+<!-- ── ADD EMPLOYEE MODAL ── -->
+<div class="em-overlay" id="addOverlay" onclick="if(event.target===this)closeAddModal()">
+  <div class="em-panel" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+
+    <div class="em-header">
+      <label class="em-avatar-wrap" for="addPhotoInput" title="Upload photo">
+        <img src="" class="em-avatar" id="addAvatar" alt="" style="display:none">
+        <div class="em-avatar-fallback" id="addAvatarFb"><i class="fa-solid fa-user-plus"></i></div>
+        <div class="em-avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+        <input type="file" id="addPhotoInput" accept="image/*" style="display:none">
+      </label>
+      <div class="em-title">
+        <h3 id="addTitle">Add New Employee</h3>
+        <p style="color:var(--text-muted);font-size:12px">Create a new employee profile</p>
+        <div class="em-photo-pill" id="addPhotoPill" style="display:none"><i class="fa-solid fa-image"></i><span id="addPhotoName"></span></div>
+      </div>
+      <button class="em-close" onclick="closeAddModal()" title="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form id="addForm" class="em-body" onsubmit="submitAddForm(event)">
+      <input type="hidden" name="action" value="add_employee">
+
+      <div class="em-grid">
+        <div class="em-tile">
+          <div class="em-label"><i class="fa-solid fa-user"></i> Full Name <span style="color:var(--accent)">*</span></div>
+          <input class="em-input" type="text" name="name" id="addName" required placeholder="Enter full name">
+        </div>
+        <div class="em-tile">
+          <div class="em-label"><i class="fa-solid fa-phone"></i> Phone Number</div>
+          <input class="em-input" type="text" name="phone" id="addPhone" placeholder="012 345 678">
+        </div>
+        <div class="em-tile">
+          <div class="em-label"><i class="fa-solid fa-briefcase"></i> Position <span style="color:var(--accent)">*</span></div>
+          <div style="position:relative; display:flex; align-items:center;">
+            <select class="em-input" name="job_title" id="addJob" required style="appearance:none; -webkit-appearance:none; padding-right:24px; cursor:pointer;">
+              <option value="" disabled selected>— Select a position —</option>
+              <?php foreach ($_roles_db as $_rk => $_rd): ?>
+              <option value="<?= h($_rd['name']) ?>"><?= h($_rd['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <i class="fa-solid fa-chevron-down" style="position:absolute; right:4px; color:var(--text-muted); font-size:11px; pointer-events:none;"></i>
+          </div>
+        </div>
+        <div class="em-tile">
+          <div class="em-label"><i class="fa-solid fa-dollar-sign"></i> Monthly Salary</div>
+          <input class="em-input" type="number" step="0.01" min="0" name="salary" id="addSalary" placeholder="0.00">
+        </div>
+        <div class="em-tile">
+          <div class="em-label"><i class="fa-solid fa-calendar"></i> Date of Birth</div>
+          <input class="em-input" type="date" name="date_of_birth" id="addDob">
+        </div>
+        <div class="em-tile">
+          <div class="em-label"><i class="fa-solid fa-calendar-check"></i> Hire Date</div>
+          <input class="em-input" type="date" name="hire_date" id="addHire" value="<?= date('Y-m-d') ?>">
+        </div>
+        <div class="em-tile full">
+          <div class="em-label"><i class="fa-solid fa-location-dot"></i> Address</div>
+          <textarea class="em-input" name="address" id="addAddress" rows="2" placeholder="Employee address"></textarea>
+        </div>
+        <div class="em-tile full">
+          <div class="em-label"><i class="fa-solid fa-clock"></i> Shift</div>
+          <div class="em-role-grid" id="addShiftGrid">
+            <input type="radio" class="em-role-opt" name="shift" id="addShift_normal" value="normal" checked>
+            <label class="em-role-label" for="addShift_normal" style="--erc:#2ecc71;--erc-bg:#2ecc7122;--erc-glow:#2ecc7126">
+              <div class="em-role-icon"><i class="fa-solid fa-clock"></i></div>
+              <div style="display:flex; flex-direction:column; line-height:1.2;">
+                <span class="em-role-name">Normal</span>
+                <span style="font-size:10px; color:var(--text-muted); opacity:0.85; margin-top:2px;">8:00 AM - 5:00 PM</span>
+              </div>
+            </label>
+            <input type="radio" class="em-role-opt" name="shift" id="addShift_morning" value="morning">
+            <label class="em-role-label" for="addShift_morning" style="--erc:#f39c12;--erc-bg:#f39c1222;--erc-glow:#f39c1226">
+              <div class="em-role-icon"><i class="fa-solid fa-sun"></i></div>
+              <div style="display:flex; flex-direction:column; line-height:1.2;">
+                <span class="em-role-name">Morning</span>
+                <span style="font-size:10px; color:var(--text-muted); opacity:0.85; margin-top:2px;">6:00 AM - 2:00 PM</span>
+              </div>
+            </label>
+            <input type="radio" class="em-role-opt" name="shift" id="addShift_afternoon" value="afternoon">
+            <label class="em-role-label" for="addShift_afternoon" style="--erc:#3498db;--erc-bg:#3498db22;--erc-glow:#3498db26">
+              <div class="em-role-icon"><i class="fa-solid fa-cloud-sun"></i></div>
+              <div style="display:flex; flex-direction:column; line-height:1.2;">
+                <span class="em-role-name">Afternoon</span>
+                <span style="font-size:10px; color:var(--text-muted); opacity:0.85; margin-top:2px;">1:00 PM - 10:00 PM</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="em-footer" style="padding:16px 0 0; margin-top:16px; border-top:1px solid var(--border);">
+        <button type="button" class="em-btn em-btn-cancel" onclick="closeAddModal()">
+          <i class="fa-solid fa-xmark"></i> Cancel
+        </button>
+        <button type="submit" class="em-btn em-btn-save" id="addSaveBtn">
+          <i class="fa-solid fa-plus"></i> Add Employee
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script>
+let _addPhotoFile = null;
+
+function openAddModal() {
+    _addPhotoFile = null;
+    document.getElementById('addForm').reset();
+    document.getElementById('addAvatar').style.display = 'none';
+    document.getElementById('addAvatarFb').style.display = 'flex';
+    document.getElementById('addPhotoPill').style.display = 'none';
+    document.getElementById('addHire').value = new Date().toISOString().split('T')[0];
+    const btn = document.getElementById('addSaveBtn');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-plus"></i> Add Employee';
+    document.getElementById('addOverlay').classList.add('open');
+}
+
+function closeAddModal() {
+    document.getElementById('addOverlay').classList.remove('open');
+}
+
+document.getElementById('addPhotoInput').addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    _addPhotoFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = document.getElementById('addAvatar');
+        const fb  = document.getElementById('addAvatarFb');
+        img.src = e.target.result;
+        img.style.display = 'block';
+        fb.style.display  = 'none';
+    };
+    reader.readAsDataURL(file);
+    const pill = document.getElementById('addPhotoPill');
+    document.getElementById('addPhotoName').textContent = file.name;
+    pill.style.display = 'flex';
+});
+
+async function submitAddForm(e) {
+    e.preventDefault();
+    const btn = document.getElementById('addSaveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding…';
+
+    const form = document.getElementById('addForm');
+    const fd   = new FormData(form);
+    fd.append('csrf_token', CSRF);
+    if (_addPhotoFile) fd.set('photo', _addPhotoFile);
+
+    try {
+        const res = await fetch('employees.php', { method: 'POST', body: fd });
+        const j   = await res.json();
+        if (j.ok) {
+            showToast(j.msg || 'Employee added successfully', 'success');
+            closeAddModal();
+            setTimeout(() => window.location.reload(), 500);
+        } else {
+            showToast(j.msg || 'Failed to add employee', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-plus"></i> Add Employee';
+        }
+    } catch(err) {
+        showToast('Network error', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-plus"></i> Add Employee';
+    }
+}
+</script>
+
+<!-- ── VIEW EMPLOYEE MODAL ── -->
+<div class="em-overlay" id="viewOverlay" onclick="if(event.target===this)closeViewModal()">
+  <div class="em-panel" style="max-width:780px; width:92%;" role="dialog" aria-modal="true" aria-labelledby="viewName">
+    <div class="em-header" style="align-items:center; padding:24px 28px 20px; border-bottom:1px solid var(--border);">
+      <div class="em-avatar-wrap" style="width:100px; height:100px; cursor:default; border-radius:20px; flex-shrink:0;">
+        <img src="" class="em-avatar" id="viewAvatar" alt="" style="display:none; width:100px; height:100px; border-radius:20px; object-fit:cover;">
+        <div class="em-avatar-fallback" id="viewAvatarFb" style="width:100px; height:100px; border-radius:20px; font-size:38px; font-weight:800; display:flex; align-items:center; justify-content:center; background:rgba(209,144,75,0.15); color:var(--accent);">?</div>
+      </div>
+      <div class="em-title" style="margin-left:18px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <h3 id="viewName" style="font-size:22px; font-weight:800; color:var(--text); letter-spacing:-0.3px;">Employee Name</h3>
+          <span class="role-pill" id="viewRolePill" style="margin:0; padding:5px 14px; font-size:13px;"><span class="role-dot" id="viewRoleDot" style="width:8px; height:8px;"></span><span id="viewRoleText">Staff</span></span>
+        </div>
+        <p id="viewJobTitle" style="color:var(--accent); font-size:14px; font-weight:700; margin-top:4px;">Position</p>
+        <p id="viewStaffId" style="color:var(--text-muted); font-size:12px; margin-top:2px; font-weight:500;">#STF-0</p>
+      </div>
+      <button class="em-close" onclick="closeViewModal()" title="Close" style="width:38px; height:38px; font-size:18px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="em-body" style="padding:24px 28px;">
+      <div class="em-grid" style="gap:16px;">
+        <div class="em-tile" style="padding:14px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-phone" style="font-size:12px;"></i> Phone Number</div>
+          <div id="viewPhone" style="font-size:14px; font-weight:600; color:var(--text)">—</div>
+        </div>
+        <div class="em-tile" style="padding:14px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-clock" style="font-size:12px;"></i> Shift</div>
+          <div id="viewShift" style="font-size:14px; font-weight:600; color:var(--text)">—</div>
+        </div>
+        <div class="em-tile" style="padding:14px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-dollar-sign" style="font-size:12px;"></i> Monthly Salary</div>
+          <div id="viewSalary" style="font-size:15px; font-weight:700; color:var(--accent)">$0.00</div>
+        </div>
+        <div class="em-tile" style="padding:14px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-calendar" style="font-size:12px;"></i> Date of Birth</div>
+          <div id="viewDob" style="font-size:14px; font-weight:600; color:var(--text)">Not set</div>
+        </div>
+        <div class="em-tile" style="padding:14px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-calendar-check" style="font-size:12px;"></i> Hire Date</div>
+          <div id="viewHire" style="font-size:14px; font-weight:600; color:var(--text)">Not set</div>
+        </div>
+        <div class="em-tile" style="padding:14px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-user-clock" style="font-size:12px;"></i> Tenure / Experience</div>
+          <div id="viewTenure" style="font-size:14px; font-weight:600; color:var(--text)">—</div>
+        </div>
+        <div class="em-tile full" style="padding:16px 18px; border-radius:14px;">
+          <div class="em-label" style="font-size:11px; margin-bottom:8px;"><i class="fa-solid fa-location-dot" style="font-size:12px;"></i> Address</div>
+          <div id="viewAddress" style="font-size:14px; font-weight:500; color:var(--text); line-height:1.5;">Not set</div>
+        </div>
+      </div>
+
+      <div class="em-footer" style="padding:20px 0 0; margin-top:20px; border-top:1px solid var(--border); gap:12px;">
+        <button type="button" class="em-btn em-btn-cancel" onclick="closeViewModal()" style="padding:10px 22px; font-size:14px;">
+          <i class="fa-solid fa-xmark"></i> Close
+        </button>
+        <button type="button" class="em-btn em-btn-save" id="viewEditBtn" onclick="closeViewModal(); openEditModal(_viewCurrentEid)" style="padding:10px 24px; font-size:14px;">
+          <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _viewCurrentEid = 0;
+
+function openViewModal(eid) {
+    _viewCurrentEid = eid;
+    fetch(`employees.php?action=get_employee&eid=${eid}`)
+        .then(r => r.json())
+        .then(j => {
+            if (!j.ok) { showToast('Could not load employee details', 'error'); return; }
+            const emp = j.emp;
+
+            document.getElementById('viewName').textContent = emp.name || 'Unnamed Staff';
+            document.getElementById('viewJobTitle').textContent = emp.job_title || 'No position';
+            document.getElementById('viewStaffId').textContent = '#STF-' + emp.employee_id;
+            document.getElementById('viewPhone').textContent = emp.phone || '—';
+            document.getElementById('viewSalary').textContent = '$' + (parseFloat(emp.salary || 0).toFixed(2));
+            document.getElementById('viewAddress').textContent = emp.address || 'Not set';
+
+            // Avatar
+            const img = document.getElementById('viewAvatar');
+            const fb  = document.getElementById('viewAvatarFb');
+            if (emp.photo) {
+                img.src = emp.photo;
+                img.style.display = 'block';
+                fb.style.display  = 'none';
+            } else {
+                img.style.display = 'none';
+                fb.style.display  = 'flex';
+                fb.textContent    = (emp.name || '?')[0].toUpperCase();
+            }
+
+            // Role Pill
+            const role = emp.emp_role || 'staff';
+            const rinfo = ROLES_INFO[role] || { name: role, color: '#888' };
+            document.getElementById('viewRoleDot').style.background = rinfo.color || '#888';
+            document.getElementById('viewRoleText').textContent = rinfo.name || role;
+
+            // Shift
+            const shiftMap = {
+                normal: 'Normal (8:00 AM - 5:00 PM)',
+                morning: 'Morning (6:00 AM - 2:00 PM)',
+                afternoon: 'Afternoon (1:00 PM - 10:00 PM)'
+            };
+            document.getElementById('viewShift').textContent = shiftMap[emp.shift] || (emp.shift ? emp.shift : '—');
+
+            // DOB & Age
+            if (emp.date_of_birth) {
+                const dobDate = new Date(emp.date_of_birth);
+                const age = new Date().getFullYear() - dobDate.getFullYear();
+                document.getElementById('viewDob').textContent = dobDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ` (${age} yrs)`;
+            } else {
+                document.getElementById('viewDob').textContent = 'Not set';
+            }
+
+            // Hire & Tenure
+            if (emp.hire_date) {
+                const hireDate = new Date(emp.hire_date);
+                document.getElementById('viewHire').textContent = hireDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                
+                const now = new Date();
+                const months = (now.getFullYear() - hireDate.getFullYear()) * 12 + (now.getMonth() - hireDate.getMonth());
+                if (months < 1) {
+                    document.getElementById('viewTenure').textContent = 'Less than 1 month';
+                } else {
+                    const yrs = Math.floor(months / 12);
+                    const mos = months % 12;
+                    let tStr = [];
+                    if (yrs > 0) tStr.push(yrs + (yrs === 1 ? ' yr' : ' yrs'));
+                    if (mos > 0) tStr.push(mos + ' mo');
+                    document.getElementById('viewTenure').textContent = tStr.join(', ');
+                }
+            } else {
+                document.getElementById('viewHire').textContent = 'Not set';
+                document.getElementById('viewTenure').textContent = '—';
+            }
+
+            document.getElementById('viewOverlay').classList.add('open');
+        })
+        .catch(() => showToast('Network error', 'error'));
+}
+
+function closeViewModal() {
+    document.getElementById('viewOverlay').classList.remove('open');
+}
+</script>
 
 <!-- ── EDIT EMPLOYEE MODAL ── -->
 <div class="em-overlay" id="editOverlay" onclick="if(event.target===this)closeEditModal()">
@@ -1444,9 +1798,9 @@ window.addEventListener('resize', resizeTable);
           <input class="em-input" type="text" name="phone" id="emPhone" placeholder="Phone number">
         </div>
         <div class="em-tile">
-          <div class="em-label"><i class="fa-solid fa-briefcase"></i> Job Title <span id="emJobHint" style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6">(set by role)</span></div>
-          <input class="em-input" type="text" name="job_title" id="emJob" readonly
-                 style="cursor:not-allowed;opacity:.75" placeholder="Pick a role below" title="Job title follows the selected role">
+          <div class="em-label"><i class="fa-solid fa-briefcase"></i> Job Title <span id="emJobHint" style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6">(editable)</span></div>
+          <input class="em-input" type="text" name="job_title" id="emJob"
+                 placeholder="e.g. Senior Barista" title="Enter or edit job title">
         </div>
         <div class="em-tile">
           <div class="em-label"><i class="fa-solid fa-dollar-sign"></i> Salary</div>
@@ -1484,25 +1838,29 @@ window.addEventListener('resize', resizeTable);
         <div class="em-tile full">
           <div class="em-label"><i class="fa-solid fa-clock"></i> Shift</div>
           <div class="em-role-grid" id="emShiftGrid">
-            <input type="radio" class="em-role-opt" name="shift" id="emShift_none" value="">
-            <label class="em-role-label" for="emShift_none" style="--erc:#888;--erc-bg:#88888822;--erc-glow:#88888826">
-              <div class="em-role-icon"><i class="fa-solid fa-ban"></i></div>
-              <span class="em-role-name">None</span>
+            <input type="radio" class="em-role-opt" name="shift" id="emShift_normal" value="normal">
+            <label class="em-role-label" for="emShift_normal" style="--erc:#2ecc71;--erc-bg:#2ecc7122;--erc-glow:#2ecc7126">
+              <div class="em-role-icon"><i class="fa-solid fa-clock"></i></div>
+              <div style="display:flex; flex-direction:column; line-height:1.2;">
+                <span class="em-role-name">Normal</span>
+                <span style="font-size:10px; color:var(--text-muted); opacity:0.85; margin-top:2px;">8:00 AM - 5:00 PM</span>
+              </div>
             </label>
             <input type="radio" class="em-role-opt" name="shift" id="emShift_morning" value="morning">
             <label class="em-role-label" for="emShift_morning" style="--erc:#f39c12;--erc-bg:#f39c1222;--erc-glow:#f39c1226">
               <div class="em-role-icon"><i class="fa-solid fa-sun"></i></div>
-              <span class="em-role-name">Morning</span>
+              <div style="display:flex; flex-direction:column; line-height:1.2;">
+                <span class="em-role-name">Morning</span>
+                <span style="font-size:10px; color:var(--text-muted); opacity:0.85; margin-top:2px;">6:00 AM - 2:00 PM</span>
+              </div>
             </label>
             <input type="radio" class="em-role-opt" name="shift" id="emShift_afternoon" value="afternoon">
             <label class="em-role-label" for="emShift_afternoon" style="--erc:#3498db;--erc-bg:#3498db22;--erc-glow:#3498db26">
               <div class="em-role-icon"><i class="fa-solid fa-cloud-sun"></i></div>
-              <span class="em-role-name">Afternoon</span>
-            </label>
-            <input type="radio" class="em-role-opt" name="shift" id="emShift_night" value="night">
-            <label class="em-role-label" for="emShift_night" style="--erc:#9b59b6;--erc-bg:#9b59b622;--erc-glow:#9b59b626">
-              <div class="em-role-icon"><i class="fa-solid fa-moon"></i></div>
-              <span class="em-role-name">Night</span>
+              <div style="display:flex; flex-direction:column; line-height:1.2;">
+                <span class="em-role-name">Afternoon</span>
+                <span style="font-size:10px; color:var(--text-muted); opacity:0.85; margin-top:2px;">1:00 PM - 10:00 PM</span>
+              </div>
             </label>
           </div>
         </div>
@@ -1576,10 +1934,15 @@ function openEditModal(eid) {
             document.getElementById('emTitle').textContent   = emp.name || 'Edit Employee';
             document.getElementById('emSubtitle').textContent= emp.job_title || '';
 
-            // POS vs display-only staff
-            const isPos    = Number(emp.is_pos ?? 1) === 1;
-            const jobEl    = document.getElementById('emJob');
+            // Job title is fully editable
+            const jobEl = document.getElementById('emJob');
+            if (jobEl) {
+                jobEl.readOnly = false;
+                jobEl.style.cursor = 'text';
+                jobEl.style.opacity = '1';
+            }
             const roleTile = document.getElementById('emRoleGrid').closest('.em-tile');
+            if (roleTile) roleTile.style.display = '';
 
             // Role
             const role = emp.emp_role || 'staff';
@@ -1587,25 +1950,15 @@ function openEditModal(eid) {
             if (rb) rb.checked = true;
             else document.querySelectorAll('#emRoleGrid input[type="radio"]').forEach(r => r.checked = false);
 
-            const jobHint = document.getElementById('emJobHint');
-            if (isPos) {
-                // POS staff: job title follows the role (locked)
-                jobEl.readOnly = true;
-                if (roleTile) roleTile.style.display = '';
-                if (jobHint) jobHint.textContent = '(set by role)';
-                syncJobTitle();
-            } else {
-                // Display-only staff: no role, free-edit job title
-                jobEl.readOnly = false;
-                if (roleTile) roleTile.style.display = 'none';
-                if (jobHint) jobHint.textContent = '(editable)';
-            }
-
             // Shift
-            const shift = emp.shift || '';
-            const sb = document.querySelector(`#emShiftGrid input[value="${shift}"]`);
-            if (sb) sb.checked = true;
-            else { const ns = document.getElementById('emShift_none'); if (ns) ns.checked = true; }
+            const shiftVal = (emp.shift || 'normal').toLowerCase();
+            const sb = document.querySelector(`#emShiftGrid input[value="${shiftVal}"]`);
+            if (sb) {
+                sb.checked = true;
+            } else {
+                const ns = document.getElementById('emShift_normal');
+                if (ns) ns.checked = true;
+            }
 
             document.getElementById('editOverlay').classList.add('open');
         })
@@ -1668,6 +2021,25 @@ async function submitEditForm(e) {
                 row.dataset.name  = j.name.toLowerCase();
                 row.dataset.title = j.job.toLowerCase();
 
+                // Update shift cell in table
+                const shiftCell = row.querySelectorAll('td')[6] || row.children[6];
+                const shiftMeta = {
+                    normal:    ['#ffffff', 'fa-clock', 'Normal'],
+                    morning:   ['#ffffff', 'fa-sun', 'Morning'],
+                    afternoon: ['#ffffff', 'fa-cloud-sun', 'Afternoon'],
+                    night:     ['#ffffff', 'fa-moon', 'Night']
+                };
+                if (shiftCell) {
+                    const sVal = (j.shift || '').toLowerCase();
+                    shiftCell.dataset.val = sVal;
+                    if (sVal && shiftMeta[sVal]) {
+                        const [sc, si, sl] = shiftMeta[sVal];
+                        shiftCell.innerHTML = `<span class="shift-badge" style="color:#ffffff;font-size:13px;font-weight:700;">${sl}</span>`;
+                    } else {
+                        shiftCell.innerHTML = `<span style="color:var(--text-muted);font-size:13px;">—</span>`;
+                    }
+                }
+                
                 // Update avatar photo
                 if (j.photo) {
                     const av = row.querySelector('.avatar-img, .avatar');
@@ -1681,13 +2053,13 @@ async function submitEditForm(e) {
                 }
 
                 // Update shift inline span
-                const shiftMeta = { morning:['#f39c12','fa-sun','Morning'], afternoon:['#3498db','fa-cloud-sun','Afternoon'], night:['#9b59b6','fa-moon','Night'] };
+                const shiftMetaInline = { normal:['#2ecc71','fa-clock','Normal'], morning:['#f39c12','fa-sun','Morning'], afternoon:['#3498db','fa-cloud-sun','Afternoon'], night:['#9b59b6','fa-moon','Night'] };
                 row.dataset.shift = j.shift || '';
                 const titleEl2 = row.querySelector('.emp-title');
                 if (titleEl2) {
                     let si2 = titleEl2.querySelector('.shift-inline');
-                    if (j.shift && shiftMeta[j.shift]) {
-                        const [sc, si, sl] = shiftMeta[j.shift];
+                    if (j.shift && shiftMetaInline[j.shift]) {
+                        const [sc, si, sl] = shiftMetaInline[j.shift];
                         if (!si2) { si2 = document.createElement('span'); si2.className = 'shift-inline'; si2.style.marginLeft = '4px'; si2.style.fontSize = '9px'; si2.style.opacity = '.9'; titleEl2.appendChild(si2); }
                         si2.style.color = sc;
                         si2.innerHTML = `<i class="fa-solid ${si}"></i> ${sl}`;

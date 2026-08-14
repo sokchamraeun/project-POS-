@@ -218,6 +218,7 @@ foreach ($allIngredients as $aIng) $allIngMap[$aIng['ingredient_id']] = $aIng;
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <title>Edit — <?= htmlspecialchars($product['name']) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -235,6 +236,137 @@ foreach ($allIngredients as $aIng) $allIngMap[$aIng['ingredient_id']] = $aIng;
     --success: #3ecf70;
     --danger:  #ff4d4d;
     --radius:  14px;
+}
+[data-theme="light"], html[data-theme="light"] {
+    --bg:      #f4efe9 !important;
+    --surface: #ede8e0 !important;
+    --card:    #ffffff !important;
+    --border:  #e0d4c4 !important;
+    --text:    #1a1410 !important;
+    --muted:   #5a4a3a !important;
+}
+
+/* Light Mode Backdrop Blur */
+[data-theme="light"] .fixed.inset-0 {
+    background-color: rgba(0,0,0,0.2) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+}
+html[data-theme="light"] body,
+html:not([data-theme="dark"]) body {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+}
+html[data-theme="light"] .modal-dialog,
+html:not([data-theme="dark"]) .modal-dialog,
+html[data-theme="light"] div.bg-\[\#121215\],
+html:not([data-theme="dark"]) div.bg-\[\#121215\] {
+    background: #ffffff !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+html[data-theme="light"] div.bg-\[\#18181c\]\/90,
+html:not([data-theme="dark"]) div.bg-\[\#18181c\]\/90 {
+    background: rgba(248, 245, 240, 0.95) !important;
+    border-bottom-color: #e0d4c4 !important;
+}
+html[data-theme="light"] h2,
+html:not([data-theme="dark"]) h2,
+html[data-theme="light"] h2.text-white,
+html:not([data-theme="dark"]) h2.text-white,
+html[data-theme="light"] h3,
+html:not([data-theme="dark"]) h3 {
+    color: #1a1410 !important;
+}
+html[data-theme="light"] a.bg-\[\#22222a\],
+html:not([data-theme="dark"]) a.bg-\[\#22222a\] {
+    background: #ede8e0 !important;
+    color: #5a4a3a !important;
+}
+html[data-theme="light"] a.bg-\[\#22222a\]:hover,
+html:not([data-theme="dark"]) a.bg-\[\#22222a\]:hover {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+}
+html[data-theme="light"] input[type=text],
+html:not([data-theme="dark"]) input[type=text],
+html[data-theme="light"] input[type=number],
+html:not([data-theme="dark"]) input[type=number],
+html[data-theme="light"] textarea,
+html:not([data-theme="dark"]) textarea,
+html[data-theme="light"] select,
+html:not([data-theme="dark"]) select {
+    background: #ede8e0 !important;
+    color: #1a1410 !important;
+    border-color: #e0d4c4 !important;
+}
+html[data-theme="light"] select.cat-select,
+html:not([data-theme="dark"]) select.cat-select {
+    background-color: #f4efe9 !important;
+    color: #1a1410 !important;
+    border-color: #d1904b !important;
+}
+html[data-theme="light"] select option,
+html:not([data-theme="dark"]) select option {
+    background: #ffffff !important;
+    color: #1a1410 !important;
+}
+html[data-theme="light"] .toggle-row,
+html:not([data-theme="dark"]) .toggle-row {
+    background: #f4efe9 !important;
+    border-color: #e0d4c4 !important;
+}
+html[data-theme="light"] .toggle-info h4,
+html:not([data-theme="dark"]) .toggle-info h4 {
+    color: #1a1410 !important;
+}
+html[data-theme="light"] .toggle-info p,
+html:not([data-theme="dark"]) .toggle-info p {
+    color: #7a6a5d !important;
+}
+html[data-theme="light"] .toggle-track,
+html:not([data-theme="dark"]) .toggle-track {
+    background: #d0c5b5 !important;
+}
+html[data-theme="light"] .toggle-track::after,
+html:not([data-theme="dark"]) .toggle-track::after {
+    background: #ffffff !important;
+}
+html[data-theme="light"] .no-image,
+html:not([data-theme="dark"]) .no-image {
+    background: #f4efe9 !important;
+    border-color: #d0c5b5 !important;
+    color: #7a6a5d !important;
+}
+html[data-theme="light"] .img-preview-wrap,
+html:not([data-theme="dark"]) .img-preview-wrap {
+    background: #f4efe9 !important;
+    border-color: #e0d4c4 !important;
+}
+html[data-theme="light"] .img-file-info,
+html:not([data-theme="dark"]) .img-file-info {
+    background: #f4efe9 !important;
+    border-color: #e0d4c4 !important;
+}
+html[data-theme="light"] .img-file-info span,
+html:not([data-theme="dark"]) .img-file-info span {
+    color: #b8732d !important;
+}
+html[data-theme="light"] label.flabel,
+html:not([data-theme="dark"]) label.flabel {
+    color: #b8732d !important;
+}
+html[data-theme="light"] .addon-chip,
+html:not([data-theme="dark"]) .addon-chip {
+    background: #f4efe9 !important;
+    border-color: #e0d4c4 !important;
+    color: #5a4a3a !important;
+}
+html[data-theme="light"] .addon-chip.on,
+html:not([data-theme="dark"]) .addon-chip.on {
+    background: rgba(209,144,75,.15) !important;
+    border-color: #d1904b !important;
+    color: #b8732d !important;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -285,11 +417,13 @@ body {
     margin: 0 auto;
     padding: 0;
     display: grid;
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 280px 1fr;
     gap: 20px;
     align-items: start;
 }
-@media (max-width: 900px) { .page-wrap { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+    .page-wrap { grid-template-columns: 1fr; }
+}
 .image-panel { position: relative; top: 0; }
 @keyframes scaleUp {
     from { opacity: 0; transform: scale(0.95); }
@@ -646,7 +780,7 @@ input[name=category] { display: none; }
 </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
 <div class="orb orb-a"></div>
@@ -655,7 +789,7 @@ input[name=category] { display: none; }
 <!-- EDIT PRODUCT MODAL BACKDROP -->
 <div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
     <!-- MODAL DIALOG CONTAINER -->
-    <div class="relative w-full max-w-[1300px] max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
+    <div class="relative w-full max-w-4xl max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
         
         <!-- MODAL HEADER -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0">
@@ -674,44 +808,50 @@ input[name=category] { display: none; }
                 <input type="file" name="image" id="imgInput" accept="image/*" style="display:none">
 
                 <div class="page-wrap">
-                    <!-- LEFT COLUMN: PRODUCT INFO -->
-                    <div class="left-col flex flex-col gap-4">
-                        <!-- DETAILS -->
+                    <!-- COLUMN 1: PRODUCT IMAGE -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <i class="fa-solid fa-image text-[#d1904b]"></i>
+                            <h3>Product Image</h3>
+                        </div>
+                        <div class="section-body flex flex-col gap-3">
+                            <div class="image-panel">
+                                <?php if (!empty($product['image']) && file_exists($product['image'])): ?>
+                                <div class="img-preview-wrap" id="imgWrap" onclick="document.getElementById('imgInput').click()">
+                                    <img src="<?= htmlspecialchars($product['image']) ?>" alt="Product image" id="imgPreview">
+                                    <div class="img-overlay">
+                                        <i class="fa-solid fa-camera"></i>
+                                        Replace image
+                                    </div>
+                                    <?php if (!empty($product['badge_text'])): ?>
+                                    <span class="img-badge-overlay" id="imgBadge"><?= htmlspecialchars($product['badge_text']) ?></span>
+                                    <?php else: ?>
+                                    <span class="img-badge-overlay" id="imgBadge" style="display:none"></span>
+                                    <?php endif; ?>
+                                </div>
+                                <?php else: ?>
+                                <div class="no-image" id="imgWrap" onclick="document.getElementById('imgInput').click()">
+                                    <i class="fa-solid fa-image"></i>
+                                    <span>Click or drag to upload image</span>
+                                </div>
+                                <img id="imgPreview" style="display:none">
+                                <?php endif; ?>
+
+                                <div class="img-file-info text-center" id="fileInfo">
+                                    <span id="fileName" class="text-[11px] text-[#888]">Current image — click above to replace</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 2: PRODUCT DETAILS -->
+                    <div class="flex flex-col gap-4">
                         <div class="section-card">
                             <div class="section-head">
-                                <i class="fa-solid fa-pen-line"></i>
+                                <i class="fa-solid fa-pen-line text-[#d1904b]"></i>
                                 <h3>Product Details</h3>
                             </div>
-                            <div class="section-body flex flex-col gap-3">
-
-                                <!-- PRODUCT IMAGE AT TOP OF DETAILS -->
-                                <div class="image-panel">
-                                    <?php if (!empty($product['image']) && file_exists($product['image'])): ?>
-                                    <div class="img-preview-wrap" id="imgWrap" onclick="document.getElementById('imgInput').click()">
-                                        <img src="<?= htmlspecialchars($product['image']) ?>" alt="Product image" id="imgPreview">
-                                        <div class="img-overlay">
-                                            <i class="fa-solid fa-camera"></i>
-                                            Replace image
-                                        </div>
-                                        <?php if (!empty($product['badge_text'])): ?>
-                                        <span class="img-badge-overlay" id="imgBadge"><?= htmlspecialchars($product['badge_text']) ?></span>
-                                        <?php else: ?>
-                                        <span class="img-badge-overlay" id="imgBadge" style="display:none"></span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <?php else: ?>
-                                    <div class="no-image" id="imgWrap" onclick="document.getElementById('imgInput').click()">
-                                        <i class="fa-solid fa-image"></i>
-                                        <span>Click or drag to upload image</span>
-                                    </div>
-                                    <img id="imgPreview" style="display:none">
-                                    <?php endif; ?>
-
-                                    <div class="img-file-info text-center" id="fileInfo">
-                                        <span id="fileName" class="text-[11px] text-[#888]">Current image — click above to replace</span>
-                                    </div>
-                                </div>
-
+                            <div class="section-body flex flex-col gap-4">
                                 <div class="field">
                                     <label class="flabel" for="f_name">Product Name</label>
                                     <input type="text" id="f_name" name="name" required maxlength="120"
@@ -730,6 +870,17 @@ input[name=category] { display: none; }
                                         </option>
                                         <?php endforeach; ?>
                                     </select>
+                                </div>
+
+                                <!-- SELLING PRICE -->
+                                <div class="field">
+                                    <label class="flabel" for="f_price">Selling Price</label>
+                                    <div class="input-wrap">
+                                        <span class="prefix">$</span>
+                                        <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
+                                            required class="has-prefix"
+                                            value="<?= $product['price'] ?>">
+                                    </div>
                                 </div>
 
                                 <!-- AVAILABILITY -->
@@ -754,156 +905,6 @@ input[name=category] { display: none; }
                             <i class="fa-solid fa-floppy-disk"></i>
                             Save Changes
                         </button>
-                    </div>
-
-                    <!-- RIGHT COLUMN: RECIPE PANEL -->
-                    <div class="right-col flex flex-col gap-4">
-                        <div class="section-card">
-                            <div class="section-head flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <i class="fa-solid fa-flask"></i>
-                                    <h3>Recipe Ingredients</h3>
-                                </div>
-                                <button type="button" onclick="addRecipeRow()" class="text-xs text-[#d1904b] hover:underline flex items-center gap-1 font-semibold">
-                                    <i class="fa-solid fa-plus text-[11px]"></i> Add Ingredient
-                                </button>
-                            </div>
-                            <div class="section-body p-0 overflow-hidden">
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                            <tr class="border-b border-[#24242b] bg-[#18181c] text-[#888] font-semibold uppercase tracking-wider text-[11px]">
-                                                <th class="py-3 px-3">Ingredient</th>
-                                                <th class="py-3 px-2 text-center w-[130px]">Qty Required</th>
-                                                <th class="py-3 px-2 text-right w-[100px]">Cost / Unit</th>
-                                                <th class="py-3 px-2 text-right w-[90px]">Item Cost</th>
-                                                <th class="py-3 px-2 text-center w-[45px]">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="recipeRowsContainer" class="divide-y divide-[#1e1e24]">
-                                            <?php 
-                                            $totalCogs = 0.0;
-                                            if (!empty($productIngredients)): 
-                                            ?>
-                                                <?php foreach ($productIngredients as $ing): 
-                                                    $cpu = (float)($allIngMap[$ing['ingredient_id']]['cost_per_unit'] ?? 0);
-                                                    $amt = (float)$ing['amount_used'];
-                                                    $rowTot = $amt * $cpu;
-                                                    $totalCogs += $rowTot;
-                                                ?>
-                                                <tr class="recipe-row hover:bg-[#151519] transition-all">
-                                                    <td class="py-2 px-3">
-                                                        <select name="recipe_ingredient_id[]" class="w-full text-xs bg-[#18181c] border border-[#333] rounded-lg p-2 text-white outline-none focus:border-[#d1904b]" onchange="updateRecipeRow(this)" required>
-                                                            <?php foreach ($allIngredients as $aIng): ?>
-                                                            <option value="<?= $aIng['ingredient_id'] ?>" 
-                                                                    data-unit="<?= htmlspecialchars($aIng['unit']) ?>" 
-                                                                    data-cpu="<?= (float)$aIng['cost_per_unit'] ?>"
-                                                                    <?= ($ing['ingredient_id'] == $aIng['ingredient_id']) ? 'selected' : '' ?>>
-                                                                <?= htmlspecialchars($aIng['ingredient_name']) ?> (Stock: <?= (float)$aIng['stock_quantity'] ?> <?= htmlspecialchars($aIng['unit']) ?>)
-                                                            </option>
-                                                            <?php endforeach; ?>
-                                                        </select>
-                                                    </td>
-                                                    <td class="py-2 px-2">
-                                                        <div class="flex items-center justify-center gap-1">
-                                                            <input type="number" step="any" min="0" name="recipe_amount_used[]" value="<?= $amt ?>" placeholder="0" class="w-16 text-xs bg-[#18181c] border border-[#333] rounded-md px-2 py-1.5 text-white outline-none focus:border-[#d1904b] text-right font-bold row-qty-input" oninput="calculateRowTotal(this)" required>
-                                                            <span class="unit-label text-[11px] text-[#d1904b] font-bold min-w-[20px]"><?= htmlspecialchars($ing['unit']) ?></span>
-                                                        </div>
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right text-[11px] text-[#aaa]">
-                                                        <span class="unit-price-label text-white font-semibold">$<?= ($cpu < 0.01 && $cpu > 0) ? rtrim(rtrim(number_format($cpu, 4, '.', ''), '0'), '.') : number_format($cpu, 2) ?></span>/<span class="unit-name-label text-[#777]"><?= htmlspecialchars($ing['unit']) ?></span>
-                                                    </td>
-                                                    <td class="py-2 px-2 text-right text-xs font-bold text-[#3ecf70]">
-                                                        $<span class="row-total-label"><?= number_format($rowTot, 2) ?></span>
-                                                    </td>
-                                                    <td class="py-2 px-2 text-center">
-                                                        <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Remove ingredient">
-                                                            <i class="fa-solid fa-trash-can text-xs"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </tbody>
-                                        <tfoot id="recipeFooterSummary" style="<?= empty($productIngredients) ? 'display:none' : '' ?>">
-                                            <tr class="border-t-2 border-[#2a2a32] bg-[#18181c]">
-                                                <td colspan="3" class="py-3 px-3 font-bold text-[#888] uppercase tracking-wider text-[11px]">
-                                                    <i class="fa-solid fa-calculator text-[#d1904b] mr-1.5"></i> Total Cost of Goods (COGS)
-                                                </td>
-                                                <td class="py-3 px-2 text-right font-extrabold text-[#3ecf70] text-sm">
-                                                    $<span id="tableTotalCogs"><?= number_format($totalCogs, 2) ?></span>
-                                                </td>
-                                                <td></td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-
-                                <div id="noRecipeMsg" class="text-center py-8 text-[#888] flex flex-col items-center justify-center p-4" style="<?= !empty($productIngredients) ? 'display:none' : '' ?>">
-                                    <div class="w-12 h-12 rounded-full bg-[#222] flex items-center justify-center mb-3 text-[#d1904b]">
-                                        <i class="fa-solid fa-book-open text-xl"></i>
-                                    </div>
-                                    <p class="text-xs font-medium text-white mb-1">No recipe configured</p>
-                                    <p class="text-[11px] text-[#777] max-w-[200px] mb-4">No ingredients are linked to this drink yet.</p>
-                                    <button type="button" onclick="addRecipeRow()" class="inline-flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#e8b87a] to-[#d1904b] text-black font-bold hover:brightness-110 transition-all shadow-md">
-                                        <i class="fa-solid fa-plus text-[10px]"></i> Setup Recipe
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- PRICING & FINANCIAL SUMMARY BELOW RECIPE TABLE -->
-                        <div class="section-card">
-                            <div class="section-head">
-                                <i class="fa-solid fa-coins text-[#d1904b]"></i>
-                                <h3>Pricing & Profit Summary</h3>
-                            </div>
-                            <div class="section-body flex flex-col gap-3">
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="field">
-                                        <label class="flabel" for="f_price">Selling Price</label>
-                                        <div class="input-wrap">
-                                            <span class="prefix">$</span>
-                                            <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
-                                                required class="has-prefix"
-                                                value="<?= $product['price'] ?>">
-                                        </div>
-                                    </div>
-                                    <div class="field">
-                                        <label class="flabel" for="f_cost_price">Cost Price</label>
-                                        <div class="input-wrap">
-                                            <span class="prefix">$</span>
-                                            <input type="number" id="f_cost_price" name="cost_price" step="0.01" min="0" max="9999.99"
-                                                readonly class="has-prefix text-[#3ecf70] font-bold bg-[#141418] cursor-not-allowed opacity-90"
-                                                value="<?= number_format((float)($product['cost_price'] ?? 0), 2, '.', '') ?>"
-                                                placeholder="0.00" title="Automatically calculated from total recipe ingredient costs">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <?php 
-                                $sellP = (float)($product['price'] ?? 0);
-                                $marginDol = max(0, $sellP - $totalCogs);
-                                $marginPct = $sellP > 0 ? (($sellP - $totalCogs) / $sellP) * 100 : 0;
-                                ?>
-                                <div class="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[#141418] border border-[#24242b] text-center text-xs">
-                                    <div>
-                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Total COGS</span>
-                                        <span class="text-sm font-extrabold text-white">$<span id="totalRecipeCogs"><?= number_format($totalCogs, 2) ?></span></span>
-                                    </div>
-                                    <div>
-                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Selling Price</span>
-                                        <span class="text-sm font-extrabold text-[#d1904b]">$<span id="dispSellingPrice"><?= number_format($sellP, 2) ?></span></span>
-                                    </div>
-                                    <div>
-                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Gross Margin</span>
-                                        <span id="grossMarginWrap" class="text-sm font-extrabold <?= $marginDol > 0 ? 'text-[#3ecf70]' : ($marginDol < 0 ? 'text-[#ff4d4d]' : 'text-[#777]') ?>">
-                                            $<span id="grossMarginDol"><?= number_format($marginDol, 2) ?></span> (<span id="grossMarginPct"><?= number_format($marginPct, 1) ?>%</span>)
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div><!-- /.page-wrap -->
             </form>

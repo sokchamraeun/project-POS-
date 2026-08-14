@@ -52,8 +52,11 @@
         <div class="bg-white text-black p-4 rounded shadow-inner text-xs mx-auto overflow-hidden" style="width: 80mm; font-family: 'Kantumruy Pro', 'Poppins', sans-serif;" id="receipt-printable-area">
             <!-- Header -->
             <div class="text-center mb-2">
-                <h1 class="text-lg font-bold tracking-tight text-black leading-tight" id="rcpt-shop-name">The Bird Nest Cafe</h1>
-                <p class="text-[11px] text-gray-800" id="rcpt-shop-location">Phnom Penh</p>
+                <h1 class="text-lg font-bold tracking-tight text-black leading-tight" id="rcpt-shop-name"><?= htmlspecialchars(defined('RECEIPT_SHOP_NAME') ? RECEIPT_SHOP_NAME : 'The Bird Nest Cafe') ?></h1>
+                <p class="text-[11px] text-gray-800" id="rcpt-shop-location"><?= htmlspecialchars(defined('RECEIPT_LOCATION') ? RECEIPT_LOCATION : 'Phnom Penh') ?></p>
+                <?php if (defined('RECEIPT_PHONE') && RECEIPT_PHONE !== ''): ?>
+                <p class="text-[11px] text-gray-800" id="rcpt-shop-phone"><?= htmlspecialchars(RECEIPT_PHONE) ?></p>
+                <?php endif; ?>
                 <h2 class="text-base font-bold text-black mt-2 mb-1 tracking-wide">វិក្កយបត្រ</h2>
             </div>
 
@@ -101,11 +104,11 @@
 
             <!-- Totals Section -->
             <div class="text-[11px] leading-snug mt-2 space-y-0.5">
-                <div class="flex justify-between">
+                <div class="flex justify-between" id="rcpt-subtotal-row" style="display:none;">
                     <span>ប្រាក់សរុប :</span>
                     <span id="rcpt-subtotal">USD 85.00</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex justify-between" id="rcpt-discount-row" style="display:none;">
                     <span>បញ្ចុះតម្លៃ (<span id="rcpt-disc-pct">0</span>%) :</span>
                     <span id="rcpt-discount">USD 0.00</span>
                 </div>
@@ -171,33 +174,7 @@ function printReceipt(orderData) {
     }
 
     if (typeof orderData === 'number' || typeof orderData === 'string') {
-        const targetId = Number(orderData);
-        const url = 'receipt_print.php?order_id=' + targetId + '&auto_print=1';
-
-        var win = window.open(url, 'receipt_win', 'width=450,height=700,scrollbars=yes');
-        if (win) {
-            try { win.focus(); } catch(e) {}
-        } else {
-            var existingFrame = document.getElementById('receiptPrintFrame');
-            if (existingFrame) existingFrame.remove();
-
-            var iframe = document.createElement('iframe');
-            iframe.id = 'receiptPrintFrame';
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.width = '10px';
-            iframe.style.height = '10px';
-            iframe.style.opacity = '0';
-            iframe.style.pointerEvents = 'none';
-            iframe.style.border = '0';
-            iframe.src = url;
-            document.body.appendChild(iframe);
-
-            setTimeout(function() {
-                if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-            }, 60000);
-        }
+        showReceiptModalPopup(Number(orderData));
         return;
     }
 
@@ -252,9 +229,22 @@ function renderReceiptModal(data) {
         }
     }
 
+    var discVal = parseFloat(data.discount) || 0;
+    var subRow = document.getElementById('rcpt-subtotal-row');
+    var discRow = document.getElementById('rcpt-discount-row');
+    if (subRow && discRow) {
+        if (discVal > 0) {
+            subRow.style.display = 'flex';
+            discRow.style.display = 'flex';
+        } else {
+            subRow.style.display = 'none';
+            discRow.style.display = 'none';
+        }
+    }
+
     if (document.getElementById('rcpt-subtotal')) document.getElementById('rcpt-subtotal').innerText = 'USD ' + (parseFloat(data.subtotal) || 85).toFixed(2);
     if (document.getElementById('rcpt-disc-pct')) document.getElementById('rcpt-disc-pct').innerText = data.discount_percent || '0';
-    if (document.getElementById('rcpt-discount')) document.getElementById('rcpt-discount').innerText = 'USD ' + (parseFloat(data.discount) || 0).toFixed(2);
+    if (document.getElementById('rcpt-discount')) document.getElementById('rcpt-discount').innerText = 'USD ' + discVal.toFixed(2);
     if (document.getElementById('rcpt-total')) document.getElementById('rcpt-total').innerText = 'USD ' + (parseFloat(data.total) || 85).toFixed(2);
     if (document.getElementById('rcpt-total-khr')) document.getElementById('rcpt-total-khr').innerText = 'KHR ' + (data.total_khr || '340,000');
     if (document.getElementById('rcpt-received')) document.getElementById('rcpt-received').innerText = 'USD ' + (parseFloat(data.received) || parseFloat(data.total) || 85).toFixed(2);

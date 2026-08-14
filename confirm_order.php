@@ -259,41 +259,46 @@ if ($existing_order_id > 0) {
 $subtotal    = 0.0;
 $total_qty   = 0;
 $min_price   = PHP_FLOAT_MAX;
+$item_manual_discounts_total = 0.0;
 
 foreach ($_SESSION['cart'] as $item) {
     $qty   = max(1, (int)($item['qty'] ?? 1));
     $price = (float)($item['price'] ?? 0.0);
-    $subtotal  += $price * $qty;
+    $itemLineTotal = $price * $qty;
+    $subtotal  += $itemLineTotal;
     $total_qty += $qty;
     if ($price < $min_price) $min_price = $price;
+
+    $discType = $item['discount_type'] ?? '';
+    $discAmt  = (float)($item['discount_amount'] ?? 0);
+    if ($discAmt > 0) {
+        if ($discType === 'flat') {
+            $item_manual_discounts_total += min($itemLineTotal, $discAmt);
+        } else {
+            $item_manual_discounts_total += $itemLineTotal * (min(100, $discAmt) / 100.0);
+        }
+    }
 }
 
 $happy_hour_discount = 0;
 $current_hour        = (int)date('H');
 if (HAPPY_HOUR_ENABLED && $current_hour >= HAPPY_HOUR_START && $current_hour < HAPPY_HOUR_END) {
-    $happy_hour_discount = $subtotal * (HAPPY_HOUR_DISCOUNT / 100);
+    $happy_hour_discount = ($subtotal - $item_manual_discounts_total) * (HAPPY_HOUR_DISCOUNT / 100);
 }
 
-$after_promos_co = $subtotal - $happy_hour_discount;
+$after_promos_co = max(0, $subtotal - $item_manual_discounts_total - $happy_hour_discount);
 $md_co = $_SESSION['manual_discount'] ?? null;
-$manual_discount_co = 0.0;
+$overall_manual_discount = 0.0;
 $manual_reason_co   = '';
 if ($md_co && (float)($md_co['amount'] ?? 0) > 0) {
-    $manual_discount_co = $md_co['type'] === 'flat'
+    $overall_manual_discount = $md_co['type'] === 'flat'
         ? min((float)$md_co['amount'], max(0, $after_promos_co))
         : max(0, $after_promos_co) * ((float)$md_co['amount'] / 100.0);
     $manual_reason_co = substr(trim($md_co['reason'] ?? ''), 0, 100);
-    $after_promos_co -= $manual_discount_co;
+    $after_promos_co -= $overall_manual_discount;
 }
 
-// NOTE: Buy X Get 1 Free is NOT subtracted here — intentional by design.
-// The free drink is an *extra* gift on top of what the customer ordered.
-// Customer pays full price for all ordered drinks; the free drink costs the cafe $0 to give.
-// Only happy_hour and manual discounts reduce the chargeable total.
-// promotion_discount stores PROMOTIONS ONLY (happy hour). The manual discount is stored
-// separately in the manual_discount column — do NOT bundle it in here, or receipts that
-// render both promotion_discount and manual_discount as separate lines double-show it.
-// (The charged total below is unaffected: $after_promos_co already subtracted the manual.)
+$manual_discount_co = $item_manual_discounts_total + $overall_manual_discount;
 $total_discount      = $happy_hour_discount;
 $subtotal_after      = $after_promos_co;
 $tax                 = $subtotal_after * (TAX_RATE / 100);
@@ -301,7 +306,7 @@ $total               = round($subtotal_after + $tax, 2);
 
 // ── PAYMENT VALIDATION ──
 if (empty($payment_methods) || empty($payment_amounts)) {
-    $payment_methods    = ['bakong'];
+    $payment_methods    = ['cash'];
     $payment_amounts    = [$total];
     $payment_references = [''];
 }
@@ -467,7 +472,7 @@ try {
     $point_qty = 0;   // loyalty: earning (drink) + chargeable qty; computed here before the cart is cleared
     foreach ($_SESSION['cart'] as $item) {
         $qty        = max(1, (int)($item['qty'] ?? 1));
-        $price      = (float)($item['price'] ?? 0.0);
+        $unit_price = (float)($item['price'] ?? 0.0);
         $product_id = (int)($item['product_id'] ?? 0);
         $pname      = $item['product_name'] ?? '';
         $sweet      = $item['sweetness'] ?? '';
@@ -476,14 +481,32 @@ try {
         $scode      = $item['size_code'] ?? '';
         $slabel     = $item['size_label'] ?? '';
         $sfactor    = (float)($item['size_factor'] ?? 1.0);
-        $promo_pct  = (int)($item['promo_percent'] ?? 0);
-        $orig_price = (float)($item['orig_price'] ?? $price);
+        $orig_price = (float)($item['orig_price'] ?? $unit_price);
         $earns_pts  = (int)($item['earns_points'] ?? 1);
-        if ($earns_pts === 1 && $price > 0) $point_qty += $qty;
+        if ($earns_pts === 1 && $unit_price > 0) $point_qty += $qty;
         $addons_json = json_encode($item['addons'] ?? []);
 
-        // price is the NET (post-promo) unit price; promo is already baked in. Do not re-discount.
-        $stmt_item->bind_param("iisdissssssidi", $order_id, $product_id, $pname, $price, $qty, $sweet, $ice, $milk, $scode, $slabel, $addons_json, $promo_pct, $orig_price, $earns_pts);
+        $discType   = $item['discount_type'] ?? '';
+        $discAmt    = (float)($item['discount_amount'] ?? 0);
+        $promo_pct  = (int)($item['promo_percent'] ?? 0);
+        $itemDisc   = 0.0;
+
+        if ($discAmt > 0) {
+            $itemLineTotal = $unit_price * $qty;
+            if ($discType === 'flat') {
+                $itemDisc = min($itemLineTotal, $discAmt);
+                if ($itemLineTotal > 0) {
+                    $promo_pct = (int)round(($itemDisc / $itemLineTotal) * 100);
+                }
+            } else {
+                $promo_pct = (int)min(100, $discAmt);
+                $itemDisc = $itemLineTotal * ($promo_pct / 100.0);
+            }
+        }
+
+        $final_price = $qty > 0 ? ($unit_price * $qty - $itemDisc) / $qty : $unit_price;
+
+        $stmt_item->bind_param("iisdissssssidi", $order_id, $product_id, $pname, $final_price, $qty, $sweet, $ice, $milk, $scode, $slabel, $addons_json, $promo_pct, $orig_price, $earns_pts);
         $stmt_item->execute();
 
         if ($product_id > 0) {
@@ -555,7 +578,6 @@ try {
 
     $conn->commit();
     _stash_stock_warning($stock_warnings);
-    unset($_SESSION['csrf_token']);
     if ($has_bakong) {
         $_SESSION['bakong_cart_stash'] = $_SESSION['cart'];
     }
@@ -591,7 +613,7 @@ try {
     } elseif ($has_paylater) {
         header("Location: payment_paylater.php?order_id=" . $order_id);
     } else {
-        header("Location: menu.php?print_order_id=" . $order_id);
+        header("Location: receipt_print.php?order_id=" . $order_id);
     }
     exit;
 

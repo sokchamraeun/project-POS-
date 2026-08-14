@@ -21,6 +21,11 @@ if ($action === 'delete') {
     foreach ($rows as $r) {
         if (!empty($r['image']) && file_exists($r['image'])) unlink($r['image']);
     }
+    if ($conn->query("SHOW TABLES LIKE 'product_ingredients'")->num_rows > 0) {
+        $del_pi = $conn->prepare("DELETE FROM product_ingredients WHERE product_id IN ($ph)");
+        $del_pi->bind_param($types, ...$ids);
+        $del_pi->execute();
+    }
     $del = $conn->prepare("DELETE FROM products WHERE product_id IN ($ph)");
     $del->bind_param($types, ...$ids);
     $del->execute();

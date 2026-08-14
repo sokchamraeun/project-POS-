@@ -440,7 +440,7 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
 </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
 <div class="orb orb-a"></div>

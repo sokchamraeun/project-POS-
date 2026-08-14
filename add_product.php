@@ -101,6 +101,7 @@ if ($ingRes) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <title>Add New Product</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -119,6 +120,91 @@ if ($ingRes) {
     --danger:  #ff4d4d;
     --radius:  14px;
 }
+
+/* ══ LIGHT THEME OVERRIDES FOR ADD PRODUCT ══ */
+[data-theme="light"], html[data-theme="light"] {
+    --bg:      #f4efe9 !important;
+    --surface: #ede8e0 !important;
+    --card:    #ffffff !important;
+    --border:  #e0d4c4 !important;
+    --text:    #1a1410 !important;
+    --muted:   #5a4a3a !important;
+}
+
+[data-theme="light"] .app-main {
+    background-color: #f4efe9 !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] .animate-scaleUp {
+    background-color: #ffffff !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+    box-shadow: 0 20px 50px rgba(90, 60, 20, 0.15) !important;
+}
+
+[data-theme="light"] .shrink-0 {
+    background-color: #fdfaf6 !important;
+    border-color: #e0d4c4 !important;
+}
+
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] .section-head h3,
+[data-theme="light"] .toggle-info h4 {
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] p,
+[data-theme="light"] .toggle-info p,
+[data-theme="light"] .img-file-info {
+    color: #5a4a3a !important;
+}
+
+[data-theme="light"] .section-card {
+    background: #ffffff !important;
+    border-color: #e0d4c4 !important;
+    box-shadow: 0 4px 16px rgba(90,60,20,0.06) !important;
+}
+
+[data-theme="light"] .section-head {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+}
+
+[data-theme="light"] .no-image,
+[data-theme="light"] .img-preview-wrap,
+[data-theme="light"] .img-file-info {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #5a4a3a !important;
+}
+
+[data-theme="light"] input[type=text],
+[data-theme="light"] input[type=number],
+[data-theme="light"] textarea,
+[data-theme="light"] select,
+[data-theme="light"] select.cat-select {
+    background-color: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] select.cat-select option {
+    background-color: #ffffff !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] label.flabel {
+    color: #1a1410 !important;
+}
+
+/* Light Mode Backdrop Blur */
+[data-theme="light"] .fixed.inset-0 {
+    background-color: rgba(0,0,0,0.2) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: Poppins, sans-serif;
@@ -134,11 +220,13 @@ body {
     margin: 0 auto;
     padding: 0;
     display: grid;
-    grid-template-columns: 350px 1fr;
-    gap: 24px;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
     align-items: start;
 }
-@media (max-width: 850px) { .page-wrap { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+    .page-wrap { grid-template-columns: 1fr; }
+}
 @keyframes scaleUp {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
@@ -343,7 +431,7 @@ select.cat-select option {
 </head>
 <body>
 
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
 <div class="orb orb-a"></div>
@@ -352,7 +440,7 @@ select.cat-select option {
 <!-- ADD PRODUCT MODAL BACKDROP -->
 <div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
     <!-- MODAL DIALOG CONTAINER -->
-    <div class="relative w-full max-w-5xl max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
+    <div class="relative w-full max-w-4xl max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
         
         <!-- MODAL HEADER -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0">
@@ -379,33 +467,40 @@ select.cat-select option {
                 <input type="file" name="image" id="f_img_input" accept="image/*" style="display:none">
 
                 <div class="page-wrap">
-                    <!-- LEFT COLUMN: PRODUCT INFO -->
-                    <div class="left-col flex flex-col gap-4">
-                        <div class="section-card">
-                            <div class="section-head">
-                                <i class="fa-solid fa-pen-line"></i>
-                                <h3>Product Details</h3>
-                            </div>
-                            <div class="section-body flex flex-col gap-3">
-
-                                <!-- PRODUCT IMAGE AT TOP OF DETAILS -->
-                                <div class="image-panel">
-                                    <div class="no-image" id="noImgBox" onclick="document.getElementById('f_img_input').click()">
-                                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                                        <span>Click or drag to upload image</span>
-                                    </div>
-                                    <div class="img-preview-wrap" id="imgPreviewWrap" style="display:none" onclick="document.getElementById('f_img_input').click()">
-                                        <img id="imgPreview" src="" alt="Preview">
-                                        <div class="img-overlay">
-                                            <i class="fa-solid fa-camera"></i>
-                                            <span>Change Image</span>
-                                        </div>
-                                    </div>
-                                    <div class="img-file-info text-center">
-                                        <span id="imgStatusText" class="text-[11px] text-[#888]">No image selected</span>
+                    <!-- COLUMN 1: PRODUCT IMAGE -->
+                    <div class="section-card">
+                        <div class="section-head">
+                            <i class="fa-solid fa-image text-[#d1904b]"></i>
+                            <h3>Product Image</h3>
+                        </div>
+                        <div class="section-body flex flex-col gap-3">
+                            <div class="image-panel">
+                                <div class="no-image" id="noImgBox" onclick="document.getElementById('f_img_input').click()">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    <span>Click or drag to upload image</span>
+                                </div>
+                                <div class="img-preview-wrap" id="imgPreviewWrap" style="display:none" onclick="document.getElementById('f_img_input').click()">
+                                    <img id="imgPreview" src="" alt="Preview">
+                                    <div class="img-overlay">
+                                        <i class="fa-solid fa-camera"></i>
+                                        <span>Change Image</span>
                                     </div>
                                 </div>
+                                <div class="img-file-info text-center">
+                                    <span id="imgStatusText" class="text-[11px] text-[#888]">No image selected</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- COLUMN 2: PRODUCT DETAILS -->
+                    <div class="flex flex-col gap-4">
+                        <div class="section-card">
+                            <div class="section-head">
+                                <i class="fa-solid fa-pen-line text-[#d1904b]"></i>
+                                <h3>Product Details</h3>
+                            </div>
+                            <div class="section-body flex flex-col gap-4">
                                 <div class="field">
                                     <label class="flabel" for="f_name">Product Name</label>
                                     <input type="text" name="name" id="f_name" value="" placeholder="e.g. Oolong Macchiato" required>
@@ -422,6 +517,16 @@ select.cat-select option {
                                         </option>
                                         <?php endforeach; ?>
                                     </select>
+                                </div>
+
+                                <!-- SELLING PRICE -->
+                                <div class="field">
+                                    <label class="flabel" for="f_price">Selling Price</label>
+                                    <div class="input-wrap">
+                                        <span class="prefix">$</span>
+                                        <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
+                                            required class="has-prefix" placeholder="0.00">
+                                    </div>
                                 </div>
 
                                 <!-- AVAILABILITY -->
@@ -444,106 +549,6 @@ select.cat-select option {
                         <button type="submit" class="btn-save">
                             <i class="fa-solid fa-plus"></i> Add Product
                         </button>
-                    </div>
-
-                    <!-- RIGHT COLUMN: RECIPE PANEL -->
-                    <div class="right-col flex flex-col gap-4">
-                        <div class="section-card">
-                            <div class="section-head flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <i class="fa-solid fa-flask"></i>
-                                    <h3>Recipe Ingredients</h3>
-                                </div>
-                                <button type="button" onclick="addRecipeRow()" class="text-xs text-[#d1904b] hover:underline flex items-center gap-1 font-semibold">
-                                    <i class="fa-solid fa-plus text-[11px]"></i> Add Ingredient
-                                </button>
-                            </div>
-                            <div class="section-body p-0 overflow-hidden">
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                            <tr class="border-b border-[#24242b] bg-[#18181c] text-[#888] font-semibold uppercase tracking-wider text-[11px]">
-                                                <th class="py-3 px-3">Ingredient</th>
-                                                <th class="py-3 px-2 text-center w-[130px]">Qty Required</th>
-                                                <th class="py-3 px-2 text-right w-[100px]">Cost / Unit</th>
-                                                <th class="py-3 px-2 text-right w-[90px]">Item Cost</th>
-                                                <th class="py-3 px-2 text-center w-[45px]">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="recipeRowsContainer" class="divide-y divide-[#1e1e24]">
-                                        </tbody>
-                                        <tfoot id="recipeFooterSummary" style="display:none">
-                                            <tr class="border-t-2 border-[#2a2a32] bg-[#18181c]">
-                                                <td colspan="3" class="py-3 px-3 font-bold text-[#888] uppercase tracking-wider text-[11px]">
-                                                    <i class="fa-solid fa-calculator text-[#d1904b] mr-1.5"></i> Total Cost of Goods (COGS)
-                                                </td>
-                                                <td class="py-3 px-2 text-right font-extrabold text-[#3ecf70] text-sm">
-                                                    $<span id="tableTotalCogs">0.00</span>
-                                                </td>
-                                                <td></td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-
-                                <div id="noRecipeMsg" class="text-center py-8 text-[#888] flex flex-col items-center justify-center p-4">
-                                    <div class="w-12 h-12 rounded-full bg-[#222] flex items-center justify-center mb-3 text-[#d1904b]">
-                                        <i class="fa-solid fa-book-open text-xl"></i>
-                                    </div>
-                                    <p class="text-xs font-medium text-white mb-1">No recipe configured</p>
-                                    <p class="text-[11px] text-[#777] max-w-[200px] mb-4">No ingredients are linked to this drink yet.</p>
-                                    <button type="button" onclick="addRecipeRow()" class="inline-flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#e8b87a] to-[#d1904b] text-black font-bold hover:brightness-110 transition-all shadow-md">
-                                        <i class="fa-solid fa-plus text-[10px]"></i> Setup Recipe
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- PRICING & FINANCIAL SUMMARY BELOW RECIPE TABLE -->
-                        <div class="section-card">
-                            <div class="section-head">
-                                <i class="fa-solid fa-coins text-[#d1904b]"></i>
-                                <h3>Pricing & Profit Summary</h3>
-                            </div>
-                            <div class="section-body flex flex-col gap-3">
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="field">
-                                        <label class="flabel" for="f_price">Selling Price</label>
-                                        <div class="input-wrap">
-                                            <span class="prefix">$</span>
-                                            <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
-                                                required class="has-prefix" placeholder="0.00">
-                                        </div>
-                                    </div>
-                                    <div class="field">
-                                        <label class="flabel" for="f_cost_price">Cost Price</label>
-                                        <div class="input-wrap">
-                                            <span class="prefix">$</span>
-                                            <input type="number" id="f_cost_price" name="cost_price" step="0.01" min="0" max="9999.99"
-                                                readonly class="has-prefix text-[#3ecf70] font-bold bg-[#141418] cursor-not-allowed opacity-90"
-                                                placeholder="0.00" title="Automatically calculated from total recipe ingredient costs">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[#141418] border border-[#24242b] text-center text-xs">
-                                    <div>
-                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Total COGS</span>
-                                        <span class="text-sm font-extrabold text-white">$<span id="totalRecipeCogs">0.00</span></span>
-                                    </div>
-                                    <div>
-                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Selling Price</span>
-                                        <span class="text-sm font-extrabold text-[#d1904b]">$<span id="dispSellingPrice">0.00</span></span>
-                                    </div>
-                                    <div>
-                                        <span class="text-[10px] text-[#777] uppercase tracking-wider block font-semibold mb-0.5">Gross Margin</span>
-                                        <span id="grossMarginWrap" class="text-sm font-extrabold text-[#777]">
-                                            $<span id="grossMarginDol">0.00</span> (<span id="grossMarginPct">0.0%</span>)
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </form>

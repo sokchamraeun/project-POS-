@@ -1,6 +1,7 @@
 <?php
-require 'admin_only.php';
-require 'config.php';
+require 'auth.php';
+require_once 'config.php';
+if (!($_SESSION['is_admin'] ?? false) && ($_SESSION['role'] ?? '') !== 'admin' && !can('manage_users')) { header("Location: dashboard.php?denied=1"); exit; }
 
 $currentUserId = (int)$_SESSION['user_id'];
 
@@ -130,14 +131,9 @@ if ($e_res) { $all_employees = $e_res->fetch_all(MYSQLI_ASSOC); }
 
 // ── FETCH ALL USERS ──
 $users = [];
-try {
-    $res = $conn->prepare("SELECT u.user_id, u.username, e.employee_id AS linked_emp_id, e.name AS emp_name, COALESCE(r.slug, 'staff') AS role_slug, COALESCE(r.name, r.slug, 'Staff') AS role_name, u.created_at FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.user_id ASC");
-    $res->execute();
-    $users = $res->get_result()->fetch_all(MYSQLI_ASSOC);
-} catch (mysqli_sql_exception $e) {
-    $res = $conn->prepare("SELECT u.user_id, u.username, e.employee_id AS linked_emp_id, e.name AS emp_name, COALESCE(r.slug, 'staff') AS role_slug, COALESCE(r.name, r.slug, 'Staff') AS role_name FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.user_id ASC");
-    $res->execute();
-    $users = $res->get_result()->fetch_all(MYSQLI_ASSOC);
+$res = $conn->query("SELECT u.user_id, u.username, e.employee_id AS linked_emp_id, e.name AS emp_name, COALESCE(r.slug, 'staff') AS role_slug, COALESCE(r.name, r.slug, 'Staff') AS role_name FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY u.user_id ASC");
+if ($res) {
+    $users = $res->fetch_all(MYSQLI_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -145,6 +141,7 @@ try {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <title>Manage Admins | Café</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -163,6 +160,100 @@ try {
     --warning: #f5a623;
     --radius:  14px;
 }
+
+/* ══ LIGHT THEME OVERRIDES FOR MANAGE ADMIN ══ */
+[data-theme="light"], html[data-theme="light"] {
+    --bg: #f4efe9 !important;
+    --card: #ffffff !important;
+    --border: #e0d4c4 !important;
+    --text: #1a1410 !important;
+    --muted: #5a4a3a !important;
+    --text-light: #1a1410 !important;
+}
+
+[data-theme="light"] .app-main {
+    background-color: #f4efe9 !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] .nav-title,
+[data-theme="light"] .section-head h3 {
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] p,
+[data-theme="light"] .section-head p {
+    color: #5a4a3a !important;
+}
+
+[data-theme="light"] #userSearch {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] .table-card {
+    background: #ffffff !important;
+    border-color: #e0d4c4 !important;
+    box-shadow: 0 4px 16px rgba(90,60,20,0.06) !important;
+}
+
+[data-theme="light"] #userTable thead {
+    background: #ede8e0 !important;
+}
+
+[data-theme="light"] #userTable thead tr {
+    background: #ede8e0 !important;
+    border-bottom: 2px solid #e0d4c4 !important;
+}
+
+[data-theme="light"] #userTable th {
+    color: #1a1410 !important;
+    border-right: 1px solid #e0d4c4 !important;
+}
+
+[data-theme="light"] #userTable td {
+    color: #1a1410 !important;
+    border-bottom: 1px solid #f0e8e0 !important;
+}
+
+[data-theme="light"] #userTable td span {
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] #userTable tr.user-row {
+    background: #ffffff !important;
+    border-bottom: 1px solid #f0e8e0 !important;
+}
+
+[data-theme="light"] #userTable tbody tr:nth-child(even) {
+    background-color: #fdfaf6 !important;
+}
+
+[data-theme="light"] #userTable tbody tr:hover {
+    background-color: rgba(209,144,75,0.12) !important;
+}
+
+[data-theme="light"] .modal {
+    background: #ffffff !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] .field input,
+[data-theme="light"] .field select {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+
+[data-theme="light"] .flabel {
+    color: #1a1410 !important;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: Poppins, sans-serif;
@@ -335,7 +426,7 @@ body {
 .badge.role { background: rgba(209,144,75,.1);  color: var(--accent); border: 1px solid rgba(209,144,75,.15); }
 
 .delete-btn {
-    margin-left: auto; flex-shrink: 0;
+    flex-shrink: 0;
     width: 32px; height: 32px; border-radius: 9px;
     border: 1px solid #2a2a2a; background: transparent;
     color: var(--muted); cursor: pointer;
@@ -472,8 +563,8 @@ body {
 .toast.show    { transform: translateY(0); opacity: 1; }
 </style>
 </head>
-<body class="bg-[#0e0e10] text-[#f0f0f0]">
-<div class="app-layout flex h-screen w-screen overflow-hidden bg-[#0e0e10]">
+<body class="text-[#f0f0f0]">
+<div class="app-layout flex h-screen w-screen overflow-hidden">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-6 relative">
 <div class="orb orb-a"></div>
@@ -504,19 +595,6 @@ body {
         </div>
     </div>
 
-    <!-- ROLE FILTER PILLS -->
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
-        <button type="button" class="role-filter-btn" onclick="setRoleFilter('all', this)"
-            style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid var(--accent,#d1904b); background:var(--accent,#d1904b); color:#000; cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;">
-            <i class="fa-solid fa-users" style="font-size:11px;"></i> <?= __('all_roles', 'All Roles') ?>
-        </button>
-        <?php foreach ($all_roles as $r): ?>
-        <button type="button" class="role-filter-btn" onclick="setRoleFilter('<?= htmlspecialchars($r['slug']) ?>', this)"
-            style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid var(--border,#222); background:rgba(255,255,255,0.04); color:var(--muted,#888); cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;">
-            <i class="fa-solid fa-shield-halved" style="font-size:10px;"></i> <?= htmlspecialchars($r['name']) ?>
-        </button>
-        <?php endforeach; ?>
-    </div>
 
     <!-- LIST TABLE CARD -->
     <div class="table-card" style="background:var(--card,#161616); border:1px solid var(--border,#222); border-radius:14px; overflow:hidden;">
@@ -526,7 +604,6 @@ body {
                     <tr style="background:rgba(255,255,255,0.02); border-bottom:1px solid var(--border,#222);">
                         <th style="width:50px; text-align:center; padding:14px 16px; font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted,#888);"><?= __('col_no', 'No') ?></th>
                         <th style="padding:14px 20px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted,#888);"><?= __('col_user', 'User') ?></th>
-                        <th style="padding:14px 20px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted,#888);"><?= __('col_emp_name', 'Employee Name') ?></th>
                         <th style="padding:14px 20px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted,#888);"><?= __('col_role', 'Role') ?></th>
                         <th style="padding:14px 20px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted,#888);"><?= __('col_password', 'Password') ?></th>
                         <th style="padding:14px 20px; text-align:right; font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted,#888);"><?= __('actions', 'Actions') ?></th>
@@ -537,7 +614,7 @@ body {
                 if (empty($users)):
                 ?>
                     <tr>
-                        <td colspan="6" style="text-align:center; padding:40px; color:var(--muted,#888);">
+                        <td colspan="5" style="text-align:center; padding:40px; color:var(--muted,#888);">
                             <i class="fa-solid fa-user-slash" style="font-size:24px; opacity:0.4; display:block; margin-bottom:8px;"></i>
                             No users found
                         </td>
@@ -557,20 +634,12 @@ body {
                             <?= $u_idx ?>
                         </td>
                         <td style="padding:14px 20px;">
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <div style="width:36px; height:36px; border-radius:10px; background:rgba(209,144,75,0.12); color:var(--accent,#d1904b); border:1px solid rgba(209,144,75,0.25); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; flex-shrink:0;">
-                                    <?= htmlspecialchars($initials) ?>
-                                </div>
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <span style="font-weight:700; font-size:14px; color:var(--text-light,#fff);"><?= htmlspecialchars($a['username']) ?></span>
-                                    <?php if ($isYou): ?>
-                                    <span style="background:rgba(52,152,219,0.15); color:#3498db; border:1px solid rgba(52,152,219,0.3); font-size:10px; font-weight:800; padding:1px 7px; border-radius:10px; text-transform:uppercase;"><?= __('badge_you', 'You') ?></span>
-                                    <?php endif; ?>
-                                </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-weight:700; font-size:14px; color:var(--text-light,#fff);"><?= htmlspecialchars($a['username']) ?></span>
+                                <?php if ($isYou): ?>
+                                <span style="background:rgba(52,152,219,0.15); color:#3498db; border:1px solid rgba(52,152,219,0.3); font-size:10px; font-weight:800; padding:1px 7px; border-radius:10px; text-transform:uppercase;"><?= __('badge_you', 'You') ?></span>
+                                <?php endif; ?>
                             </div>
-                        </td>
-                        <td style="padding:14px 20px; font-weight:600; color:var(--text-light,#fff); font-size:13.5px;">
-                            <?= $empName ?>
                         </td>
                         <td style="padding:14px 20px;">
                             <span style="background:rgba(209,144,75,0.12); color:var(--accent,#d1904b); border:1px solid rgba(209,144,75,0.25); font-size:11px; font-weight:700; padding:3px 10px; border-radius:12px; display:inline-flex; align-items:center; gap:5px;">
@@ -593,7 +662,7 @@ body {
                                 </button>
                                 <button class="delete-btn" <?= $isYou ? 'disabled title="Cannot delete your own account"' : '' ?>
                                     onclick="openDeleteModal(<?= $a['user_id'] ?>, '<?= htmlspecialchars($a['username'], ENT_QUOTES) ?>')"
-                                    style="width:30px; height:30px; border-radius:8px; border:1px solid var(--border,#222); background:transparent; color:var(--muted,#888); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;">
+                                    style="margin-left:0; width:30px; height:30px; border-radius:8px; border:1px solid var(--border,#222); background:transparent; color:var(--muted,#888); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;">
                                     <i class="fa-solid fa-trash-can" style="font-size:12px;"></i>
                                 </button>
                             </div>
@@ -634,34 +703,7 @@ body {
                 </div>
             </div>
 
-            <!-- Link to Employee -->
-            <div class="field" style="margin-bottom:12px">
-                <label class="flabel">Link to Employee (Optional)</label>
-                <div class="input-wrap">
-                    <i class="iicon fa-solid fa-id-badge"></i>
-                    <select name="employee_id" id="add_employee_id" style="width:100%; padding:11px 16px 11px 40px; border-radius:10px; border:1px solid var(--border,#222); background:#0f0f0f; color:var(--text,#fff); font-size:14px; outline:none; font-family:inherit;">
-                        <option value="0" data-job="">-- None / System User --</option>
-                        <?php foreach ($all_employees as $emp): ?>
-                        <option value="<?= $emp['employee_id'] ?>" data-job="<?= htmlspecialchars(strtolower($emp['job_title'] ?? '')) ?>">
-                            <?= htmlspecialchars($emp['name']) ?><?= !empty($emp['user_id']) ? ' (Already Linked)' : '' ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
 
-            <!-- Role -->
-            <div class="field" style="margin-bottom:12px">
-                <label class="flabel">Role</label>
-                <div class="input-wrap">
-                    <i class="iicon fa-solid fa-shield-halved"></i>
-                    <select name="role_slug" id="add_role_slug" style="width:100%; padding:11px 16px 11px 40px; border-radius:10px; border:1px solid var(--border,#222); background:#0f0f0f; color:var(--text,#fff); font-size:14px; outline:none; font-family:inherit;">
-                        <?php foreach ($all_roles as $r): ?>
-                        <option value="<?= htmlspecialchars($r['slug']) ?>"><?= htmlspecialchars($r['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
 
             <!-- Password -->
             <div class="field" style="margin-bottom:12px">
@@ -778,34 +820,7 @@ body {
                 </div>
             </div>
 
-            <!-- Link to Employee -->
-            <div class="field" style="margin-bottom:12px">
-                <label class="flabel">Link to Employee</label>
-                <div class="input-wrap">
-                    <i class="iicon fa-solid fa-id-badge"></i>
-                    <select name="employee_id" id="edit_employee_id" style="width:100%; padding:11px 16px 11px 40px; border-radius:10px; border:1px solid var(--border,#222); background:#0f0f0f; color:var(--text,#fff); font-size:14px; outline:none; font-family:inherit;">
-                        <option value="0" data-job="">-- None / System User --</option>
-                        <?php foreach ($all_employees as $emp): ?>
-                        <option value="<?= $emp['employee_id'] ?>" data-job="<?= htmlspecialchars(strtolower($emp['job_title'] ?? '')) ?>">
-                            <?= htmlspecialchars($emp['name']) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
 
-            <!-- Role -->
-            <div class="field" style="margin-bottom:16px">
-                <label class="flabel">Role</label>
-                <div class="input-wrap">
-                    <i class="iicon fa-solid fa-shield-halved"></i>
-                    <select name="role_slug" id="edit_role_slug" style="width:100%; padding:11px 16px 11px 40px; border-radius:10px; border:1px solid var(--border,#222); background:#0f0f0f; color:var(--text,#fff); font-size:14px; outline:none; font-family:inherit;">
-                        <?php foreach ($all_roles as $r): ?>
-                        <option value="<?= htmlspecialchars($r['slug']) ?>"><?= htmlspecialchars($r['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
 
             <div style="display:flex; gap:10px;">
                 <button type="button" onclick="closeEditUserModal()" class="btn-cancel" style="flex:1;">Cancel</button>

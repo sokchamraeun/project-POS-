@@ -377,7 +377,6 @@ tr.hidden { display:none !important; }
             <input id="searchInput" placeholder="Search…" autocomplete="off" oninput="liveSearch(this.value)">
         </div>
         <button class="btn-nav" onclick="exportCSV()" title="Export current view to CSV"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
-        <a href="ingredient_report.php" class="btn-nav" title="Consumption summary report"><i class="fa-solid fa-chart-bar"></i> Report</a>
         <button class="btn-nav icon-only" onclick="toggleTheme()" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
     </div>
 </div>

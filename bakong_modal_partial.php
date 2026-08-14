@@ -107,102 +107,119 @@ window.closeReceiptModal = function() {
     window.location.href = 'cancel_bakong_order.php?order_id=' + orderId;
 };
 </script>
-<div id="receipt-modal" class="fixed inset-0 bg-black/65 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onclick="if(event.target===this) window.closeReceiptModal();">
-  <div class="bg-[#121215]/95 border border-amber-500/20 rounded-3xl max-w-md w-full shadow-2xl relative overflow-hidden p-6 text-white font-sans">
-    <!-- Top Accent Bar -->
-    <div class="h-1 w-full bg-gradient-to-r from-amber-500/0 via-amber-500 to-amber-500/0 absolute top-0 left-0"></div>
-
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<div id="receipt-modal" class="fixed inset-0 bg-black/75 backdrop-blur-md z-[9999] flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) window.closeReceiptModal();">
+  <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl relative overflow-hidden p-6 text-black font-sans my-4" style="font-family: 'Kantumruy Pro', 'Poppins', sans-serif;">
+    
     <!-- Close Button -->
     <a href="cancel_bakong_order.php?order_id=<?= (int)$bakong_order_id ?>" id="btnCloseReceipt" title="Close" onclick="window.location.href=this.href;return false;"
-       style="position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:99999;text-decoration:none;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-        <i class="fa-solid fa-xmark" style="font-size:18px;"></i>
+       style="position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid #ddd;background:#f4f4f5;color:#333;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:99999;text-decoration:none;">
+        <i class="fa-solid fa-xmark" style="font-size:16px;"></i>
     </a>
 
-    <!-- Header & Brand -->
-    <div class="receipt-header text-center mb-4">
-        <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-500 text-xl mb-2">
-            <i class="fa-solid fa-receipt"></i>
-        </div>
-        <h2 class="text-xl font-bold text-white m-0">Bird's Nest POS Receipt</h2>
-        <p class="text-xs text-gray-400 mt-1">Scan Bakong KHQR to Complete Order</p>
+    <!-- Header -->
+    <div style="text-align:center; margin-bottom:12px;">
+        <h1 style="font-size:18px; font-weight:700; margin:0; color:#000;">The Bird Nest Cafe</h1>
+        <p style="font-size:11px; color:#555; margin:2px 0 0;">Phnom Penh</p>
+        <h2 style="font-size:16px; font-weight:700; margin:8px 0 6px; color:#000; letter-spacing:0.5px;">វិក្កយបត្រ</h2>
     </div>
 
-    <!-- 1. Order Header Badges (Single Row) -->
-    <div class="receipt-badges" style="display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:5px;margin-bottom:16px;padding:8px 6px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
-        <span class="rc-badge" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;padding:4px 6px;border-radius:8px;background:rgba(209,144,75,0.15);color:#f59e0b;font-size:11px;font-weight:600;flex:1;">
-            <i class="fa-solid fa-hashtag" style="font-size:10px;"></i> Order #<?= (int)$order['daily_order_no'] ?>
-        </span>
-        <?php if (!empty($order['table_number']) && $order['table_number'] !== 'N/A'): ?>
-        <span class="rc-badge" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;padding:4px 6px;border-radius:8px;background:rgba(59,130,246,0.15);color:#60a5fa;font-size:11px;font-weight:600;flex:1;">
-            <i class="fa-solid fa-chair" style="font-size:10px;"></i> Stand #<?= htmlspecialchars($order['table_number']) ?>
-        </span>
-        <?php endif; ?>
-        <span class="rc-badge" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;padding:4px 6px;border-radius:8px;background:rgba(16,185,129,0.15);color:#34d399;font-size:11px;font-weight:600;flex:1;">
-            <i class="fa-solid fa-<?= ($order['order_type'] ?? '') === 'drink_out' ? 'bag-shopping' : 'mug-hot' ?>" style="font-size:10px;"></i> <?= ($order['order_type'] ?? '') === 'drink_out' ? 'Drink Out' : 'Drink In' ?>
-        </span>
-        <span class="rc-badge" style="display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;padding:4px 6px;border-radius:8px;background:rgba(239,68,68,0.15);color:#f87171;font-size:11px;font-weight:600;flex:1;">
-            <i class="fa-solid fa-qrcode" style="font-size:10px;"></i> Bakong KHQR
-        </span>
-    </div>
+    <!-- Metadata Grid -->
+    <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:10.5px; color:#000;">
+        <tr>
+            <td style="width:50%; padding:1px 0;">អ្នកគិតលុយ : <strong><?= htmlspecialchars($_SESSION['username'] ?? 'Root') ?></strong></td>
+            <td style="width:50%; text-align:right; padding:1px 0;">លេខវិក្កយបត្រ : <strong><?= str_pad($order['daily_order_no'], 4, '0', STR_PAD_LEFT) ?></strong></td>
+        </tr>
+        <tr>
+            <td style="padding:1px 0;">អតិថិជន : <strong><?= htmlspecialchars($order['customer_name'] ?: 'Guest') ?></strong></td>
+            <td style="text-align:right; padding:1px 0;">ម៉ោងចេញ : <strong><?= date("d-m-Y h:i A") ?></strong></td>
+        </tr>
+        <tr>
+            <td style="padding:1px 0;">បង់តាម : <strong>KHQR</strong></td>
+            <td style="text-align:right; padding:1px 0;">អត្រាប្តូរប្រាក់ : <strong>1$ = <?= number_format(KHR_RATE) ?> ៛</strong></td>
+        </tr>
+    </table>
 
-    <!-- 2. Detailed Items List -->
-    <div class="receipt-items-section mb-4">
-        <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Ordered Items</div>
-        <div class="receipt-items-list max-h-40 overflow-y-auto pr-1 flex flex-col gap-2">
-            <?php if (!empty($order_items)): ?>
-            <?php foreach ($order_items as $item):
-                $meta = array_filter([
-                    !empty($item['size_label']) ? 'Size: '.$item['size_label'] : '',
-                    !empty($item['sweetness'])  ? 'Sweet: '.$item['sweetness']  : '',
-                    !empty($item['ice'])        ? 'Ice: '.$item['ice']          : '',
-                    !empty($item['milk'])       ? 'Milk: '.$item['milk']        : '',
+    <!-- Items Table -->
+    <table style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px; border:1px solid #000;">
+        <thead>
+            <tr style="background:#fff; border-bottom:1px solid #000;">
+                <th style="border:1px solid #000; padding:4px 3px; text-align:center; font-weight:700; width:10%;">ល.រ</th>
+                <th style="border:1px solid #000; padding:4px 4px; text-align:center; font-weight:700; width:44%;">បរិយាយ</th>
+                <th style="border:1px solid #000; padding:4px 3px; text-align:center; font-weight:700; width:14%;">ចំនួន</th>
+                <th style="border:1px solid #000; padding:4px 3px; text-align:center; font-weight:700; width:16%;">តម្លៃ</th>
+                <th style="border:1px solid #000; padding:4px 3px; text-align:center; font-weight:700; width:16%;">សរុប</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            $idx = 1;
+            if (!empty($order_items)):
+            foreach ($order_items as $item):
+                $unit_price = (float)($item['price'] ?? 0);
+                $qty = (float)($item['qty'] ?? 1);
+                $line_total = $unit_price * $qty;
+                $opts = array_filter([
+                    !empty($item['sweetness']) ? 'sugar : '.$item['sweetness'] : '',
+                    !empty($item['ice'])       ? 'ice : '.strtolower($item['ice']) : '',
+                    !empty($item['milk'])      ? 'milk : '.strtolower($item['milk']) : '',
                 ]);
-                $line_total = (float)($item['price'] ?? 0) * (int)($item['qty'] ?? 1);
             ?>
-            <div class="receipt-item-row flex items-start justify-between p-2.5 bg-white/[0.02] rounded-xl border border-white/[0.04]">
-                <div class="flex-1 pr-2">
-                    <div class="text-xs font-semibold text-gray-200"><?= htmlspecialchars($item['product_name'] ?? '') ?> <span class="text-[11px] text-amber-500">x<?= (int)($item['qty'] ?? 1) ?></span></div>
-                    <?php if ($meta): ?>
-                    <div class="text-[11px] text-gray-400 mt-0.5"><?= htmlspecialchars(implode(' • ', $meta)) ?></div>
-                    <?php endif; ?>
-                </div>
-                <div class="text-xs font-bold text-white whitespace-nowrap">$<?= number_format($line_total, 2) ?></div>
-            </div>
+            <tr>
+                <td style="border:1px solid #000; padding:4px 3px; text-align:center;"><?= $idx++ ?></td>
+                <td style="border:1px solid #000; padding:4px 4px; text-align:left;">
+                    <div style="font-weight:700; color:#000; font-size:10px;"><?= htmlspecialchars($item['product_name'] ?? '') ?></div>
+                    <?php foreach ($opts as $opt): ?>
+                    <div style="font-size:8.5px; color:#333; line-height:1.25; margin-top:1px;"><?= htmlspecialchars($opt) ?></div>
+                    <?php endforeach; ?>
+                </td>
+                <td style="border:1px solid #000; padding:4px 3px; text-align:center;"><?= number_format($qty, 1) ?></td>
+                <td style="border:1px solid #000; padding:4px 3px; text-align:center;"><?= number_format($unit_price, 2) ?></td>
+                <td style="border:1px solid #000; padding:4px 3px; text-align:center;"><?= number_format($line_total, 2) ?></td>
+            </tr>
             <?php endforeach; ?>
             <?php endif; ?>
+        </tbody>
+    </table>
+
+    <!-- Totals -->
+    <div style="width:100%; font-size:11px; margin-top:4px; color:#000;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+            <span>ប្រាក់សរុប :</span>
+            <span>USD <?= number_format($total, 2) ?></span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-weight:700; font-size:12px; margin-bottom:2px;">
+            <span>ប្រាក់សរុបចុងក្រោយ :</span>
+            <span>USD <?= number_format($total, 2) ?></span>
+        </div>
+        <div style="text-align:right; font-weight:700; font-size:11px; margin-bottom:6px;">
+            KHR <?= number_format($khr_bakong) ?>
         </div>
     </div>
 
-    <!-- 3. Order Totals Summary -->
-    <div class="receipt-summary p-3 bg-white/[0.03] rounded-2xl border border-white/[0.05] mb-4">
-        <div class="flex justify-between text-xs text-gray-400 mb-1">
-            <span>Subtotal</span>
-            <span>$<?= number_format($subtotal, 2) ?></span>
-        </div>
-        <div class="flex justify-between text-xs text-gray-400 mb-2">
-            <span>Tax (<?= TAX_RATE ?>%)</span>
-            <span>$<?= number_format($tax_amount, 2) ?></span>
-        </div>
-        <div class="flex justify-between items-center pt-2 border-t border-dashed border-white/10">
-            <span class="text-sm font-bold text-white">Final Total</span>
-            <div class="text-right">
-                <div class="text-lg font-extrabold text-emerald-400">$<?= number_format($total, 2) ?></div>
-                <div class="text-[11px] text-gray-400">KHR <?= number_format($khr_bakong) ?></div>
-            </div>
+    <!-- Dotted Divider -->
+    <div style="border-top:1px dotted #000; margin:10px 0 8px;"></div>
+
+    <!-- Thank You -->
+    <div style="text-align:center; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; color:#000;">
+        THANK YOU!
+    </div>
+
+    <!-- KHQR Box -->
+    <div style="text-align:center; margin-bottom:12px;" id="qrSection">
+        <div style="display:inline-block; padding:10px; background:#fff; border:2px solid #000; border-radius:18px; box-shadow:0 4px 14px rgba(0,0,0,0.06);">
+            <img src="<?= htmlspecialchars($qrUrl) ?>" alt="Bakong KHQR" style="width:160px; height:160px; display:block; margin:0 auto;">
+            <div style="font-size:11px; font-weight:700; color:#000; margin-top:6px; letter-spacing:0.5px; text-transform:uppercase;">BAKONG KHQR</div>
         </div>
     </div>
 
-    <!-- 4. KHQR Code & Status -->
-    <div class="receipt-qr-section text-center" id="qrSection">
-        <div class="qr-box inline-block p-3 bg-white rounded-2xl shadow-xl mb-3">
-            <img src="<?= htmlspecialchars($qrUrl) ?>" alt="Bakong KHQR" class="w-40 h-40 block">
-        </div>
-        <div class="status-indicator flex items-center justify-center gap-2 text-xs text-amber-500 mb-2" id="statusIndicator">
-            <span class="spinner"></span>
+    <!-- Status & Confirm Button -->
+    <div style="text-align:center;" id="statusIndicator">
+        <div style="display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; color:#d97706; font-weight:600; margin-bottom:8px;" id="statusRow">
             <span class="status-text" id="statusText">Waiting for Bakong payment...</span>
         </div>
         <button type="button" id="btnManualConfirmBakong" onclick="confirmBakongManual(<?= (int)$bakong_order_id ?>)"
-                style="width:100%;margin-top:8px;padding:10px 14px;border-radius:12px;border:none;background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);color:#000;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 4px 12px rgba(245,158,11,0.25);transition:all 0.2s;">
+                style="width:100%; padding:10px 14px; border-radius:12px; border:none; background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%); color:#000; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 4px 12px rgba(245,158,11,0.25); transition:all 0.2s;">
             <i class="fa-solid fa-circle-check"></i> Confirm Payment Received
         </button>
     </div>
@@ -223,11 +240,15 @@ function closeReceiptModalOnly() {
 
 function openReceiptPopup(orderId) {
     closeReceiptModalOnly();
-    if (typeof window.printReceipt === 'function') {
-        window.printReceipt(orderId);
+    if (window.name === 'receipt_win') {
+        window.location.href = 'receipt_print.php?order_id=' + orderId;
     } else {
         var printWin = window.open('receipt_print.php?order_id=' + orderId, 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
-        if (printWin) { try { printWin.focus(); } catch(e) {} }
+        if (printWin) {
+            try { printWin.focus(); } catch(e) {}
+        } else {
+            window.location.href = 'receipt_print.php?order_id=' + orderId;
+        }
     }
 }
 
@@ -287,6 +308,6 @@ function closeReceiptModal() {
                 }
             })
             .catch(function() {});
-    }, 5000);
+    }, 3000);
 })();
 </script>

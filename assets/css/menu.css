@@ -1,5 +1,5 @@
 /* ── DESIGN SYSTEM ── */
-:root {
+:root, [data-theme="light"] {
   --orange: #d1904b;
   --orange-dark: #a0702a;
   --orange-light: #e8b87a;

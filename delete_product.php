@@ -19,6 +19,12 @@ if (!empty($row['image'])) {
     if (file_exists($path)) unlink($path);
 }
 
+if ($conn->query("SHOW TABLES LIKE 'product_ingredients'")->num_rows > 0) {
+    $del_pi = $conn->prepare("DELETE FROM product_ingredients WHERE product_id = ?");
+    $del_pi->bind_param("i", $id);
+    $del_pi->execute();
+}
+
 $del = $conn->prepare("DELETE FROM products WHERE product_id = ?");
 $del->bind_param("i", $id);
 $del->execute();

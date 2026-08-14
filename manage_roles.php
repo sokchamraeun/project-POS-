@@ -354,22 +354,13 @@ foreach ($roles as $_slug => $_rinfo) {
 
 $module_meta = [
     // ── core module names — must match the `module` column in the permissions table ──
-    'Overview'    => ['icon' => 'fa-gauge',          'color' => '#d1904b'],
-    'Orders'      => ['icon' => 'fa-receipt',        'color' => '#3498db'],
-    'Loyalty'     => ['icon' => 'fa-star',           'color' => '#9b59b6'],
-    'Inventory'   => ['icon' => 'fa-boxes-stacked',  'color' => '#27ae60'],
-    'Operations'      => ['icon' => 'fa-sliders',        'color' => '#8b5cf6'],
-    'Reconciliation'  => ['icon' => 'fa-scale-balanced','color' => '#06b6d4'],
-    'Procurement'     => ['icon' => 'fa-truck',          'color' => '#e67e22'],
-    'Analytics'   => ['icon' => 'fa-chart-bar',      'color' => '#e74c3c'],
-    'Staff'       => ['icon' => 'fa-users',          'color' => '#1abc9c'],
-    'Admin'       => ['icon' => 'fa-shield-halved',  'color' => '#c0392b'],
-    // ── legacy / alternate spellings kept so old seeds still render correctly ──
-    'Dashboard'   => ['icon' => 'fa-gauge',          'color' => '#d1904b'],
-    'Reports'     => ['icon' => 'fa-chart-bar',      'color' => '#e74c3c'],
-    'People'      => ['icon' => 'fa-users',          'color' => '#1abc9c'],
-    'Content'     => ['icon' => 'fa-bullhorn',       'color' => '#f39c12'],
-    'Access'      => ['icon' => 'fa-shield-halved',  'color' => '#c0392b'],
+    'Overview'   => ['icon' => 'fa-gauge',          'color' => '#d1904b'],
+    'Orders'     => ['icon' => 'fa-receipt',        'color' => '#3498db'],
+    'Inventory'  => ['icon' => 'fa-boxes-stacked',  'color' => '#27ae60'],
+    'Reports'    => ['icon' => 'fa-chart-bar',      'color' => '#e74c3c'],
+    'Staff'      => ['icon' => 'fa-users',          'color' => '#1abc9c'],
+    'Admin'      => ['icon' => 'fa-shield-halved',  'color' => '#c0392b'],
+    'System'     => ['icon' => 'fa-gear',           'color' => '#f39c12'],
 ];
 $module_count = count($all_perms);
 ?>
@@ -377,6 +368,7 @@ $module_count = count($all_perms);
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manage Roles | Bird's Nest Coffee</title>
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');}());</script>
@@ -964,7 +956,7 @@ tr:last-child td { border-bottom:none; }
 </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden bg-[#0e0e10] app-layout">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-6">
 
