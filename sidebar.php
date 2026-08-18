@@ -481,11 +481,11 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
             <?php if (can('products') || can('inventory') || in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])): ?>
             <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= in_array($_cur_page, ['stock.php', 'stock_count.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="stock.php">
                 <i class="fa-solid fa-wine-bottle w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_stock_drinks', 'Direct Drinks Stock') ?></span>
+                <span class="nav-label"><?= __('nav_stock_drinks', 'Stock Drink') ?></span>
             </a>
             <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'ingredients.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="ingredients.php">
                 <i class="fa-solid fa-seedling w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_raw_ingredients', 'Raw Ingredients') ?></span>
+                <span class="nav-label"><?= __('nav_raw_ingredients', 'Ingredient') ?></span>
             </a>
             <?php endif; ?>
 
@@ -502,7 +502,7 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
                 <button type="button" 
                         id="reportNavToggle" 
                         onclick="toggleReportSubmenu(event)" 
-                        class="nav-item w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white cursor-pointer<?= in_array($_cur_page, ['daily_report.php', 'report.php', 'shift_report.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>">
+                        class="nav-item w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white cursor-pointer<?= in_array($_cur_page, ['daily_report.php', 'report.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>">
                     <div class="flex items-center gap-3 min-w-0">
                         <i class="fa-solid fa-chart-column w-5 text-center flex-shrink-0"></i>
                         <span class="nav-label truncate"><?= __('nav_reports', 'Reports') ?></span>
@@ -520,12 +520,6 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
                     <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="report.php">
                         <i class="fa-solid fa-[#d1904b] fa-chart-line w-4 text-center"></i>
                         <span class="nav-label"><?= __('nav_sales_report', 'Analytics & Export') ?></span>
-                    </a>
-                    <?php endif; ?>
-                    <?php if (can('shift_report')): ?>
-                    <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'shift_report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="shift_report.php">
-                        <i class="fa-solid fa-[#d1904b] fa-clock w-4 text-center"></i>
-                        <span class="nav-label"><?= __('nav_shift_report', 'Shift Audit') ?></span>
                     </a>
                     <?php endif; ?>
                 </div>

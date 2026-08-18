@@ -1787,6 +1787,7 @@ $stockItems = $initStmt->fetchAll();
                 const costUnit = parseFloat(item.cost_per_unit) || 0;
                 const costBox = parseFloat(item.cost_per_purchase_unit) || 0;
                 const val = qty * costUnit;
+                const breakdown = calculateBreakdownText(qty, item.unit, item.purchase_unit, rate);
 
                 let statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ${escapeHtml(I18N.inStock)}</span>`;
                 let qtyColor = 'text-white';
