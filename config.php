@@ -277,6 +277,7 @@ if (!function_exists('business_date_today')) {
  */
 if (!function_exists('getProductMaxStock')) {
     function getProductMaxStock(mysqli $conn, int $productId): ?int {
+        // 1. Check product_recipes (Bill of Materials)
         $stmt = $conn->prepare("
             SELECT 
                 MIN(CASE WHEN s.item_id IS NOT NULL AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
@@ -285,16 +286,186 @@ if (!function_exists('getProductMaxStock')) {
             JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1
             WHERE r.product_id = ?
         ");
-        if (!$stmt) return null;
-        $stmt->bind_param("i", $productId);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+        if ($stmt) {
+            $stmt->bind_param("i", $productId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
 
-        if (!$row || (int)$row['recipe_count'] === 0 || $row['max_servings'] === null) {
-            return null;
+            if ($row && (int)$row['recipe_count'] > 0 && $row['max_servings'] !== null) {
+                return max(0, (int)$row['max_servings']);
+            }
         }
-        return max(0, (int)$row['max_servings']);
+
+        // 2. Direct Drink Fallback: Check direct drink stock match by name
+        $pStmt = $conn->prepare("SELECT name FROM products WHERE product_id = ?");
+        if ($pStmt) {
+            $pStmt->bind_param("i", $productId);
+            $pStmt->execute();
+            $pRow = $pStmt->get_result()->fetch_assoc();
+            $pStmt->close();
+
+            if ($pRow && !empty($pRow['name'])) {
+                $pName = trim($pRow['name']);
+                $dStmt = $conn->prepare("SELECT quantity FROM stock_items WHERE item_type = 'direct_drink' AND is_active = 1 AND (LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) OR item_name LIKE ? OR ? LIKE CONCAT('%', item_name, '%')) LIMIT 1");
+                if ($dStmt) {
+                    $wildName = "%{$pName}%";
+                    $dStmt->bind_param("sss", $pName, $wildName, $pName);
+                    $dStmt->execute();
+                    $dRow = $dStmt->get_result()->fetch_assoc();
+                    $dStmt->close();
+
+                    if ($dRow && isset($dRow['quantity'])) {
+                        return max(0, (int)floor((float)$dRow['quantity']));
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+/**
+ * Calculates and returns full formatted cart payload for POS & AJAX endpoints.
+ */
+if (!function_exists('get_cart_payload')) {
+    function get_cart_payload(mysqli $conn): array {
+        $cart = $_SESSION['cart'] ?? [];
+        $subtotal = 0.0; $total_qty = 0; $item_promos = 0.0;
+        $min_price = PHP_FLOAT_MAX; $cheapest_idx = -1;
+        $_fpid = defined('FREE_ITEM_PRODUCT_ID') ? (int)FREE_ITEM_PRODUCT_ID : 0;
+        $_fname = ''; $_fprice = 0.0; $_fidx = -1;
+
+        $items_out = [];
+        foreach ($cart as $i => $item) {
+            $q = (int)($item['qty'] ?? 1);
+            $p = (float)($item['price'] ?? 0);
+            $pId = (int)($item['product_id'] ?? 0);
+
+            // Stock check: clamp quantity if it exceeds currently available stock
+            $max_stock = function_exists('getProductMaxStock') ? getProductMaxStock($conn, $pId) : null;
+            if ($max_stock !== null && $q > $max_stock) {
+                $q = max(1, $max_stock);
+                $_SESSION['cart'][$i]['qty'] = $q;
+            }
+
+            $itemLineTotal = $p * $q;
+            $subtotal += $itemLineTotal;
+            $total_qty += $q;
+
+            // Per-item manual discount
+            $itemDisc = 0.0;
+            $discType = $item['discount_type'] ?? '';
+            $discAmt  = (float)($item['discount_amount'] ?? 0);
+
+            if ($discAmt > 0) {
+                if ($discType === 'flat') {
+                    $itemDisc = min($itemLineTotal, $discAmt);
+                } else {
+                    $itemDisc = $itemLineTotal * (min(100, $discAmt) / 100.0);
+                }
+            } elseif ((int)($item['promo_percent'] ?? 0) > 0) {
+                $origP = (float)($item['orig_price'] ?? $p);
+                if ($origP > $p) {
+                    $itemDisc = ($origP - $p) * $q;
+                }
+            }
+
+            $item_promos += $itemDisc;
+
+            if ($p < $min_price) { $min_price = $p; $cheapest_idx = $i; }
+            if ($_fpid > 0 && $pId === $_fpid && $_fidx < 0) {
+                $_fidx = $i; $_fname = $item['product_name'] ?? ''; $_fprice = $p;
+            }
+
+            $items_out[] = [
+                'index'           => $i,
+                'product_id'      => $pId,
+                'product_name'    => $item['product_name'] ?? '',
+                'price'           => $p,
+                'orig_price'      => (float)($item['orig_price'] ?? $p),
+                'promo_percent'   => (int)($item['promo_percent'] ?? 0),
+                'qty'             => $q,
+                'max_stock'       => ($max_stock !== null) ? $max_stock : 100,
+                'image'           => $item['image'] ?? '',
+                'size_code'       => $item['size_code']  ?? '',
+                'size_label'      => $item['size_label'] ?? '',
+                'sweetness'       => $item['sweetness'] ?? '',
+                'ice'             => $item['ice'] ?? '',
+                'milk'            => $item['milk'] ?? '',
+                'addons'          => $item['addons'] ?? [],
+                'discount_type'   => $discType,
+                'discount_amount' => $discAmt,
+                'item_discount'   => round($itemDisc, 2),
+                'lineTotal'       => round($itemLineTotal, 2),
+            ];
+        }
+
+        // If configured free item isn't in cart, fetch its name/price from DB
+        if ($_fpid > 0 && $_fname === '') {
+            $_fp_s = $conn->prepare("SELECT name, price FROM products WHERE product_id = ?");
+            if ($_fp_s) { 
+                $_fp_s->bind_param("i", $_fpid); 
+                $_fp_s->execute();
+                if ($_fp_r = $_fp_s->get_result()->fetch_assoc()) { 
+                    $_fname = $_fp_r['name']; 
+                    $_fprice = (float)$_fp_r['price']; 
+                }
+                $_fp_s->close(); 
+            }
+        }
+        $cheapest_name  = ($cheapest_idx >= 0) ? ($cart[$cheapest_idx]['product_name'] ?? '') : '';
+        $cheapest_price = ($cheapest_idx >= 0 && $min_price < PHP_FLOAT_MAX) ? $min_price : 0.0;
+        $free_name  = ($_fpid > 0 && $_fname !== '') ? $_fname : $cheapest_name;
+        $free_price = ($_fpid > 0 && $_fprice > 0) ? $_fprice : $cheapest_price;
+
+        $_free_idx = ($_fpid > 0 && $_fidx >= 0) ? $_fidx : $cheapest_idx;
+        $buy3_enabled = defined('BUY_X_GET_1_ENABLED') && BUY_X_GET_1_ENABLED;
+        $buy3_count   = defined('BUY_X_COUNT') ? (int)BUY_X_COUNT : 3;
+        $buy3 = ($buy3_enabled && $total_qty >= $buy3_count && $min_price < PHP_FLOAT_MAX && $_free_idx >= 0)
+            ? floor($total_qty / $buy3_count) * $free_price : 0.0;
+
+        $hh_enabled  = defined('HAPPY_HOUR_ENABLED') && HAPPY_HOUR_ENABLED;
+        $hh_start    = defined('HAPPY_HOUR_START') ? (int)HAPPY_HOUR_START : 14;
+        $hh_end      = defined('HAPPY_HOUR_END') ? (int)HAPPY_HOUR_END : 17;
+        $hh_discount = defined('HAPPY_HOUR_DISCOUNT') ? (float)HAPPY_HOUR_DISCOUNT : 0;
+        $hh = 0.0;
+        if ($hh_enabled && (int)date('H') >= $hh_start && (int)date('H') < $hh_end) {
+            $hh = ($subtotal - $item_promos) * ($hh_discount / 100);
+        }
+
+        $after = max(0, $subtotal - $item_promos - $hh);
+        $md = $_SESSION['manual_discount'] ?? null;
+        $manual = 0.0; $manual_label = '';
+        if ($md && (float)($md['amount'] ?? 0) > 0) {
+            $manual = $md['type'] === 'flat'
+                ? min((float)$md['amount'], max(0, $after))
+                : max(0, $after) * ((float)$md['amount'] / 100.0);
+            $r = trim($md['reason'] ?? ''); $manual_label = $r ?: 'Discount';
+            if ($md['type'] === 'percent') $manual_label .= ' (' . (int)$md['amount'] . '% off)';
+            $after -= $manual;
+        }
+        $tax_rate = defined('TAX_RATE') ? (float)TAX_RATE : 0.0;
+        $tax   = $after * ($tax_rate / 100);
+        $total = round($after + $tax, 2);
+
+        return [
+            'items'          => $items_out,
+            'count'          => $total_qty,
+            'subtotal'       => number_format($subtotal, 2, '.', ''),
+            'item_promos'    => number_format($item_promos, 2, '.', ''),
+            'buy3'           => number_format($buy3, 2, '.', ''),
+            'buy3_name'      => $free_name,
+            'buy3_price'     => number_format($free_price, 2, '.', ''),
+            'buy3_count'     => $buy3_count,
+            'happy_hour'     => number_format($hh, 2, '.', ''),
+            'happy_hour_pct' => $hh_discount,
+            'manual'         => number_format($manual, 2, '.', ''),
+            'manual_label'   => $manual_label,
+            'tax'            => number_format($tax, 2, '.', ''),
+            'total'          => number_format($total, 2, '.', ''),
+        ];
     }
 }
 

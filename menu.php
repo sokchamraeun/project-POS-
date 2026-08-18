@@ -1872,6 +1872,9 @@ function addToCart() {
       }
       showToast('Added to cart!', 'success');
       closeModal();
+      if (data.cart) {
+        renderCartPanel(data.cart);
+      }
       loadCartPanel();
       pollProductStockStatuses();
     })
@@ -1900,6 +1903,9 @@ function quickAdd(productId, price) {
         return; 
       }
       showToast('Added!', 'success');
+      if (data.cart) {
+        renderCartPanel(data.cart);
+      }
       loadCartPanel();
       pollProductStockStatuses();
     })
@@ -1908,10 +1914,10 @@ function quickAdd(productId, price) {
 
 // ── LOAD & RENDER CART PANEL ──
 function loadCartPanel() {
-  fetch('cart_refresh.php')
+  fetch('cart_refresh.php?_t=' + Date.now(), { cache: 'no-store' })
     .then(function(r) { return r.json(); })
-    .then(function(data) { renderCartPanel(data); })
-    .catch(function() {});
+    .then(function(data) { if (data) renderCartPanel(data); })
+    .catch(function(err) { console.error('cart_refresh error:', err); });
 }
 window.loadCartPanel = loadCartPanel;
 

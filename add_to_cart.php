@@ -1,16 +1,29 @@
 <?php
-session_start();
-require 'config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/config.php';
+
+if (ob_get_level()) {
+    ob_clean();
+}
 
 header('Content-Type: application/json; charset=UTF-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
-function json_out(bool $success, string $message, ?int $cart_count = null, ?float $cart_total = null, int $status = 200): void {
+function json_out(bool $success, string $message, ?int $cart_count = null, ?float $cart_total = null, int $status = 200, ?array $cart_data = null): void {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
     http_response_code($status);
     echo json_encode([
         'success'    => $success,
         'message'    => $message,
         'cart_count' => $cart_count,
         'cart_total' => $cart_total,
+        'cart'       => $cart_data,
     ]);
     exit;
 }
@@ -170,4 +183,5 @@ foreach ($_SESSION['cart'] as $item) {
     $cart_total += (float)($item['price'] ?? 0) * $q;
 }
 
-json_out(true, 'Added to cart!', $total_qty, round($cart_total, 2));
+$cart_payload = function_exists('get_cart_payload') ? get_cart_payload($conn) : null;
+json_out(true, 'Added to cart!', $total_qty, round($cart_total, 2), 200, $cart_payload);

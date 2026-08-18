@@ -63,6 +63,7 @@ if (isset($_POST['ajax_remove'])) {
     }
     $tax   = $after * (TAX_RATE / 100);
     $total = round($after + $tax, 2);
+    session_write_close();
     header('Content-Type: application/json');
     echo json_encode([
         'success'              => true,
@@ -86,6 +87,7 @@ if (isset($_POST['ajax_remove'])) {
 ====================== */
 if (isset($_POST['ajax_clear'])) {
     $_SESSION['cart'] = [];
+    session_write_close();
     header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
@@ -95,7 +97,6 @@ if (isset($_POST['ajax_clear'])) {
    AJAX APPLY MANUAL DISCOUNT
 ====================== */
 if (isset($_POST['ajax_apply_discount'])) {
-    header('Content-Type: application/json');
     $type   = in_array($_POST['type'] ?? '', ['percent', 'flat']) ? $_POST['type'] : 'percent';
     $amount = max(0, (float)($_POST['amount'] ?? 0));
     $reason = substr(trim($_POST['reason'] ?? ''), 0, 100);
@@ -105,6 +106,8 @@ if (isset($_POST['ajax_apply_discount'])) {
     } else {
         unset($_SESSION['manual_discount']);
     }
+    session_write_close();
+    header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
 }
@@ -113,7 +116,6 @@ if (isset($_POST['ajax_apply_discount'])) {
    AJAX APPLY ITEM DISCOUNT
 ====================== */
 if (isset($_POST['ajax_apply_item_discount'])) {
-    header('Content-Type: application/json');
     $idx    = (int)($_POST['index'] ?? -1);
     $type   = in_array($_POST['type'] ?? '', ['percent', 'flat']) ? $_POST['type'] : 'percent';
     $amount = max(0, (float)($_POST['amount'] ?? 0));
@@ -127,6 +129,8 @@ if (isset($_POST['ajax_apply_item_discount'])) {
             unset($_SESSION['cart'][$idx]['discount_type'], $_SESSION['cart'][$idx]['discount_amount']);
         }
     }
+    session_write_close();
+    header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
 }
@@ -135,11 +139,12 @@ if (isset($_POST['ajax_apply_item_discount'])) {
    AJAX CLEAR ITEM DISCOUNT
 ====================== */
 if (isset($_POST['ajax_clear_item_discount'])) {
-    header('Content-Type: application/json');
     $idx = (int)($_POST['index'] ?? -1);
     if (isset($_SESSION['cart'][$idx])) {
         unset($_SESSION['cart'][$idx]['discount_type'], $_SESSION['cart'][$idx]['discount_amount']);
     }
+    session_write_close();
+    header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
 }
@@ -149,6 +154,7 @@ if (isset($_POST['ajax_clear_item_discount'])) {
 ====================== */
 if (isset($_POST['ajax_clear_discount'])) {
     unset($_SESSION['manual_discount']);
+    session_write_close();
     header('Content-Type: application/json');
     echo json_encode(['success' => true]);
     exit;
@@ -235,6 +241,7 @@ if (isset($_POST['ajax_update'])) {
         ? (float)($updated_item['price'] ?? 0) * $qty
         : 0;
 
+    session_write_close();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'itemLineTotal'         => number_format($item_line_total, 2, '.', ''),
