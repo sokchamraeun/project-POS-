@@ -64,12 +64,12 @@ function tenderIsRielOnly(parts) {
 function tenderChange(receivedUsdTotal, owed, rate, allRiel) {
   var change = Math.round((receivedUsdTotal - owed) * 10000) / 10000;
   if (change <= 0) { return { usd: 0, khr: 0, short: change < 0 }; }
-  if (allRiel) {
+  if (allRiel || change < 10.0) {
     return { usd: 0, khr: Math.round((change * rate) / 100) * 100, short: false };
   }
-  var dollars = Math.floor(change);
+  var dollars = Math.floor(change / 10) * 10;
   var riel    = Math.round(((change - dollars) * rate) / 100) * 100;
-  if (riel >= rate) { dollars += 1; riel = 0; }
+  if (riel >= (10 * rate)) { dollars += 10; riel = 0; }
   return { usd: dollars, khr: riel, short: false };
 }
 
@@ -77,17 +77,103 @@ function tenderChange(receivedUsdTotal, owed, rate, allRiel) {
    screen cannot drift apart — they must agree to the cent. */
 function tenderChangeText(ch, received, owed) {
   if (ch.short) { return 'Need $' + (owed - received).toFixed(2) + ' more'; }
-  var r = (typeof window !== 'undefined' && window.CP_KHR_RATE) ? window.CP_KHR_RATE : 4100;
-  var changeUsd = Math.max(0, received - owed);
-  var changeKhr = Math.round((changeUsd * r) / 100) * 100;
-
-  if (changeUsd <= 0) return '$0.00';
-
   if (ch.usd > 0 && ch.khr > 0) {
     return '$' + ch.usd + ' + ៛' + ch.khr.toLocaleString();
   }
+  if (ch.khr > 0) {
+    return '៛' + ch.khr.toLocaleString();
+  }
+  if (ch.usd > 0) {
+    return '$' + Number(ch.usd).toFixed(2);
+  }
+  return '$0.00';
+}
 
-  return '$' + changeUsd.toFixed(2) + ' or ៛' + changeKhr.toLocaleString();
+/* Format change according to selected mode: 'mixed' ($ + ៛), 'usd' ($), or 'khr' (៛) */
+function tenderChangeFormatted(changeUsd, rate, mode) {
+  mode = mode || 'mixed';
+  rate = rate || 4100;
+  changeUsd = Math.max(0, changeUsd);
+  var changeKhr = Math.round((changeUsd * rate) / 100) * 100;
+  var isKm = (typeof window !== 'undefined' && Boolean(window.CPM_IS_KM));
+
+  if (changeUsd === 0) {
+    return {
+      main: '$0.00',
+      sub: isKm ? 'លុយគ្រប់ (៛ 0)' : 'Exact Amount (៛ 0)',
+      mode: mode,
+      usd: 0,
+      khr: 0
+    };
+  }
+
+  if (mode === 'usd') {
+    return {
+      main: '$' + changeUsd.toFixed(2),
+      sub: '≈ ៛ ' + changeKhr.toLocaleString() + (isKm ? ' រៀល' : ' KHR'),
+      mode: 'usd',
+      usd: changeUsd,
+      khr: changeKhr
+    };
+  }
+
+  if (mode === 'khr') {
+    return {
+      main: '៛ ' + changeKhr.toLocaleString(),
+      sub: '≈ $' + changeUsd.toFixed(2) + (isKm ? ' ដុល្លារ' : ' USD'),
+      mode: 'khr',
+      usd: changeUsd,
+      khr: changeKhr
+    };
+  }
+
+  // Mixed ($ + ៛): Under $10 back only Riel; $10+ splits tens of dollars ($10, $20...) + Riel remainder
+  var wholeDollars = 0;
+  var rielPart = 0;
+
+  if (changeUsd < 10.0) {
+    rielPart = Math.round((changeUsd * rate) / 100) * 100;
+    if (rielPart >= (10 * rate)) {
+      wholeDollars = 10;
+      rielPart = 0;
+    }
+  } else {
+    wholeDollars = Math.floor(changeUsd / 10) * 10;
+    var centRemainder = Math.round((changeUsd - wholeDollars) * 10000) / 10000;
+    rielPart = Math.round((centRemainder * rate) / 100) * 100;
+    if (rielPart >= (10 * rate)) {
+      wholeDollars += 10;
+      rielPart = 0;
+    }
+  }
+
+  var main = '$0.00';
+  var sub = '';
+
+  if (wholeDollars > 0 && rielPart > 0) {
+    main = '$' + wholeDollars + ' + ៛ ' + rielPart.toLocaleString();
+    sub = isKm
+      ? ('អាប់: $' + wholeDollars + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
+      : ('Give: $' + wholeDollars + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
+  } else if (wholeDollars > 0) {
+    main = '$' + wholeDollars.toFixed(2);
+    sub = isKm ? 'ក្រដាសប្រាក់ដុល្លារសុទ្ធ (៛ 0)' : 'Exact USD notes (៛ 0)';
+  } else {
+    main = '៛ ' + rielPart.toLocaleString();
+    sub = isKm
+      ? ('ក្រោម 10$: អាប់ជាប្រាក់រៀលសុទ្ធ (≈ $' + changeUsd.toFixed(2) + ')')
+      : ('Under $10: Return in Riel notes only (≈ $' + changeUsd.toFixed(2) + ')');
+  }
+
+  return {
+    main: main,
+    sub: sub,
+    mode: 'mixed',
+    wholeUsd: wholeDollars,
+    rielPart: rielPart,
+    usd: changeUsd,
+    khr: changeKhr
+  };
 }
 
 /* ── DOM helpers ──────────────────────────────────────────────────────────

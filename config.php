@@ -862,16 +862,16 @@ if (!function_exists('tender_change')) {
         if ($change <= 0) {
             return ['usd' => 0, 'khr' => 0, 'short' => $change < 0];
         }
-        if ($all_riel) {
+        if ($all_riel || $change < 10.0) {
             return [
                 'usd'   => 0,
                 'khr'   => (int)(round(($change * KHR_RATE) / 100) * 100),
                 'short' => false,
             ];
         }
-        $dollars = (int)floor($change);
+        $dollars = (int)(floor($change / 10) * 10);
         $riel    = (int)(round((($change - $dollars) * KHR_RATE) / 100) * 100);
-        if ($riel >= KHR_RATE) { $dollars += 1; $riel = 0; }
+        if ($riel >= (10 * KHR_RATE)) { $dollars += 10; $riel = 0; }
         return ['usd' => $dollars, 'khr' => $riel, 'short' => false];
     }
 }
@@ -901,12 +901,16 @@ if (!function_exists('tender_change_text')) {
     function tender_change_text(array $ch): string {
         $usd = (int)($ch['usd'] ?? 0);
         $khr = (int)($ch['khr'] ?? 0);
-        if ($khr > 0) {
-            return $usd > 0
-                ? '$' . $usd . ' + KHR ' . number_format($khr)
-                : 'KHR ' . number_format($khr);
+        if ($usd > 0 && $khr > 0) {
+            return '$' . $usd . ' + KHR ' . number_format($khr);
         }
-        return '$' . number_format(max(0, $usd), 2);
+        if ($khr > 0) {
+            return 'KHR ' . number_format($khr);
+        }
+        if ($usd > 0) {
+            return '$' . number_format($usd, 2);
+        }
+        return '$0.00';
     }
 }
 

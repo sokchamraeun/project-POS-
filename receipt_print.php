@@ -97,6 +97,7 @@ $tendered_usd = 0;
 $change_usd = 0;
 $change_khr = 0;
 $is_cash_order = false;
+$is_riel = false;
 
 $tender_parts = null;
 if (!empty($payments)) {
@@ -117,9 +118,9 @@ if (!empty($payments)) {
             if ($t_usd > 0) {
                 $tendered_usd = $t_usd;
                 $is_riel = function_exists('tender_is_riel_only') ? tender_is_riel_only($t_parts) : false;
-                $ch = function_exists('tender_change') ? tender_change($tendered_usd, $total, $is_riel) : max(0, $tendered_usd - $total);
-                $change_usd = is_array($ch) ? (float)($ch['usd'] ?? 0) : (float)$ch;
-                $change_khr = is_array($ch) ? (int)($ch['khr'] ?? 0) : (int)(round($change_usd * $khr_rate / 100) * 100);
+                $ch = function_exists('tender_change') ? tender_change($tendered_usd, $total, $is_riel) : ['usd' => 0, 'khr' => 0, 'short' => false];
+                $change_usd = (int)($ch['usd'] ?? 0);
+                $change_khr = (int)($ch['khr'] ?? 0);
             }
         }
     }
@@ -132,20 +133,30 @@ if ($tendered_usd <= 0) {
     $change_khr = 0;
 }
 
-$change_total_usd = max(0, $tendered_usd - $total);
-$mixed_usd = floor($change_total_usd / 5) * 5;
-$mixed_khr = (int)round(($change_total_usd - $mixed_usd) * $khr_rate / 100) * 100;
-
-if ($change_total_usd > 0) {
-    if ($mixed_usd > 0 && $mixed_khr > 0) {
-        $change_disp = 'USD ' . number_format($mixed_usd, 2) . ' + KHR ' . number_format($mixed_khr);
-    } elseif ($mixed_usd > 0) {
-        $change_disp = 'USD ' . number_format($mixed_usd, 2);
+// Received display
+if ($tender_parts !== null && (int)($tender_parts['khr'] ?? 0) > 0) {
+    if ((float)($tender_parts['usd'] ?? 0) > 0) {
+        $received_disp = 'USD ' . number_format((float)$tender_parts['usd'], 2) . ' + KHR ' . number_format((int)$tender_parts['khr']);
     } else {
-        $change_disp = 'KHR ' . number_format($mixed_khr);
+        $received_disp = 'KHR ' . number_format((int)$tender_parts['khr']);
     }
 } else {
-    $change_disp = 'USD 0.00';
+    $received_disp = 'USD ' . number_format($tendered_usd, 2);
+}
+
+// Change display
+if ($change_usd > 0 && $change_khr > 0) {
+    $change_disp_main = 'USD ' . number_format($change_usd, 2) . ' + KHR ' . number_format($change_khr);
+    $change_disp_sub  = '';
+} elseif ($change_usd > 0) {
+    $change_disp_main = 'USD ' . number_format($change_usd, 2);
+    $change_disp_sub  = '';
+} elseif ($change_khr > 0) {
+    $change_disp_main = 'KHR ' . number_format($change_khr);
+    $change_disp_sub  = '';
+} else {
+    $change_disp_main = $is_riel ? 'KHR 0' : 'USD 0.00';
+    $change_disp_sub  = '';
 }
 
 $wifi_pass = defined('WIFI_PASSWORD') ? WIFI_PASSWORD : '';
@@ -442,6 +453,22 @@ body {
         <div class="totals-sub-khr">
             KHR <?= number_format($total_khr) ?>
         </div>
+
+        <?php if ($is_cash_order && $tender_parts !== null): ?>
+        <div class="totals-row">
+            <span>ប្រាក់ទទួល :</span>
+            <span><?= $received_disp ?></span>
+        </div>
+        <div class="totals-row bold">
+            <span>ប្រាក់អាប់ :</span>
+            <span><?= $change_disp_main ?></span>
+        </div>
+        <?php if (!empty($change_disp_sub)): ?>
+        <div class="totals-sub-khr">
+            <?= $change_disp_sub ?>
+        </div>
+        <?php endif; ?>
+        <?php endif; ?>
     </div>
 
     <!-- Footer / Thank You -->

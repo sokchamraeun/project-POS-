@@ -17,6 +17,7 @@
  * short tender can never look like a partial payment.
  */
 if (!isset($order, $order_id, $return_tab, $return_page)) { http_response_code(500); exit('Tender screen loaded out of context.'); }
+require_once __DIR__ . '/lang.php';
 
 // he() is defined per-page across this codebase rather than in config.php, so
 // this partial cannot assume its includer declared one.
@@ -40,8 +41,8 @@ $tender_fragment = !empty($tender_fragment);
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>(function(){if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');})()</script>
-<title>Cash Payment | Bird's Nest Coffee</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<title><?= __('cpm_modal_title', 'Cash Payment') ?> | Bird's Nest Coffee</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Kantumruy+Pro:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <?php endif; ?>
@@ -90,11 +91,11 @@ $DARK = $tender_fragment ? '.tender-card' : '[data-theme="dark"]';
 <?php endif; ?>
 <?php if ($tender_fragment): ?>
 .tender-card, .tender-card * { box-sizing: border-box; }
-.tender-card { font-family: 'Poppins', sans-serif; color: var(--text-1); display: flex; justify-content: center; }
+.tender-card { font-family: 'Poppins', 'Kantumruy Pro', sans-serif; color: var(--text-1); display: flex; justify-content: center; }
 <?php else: ?>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-    background: var(--bg-body); font-family: 'Poppins', sans-serif;
+    background: var(--bg-body); font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
     min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
     padding: 24px 16px 40px; color: var(--text-1);
 }
@@ -135,6 +136,47 @@ body {
 <?= $DARK ?> .cp-tender-btn { background: #1a1a1a; border-color: #2d2d2d; color: #aaa; }
 <?= $DARK ?> .cp-tender-btn.active { background: rgba(85,224,135,.14); border-color: #55e087; color: #55e087; }
 
+/* 3D Return Change Mode Selector */
+<?= $S ?>#cpTenderModeWrap {
+    background: #ede4d8; border: 1px solid #d6c6b4; border-radius: 10px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.8);
+    padding: 3px; display: inline-flex; gap: 4px;
+}
+<?= $S ?>#cpTenderModeWrap .cp-tender-btn {
+    border-radius: 7px; padding: 5px 9px; min-width: auto;
+    background: linear-gradient(180deg, #ffffff 0%, #f4ede3 100%);
+    border: 1px solid #dcd1c2; border-top: 1px solid #ffffff;
+    color: #635343; font-weight: 700; box-shadow: 0 2px 0 #c8bba8;
+    transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+<?= $S ?>#cpTenderModeWrap .cp-tender-btn:hover {
+    transform: translateY(-1.5px); color: #1a1410; box-shadow: 0 3px 0 #c8bba8;
+}
+<?= $S ?>#cpTenderModeWrap .cp-tender-btn.active {
+    background: linear-gradient(180deg, #f5b974 0%, #d1904b 50%, #ad6d28 100%) !important;
+    color: #140c02 !important; border: 1px solid #f8cd99 !important; border-top: 1px solid #ffe3c0 !important;
+    box-shadow: 0 3px 0 #8b521b, 0 4px 10px rgba(209,144,75,0.35) !important;
+    transform: translateY(-1px);
+}
+<?= $DARK ?> #cpTenderModeWrap {
+    background: #101015; border-color: #282838;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.05);
+}
+<?= $DARK ?> #cpTenderModeWrap .cp-tender-btn {
+    background: linear-gradient(180deg, #22222d 0%, #15151c 100%);
+    border: 1px solid #2f2f42; border-top: 1px solid #43435c;
+    color: #9292a4; box-shadow: 0 2px 0 #09090d;
+}
+<?= $DARK ?> #cpTenderModeWrap .cp-tender-btn:hover {
+    color: #fff; background: linear-gradient(180deg, #2c2c3b 0%, #1c1c26 100%);
+    box-shadow: 0 3px 0 #09090d;
+}
+<?= $DARK ?> #cpTenderModeWrap .cp-tender-btn.active {
+    background: linear-gradient(180deg, #f5b974 0%, #d1904b 52%, #aa6824 100%) !important;
+    color: #120b02 !important; border-color: #f8cc96 !important;
+    box-shadow: 0 3px 0 #68380d, 0 6px 14px rgba(209,144,75,0.4) !important;
+}
+
 <?= $S ?>.cp-change-row { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 7px; border-top: 1px solid rgba(85,224,135,.15); }
 <?= $S ?>.cp-change-row .change-label { font-size: 11px; font-weight: 600; color: var(--text-2); }
 <?= $S ?>.cp-change-row .change-amount { font-size: 19px; font-weight: 800; color: #55e087; }
@@ -142,7 +184,7 @@ body {
 
 <?= $S ?>.btn-confirm {
     width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px;
-    background: var(--green); color: #04210f; font-family: 'Poppins',sans-serif;
+    background: var(--green); color: #04210f; font-family: 'Poppins','Kantumruy Pro',sans-serif;
     font-size: 15px; font-weight: 700; cursor: pointer; transition: all .18s;
     display: flex; align-items: center; justify-content: center; gap: 8px;
 }
@@ -173,13 +215,13 @@ body {
     <div class="card-body">
 
         <div class="head">
-            <h1><i class="fa-solid fa-money-bill-wave" style="color:var(--green)"></i> Cash Payment</h1>
+            <h1><i class="fa-solid fa-money-bill-wave" style="color:var(--green)"></i> <?= __('cpm_modal_title', 'Cash Payment') ?></h1>
             <div class="sub">Order #<?= (int)$order['daily_order_no'] ?> &middot; <?= he($cust) ?></div>
-            <?php if ($is_pl): ?><div class="pl-pill"><i class="fa-solid fa-clock"></i> Settling a pay-later tab</div><?php endif; ?>
+            <?php if ($is_pl): ?><div class="pl-pill"><i class="fa-solid fa-clock"></i> <?= __('settling_pay_later_tab', 'Settling a pay-later tab') ?></div><?php endif; ?>
         </div>
 
         <div class="amount-due">
-            <div class="lbl">Total due</div>
+            <div class="lbl"><?= __('cpm_total_due', 'Total due') ?></div>
             <div class="amt">$<?= number_format($owed, 2) ?></div>
             <div class="khr">&#6107;<?= number_format($khr_owed) ?></div>
         </div>
@@ -189,14 +231,10 @@ body {
             <input type="hidden" name="return" value="<?= he($return_tab) ?>">
 
             <div class="cp-change-calc">
-                <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> Amount Received</label>
+                <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> <?= __('cpm_amount_received', 'Amount Received') ?></label>
 
                 <div style="display:flex;align-items:center;gap:6px;">
                     <span style="font-size:12px;font-weight:700;color:var(--text-2);width:16px;">$</span>
-                    <!-- Submitted as cash_received and stored, with the riel below, in
-                         order_payments.reference — the same column checkout writes — so
-                         the receipt can print Received / Change. Never changes the
-                         amount settled: the order is paid in full whatever is typed. -->
                     <input type="number" id="cpCashReceived" name="cash_received"
                            step="0.01" min="0" placeholder="0.00"
                            oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
@@ -213,8 +251,16 @@ body {
                 </div>
                 <div class="cp-tender-quick" id="cpRielQuick" style="display:none;"></div>
 
+                <div class="cp-change-mode-row" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px solid rgba(85,224,135,.15);">
+                    <span style="font-size:11px;font-weight:600;color:var(--text-2);"><?= __('cpm_return_change_in', 'Return change in:') ?></span>
+                    <div style="display:inline-flex;gap:4px;background:rgba(0,0,0,0.15);padding:2px;border-radius:8px;border:1px solid rgba(85,224,135,.2);" id="cpTenderModeWrap">
+                        <button type="button" class="cp-tender-btn active" id="cpTenderModeMixed" onclick="cpSetTenderChangeMode('mixed')" style="padding:4px 10px;font-size:11px;min-width:auto;"><?= __('cpm_mode_mixed', 'Dollar + Riel') ?></button>
+                        <button type="button" class="cp-tender-btn" id="cpTenderModeKhr" onclick="cpSetTenderChangeMode('khr')" style="padding:4px 10px;font-size:11px;min-width:auto;"><?= __('cpm_mode_khr', 'Riel') ?></button>
+                    </div>
+                </div>
+
                 <div class="cp-change-row">
-                    <span class="change-label">Change to give back</span>
+                    <span class="change-label"><?= __('cpm_change_to_return', 'Change to give back') ?></span>
                     <span class="change-amount" id="cpChangeAmount">$0.00</span>
                 </div>
                 <div id="cpShortWarn" style="display:none;margin-top:6px;font-size:11px;color:#e0a955;">
@@ -224,15 +270,13 @@ body {
             </div>
 
             <button type="submit" class="btn-confirm">
-                <i class="fa-solid fa-check"></i> Confirm Cash Payment
+                <i class="fa-solid fa-check"></i> <?= __('cpm_apply_payment', 'Confirm Cash Payment') ?>
             </button>
         </form>
-        <?php /* In the modal, Cancel dismisses rather than navigating — the cashier
-                 is already on the page they would be sent back to. */ ?>
         <?php if ($tender_fragment): ?>
-        <a href="#" class="btn-cancel" onclick="closeTenderModal(); return false;">Cancel</a>
+        <a href="#" class="btn-cancel" onclick="closeTenderModal(); return false;"><?= __('cpm_cancel', 'Cancel') ?></a>
         <?php else: ?>
-        <a href="<?= he($return_page) ?>" class="btn-cancel">Cancel</a>
+        <a href="<?= he($return_page) ?>" class="btn-cancel"><?= __('cpm_cancel', 'Cancel') ?></a>
         <?php endif; ?>
 
     </div>
@@ -243,8 +287,20 @@ body {
 const CP_OWED     = <?= json_encode(round($owed, 2)) ?>;
 // tender.js is static and never parsed by PHP, so the rate is passed in.
 var CP_KHR_RATE = window.CP_KHR_RATE || <?= defined('KHR_RATE') ? (int)KHR_RATE : 4100 ?>;
+var cpTenderChangeMode = localStorage.getItem('cpm_change_mode') || 'mixed';
 
 function cpOwedInCash() { return CP_OWED; }
+
+function cpSetTenderChangeMode(mode) {
+  if (mode !== 'khr') mode = 'mixed';
+  cpTenderChangeMode = mode;
+  try { localStorage.setItem('cpm_change_mode', mode); } catch(e) {}
+  var bMixed = document.getElementById('cpTenderModeMixed');
+  var bKhr   = document.getElementById('cpTenderModeKhr');
+  if (bMixed) bMixed.classList.toggle('active', mode === 'mixed');
+  if (bKhr)   bKhr.classList.toggle('active', mode === 'khr');
+  cpCalcChange();
+}
 
 /* Arithmetic, the prefill-clear rule and the change wording all live in
    tender.js, so this screen and the checkout modal cannot drift apart. This
@@ -261,20 +317,28 @@ function cpCalcChange() {
   if (!el) return;
   var received = cpCashReceivedUsd();
   var owed     = cpOwedInCash();
-  // Follow the currency: a tender that is riel and nothing else comes back
-  // entirely in riel. Same derivation as the checkout modal, from tender.js,
-  // so the two screens and the receipt agree on which tenders are riel-only.
-  var ch       = tenderChange(received, owed, CP_KHR_RATE,
-                              tenderFieldsRielOnly('cpCashReceived', 'cpRielCash'));
+  var changeUsd = received - owed;
+  var isShort   = (changeUsd < -0.005);
 
   var warn = document.getElementById('cpShortWarn');
-  // Non-blocking on purpose: a cashier who has already counted the change must
-  // not be stopped by a field they skipped, and the order settles in full.
-  if (warn) warn.style.display = (received > 0 && ch.short) ? 'block' : 'none';
+  if (warn) warn.style.display = (received > 0 && isShort) ? 'block' : 'none';
 
   if (received === 0) { el.textContent = '$0.00'; el.className = 'change-amount'; return; }
-  el.className   = ch.short ? 'change-amount not-enough' : 'change-amount';
-  el.textContent = tenderChangeText(ch, received, owed);
+  if (isShort) {
+    el.className = 'change-amount not-enough';
+    el.textContent = 'Need $' + Math.abs(changeUsd).toFixed(2) + ' more';
+    return;
+  }
+
+  el.className = 'change-amount';
+  if (typeof tenderChangeFormatted === 'function') {
+    var fmt = tenderChangeFormatted(changeUsd, CP_KHR_RATE, cpTenderChangeMode);
+    el.textContent = fmt.main;
+  } else {
+    var ch = tenderChange(received, owed, CP_KHR_RATE,
+                          tenderFieldsRielOnly('cpCashReceived', 'cpRielCash'));
+    el.textContent = tenderChangeText(ch, received, owed);
+  }
 }
 
 function cpOnRielInput() {
@@ -335,7 +399,7 @@ function cpMarkActiveTender(val) {
 (function () {
   var cr = document.getElementById('cpCashReceived');
   if (cr && cr.dataset.touched !== '1' && CP_OWED > 0) { cr.value = CP_OWED.toFixed(2); }
-  cpCalcChange();
+  cpSetTenderChangeMode(cpTenderChangeMode);
   cpRenderTenderQuick();
   cpRenderRielQuick();
 })();

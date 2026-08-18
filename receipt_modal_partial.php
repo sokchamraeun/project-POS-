@@ -128,7 +128,7 @@
                     <span>ប្រាក់អាប់ :</span>
                     <span id="rcpt-change">USD 0.00</span>
                 </div>
-                <div class="text-right font-bold text-[10.5px]">
+                <div class="text-right font-bold text-[10.5px]" id="rcpt-change-khr-row" style="display:none;">
                     <span id="rcpt-change-khr">KHR 0</span>
                 </div>
             </div>
@@ -242,14 +242,33 @@ function renderReceiptModal(data) {
         }
     }
 
+    var chUsd = parseFloat(data.change) || 0;
+    var chKhr = parseInt(data.change_khr || 0, 10);
+    var chKhrRow = document.getElementById('rcpt-change-khr-row');
+
     if (document.getElementById('rcpt-subtotal')) document.getElementById('rcpt-subtotal').innerText = 'USD ' + (parseFloat(data.subtotal) || 85).toFixed(2);
     if (document.getElementById('rcpt-disc-pct')) document.getElementById('rcpt-disc-pct').innerText = data.discount_percent || '0';
     if (document.getElementById('rcpt-discount')) document.getElementById('rcpt-discount').innerText = 'USD ' + discVal.toFixed(2);
     if (document.getElementById('rcpt-total')) document.getElementById('rcpt-total').innerText = 'USD ' + (parseFloat(data.total) || 85).toFixed(2);
     if (document.getElementById('rcpt-total-khr')) document.getElementById('rcpt-total-khr').innerText = 'KHR ' + (data.total_khr || '340,000');
-    if (document.getElementById('rcpt-received')) document.getElementById('rcpt-received').innerText = 'USD ' + (parseFloat(data.received) || parseFloat(data.total) || 85).toFixed(2);
-    if (document.getElementById('rcpt-change')) document.getElementById('rcpt-change').innerText = 'USD ' + (parseFloat(data.change) || 0).toFixed(2);
-    if (document.getElementById('rcpt-change-khr')) document.getElementById('rcpt-change-khr').innerText = 'KHR ' + (data.change_khr || '0');
+    if (document.getElementById('rcpt-received')) document.getElementById('rcpt-received').innerText = data.received_text || ('USD ' + (parseFloat(data.received) || parseFloat(data.total) || 85).toFixed(2));
+
+    if (document.getElementById('rcpt-change')) {
+        if (chUsd > 0 && chKhr > 0) {
+            document.getElementById('rcpt-change').innerText = 'USD ' + chUsd.toFixed(2);
+            if (document.getElementById('rcpt-change-khr')) document.getElementById('rcpt-change-khr').innerText = 'KHR ' + chKhr.toLocaleString();
+            if (chKhrRow) chKhrRow.style.display = 'block';
+        } else if (chKhr > 0) {
+            document.getElementById('rcpt-change').innerText = 'KHR ' + chKhr.toLocaleString();
+            if (chKhrRow) chKhrRow.style.display = 'none';
+        } else if (chUsd > 0) {
+            document.getElementById('rcpt-change').innerText = 'USD ' + chUsd.toFixed(2);
+            if (chKhrRow) chKhrRow.style.display = 'none';
+        } else {
+            document.getElementById('rcpt-change').innerText = 'USD 0.00';
+            if (chKhrRow) chKhrRow.style.display = 'none';
+        }
+    }
     if (document.getElementById('rcpt-wifi')) document.getElementById('rcpt-wifi').innerText = data.wifi_pass || '';
 
     openReceiptModal();

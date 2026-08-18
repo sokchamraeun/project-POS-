@@ -4040,7 +4040,18 @@ function openOrderDetailModal(orderId) {
                     <span>USD $${grandTotal.toFixed(2)}</span>
                 </div>
                 <div style="text-align:right;font-weight:700;font-size:11px;color:#333333;margin-top:2px;">
-                    <span>KHR ${grandTotalKhr} ៛</span>
+                    <span>KHR ${grandTotalKhr}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                    <span>ប្រាក់ទទួល :</span>
+                    <span>USD $${grandTotal.toFixed(2)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-weight:800;font-size:12px;">
+                    <span>ប្រាក់អាប់ :</span>
+                    <span>USD $0.00</span>
+                </div>
+                <div style="text-align:right;font-weight:700;font-size:11px;color:#333333;">
+                    <span>KHR 0</span>
                 </div>
             </div>
 

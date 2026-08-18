@@ -45,8 +45,8 @@ check('both',      Math.round(ctx.tenderUsdTotal('1.00|4100', RATE) * 100) / 100
 
 console.log('tenderChange');
 // Must agree with the PHP twin exactly — the two are kept in step by hand.
-check('change splits into whole dollars', ctx.tenderChange(5.00, 1.34, RATE), {usd:3, khr:2700, short:false});
-check('rounding carry promotes a dollar', ctx.tenderChange(5.33, 1.34, RATE), {usd:4, khr:0,    short:false});
+check('change under $10 splits into riel only', ctx.tenderChange(5.00, 1.34, RATE), {usd:0, khr:15000, short:false});
+check('change >= $10 splits tens of dollars', ctx.tenderChange(20.00, 1.34, RATE), {usd:10, khr:35500, short:false});
 check('exact tender',                     ctx.tenderChange(1.34, 1.34, RATE), {usd:0, khr:0,    short:false});
 check('short tender',                     ctx.tenderChange(1.00, 1.34, RATE), {usd:0, khr:0,    short:true});
 // The riel-only case the whole feature exists for.
@@ -61,18 +61,16 @@ check('null is not riel-only',   ctx.tenderIsRielOnly(null),                    
 check('a zero tender is not',    ctx.tenderIsRielOnly(ctx.tenderParts('0')),          false);
 
 console.log('tenderChange follow-the-currency');
-// Mirrors tests/tender_test.php exactly. A shop gives back what it was given:
-// paying in riel must not silently convert the customer into dollars. These
-// four cases are the contract between the screen and the PHP receipt.
+// Mirrors tests/tender_test.php exactly.
 const flag = (ref) => ctx.tenderIsRielOnly(ctx.tenderParts(ref));
 const chg  = (ref, owed) => ctx.tenderChange(ctx.tenderUsdTotal(ref, RATE), owed, RATE, flag(ref));
 check('riel-only comes back entirely in riel', chg('0.00|20000', 1.34), {usd:0, khr:14500, short:false});
-check('dollars-only is unchanged',             chg('5.00',       1.34), {usd:3, khr:2700,  short:false});
-check('mixed is unchanged',                    chg('1.00|8000',  1.34), {usd:1, khr:2500,  short:false});
+check('dollars-only under $10 is riel only',    chg('5.00',       1.34), {usd:0, khr:15000,  short:false});
+check('mixed under $10 is riel only',           chg('1.00|8000',  1.34), {usd:0, khr:6600,   short:false});
+check('dollars-only >= $10 splits tens of dollars', chg('20.00',  1.34), {usd:10, khr:35500, short:false});
 check('a short riel-only tender hands back nothing',
       chg('0.00|4000', 1.34), {usd:0, khr:0, short:true});
-// The parity guard: the dollars-first carry must never fire on the riel-only
-// path, or a customer who paid in riel gets a dollar note back.
+// The parity guard
 check('no riel-only tender anywhere hands back a dollar',
       [0.75, 1.34, 2.50, 3.00, 4.10, 7.25, 12.80]
         .flatMap((owed) => [5000, 10000, 20000, 50000, 100000]
@@ -81,12 +79,11 @@ check('no riel-only tender anywhere hands back a dollar',
       []);
 
 console.log('tenderChangeText');
-check('dollars and riel',  ctx.tenderChangeText({usd:3, khr:2700, short:false}, 5.00, 1.34), '$3 + ៛2,700');
+check('dollars and riel',  ctx.tenderChangeText({usd:10, khr:2700, short:false}, 20.00, 1.34), '$10 + ៛2,700');
 check('riel only',         ctx.tenderChangeText({usd:0, khr:2700, short:false}, 2.00, 1.34), '៛2,700');
-// The follow-the-currency label end to end: no "$0 +" prefix, riel only.
 check('a riel-only change reads as riel',
       ctx.tenderChangeText(chg('0.00|20000', 1.34), ctx.tenderUsdTotal('0.00|20000', RATE), 1.34), '៛14,500');
-check('dollars only',      ctx.tenderChangeText({usd:4, khr:0,    short:false}, 5.34, 1.34), '$4.00');
+check('dollars only',      ctx.tenderChangeText({usd:10, khr:0,    short:false}, 20.00, 10.00), '$10.00');
 check('nothing to give back', ctx.tenderChangeText({usd:0, khr:0, short:false}, 1.34, 1.34), '$0.00');
 check('short says what is missing', ctx.tenderChangeText({usd:0, khr:0, short:true}, 1.00, 1.34), 'Need $0.34 more');
 
