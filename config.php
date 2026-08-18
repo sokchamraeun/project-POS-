@@ -1,6 +1,7 @@
 <?php
 date_default_timezone_set('Asia/Phnom_Penh');
 require_once __DIR__ . '/lang.php';
+require_once __DIR__ . '/cloudinary_config.php';
 
 // Database connection
 // ⚠️  Run this once in phpMyAdmin/MySQL CLI before changing these credentials:

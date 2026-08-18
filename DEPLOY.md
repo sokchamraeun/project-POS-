@@ -14,17 +14,18 @@ host.
 
 ## What must NOT come from the repo (upload manually on the server)
 
-Two files are git-ignored and therefore are NOT in the repo. Create them on the
-server from their `.example` templates:
+Three files can hold environment-specific secrets and are git-ignored:
 
 | File | From template | Holds |
 |------|---------------|-------|
 | `db_config.local.php` | `db_config.local.example.php` | production DB host/user/pass/name |
 | `bakong_config.local.php` | `bakong_config.local.example.php` | real Bakong token + merchant identity |
+| `cloudinary_config.local.php` | `cloudinary_config.local.example.php` | *(optional)* production Cloudinary keys |
 
 Without `bakong_config.local.php`, QR generation uses placeholders and no payment
 can be verified. Without `db_config.local.php`, the app falls back to local XAMPP
 defaults (`localhost` / `root` / no password) and will fail to connect on a host.
+Cloudinary credentials come pre-configured in `cloudinary_config.php` and will work out of the box (with automatic native cURL fallback on shared hosting even if Composer packages are omitted).
 
 ---
 
@@ -41,11 +42,10 @@ defaults (`localhost` / `root` / no password) and will fail to connect on a host
    - A fresh dump is generated locally as `db_coffee_export.sql`
      (regenerate any time — see "Regenerating the dump" below).
    - In the host's **phpMyAdmin → Import**, upload `db_coffee_export.sql`.
+   - All product images already stored on Cloudinary will immediately load via HTTPS on your live domain!
 
 4. **Upload the app files** into `public_html/` (File Manager zip-upload, FTP, or
-   `git clone` then `composer install` if vendor/ isn't shipped). The repo already
-   ships `dompdf/` and the Bakong library; `vendor/` and `node_modules/` are
-   git-ignored.
+   `git clone` then `composer install` if vendor/ isn't shipped).
 
 5. **Create `db_config.local.php`** on the server (copy `db_config.local.example.php`)
    and fill in the DB credentials from step 2. Do not edit `config.php` — the

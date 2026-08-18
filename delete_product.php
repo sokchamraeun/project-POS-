@@ -14,9 +14,7 @@ $row = $sel->get_result()->fetch_assoc();
 if (!$row) { echo json_encode(['ok' => false, 'error' => 'Product not found']); exit; }
 
 if (!empty($row['image'])) {
-    $path = $row['image'];
-    if (!str_starts_with($path, 'uploads/')) $path = 'uploads/' . $path;
-    if (file_exists($path)) unlink($path);
+    cloudinary_delete_image($row['image']);
 }
 
 

@@ -276,16 +276,9 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             // Image Upload Handling
             $image_path = null;
             if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
-                $upload_dir = "uploads/";
-                if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-                $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-                $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','avif'];
-                if (in_array($ext, $allowedExts)) {
-                    $image_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                    $target_path = $upload_dir . $image_name;
-                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target_path)) {
-                        $image_path = $target_path;
-                    }
+                $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/stock');
+                if ($uploadRes['success']) {
+                    $image_path = $uploadRes['url'];
                 }
             }
 
@@ -402,15 +395,11 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             // Optional Image Upload on Edit
             $new_image_path = null;
             if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
-                $upload_dir = "uploads/";
-                if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-                $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-                $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','avif'];
-                if (in_array($ext, $allowedExts)) {
-                    $image_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                    $target_path = $upload_dir . $image_name;
-                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target_path)) {
-                        $new_image_path = $target_path;
+                $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/stock');
+                if ($uploadRes['success']) {
+                    $new_image_path = $uploadRes['url'];
+                    if (!empty($existing['image'])) {
+                        cloudinary_delete_image($existing['image']);
                     }
                 }
             }
@@ -1260,7 +1249,7 @@ $stockItems = $initStmt->fetchAll();
                                     <div class="flex items-center gap-3">
                                         <div class="item-mini-img">
                                             <?php 
-                                            $imgSrc = !empty($item['image']) ? $item['image'] : 'uploads/no-image.png'; 
+                                            $imgSrc = get_image_url($item['image'] ?? null, 'uploads/no-image.png'); 
                                             ?>
                                             <img src="<?= htmlspecialchars($imgSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?>" onerror="this.onerror=null; this.src='uploads/no-image.png';">
                                         </div>

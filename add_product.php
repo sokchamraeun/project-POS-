@@ -32,26 +32,13 @@ if (isset($_POST['add_product'])) {
     }
 
     if (!$error) {
-        $upload_dir = "uploads/";
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-
         $image_path = '';
         if (!empty($_FILES['image']['name'])) {
-            $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-            $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif','heic','heif','jfif','pjpeg','pjp','apng','cur','dng'];
-            $isImageMime = false;
-            if (function_exists('finfo_open') && !empty($_FILES['image']['tmp_name'])) {
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $mime  = finfo_file($finfo, $_FILES['image']['tmp_name']);
-                finfo_close($finfo);
-                $isImageMime = (strpos($mime, 'image/') === 0);
-            }
-            if (!in_array($ext, $allowedExts) && !$isImageMime) {
-                $error = "Invalid file type. Please upload a valid image file.";
+            $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/products');
+            if ($uploadRes['success']) {
+                $image_path = $uploadRes['url'];
             } else {
-                $image_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                $image_path = $upload_dir . $image_name;
-                move_uploaded_file($_FILES['image']['tmp_name'], $image_path);
+                $error = $uploadRes['error'];
             }
         }
 

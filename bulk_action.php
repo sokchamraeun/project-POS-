@@ -19,7 +19,7 @@ if ($action === 'delete') {
     $sel->execute();
     $rows = $sel->get_result()->fetch_all(MYSQLI_ASSOC);
     foreach ($rows as $r) {
-        if (!empty($r['image']) && file_exists($r['image'])) unlink($r['image']);
+        if (!empty($r['image'])) cloudinary_delete_image($r['image']);
     }
 
     $del = $conn->prepare("DELETE FROM products WHERE product_id IN ($ph)");

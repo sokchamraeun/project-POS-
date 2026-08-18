@@ -29,9 +29,7 @@ if (($_GET['action'] ?? '') === 'view') {
     $p = $s->get_result()->fetch_assoc();
     if (!$p) { echo json_encode(['ok' => false]); exit; }
     $img = $p['image'] ?? '';
-    if ($img && strpos($img, 'uploads/') !== false) $src = $img;
-    elseif ($img) $src = 'uploads/' . $img;
-    else $src = '';
+    $src = get_image_url($img, '');
     echo json_encode(['ok' => true, 'product' => [
         'id'           => (int)$p['product_id'],
         'name'         => $p['name'],
@@ -2432,10 +2430,7 @@ body.select-mode .no-recipe-badge {
 
             <?php if ($totalProducts > 0): ?>
                 <?php foreach ($products as $i => $row):
-                    $img = $row['image'];
-                    if ($img && strpos($img, 'uploads/') !== false) $src = $img;
-                    elseif ($img) $src = 'uploads/' . $img;
-                    else $src = 'uploads/no-image.png';
+                    $src = get_image_url($row['image'], 'uploads/no-image.png');
                     $available = (int)($row['is_available'] ?? 1);
                     $costP = (float)($row['cost_price'] ?? 0);
                     $sellP = (float)$row['price'];

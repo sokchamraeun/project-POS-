@@ -11,13 +11,11 @@ function he($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function cat_upload_icon(): string {
     if (empty($_FILES['icon']['name'])) return '';
     if (($_FILES['icon']['error'] ?? 1) !== UPLOAD_ERR_OK) return '__UPLOAD_ERR__';
-    $ext = strtolower(pathinfo($_FILES['icon']['name'], PATHINFO_EXTENSION));
-    if ($ext === '') $ext = 'bin';
-    $upload_dir = "uploads/";
-    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-    $path = $upload_dir . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    move_uploaded_file($_FILES['icon']['tmp_name'], $path);
-    return $path;
+    $res = cloudinary_upload_file($_FILES['icon'], 'pos_coffee/categories');
+    if ($res['success']) {
+        return $res['url'];
+    }
+    return '__UPLOAD_ERR__';
 }
 
 if (isset($_SESSION['flash'])) {
@@ -66,7 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $icon = $iconRow['icon'] ?? 'fa-circle';
                 $newIcon = cat_upload_icon();
                 if ($newIcon === '__UPLOAD_ERR__')  { $flash = ['type'=>'error','msg'=>'Image upload failed. Please try again.']; break; }
-                if ($newIcon !== '') $icon = $newIcon;
+                if ($newIcon !== '') {
+                    if (!empty($iconRow['icon'])) cloudinary_delete_image($iconRow['icon']);
+                    $icon = $newIcon;
+                }
                 $os = isset($_POST['offer_sweetness']) ? 1 : 0;
                 $oi = isset($_POST['offer_ice'])       ? 1 : 0;
                 $om = isset($_POST['offer_milk'])      ? 1 : 0;
@@ -111,6 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $chk->bind_param('i', $id); $chk->execute();
                 $n = (int)$chk->get_result()->fetch_assoc()['n'];
                 if ($n > 0) { $flash = ['type'=>'error','msg'=>"$n product(s) use this category — reassign them (via each product's Edit page) or delete them first."]; break; }
+                $curCat = $conn->query("SELECT icon FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
+                if (!empty($curCat['icon'])) cloudinary_delete_image($curCat['icon']);
                 $d = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
                 $d->bind_param('i', $id); $d->execute();
                 $flash = ['type'=>'success','msg'=>'Category deleted.'];

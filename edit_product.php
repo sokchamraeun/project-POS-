@@ -44,31 +44,18 @@ if (isset($_POST['update_product'])) {
     }
 
     if (!$error && !empty($_FILES['image']['name'])) {
-        $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
-        $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif','heic','heif','jfif','pjpeg','pjp','apng','cur','dng'];
-        $isImageMime = false;
-        if (function_exists('finfo_open') && !empty($_FILES['image']['tmp_name'])) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mime  = finfo_file($finfo, $_FILES['image']['tmp_name']);
-            finfo_close($finfo);
-            $isImageMime = (strpos($mime, 'image/') === 0);
-        }
-        if (!in_array($ext, $allowedExts) && !$isImageMime) {
-            $error = "Invalid file type. Please upload a valid image file.";
-        } else {
-            $upload_dir = "uploads/";
-            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-            $image_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-            $image_path = $upload_dir . $image_name;
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $image_path)) {
-                if (!empty($product['image']) && file_exists($product['image'])) unlink($product['image']);
-                $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,image=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
-                $stmt->bind_param("ssddsisisii", $name, $description, $price, $cost_price, $category, $category_id, $image_path, $is_avail, $badge_text, $promo_percent, $id);
-                if ($stmt->execute()) { $success = true; $product['image'] = $image_path; }
-                else $error = "Database error while updating product.";
-            } else {
-                $error = "Failed to upload image.";
+        $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/products');
+        if ($uploadRes['success']) {
+            $image_path = $uploadRes['url'];
+            if (!empty($product['image'])) {
+                cloudinary_delete_image($product['image']);
             }
+            $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,image=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
+            $stmt->bind_param("ssddsisisii", $name, $description, $price, $cost_price, $category, $category_id, $image_path, $is_avail, $badge_text, $promo_percent, $id);
+            if ($stmt->execute()) { $success = true; $product['image'] = $image_path; }
+            else $error = "Database error while updating product.";
+        } else {
+            $error = $uploadRes['error'];
         }
     } else {
         $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
@@ -1112,9 +1099,13 @@ select.cat-select {
                         </div>
                         <div class="section-body flex flex-col gap-3">
                             <div class="image-panel">
-                                <?php if (!empty($product['image']) && file_exists($product['image'])): ?>
+                                <?php 
+                                $hasImg = !empty($product['image']) && (str_starts_with($product['image'], 'http') || file_exists($product['image']) || file_exists('uploads/' . $product['image']));
+                                $prodImgSrc = !empty($product['image']) ? get_image_url($product['image']) : '';
+                                ?>
+                                <?php if ($hasImg): ?>
                                 <div class="img-preview-wrap" id="imgWrap" onclick="document.getElementById('imgInput').click()">
-                                    <img src="<?= htmlspecialchars($product['image']) ?>" alt="Product image" id="imgPreview">
+                                    <img src="<?= htmlspecialchars($prodImgSrc) ?>" alt="Product image" id="imgPreview">
                                     <div class="img-overlay">
                                         <i class="fa-solid fa-camera text-xl"></i>
                                         Replace image
