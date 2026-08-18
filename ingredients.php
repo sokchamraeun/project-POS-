@@ -962,6 +962,428 @@ $categoriesList = [
         }
 
         /* ══════════════════════════════════════════════════════════════
+           STOCK-IN MASTER MODAL ENHANCED STYLING (DARK & LIGHT MODES)
+        ══════════════════════════════════════════════════════════════ */
+        select optgroup {
+            background-color: #1e293b;
+            color: #f59e0b;
+            font-weight: 700;
+        }
+        select option {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        [data-theme="light"] select optgroup,
+        html[data-theme="light"] select optgroup {
+            background-color: #f4efe9 !important;
+            color: #c47c2c !important;
+        }
+        [data-theme="light"] select option,
+        html[data-theme="light"] select option {
+            background-color: #ffffff !important;
+            color: #1a1410 !important;
+        }
+        
+        #addStockModal .modal-content {
+            background-color: #141419;
+            border-color: #2b2b36;
+            color: #ffffff;
+        }
+        #addStockModal .modal-header {
+            border-color: #252530;
+        }
+        #addStockModal .modal-footer {
+            border-color: #252530;
+        }
+        #addStockModal .stockin-title {
+            color: #f59e0b;
+        }
+        #addStockModal .stockin-sub {
+            color: #8e8e9f;
+        }
+        #addStockModal .stockin-badge {
+            background: rgba(245, 158, 11, 0.12);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        #addStockModal .stockin-label {
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        #addStockModal .stockin-input {
+            background-color: #1a1a22;
+            border: 1.5px solid #2d2d3b;
+            color: #ffffff;
+            font-weight: 500;
+            transition: all 0.18s ease;
+        }
+        #addStockModal .stockin-input:focus {
+            background-color: #1e1e28;
+            border-color: #f59e0b !important;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+        #addStockModal .stockin-density-box {
+            background-color: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            color: #cbd5e1;
+        }
+        #addStockModal .stockin-conv-box {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.03) 100%);
+            border: 1.5px solid rgba(245, 158, 11, 0.25);
+        }
+        #addStockModal .stockin-conv-title {
+            color: #f59e0b;
+        }
+        #addStockModal .stockin-conv-formula {
+            color: #fbbf24;
+        }
+        #addStockModal .stockin-stat-card {
+            background-color: #1a1a22;
+            border: 1px solid #2d2d3b;
+        }
+        #addStockModal .stockin-stat-label {
+            color: #8e8e9f;
+        }
+        #addStockModal .stockin-stat-val-units,
+        #addStockModal .stockin-stat-val-ml,
+        #addStockModal .stockin-stat-val-g,
+        #addStockModal .stockin-stat-val-cost {
+            color: #ffffff;
+        }
+        #addStockModal .btn-stockin-cancel {
+            background-color: #202028;
+            border: 1px solid #2d2d3b;
+            color: #cbd5e1;
+        }
+        #addStockModal .btn-stockin-cancel:hover {
+            background-color: #2b2b36;
+            color: #ffffff;
+        }
+        #addStockModal .btn-stockin-submit {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #0f172a;
+            font-weight: 800;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+        }
+        #addStockModal .btn-stockin-submit:hover {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
+        }
+
+        /* ── LIGHT MODE OVERRIDES ── */
+        [data-theme="light"] #addStockModal .modal-content,
+        html[data-theme="light"] #addStockModal .modal-content {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #addStockModal .modal-header,
+        html[data-theme="light"] #addStockModal .modal-header,
+        [data-theme="light"] #addStockModal .modal-footer,
+        html[data-theme="light"] #addStockModal .modal-footer {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-icon-wrap,
+        html[data-theme="light"] #addStockModal .stockin-icon-wrap {
+            background-color: #fef3c7 !important;
+            border-color: #fde68a !important;
+            color: #d97706 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-title,
+        html[data-theme="light"] #addStockModal .stockin-title {
+            color: #b45309 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-sub,
+        html[data-theme="light"] #addStockModal .stockin-sub {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-badge,
+        html[data-theme="light"] #addStockModal .stockin-badge {
+            background-color: #fef3c7 !important;
+            color: #b45309 !important;
+            border-color: #fde68a !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-label,
+        html[data-theme="light"] #addStockModal .stockin-label {
+            color: #334155 !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-input,
+        html[data-theme="light"] #addStockModal .stockin-input {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-input:focus,
+        html[data-theme="light"] #addStockModal .stockin-input:focus {
+            background-color: #ffffff !important;
+            border-color: #d97706 !important;
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18) !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-input::placeholder,
+        html[data-theme="light"] #addStockModal .stockin-input::placeholder {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] #addStockModal select#packageType,
+        html[data-theme="light"] #addStockModal select#packageType {
+            color: #b45309 !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #addStockModal select optgroup,
+        html[data-theme="light"] #addStockModal select optgroup {
+            background-color: #f8fafc !important;
+            color: #b45309 !important;
+        }
+        [data-theme="light"] #addStockModal select option,
+        html[data-theme="light"] #addStockModal select option {
+            background-color: #ffffff !important;
+            color: #1e293b !important;
+        }
+        [data-theme="light"] #addStockModal #subUnitConfig,
+        html[data-theme="light"] #addStockModal #subUnitConfig {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #addStockModal #subUnitMultiplier,
+        html[data-theme="light"] #addStockModal #subUnitMultiplier {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #addStockModal #subUnitHint,
+        html[data-theme="light"] #addStockModal #subUnitHint {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-density-box,
+        html[data-theme="light"] #addStockModal .stockin-density-box {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #475569 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-density-box #baseUnitDisplay,
+        html[data-theme="light"] #addStockModal .stockin-density-box #baseUnitDisplay {
+            background-color: #e0f2fe !important;
+            color: #0369a1 !important;
+            border-color: #bae6fd !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-density-box span.font-semibold,
+        html[data-theme="light"] #addStockModal .stockin-density-box span.font-semibold {
+            color: #b45309 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-conv-box,
+        html[data-theme="light"] #addStockModal .stockin-conv-box {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+            border-color: #fcd34d !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-conv-title,
+        html[data-theme="light"] #addStockModal .stockin-conv-title {
+            color: #92400e !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-conv-formula,
+        html[data-theme="light"] #addStockModal .stockin-conv-formula {
+            color: #b45309 !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-stat-card,
+        html[data-theme="light"] #addStockModal .stockin-stat-card {
+            background-color: #ffffff !important;
+            border-color: #fde68a !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-stat-label,
+        html[data-theme="light"] #addStockModal .stockin-stat-label {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #addStockModal .stockin-stat-val-units,
+        html[data-theme="light"] #addStockModal .stockin-stat-val-units,
+        [data-theme="light"] #addStockModal .stockin-stat-val-ml,
+        html[data-theme="light"] #addStockModal .stockin-stat-val-ml,
+        [data-theme="light"] #addStockModal .stockin-stat-val-g,
+        html[data-theme="light"] #addStockModal .stockin-stat-val-g,
+        [data-theme="light"] #addStockModal .stockin-stat-val-cost,
+        html[data-theme="light"] #addStockModal .stockin-stat-val-cost,
+        [data-theme="light"] #addStockModal .stockin-stat-val-cost span,
+        html[data-theme="light"] #addStockModal .stockin-stat-val-cost span {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #addStockModal .btn-stockin-cancel,
+        html[data-theme="light"] #addStockModal .btn-stockin-cancel {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }
+        [data-theme="light"] #addStockModal .btn-stockin-cancel:hover,
+        html[data-theme="light"] #addStockModal .btn-stockin-cancel:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #addStockModal .btn-stockin-submit,
+        html[data-theme="light"] #addStockModal .btn-stockin-submit {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3) !important;
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           RESTOCK MODAL ENHANCED STYLING (DARK & LIGHT MODES)
+        ══════════════════════════════════════════════════════════════ */
+        #restockModal .modal-content {
+            background-color: #141419;
+            border-color: #2b2b36;
+            color: #ffffff;
+            overflow: hidden !important;
+        }
+        #restockModal form {
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            scrollbar-width: thin;
+        }
+        #restockModal .modal-header,
+        #restockModal .modal-footer {
+            border-color: #252530;
+        }
+        #restockModal .restock-title {
+            color: #10b981;
+        }
+        #restockModal .restock-label {
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        #restockModal .restock-input {
+            background-color: #1a1a22;
+            border: 1.5px solid #2d2d3b;
+            color: #ffffff;
+            font-weight: 600;
+            transition: all 0.18s ease;
+        }
+        #restockModal .restock-input:focus {
+            background-color: #1e1e28;
+            border-color: #10b981 !important;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+        #restockModal .restock-subunit-box {
+            background: rgba(16, 185, 129, 0.06);
+            border: 1.5px dashed rgba(16, 185, 129, 0.35);
+        }
+        #restockModal .restock-subunit-hint {
+            color: #94a3b8;
+        }
+        #restockModal .restock-preview-box {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.04) 100%);
+            border: 1.5px solid rgba(16, 185, 129, 0.3);
+        }
+        #restockModal .restock-preview-label {
+            color: #94a3b8;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        #restockModal .restock-curr-toggle-wrap {
+            background-color: #1a1a22;
+            border: 1px solid #2d2d3b;
+        }
+
+        /* Light mode for restock modal */
+        [data-theme="light"] #restockModal .modal-content,
+        html[data-theme="light"] #restockModal .modal-content {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #restockModal .modal-header,
+        html[data-theme="light"] #restockModal .modal-header,
+        [data-theme="light"] #restockModal .modal-footer,
+        html[data-theme="light"] #restockModal .modal-footer {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #restockModal .restock-title,
+        html[data-theme="light"] #restockModal .restock-title {
+            color: #059669 !important;
+        }
+        [data-theme="light"] #restockModal .restock-label,
+        html[data-theme="light"] #restockModal .restock-label {
+            color: #1e293b !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #restockModal .restock-input,
+        html[data-theme="light"] #restockModal .restock-input {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #restockModal .restock-input:focus,
+        html[data-theme="light"] #restockModal .restock-input:focus {
+            background-color: #ffffff !important;
+            border-color: #059669 !important;
+            box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.18) !important;
+        }
+        [data-theme="light"] #restockModal .restock-subunit-box,
+        html[data-theme="light"] #restockModal .restock-subunit-box {
+            background-color: #f8fafc !important;
+            border: 1.5px dashed #cbd5e1 !important;
+        }
+        [data-theme="light"] #restockModal .restock-subunit-hint,
+        html[data-theme="light"] #restockModal .restock-subunit-hint {
+            color: #475569 !important;
+            font-weight: 600 !important;
+        }
+        [data-theme="light"] #restockModal .restock-curr-toggle-wrap,
+        html[data-theme="light"] #restockModal .restock-curr-toggle-wrap {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+        }
+        [data-theme="light"] #restockModal .restock-preview-box,
+        html[data-theme="light"] #restockModal .restock-preview-box {
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%) !important;
+            border: 1.5px solid #86efac !important;
+        }
+        [data-theme="light"] #restockModal .restock-preview-label,
+        html[data-theme="light"] #restockModal .restock-preview-label {
+            color: #1e293b !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #restockModal #restockAddedBaseUnits,
+        html[data-theme="light"] #restockModal #restockAddedBaseUnits {
+            color: #15803d !important;
+            font-weight: 900 !important;
+        }
+        [data-theme="light"] #restockModal #restockCurrentQty,
+        html[data-theme="light"] #restockModal #restockCurrentQty {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+        }
+        [data-theme="light"] #restockModal #restockNewQty,
+        html[data-theme="light"] #restockModal #restockNewQty {
+            color: #15803d !important;
+            font-weight: 900 !important;
+        }
+        [data-theme="light"] #restockModal #restockNewUnitCost,
+        html[data-theme="light"] #restockModal #restockNewUnitCost {
+            color: #b45309 !important;
+            font-weight: 900 !important;
+        }
+
+        /* Custom Slim Scrollbar for Modal */
+        .custom-modal-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-modal-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-modal-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 9999px;
+        }
+        .custom-modal-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+
+        /* ══════════════════════════════════════════════════════════════
            PACKAGING SET COST MODAL STYLES (LIGHT & DARK THEMES)
         ══════════════════════════════════════════════════════════════ */
         .pkg-table-wrap {
@@ -1662,45 +2084,67 @@ $categoriesList = [
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════
-         MODAL 1: ADD NEW RAW INGREDIENT
+         MODAL 1: STOCK-IN MASTER (បញ្ចូលស្តុកគ្រឿងផ្សំ - FULL MASTER UNITS)
     ══════════════════════════════════════════════════════════════ -->
-    <div id="addStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-        <div class="modal-content glass-card max-w-lg w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative">
-            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
-                        <i class="fa-solid fa-seedling"></i>
+    <div id="addStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+        <div class="modal-content glass-card max-w-2xl w-full p-6 sm:p-7 rounded-3xl shadow-2xl relative flex flex-col max-h-[90vh]">
+            
+            <!-- Header -->
+            <div class="modal-header flex items-center justify-between pb-4 border-b shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="stockin-icon-wrap w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl shadow-sm">
+                        <i class="fa-solid fa-box-open"></i>
                     </div>
-                    <h3 class="modal-title text-base font-bold text-white"><?= __('add_raw_ingredient', 'Add Raw Ingredient') ?></h3>
+                    <div>
+                        <h2 class="stockin-title text-base sm:text-lg font-extrabold flex items-center gap-2">
+                            📦 បញ្ចូលស្តុកគ្រឿងផ្សំ (Stock-In Master)
+                        </h2>
+                    </div>
                 </div>
-                <button type="button" onclick="closeModal('addStockModal')" class="text-[#7d7d8e] hover:text-white p-1 text-sm">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <div class="flex items-center gap-2">
+                    <span class="stockin-badge hidden sm:inline-block px-3 py-1 rounded-full text-[11px] font-bold">
+                        POS Inventory
+                    </span>
+                    <button type="button" onclick="closeModal('addStockModal')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 hover:text-slate-900 dark:text-[#7d7d8e] dark:hover:text-white flex items-center justify-center transition-all cursor-pointer">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
+                </div>
             </div>
 
-            <form id="addStockForm" onsubmit="handleAddStock(event)" class="space-y-4">
+            <!-- Scrollable Form Body -->
+            <form id="addStockForm" onsubmit="handleAddStock(event)" class="custom-modal-scroll mt-3 space-y-4 overflow-y-auto px-1 py-1 flex-1">
                 <input type="hidden" name="action" value="create_item">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                <input type="hidden" name="quantity" id="addQuantityHidden" value="0">
+                <input type="hidden" name="unit" id="addUnitHidden" value="g">
+                <input type="hidden" name="cost_per_unit" id="addCostUnitHidden" value="0.0000">
 
+                <!-- ឈ្មោះគ្រឿងផ្សំ -->
                 <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_ingredient_details', 'Ingredient Name') ?> <span class="text-rose-400">*</span></label>
+                    <label class="stockin-label block mb-1.5">
+                        ឈ្មោះគ្រឿងផ្សំ (Item Name) <span class="text-rose-500">*</span>
+                    </label>
                     <input type="text" 
                            name="item_name" 
                            id="addIngredientName"
                            required 
                            autocomplete="off"
-                           placeholder="e.g. Arabica Whole Beans 1kg, Meiji Whole Milk 2L" 
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                           placeholder="e.g. Soda Water (កំប៉ុង 320ml)" 
+                           class="stockin-input w-full px-4 py-2.5 rounded-xl text-sm">
                     <div id="addIngredientDupAlert" class="hidden mt-1.5 text-xs text-rose-500 font-semibold flex items-center gap-1.5">
                         <i class="fa-solid fa-triangle-exclamation"></i>
                         <span></span>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- ប្រភេទ & Alert Threshold -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_category', 'Category') ?> <span class="text-rose-400">*</span></label>
-                        <select name="category" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                        <label class="stockin-label block mb-1.5">
+                            ប្រភេទ (Category) <span class="text-rose-500">*</span>
+                        </label>
+                        <select name="category" id="addStockCategory" required 
+                                class="stockin-input w-full px-3.5 py-2.5 rounded-xl text-xs font-bold">
                             <option value="Liquids"><?= __('cat_liquids', 'ទឹក') ?></option>
                             <option value="Beans" selected><?= __('cat_beans', 'គ្រាប់') ?></option>
                             <option value="Packaging"><?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?></option>
@@ -1709,139 +2153,214 @@ $categoriesList = [
                     </div>
 
                     <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_unit', 'Base Measurement Unit') ?> <span class="text-rose-400">*</span></label>
-                        <select name="unit" id="addUnitSelect" required onchange="handleUnitChange('add')" class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="g" selected>g (Grams)</option>
-                            <option value="ml">ml (Milliliters)</option>
-                            <option value="pcs">pcs (Pieces)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_qty_on_hand', 'Initial Qty') ?></label>
-                        <input type="number" 
-                               step="any" 
-                               min="0" 
-                               name="quantity" 
-                               value="0" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                    </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_alert_threshold', 'Alert Threshold') ?></label>
+                        <label class="stockin-label block mb-1.5">
+                            កម្រិតប្រកាសអាសន្ន (Alert Threshold)
+                        </label>
                         <input type="number" 
                                step="any" 
                                min="0" 
                                name="alert_level" 
+                               id="addAlertLevelInput"
                                value="1000" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                               class="stockin-input w-full px-3.5 py-2.5 rounded-xl text-xs">
                     </div>
                 </div>
 
-                <!-- Pricing Section: Price per KG/L + Base Unit Cost -->
-                <div class="pricing-calc-box p-3.5 rounded-xl space-y-2.5">
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="pricing-header-title font-bold flex items-center gap-1.5">
-                            <i class="fa-solid fa-calculator"></i>
-                            <span id="addPricingSectionTitle"><?= __('cost_per_kg_l', 'Price per 1 KG / 1 Liter') ?></span>
-                        </span>
-                        <span class="pricing-header-sub text-[11px]" id="addPricingFormula">1 kg = 1,000 g</span>
+                <!-- ប្រភេទការទិញចូល និង ចំនួន -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                        <label class="stockin-label block mb-1.5">
+                            ខ្នាតទិញចូល (Purchase Unit) <span class="text-rose-500">*</span>
+                        </label>
+                        <select id="packageType" name="purchase_unit_type" onchange="handlePackageTypeChange(); calculateLiveStock();"
+                                class="stockin-input w-full px-3.5 py-2.5 rounded-xl text-xs font-bold">
+                            <optgroup label="⚖️ ខ្នាតទម្ងន់ (Weight)">
+                                <option value="kg">គីឡូក្រាម (kg)</option>
+                                <option value="g">ក្រាម (g)</option>
+                                <option value="bag">បាវ / ថង់ធំ (Bag / Sack - 20kg/25kg)</option>
+                            </optgroup>
+                            <optgroup label="🥤 ខ្នាតចំណុះរាវ (Volume)">
+                                <option value="L">លីត្រ (L)</option>
+                                <option value="ml">មីលីលីត្រ (ml)</option>
+                                <option value="can" selected>កំប៉ុង (Can)</option>
+                                <option value="bottle">ដប (Bottle)</option>
+                                <option value="gallon">ហ្គាឡុង (Gallon / Jug - 5L)</option>
+                            </optgroup>
+                            <optgroup label="📦 ខ្នាតវេចខ្ចប់ និងរាប់ចំនួន (Packaging & Count)">
+                                <option value="sleeve">ដើម (Sleeve - 50pcs)</option>
+                                <option value="pack">កញ្ចប់ (Pack - 100pcs)</option>
+                                <option value="dozen">ឡូ (Dozen - 12pcs)</option>
+                                <option value="box">ប្រអប់ (Box)</option>
+                                <option value="case">កេស (Case / Carton)</option>
+                                <option value="pcs">ចំនួនរាយ (pcs)</option>
+                            </optgroup>
+                        </select>
                     </div>
+                    <div>
+                        <label class="stockin-label block mb-1.5">
+                            ចំនួនទិញចូល (Quantity) <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="number" id="qtyInput" min="0.01" step="any" value="24" oninput="calculateLiveStock();" required
+                               class="stockin-input w-full px-3.5 py-2.5 rounded-xl font-bold text-sm">
+                    </div>
+                </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="modal-label block text-[11px] font-semibold text-[#b4b4c2] mb-1">
-                                <span id="addBulkCostLabelText"><?= __('cost_per_1kg', 'Price per 1 KG ($)') ?></span> <span class="text-rose-400">*</span>
+                <!-- Dynamic Sub-Units Config (Appears for Case / Box / Bag / Gallon) -->
+                <div id="subUnitConfig" class="p-3.5 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-3.5 hidden">
+                    <div>
+                        <label id="subUnitLabel" class="stockin-label block mb-1 text-xs font-semibold">ចំនួនក្នុង ១ ឯកតាទិញ</label>
+                        <input type="number" id="subUnitMultiplier" value="24" min="0.001" step="any" oninput="calculateLiveStock();"
+                               class="stockin-input w-full px-3 py-2 rounded-xl text-xs font-bold">
+                    </div>
+                    <div class="flex items-center text-[11px] leading-relaxed" id="subUnitHint">
+                        💡 ឧទាហរណ៍៖ សូដា ១ កេសមាន ២៤ កំប៉ុង (24 Cans/Case)
+                    </div>
+                </div>
+
+                <!-- ទំហំក្នុង ១ ឯកតាតូច & តម្លៃទិញសរុប -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5 h-6">
+                            <label id="unitVolLabel" class="stockin-label whitespace-nowrap">
+                                ចំណុះក្នុង ១ កំប៉ុង <span class="text-rose-500">*</span>
                             </label>
-                            <div class="relative">
-                                <span class="pricing-dollar-icon absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold">$</span>
-                                <input type="number" 
-                                       step="any" 
-                                       min="0" 
-                                       id="addBulkCostInput" 
-                                       placeholder="e.g. 12.00" 
-                                       oninput="syncCostInputs('add', 'bulk')" 
-                                       class="pricing-calc-input pricing-calc-input-highlight w-full pl-7 pr-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-[#d1904b] focus:ring-1 focus:ring-[#d1904b]">
+                        </div>
+                        <div class="relative">
+                            <input type="number" id="volumePerUnit" value="320" step="any" min="0.001" oninput="calculateLiveStock();" required
+                                   class="stockin-input w-full px-3.5 py-2.5 rounded-xl font-bold pr-12 text-xs">
+                            <span id="unitVolSuffix" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-extrabold text-[#d97706] dark:text-amber-400">ml</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5 h-6">
+                            <label class="stockin-label whitespace-nowrap">
+                                តម្លៃទិញសរុប (Total Cost) <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-[#1a1a22] border border-slate-200 dark:border-[#2d2d3b] shrink-0">
+                                <button type="button" id="currBtnUsd" onclick="setAddCurrency('USD')" class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#d97706] text-white shadow-xs cursor-pointer transition-all">USD ($)</button>
+                                <button type="button" id="currBtnKhr" onclick="setAddCurrency('KHR')" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 dark:text-[#8e8e9f] hover:text-slate-900 dark:hover:text-white cursor-pointer transition-all">KHR (៛)</button>
                             </div>
                         </div>
-
-                        <div>
-                            <label class="modal-label block text-[11px] font-semibold text-[#b4b4c2] mb-1">
-                                <span id="addBaseCostLabelText"><?= __('cost_per_base_unit', 'Cost per Base Unit ($ / g)') ?></span>
-                            </label>
-                            <div class="relative">
-                                <span class="pricing-dollar-icon-muted absolute left-3 top-1/2 -translate-y-1/2 text-xs">$</span>
-                                <input type="number" 
-                                       step="0.0001" 
-                                       min="0" 
-                                       id="addCostUnit" 
-                                       name="cost_per_unit" 
-                                       value="0.0000" 
-                                       oninput="syncCostInputs('add', 'base')" 
-                                       class="pricing-calc-input w-full pl-7 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#d1904b]">
-                            </div>
+                        <div class="relative">
+                            <input type="number" id="addTotalCostInput" value="9" step="any" min="0" oninput="calculateLiveStock();" required
+                                   class="stockin-input w-full px-3.5 py-2.5 rounded-xl font-extrabold text-emerald-600 dark:text-emerald-400 pr-16 text-sm">
+                            <span id="totalCostSuffix" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">$ USD</span>
+                            <input type="hidden" id="addCostCurrency" value="USD">
                         </div>
+                    </div>
+                </div>
+
+                <!-- Density / Recipe DB info -->
+                <div class="stockin-density-box flex items-center justify-between p-3 rounded-2xl text-[11px]">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold">ខ្នាតមូលដ្ឋាន Recipe DB:</span> 
+                        <span id="baseUnitDisplay" class="font-mono font-extrabold px-2.5 py-0.5 rounded-lg border">ml</span>
+                    </div>
+                    <div class="opacity-90 font-medium">
+                        <span id="densityInfo">1 ml ≈ 1.00 g (Water/Soda)</span>
+                    </div>
+                </div>
+
+                <!-- Live Conversion Result Card -->
+                <div class="stockin-conv-box rounded-2xl p-4 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="stockin-conv-title text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                            ⚡ លទ្ធផលបំប្លែងស្វ័យប្រវត្តិក្នងប្រព័ន្ធ (POS Live Conversion)
+                        </h3>
+                        <span class="stockin-conv-formula text-xs font-mono font-bold" id="formulaPreview">24 កំប៉ុង = 7,680 ml</span>
                     </div>
                     
-                    <div id="addCostPreviewPill" class="pricing-calc-preview text-[11px] flex items-center justify-between pt-1">
-                        <span>Live Unit Cost: <strong class="font-mono" id="addLiveBaseCostDisplay">$0.0000 / g</strong></span>
-                        <span class="formula-text text-[10px]" id="addLiveFormulaText">1 kg @ $0.00</span>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                        <div class="stockin-stat-card p-3 rounded-xl text-center">
+                            <div id="resUnitHeader" class="stockin-stat-label text-[11px] font-medium">ចំនួនកំប៉ុងសរុប</div>
+                            <div id="resTotalUnits" class="stockin-stat-val-units text-sm sm:text-base font-extrabold font-mono mt-1">24 កំប៉ុង</div>
+                        </div>
+                        <div class="stockin-stat-card p-3 rounded-xl text-center">
+                            <div class="stockin-stat-label text-[11px] font-medium">ស្តុកកាត់ជា ml</div>
+                            <div id="resTotalMl" class="stockin-stat-val-ml text-sm sm:text-base font-extrabold font-mono mt-1">7,680 ml</div>
+                        </div>
+                        <div class="stockin-stat-card p-3 rounded-xl text-center">
+                            <div class="stockin-stat-label text-[11px] font-medium">ស្តុកកាត់ជា g</div>
+                            <div id="resTotalG" class="stockin-stat-val-g text-sm sm:text-base font-extrabold font-mono mt-1">7,680 g</div>
+                        </div>
+                        <div class="stockin-stat-card p-3 rounded-xl text-center">
+                            <div class="stockin-stat-label text-[11px] font-medium">ថ្លៃដើម/Unit</div>
+                            <div id="resCostBreakdown" class="stockin-stat-val-cost text-sm sm:text-base font-extrabold font-mono mt-1">$0.0012</div>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Supplier / Notes -->
                 <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('supplier_notes', 'Supplier & Notes') ?></label>
-                    <textarea name="notes" 
-                              rows="2" 
-                              placeholder="e.g. Royal Coffee Wholesale 1kg vacuum packs" 
-                              class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]"></textarea>
+                    <label class="stockin-label block mb-1 text-xs">អ្នកផ្គត់ផ្គង់ / កំណត់សម្គាល់ (Supplier & Notes)</label>
+                    <input type="text" name="notes" placeholder="e.g. Royal Wholesale Beverage Supplier" 
+                           class="stockin-input w-full px-3.5 py-2 rounded-xl text-xs">
                 </div>
 
-                <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
+                <!-- Footer Action Buttons -->
+                <div class="modal-footer flex items-center justify-end gap-3 pt-3 border-t shrink-0">
                     <button type="button" 
                             onclick="closeModal('addStockModal')" 
-                            class="px-4 py-2 rounded-xl bg-[#202026] text-xs font-semibold text-[#b4b4c2] hover:text-white transition-all cursor-pointer">
-                        <?= __('cancel', 'Cancel') ?>
+                            class="btn-stockin-cancel px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer">
+                        បោះបង់ (Cancel)
                     </button>
                     <button type="submit" 
                             id="addStockSubmitBtn" 
-                            class="px-5 py-2 rounded-xl bg-[#d1904b] hover:bg-[#e5a15a] text-black text-xs font-bold transition-all shadow-md shadow-[#d1904b]/20 cursor-pointer">
-                        <?= __('save', 'Save Ingredient') ?>
+                            class="btn-stockin-submit px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <span>រក្សាទុកទិន្នន័យចូលស្តុក POS (Save Stock)</span>
                     </button>
                 </div>
             </form>
+
         </div>
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════
          MODAL 2: QUICK INGREDIENT RESTOCK
     ══════════════════════════════════════════════════════════════ -->
-    <div id="restockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-        <div class="modal-content glass-card max-w-md w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative">
-            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL 2: QUICK INGREDIENT RESTOCK (ថែមស្តុកទំនិញ)
+    ══════════════════════════════════════════════════════════════ -->
+    <div id="restockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+        <div class="modal-content glass-card max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl relative flex flex-col max-h-[92vh]">
+            
+            <!-- Header -->
+            <div class="modal-header flex items-center justify-between pb-3.5 border-b shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center justify-center text-lg shadow-sm">
                         <i class="fa-solid fa-truck-ramp-box"></i>
                     </div>
-                    <h3 class="modal-title text-base font-bold text-white"><?= __('quick_restock', 'Quick Ingredient Restock') ?></h3>
+                    <div>
+                        <h2 class="restock-title text-base sm:text-lg font-extrabold flex items-center gap-2">
+                            📦 ថែមស្តុកទំនិញ (Restock Item)
+                        </h2>
+                        <p class="text-[11px] text-slate-500 dark:text-[#8e8e9f] mt-0.5">
+                            បន្ថែមបរិមាណស្តុក និងគណនាថ្លៃដើមស្វ័យប្រវត្តិ
+                        </p>
+                    </div>
                 </div>
-                <button type="button" onclick="closeModal('restockModal')" class="text-[#7d7d8e] hover:text-white p-1 text-sm">
-                    <i class="fa-solid fa-xmark"></i>
+                <button type="button" onclick="closeModal('restockModal')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 hover:text-slate-900 dark:text-[#7d7d8e] dark:hover:text-white flex items-center justify-center transition-all cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
 
-            <form id="restockForm" onsubmit="handleQuickRestock(event)" class="space-y-4">
+            <!-- Form -->
+            <form id="restockForm" onsubmit="handleQuickRestock(event)" class="custom-modal-scroll mt-3.5 space-y-4 overflow-y-auto px-1 py-1 flex-1">
                 <input type="hidden" name="action" value="quick_restock">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                <input type="hidden" name="unit_multiplier" id="restockMultiplierHidden" value="1000">
+                <input type="hidden" name="cost_per_unit" id="restockCostUnitHidden" value="">
 
+                <!-- មុខទំនិញត្រូវថែមស្តុក -->
                 <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_ingredient_details', 'Select Ingredient') ?> <span class="text-rose-400">*</span></label>
+                    <label class="restock-label block text-xs mb-1.5 font-bold">
+                        មុខទំនិញត្រូវថែមស្តុក (Select Ingredient) <span class="text-rose-500">*</span>
+                    </label>
                     <select name="item_id" 
                             id="restockItemSelect" 
                             required 
-                            onchange="updateRestockModalPreview()" 
-                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                            onchange="handleRestockItemChange()" 
+                            class="restock-input w-full px-3.5 py-2.5 rounded-xl text-xs font-bold focus:outline-none">
                         <option value="">-- Choose Ingredient --</option>
                         <?php foreach ($stockItems as $it): ?>
                         <option value="<?= $it['item_id'] ?>" 
@@ -1854,63 +2373,140 @@ $categoriesList = [
                     </select>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <!-- ខ្នាតទិញចូល និង ចំនួន -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
                     <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('quantity_added', 'Quantity to Add') ?> <span class="text-rose-400">*</span></label>
+                        <label class="restock-label block text-xs mb-1.5 font-bold">
+                            ខ្នាតទិញចូល (Purchase Unit) <span class="text-rose-500">*</span>
+                        </label>
+                        <select id="restockPurchaseUnit" onchange="handleRestockUnitChange()" 
+                                class="restock-input w-full px-3.5 py-2.5 rounded-xl text-xs font-bold focus:outline-none">
+                            <optgroup label="⚖️ ខ្នាតទម្ងន់ (Weight)">
+                                <option value="kg" selected>គីឡូក្រាម (kg)</option>
+                                <option value="g">ក្រាម (g)</option>
+                                <option value="bag">បាវ / ថង់ធំ (Bag / Sack - 20kg/25kg)</option>
+                            </optgroup>
+                            <optgroup label="🥤 ខ្នាតចំណុះរាវ (Volume)">
+                                <option value="L">លីត្រ (L)</option>
+                                <option value="ml">មីលីលីត្រ (ml)</option>
+                                <option value="can">កំប៉ុង (Can)</option>
+                                <option value="bottle">ដប (Bottle)</option>
+                                <option value="gallon">ហ្គាឡុង (Gallon / Jug - 5L)</option>
+                            </optgroup>
+                            <optgroup label="📦 ខ្នាតវេចខ្ចប់ និងរាប់ចំនួន (Packaging & Count)">
+                                <option value="sleeve">ដើម (Sleeve - 50pcs)</option>
+                                <option value="pack">កញ្ចប់ (Pack - 100pcs)</option>
+                                <option value="dozen">ឡូ (Dozen - 12pcs)</option>
+                                <option value="box">ប្រអប់ (Box)</option>
+                                <option value="case">កេស (Case / Carton)</option>
+                                <option value="pcs">ចំនួនរាយ (pcs)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="restock-label block text-xs mb-1.5 font-bold">
+                            ចំនួនទិញចូល (Qty) <span class="text-rose-500">*</span>
+                        </label>
                         <input type="number" 
                                step="any" 
                                min="0.01" 
                                name="quantity_added" 
                                id="restockQtyInput" 
                                required 
-                               placeholder="e.g. 5" 
+                               value="1" 
                                oninput="calculateRestockTotal()" 
-                               class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-sm font-bold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                               class="restock-input w-full px-3.5 py-2.5 rounded-xl text-sm font-bold focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Dynamic Sub-Units Config (Appears for Case / Box / Bag / Gallon) -->
+                <div id="restockSubUnitConfig" class="restock-subunit-box p-3.5 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center hidden">
+                    <div>
+                        <label id="restockSubUnitLabel" class="restock-label block mb-1 text-xs">ចំនួនក្នុង ១ ឯកតាទិញ</label>
+                        <input type="number" id="restockSubUnitMultiplier" value="24" min="0.001" step="any" oninput="calculateRestockTotal();"
+                               class="restock-input w-full px-3.5 py-2 rounded-xl text-xs font-bold">
+                    </div>
+                    <div class="flex items-center text-[11px] restock-subunit-hint leading-relaxed" id="restockSubUnitHint">
+                        💡 ឧទាហរណ៍៖ សូដា ១ កេសមាន ២៤ កំប៉ុង (24 Cans/Case)
+                    </div>
+                </div>
+
+                <!-- ទំហំក្នុង ១ ឯកតាតូច & តម្លៃទិញសរុប -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-end">
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5 h-6">
+                            <label id="restockUnitVolLabel" class="restock-label whitespace-nowrap">
+                                ចំណុះ/ទម្ងន់ក្នុង ១ ឯកតា <span class="text-rose-500">*</span>
+                            </label>
+                        </div>
+                        <div class="relative">
+                            <input type="number" id="restockVolumePerUnit" value="1000" step="any" min="0.001" oninput="calculateRestockTotal();" required
+                                   class="restock-input w-full px-3.5 py-2.5 rounded-xl font-bold pr-12 text-xs">
+                            <span id="restockUnitVolSuffix" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-extrabold text-emerald-600 dark:text-emerald-400">g</span>
+                        </div>
                     </div>
 
                     <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_unit', 'Unit Multiplier') ?></label>
-                        <select name="unit_multiplier" id="restockMultiplier" onchange="calculateRestockTotal()"
-                                class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="1">Base Units (g / ml / pcs)</option>
-                            <option value="1000">1 kg / 1 Liter (= 1,000)</option>
-                            <option value="2000">2 Liters / 2 kg (= 2,000)</option>
-                            <option value="50">1 Sleeve / Pack (= 50 pcs)</option>
-                            <option value="100">1 Box / Pack (= 100 pcs)</option>
-                        </select>
+                        <div class="flex items-center justify-between mb-1.5 h-6">
+                            <label class="restock-label whitespace-nowrap">
+                                តម្លៃទិញសរុប (Total Cost)
+                            </label>
+                            <div class="restock-curr-toggle-wrap inline-flex p-0.5 rounded-lg shrink-0">
+                                <button type="button" id="restockCurrBtnKhr" onclick="setRestockCurrency('KHR')" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-500 hover:text-slate-900 dark:text-[#8e8e9f] dark:hover:text-white cursor-pointer transition-all">KHR (៛)</button>
+                                <button type="button" id="restockCurrBtnUsd" onclick="setRestockCurrency('USD')" class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#059669] text-white shadow-xs cursor-pointer transition-all">USD ($)</button>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <input type="number" 
+                                   id="restockTotalCostInput" 
+                                   step="any" 
+                                   min="0" 
+                                   placeholder="e.g. 45000" 
+                                   oninput="calculateRestockTotal()" 
+                                   class="restock-input w-full px-3.5 py-2.5 rounded-xl font-bold pr-16 text-sm">
+                            <span id="restockCostSuffix" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">$ USD</span>
+                            <input type="hidden" id="restockCostCurrency" value="USD">
+                        </div>
                     </div>
                 </div>
 
                 <!-- Live Calculated Units Badge -->
-                <div id="restockPreviewCard" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
-                    <div class="flex justify-between text-amber-400 font-bold">
-                        <span>Total Base Units:</span>
-                        <span id="restockAddedBaseUnits">+0 units</span>
+                <div id="restockPreviewCard" class="restock-preview-box p-3.5 rounded-2xl text-xs space-y-2.5">
+                    <div class="flex justify-between items-center font-extrabold">
+                        <span class="restock-preview-label">ស្តុកបន្ថែម (Added):</span>
+                        <span id="restockAddedBaseUnits" class="font-mono text-emerald-600 dark:text-emerald-400 text-sm font-bold">+1,000 g</span>
                     </div>
-                    <div class="flex justify-between text-[#8e8e9f] text-[11px]">
-                        <span>Current Stock: <span id="restockCurrentQty" class="font-bold text-white">--</span></span>
-                        <span>New Total: <span id="restockNewQty" class="font-bold text-emerald-400">--</span></span>
+                    <div class="flex justify-between items-center text-xs pt-1.5 border-t border-emerald-500/20">
+                        <span class="restock-preview-label">ស្តុកចាស់: <strong id="restockCurrentQty" class="font-mono font-bold ml-1">--</strong></span>
+                        <span class="restock-preview-label">ស្តុកថ្មីសរុប: <strong id="restockNewQty" class="font-mono font-extrabold text-sm ml-1">--</strong></span>
+                    </div>
+                    <div id="restockCostPreviewRow" class="flex justify-between items-center text-xs pt-1.5 border-t border-emerald-500/20">
+                        <span class="restock-preview-label">ថ្លៃដើមគិតជាមធ្យមថ្មី:</span>
+                        <span id="restockNewUnitCost" class="font-mono font-extrabold">--</span>
                     </div>
                 </div>
 
+                <!-- Supplier / Notes -->
                 <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('supplier_notes', 'Supplier / Notes') ?></label>
+                    <label class="restock-label block text-xs mb-1 font-medium">អ្នកផ្គត់ផ្គង់ / កំណត់សម្គាល់ (Supplier & Notes)</label>
                     <input type="text" 
                            name="notes" 
-                           placeholder="e.g. Weekly replenishment from Meiji" 
-                           class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                           placeholder="e.g. Replenishment from Coffee Supplier" 
+                           class="restock-input w-full px-3.5 py-2 rounded-xl text-xs">
                 </div>
 
-                <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
+                <!-- Footer -->
+                <div class="modal-footer flex items-center justify-end gap-3 pt-3 border-t shrink-0">
                     <button type="button" 
                             onclick="closeModal('restockModal')" 
-                            class="px-4 py-2 rounded-xl bg-[#202026] text-xs font-semibold text-[#b4b4c2] hover:text-white transition-all cursor-pointer">
+                            class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#202026] dark:hover:bg-[#282832] text-xs font-bold text-slate-600 dark:text-[#b4b4c2] hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer">
                         <?= __('cancel', 'Cancel') ?>
                     </button>
                     <button type="submit" 
                             id="restockSubmitBtn" 
-                            class="px-5 py-2 rounded-xl bg-[#d1904b] hover:bg-[#e5a15a] text-black text-xs font-bold transition-all shadow-md shadow-[#d1904b]/20 cursor-pointer">
-                        <?= __('btn_confirm_restock', 'Confirm Restock') ?>
+                            class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-all shadow-md shadow-emerald-600/25 active:scale-[0.99] cursor-pointer">
+                        <span>បញ្ជាក់ការថែមស្តុក (Confirm Restock)</span>
                     </button>
                 </div>
             </form>
@@ -2738,9 +3334,307 @@ $categoriesList = [
             }
         }
 
+        // ── Stock-In Master (Full Units Conversion & Live Calculator) ──
+        function handlePackageTypeChange() {
+            const pType = document.getElementById('packageType')?.value || 'can';
+            const subUnitConfig = document.getElementById('subUnitConfig');
+            const subUnitLabel = document.getElementById('subUnitLabel');
+            const subUnitHint = document.getElementById('subUnitHint');
+            const subUnitMultiplier = document.getElementById('subUnitMultiplier');
+            const unitVolLabel = document.getElementById('unitVolLabel');
+            const unitVolSuffix = document.getElementById('unitVolSuffix');
+            const volumePerUnit = document.getElementById('volumePerUnit');
+            const baseUnitDisplay = document.getElementById('baseUnitDisplay');
+            const densityInfo = document.getElementById('densityInfo');
+            const catSelect = document.getElementById('addStockCategory');
+
+            if (!subUnitConfig) return;
+
+            // Default hide subUnitConfig unless grouped packaging
+            subUnitConfig.classList.add('hidden');
+
+            if (pType === 'case') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ចំនួន កំប៉ុង/ដប/កញ្ចប់ ក្នុង ១ កេស';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. សូដា ១ កេសមាន ២៤ កំប៉ុង, កែវ ១ កេសមាន ២០ ដើម';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 24;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះក្នុង ១ ឯកតារាយ <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (volumePerUnit && (!volumePerUnit.value || volumePerUnit.value === '1000')) volumePerUnit.value = 320;
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'ml / pcs';
+                if (densityInfo) densityInfo.textContent = 'Liquid Can (320ml)';
+                if (catSelect && catSelect.value === 'Beans') catSelect.value = 'Liquids';
+            } else if (pType === 'box') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ចំនួនកញ្ចប់/ដប ក្នុង ១ ប្រអប់';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. តែ ១ ប្រអប់មាន ២៥ កញ្ចប់តូច (Teabags)';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 25;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ទម្ងន់/ចំណុះ ក្នុង ១ កញ្ចប់ <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+                if (volumePerUnit) volumePerUnit.value = 20;
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'g';
+                if (densityInfo) densityInfo.textContent = 'Box Items';
+            } else if (pType === 'bag') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ទម្ងន់ក្នុង ១ បាវ (kg/Bag)';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. ទឹកកកអនាម័យ ១ បាវ = 20kg, ស្ករស ១ បាវ = 50kg';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 20;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'មេគុណបំប្លែងទៅជា g <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'g';
+                if (densityInfo) densityInfo.textContent = 'Weight: 1 kg = 1,000 g';
+            } else if (pType === 'gallon') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ចំណុះក្នុង ១ ហ្គាឡុង (Liters/Gal)';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. ទឹកស៊ីរ៉ូ ឬទឹកដោះគោ ១ ហ្គាឡុង = 5L (5,000ml)';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 5;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'មេគុណបំប្លែងទៅជា ml <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'ml';
+                if (densityInfo) densityInfo.textContent = 'Volume: 1 L = 1,000 ml';
+                if (catSelect) catSelect.value = 'Liquids';
+            } else if (pType === 'sleeve') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្នុង ១ ដើម <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 50;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'pcs';
+                if (densityInfo) densityInfo.textContent = 'Count Item';
+                if (catSelect) catSelect.value = 'Packaging';
+            } else if (pType === 'pack') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្នុង ១ កញ្ចប់ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 100;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'pcs';
+                if (densityInfo) densityInfo.textContent = 'Count Item';
+                if (catSelect) catSelect.value = 'Packaging';
+            } else if (pType === 'dozen') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្នុង ១ ឡូ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 12;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'pcs';
+                if (densityInfo) densityInfo.textContent = 'Count Item';
+                if (catSelect) catSelect.value = 'Packaging';
+            } else if (pType === 'kg') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្រាមក្នុង ១ kg <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'g';
+                if (densityInfo) densityInfo.textContent = 'Weight: 1 kg = 1,000 g';
+                if (catSelect && catSelect.value === 'Liquids') catSelect.value = 'Beans';
+            } else if (pType === 'g') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ទម្ងន់ (g) <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'g';
+                if (densityInfo) densityInfo.textContent = 'Base Unit: g';
+            } else if (pType === 'L') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួន ml ក្នុង ១ លីត្រ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'ml';
+                if (densityInfo) densityInfo.textContent = 'Volume: 1 L = 1,000 ml';
+                if (catSelect) catSelect.value = 'Liquids';
+            } else if (pType === 'ml') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះ (ml) <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'ml';
+                if (densityInfo) densityInfo.textContent = 'Base Unit: ml';
+                if (catSelect) catSelect.value = 'Liquids';
+            } else if (pType === 'can') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះក្នុង ១ កំប៉ុង <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 320;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'ml';
+                if (densityInfo) densityInfo.textContent = 'Liquid Can (320ml)';
+                if (catSelect) catSelect.value = 'Liquids';
+            } else if (pType === 'bottle') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះក្នុង ១ ដប <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 330;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'ml';
+                if (densityInfo) densityInfo.textContent = 'Liquid Bottle';
+                if (catSelect) catSelect.value = 'Liquids';
+            } else if (pType === 'pcs') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនរាយ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+                if (baseUnitDisplay) baseUnitDisplay.textContent = 'pcs';
+                if (densityInfo) densityInfo.textContent = 'Single Unit';
+            }
+        }
+
+        function setAddCurrency(curr) {
+            const currInput = document.getElementById('addCostCurrency');
+            const suffix = document.getElementById('totalCostSuffix');
+            const btnUsd = document.getElementById('currBtnUsd');
+            const btnKhr = document.getElementById('currBtnKhr');
+            const costInput = document.getElementById('addTotalCostInput');
+
+            if (!currInput || !costInput) return;
+
+            if (curr === 'KHR') {
+                currInput.value = 'KHR';
+                if (suffix) suffix.textContent = '៛ KHR';
+                if (btnKhr) {
+                    btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#d97706] text-white shadow-xs cursor-pointer transition-all';
+                }
+                if (btnUsd) {
+                    btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 dark:text-[#8e8e9f] hover:text-slate-900 dark:hover:text-white cursor-pointer transition-all';
+                }
+                
+                const val = parseFloat(costInput.value) || 0;
+                if (val > 0 && val < 500) {
+                    costInput.value = Math.round(val * KHR_RATE);
+                }
+            } else {
+                currInput.value = 'USD';
+                if (suffix) suffix.textContent = '$ USD';
+                if (btnUsd) {
+                    btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#d97706] text-white shadow-xs cursor-pointer transition-all';
+                }
+                if (btnKhr) {
+                    btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 dark:text-[#8e8e9f] hover:text-slate-900 dark:hover:text-white cursor-pointer transition-all';
+                }
+                
+                const val = parseFloat(costInput.value) || 0;
+                if (val >= 500) {
+                    costInput.value = (val / KHR_RATE).toFixed(2);
+                }
+            }
+            calculateLiveStock();
+        }
+
+        function calculateLiveStock() {
+            const pTypeEl = document.getElementById('packageType');
+            if (!pTypeEl) return;
+            const pType = pTypeEl.value;
+            const qty = parseFloat(document.getElementById('qtyInput')?.value) || 0;
+            const volumePerUnit = parseFloat(document.getElementById('volumePerUnit')?.value) || 0;
+            const subMultiplier = parseFloat(document.getElementById('subUnitMultiplier')?.value) || 1;
+            const rawCost = parseFloat(document.getElementById('addTotalCostInput')?.value) || 0;
+            const costCurrency = document.getElementById('addCostCurrency')?.value || 'USD';
+
+            // Normalize cost to USD for database consistency
+            const totalCostUsd = costCurrency === 'KHR' ? (rawCost / KHR_RATE) : rawCost;
+            const totalCostKhr = costCurrency === 'KHR' ? rawCost : (rawCost * KHR_RATE);
+
+            let totalUnits = qty;
+            let totalBaseStock = 0;
+            let baseUnit = 'ml';
+            let unitSuffix = ' ឯកតា';
+
+            const volSuffixEl = document.getElementById('unitVolSuffix');
+            const volSuffixText = volSuffixEl ? volSuffixEl.textContent.trim() : 'ml';
+
+            if (['case', 'box'].includes(pType)) {
+                totalUnits = qty * subMultiplier;
+                totalBaseStock = totalUnits * volumePerUnit;
+                unitSuffix = (pType === 'case') ? ' កំប៉ុង/ដប' : ' កញ្ចប់';
+                baseUnit = volSuffixText === 'g' ? 'g' : (volSuffixText === 'pcs' ? 'pcs' : 'ml');
+            } else if (pType === 'bag') {
+                totalUnits = qty;
+                totalBaseStock = qty * subMultiplier * 1000; // kg -> g
+                unitSuffix = ' បាវ';
+                baseUnit = 'g';
+            } else if (pType === 'gallon') {
+                totalUnits = qty;
+                totalBaseStock = qty * subMultiplier * 1000; // L -> ml
+                unitSuffix = ' ហ្គាឡុង';
+                baseUnit = 'ml';
+            } else if (['sleeve', 'pack', 'dozen'].includes(pType)) {
+                totalUnits = qty;
+                totalBaseStock = qty * volumePerUnit;
+                unitSuffix = (pType === 'sleeve') ? ' ដើម' : (pType === 'pack' ? ' កញ្ចប់' : ' ឡូ');
+                baseUnit = 'pcs';
+            } else if (['kg', 'g'].includes(pType)) {
+                totalUnits = qty;
+                totalBaseStock = (pType === 'kg') ? (qty * 1000) : qty;
+                unitSuffix = (pType === 'kg') ? ' kg' : ' g';
+                baseUnit = 'g';
+            } else if (['L', 'ml'].includes(pType)) {
+                totalUnits = qty;
+                totalBaseStock = (pType === 'L') ? (qty * 1000) : qty;
+                unitSuffix = (pType === 'L') ? ' L' : ' ml';
+                baseUnit = 'ml';
+            } else if (pType === 'can') {
+                totalUnits = qty;
+                totalBaseStock = qty * volumePerUnit;
+                unitSuffix = ' កំប៉ុង';
+                baseUnit = 'ml';
+            } else if (pType === 'bottle') {
+                totalUnits = qty;
+                totalBaseStock = qty * volumePerUnit;
+                unitSuffix = ' ដប';
+                baseUnit = 'ml';
+            } else if (pType === 'pcs') {
+                totalUnits = qty;
+                totalBaseStock = qty;
+                unitSuffix = ' pcs';
+                baseUnit = 'pcs';
+            }
+
+            const costPerBaseUsd = totalBaseStock > 0 ? (totalCostUsd / totalBaseStock) : 0;
+            const costPerBaseKhr = costPerBaseUsd * KHR_RATE;
+            const khrCostText = costPerBaseKhr >= 10 ? Math.round(costPerBaseKhr).toLocaleString('en-US') : (costPerBaseKhr > 0 ? costPerBaseKhr.toFixed(2) : '0');
+
+            // Render live stats
+            const resUnitHeader = document.getElementById('resUnitHeader');
+            const resTotalUnits = document.getElementById('resTotalUnits');
+            const resTotalMl = document.getElementById('resTotalMl');
+            const resTotalG = document.getElementById('resTotalG');
+            const resCostBreakdown = document.getElementById('resCostBreakdown');
+            const formulaPreview = document.getElementById('formulaPreview');
+
+            if (resUnitHeader) resUnitHeader.textContent = `ចំនួន (${pType})`;
+            if (resTotalUnits) resTotalUnits.textContent = `${formatNumber(totalUnits, 0)}${unitSuffix}`;
+            
+            if (baseUnit === 'pcs') {
+                if (resTotalMl) resTotalMl.textContent = `${formatNumber(totalBaseStock, 0)} pcs`;
+                if (resTotalG) resTotalG.textContent = `N/A`;
+            } else if (baseUnit === 'ml') {
+                if (resTotalMl) resTotalMl.textContent = `${formatNumber(totalBaseStock, 0)} ml`;
+                if (resTotalG) resTotalG.textContent = `${formatNumber(totalBaseStock, 0)} g`;
+            } else {
+                if (resTotalMl) resTotalMl.textContent = `N/A`;
+                if (resTotalG) resTotalG.textContent = `${formatNumber(totalBaseStock, 0)} g`;
+            }
+
+            if (resCostBreakdown) {
+                const usdText = costPerBaseUsd < 0.01 && costPerBaseUsd > 0 ? costPerBaseUsd.toFixed(4) : costPerBaseUsd.toFixed(2);
+                resCostBreakdown.innerHTML = `$${usdText} <span class="text-[11px] opacity-80 font-bold block">(≈ ${khrCostText} ៛)</span>`;
+            }
+
+            if (formulaPreview) {
+                formulaPreview.textContent = `${qty} ${pType} = ${formatNumber(totalBaseStock, 0)} ${baseUnit}`;
+            }
+
+            // Sync hidden inputs for backend submission
+            const qtyHidden = document.getElementById('addQuantityHidden');
+            const unitHidden = document.getElementById('addUnitHidden');
+            const costHidden = document.getElementById('addCostUnitHidden');
+
+            if (qtyHidden) qtyHidden.value = totalBaseStock;
+            if (unitHidden) unitHidden.value = baseUnit;
+            if (costHidden) costHidden.value = costPerBaseUsd.toFixed(6);
+
+            return {
+                totalUnits,
+                totalBaseStock,
+                baseUnit,
+                costPerBaseUsd,
+                costPerBaseKhr,
+                pType,
+                unitSuffix
+            };
+        }
+
         // ── Modal Actions ──
         function openAddStockModal() {
-            document.getElementById('addStockForm').reset();
+            const form = document.getElementById('addStockForm');
+            if (form) form.reset();
             const alertBox = document.getElementById('addIngredientDupAlert');
             if (alertBox) alertBox.classList.add('hidden');
             const nameInput = document.getElementById('addIngredientName');
@@ -2748,12 +3642,8 @@ $categoriesList = [
             const submitBtn = document.getElementById('addStockSubmitBtn');
             if (submitBtn) submitBtn.disabled = false;
             
-            const bulkInput = document.getElementById('addBulkCostInput');
-            if (bulkInput) bulkInput.value = '';
-            const baseInput = document.getElementById('addCostUnit');
-            if (baseInput) baseInput.value = '0.0000';
-            
-            handleUnitChange('add');
+            handlePackageTypeChange();
+            calculateLiveStock();
             openModal('addStockModal');
         }
 
@@ -2788,6 +3678,8 @@ $categoriesList = [
 
         async function handleAddStock(e) {
             e.preventDefault();
+            calculateLiveStock();
+
             if (checkAddIngredientDuplicate()) {
                 showToast('An ingredient with this name already exists. Cannot add duplicate.', 'error');
                 const nameInput = document.getElementById('addIngredientName');
@@ -2838,32 +3730,237 @@ $categoriesList = [
 
         function openRestockModal(preSelectedId = null) {
             const form = document.getElementById('restockForm');
-            form.reset();
+            if (form) form.reset();
             const select = document.getElementById('restockItemSelect');
-            if (preSelectedId) {
+            if (preSelectedId && select) {
                 select.value = preSelectedId;
             }
-            updateRestockModalPreview();
+            handleRestockItemChange();
             openModal('restockModal');
         }
 
-        function updateRestockModalPreview() {
+        function handleRestockItemChange() {
+            const select = document.getElementById('restockItemSelect');
+            if (!select) return;
+            const selectedOpt = select.selectedOptions[0];
+            const baseUnit = selectedOpt && selectedOpt.dataset.unit ? selectedOpt.dataset.unit.toLowerCase() : 'g';
+            const pUnitSelect = document.getElementById('restockPurchaseUnit');
+
+            if (pUnitSelect) {
+                if (baseUnit === 'ml') {
+                    pUnitSelect.value = 'L';
+                } else if (baseUnit === 'pcs') {
+                    pUnitSelect.value = 'sleeve';
+                } else {
+                    pUnitSelect.value = 'kg';
+                }
+            }
+            handleRestockUnitChange();
+        }
+
+        function handleRestockUnitChange() {
+            const pType = document.getElementById('restockPurchaseUnit')?.value || 'kg';
+            const subUnitConfig = document.getElementById('restockSubUnitConfig');
+            const subUnitLabel = document.getElementById('restockSubUnitLabel');
+            const subUnitHint = document.getElementById('restockSubUnitHint');
+            const subUnitMultiplier = document.getElementById('restockSubUnitMultiplier');
+            const unitVolLabel = document.getElementById('restockUnitVolLabel');
+            const unitVolSuffix = document.getElementById('restockUnitVolSuffix');
+            const volumePerUnit = document.getElementById('restockVolumePerUnit');
+
+            if (!subUnitConfig) return;
+            subUnitConfig.classList.add('hidden');
+
+            const select = document.getElementById('restockItemSelect');
+            const selectedOpt = select ? select.selectedOptions[0] : null;
+            const itemBaseUnit = selectedOpt && selectedOpt.dataset.unit ? selectedOpt.dataset.unit.toLowerCase() : 'g';
+
+            if (pType === 'case') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ចំនួន កំប៉ុង/ដប/កញ្ចប់ ក្នុង ១ កេស';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. សូដា ១ កេសមាន ២៤ កំប៉ុង, កែវ ១ កេសមាន ២០ ដើម';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 24;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះ/ទម្ងន់ក្នុង ១ ឯកតារាយ <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = itemBaseUnit === 'g' ? 'g' : (itemBaseUnit === 'pcs' ? 'pcs' : 'ml');
+                if (volumePerUnit && (!volumePerUnit.value || volumePerUnit.value === '1000')) volumePerUnit.value = (itemBaseUnit === 'ml' ? 320 : (itemBaseUnit === 'g' ? 250 : 50));
+            } else if (pType === 'box') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ចំនួនកញ្ចប់/ដប ក្នុង ១ ប្រអប់';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. តែ ១ ប្រអប់មាន ២៥ កញ្ចប់តូច (Teabags)';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 25;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ទម្ងន់/ចំណុះ ក្នុង ១ កញ្ចប់ <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = itemBaseUnit;
+                if (volumePerUnit) volumePerUnit.value = 20;
+            } else if (pType === 'bag') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ទម្ងន់ក្នុង ១ បាវ (kg/Bag)';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. ទឹកកកអនាម័យ ១ បាវ = 20kg, ស្ករស ១ បាវ = 50kg';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 20;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'មេគុណបំប្លែងទៅជា g <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+            } else if (pType === 'gallon') {
+                subUnitConfig.classList.remove('hidden');
+                if (subUnitLabel) subUnitLabel.textContent = 'ចំណុះក្នុង ១ ហ្គាឡុង (Liters/Gal)';
+                if (subUnitHint) subUnitHint.innerHTML = '💡 ឧ. ទឹកស៊ីរ៉ូ ឬទឹកដោះគោ ១ ហ្គាឡុង = 5L (5,000ml)';
+                if (subUnitMultiplier && (!subUnitMultiplier.value || subUnitMultiplier.value === '1')) subUnitMultiplier.value = 5;
+                if (unitVolLabel) unitVolLabel.innerHTML = 'មេគុណបំប្លែងទៅជា ml <span class="text-rose-500">*</span>';
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+            } else if (pType === 'sleeve') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្នុង ១ ដើម <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 50;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+            } else if (pType === 'pack') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្នុង ១ កញ្ចប់ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 100;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+            } else if (pType === 'dozen') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្នុង ១ ឡូ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 12;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+            } else if (pType === 'kg') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនក្រាមក្នុង ១ kg <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+            } else if (pType === 'g') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ទម្ងន់ (g) <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'g';
+            } else if (pType === 'L') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួន ml ក្នុង ១ លីត្រ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1000;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+            } else if (pType === 'ml') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះ (ml) <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+            } else if (pType === 'can') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះក្នុង ១ កំប៉ុង <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 320;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+            } else if (pType === 'bottle') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំណុះក្នុង ១ ដប <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 330;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'ml';
+            } else if (pType === 'pcs') {
+                if (unitVolLabel) unitVolLabel.innerHTML = 'ចំនួនរាយ <span class="text-rose-500">*</span>';
+                if (volumePerUnit) volumePerUnit.value = 1;
+                if (unitVolSuffix) unitVolSuffix.textContent = 'pcs';
+            }
+            calculateRestockTotal();
+        }
+
+        function setRestockCurrency(curr) {
+            const currInput = document.getElementById('restockCostCurrency');
+            const suffix = document.getElementById('restockCostSuffix');
+            const btnUsd = document.getElementById('restockCurrBtnUsd');
+            const btnKhr = document.getElementById('restockCurrBtnKhr');
+            const costInput = document.getElementById('restockTotalCostInput');
+
+            if (!currInput || !costInput) return;
+
+            if (curr === 'KHR') {
+                currInput.value = 'KHR';
+                if (suffix) suffix.textContent = '៛ KHR';
+                if (btnKhr) {
+                    btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#059669] text-white shadow-xs cursor-pointer transition-all';
+                }
+                if (btnUsd) {
+                    btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-500 hover:text-slate-900 dark:text-[#8e8e9f] dark:hover:text-white cursor-pointer transition-all';
+                }
+                
+                const val = parseFloat(costInput.value) || 0;
+                if (val > 0 && val < 500) {
+                    costInput.value = Math.round(val * KHR_RATE);
+                }
+            } else {
+                currInput.value = 'USD';
+                if (suffix) suffix.textContent = '$ USD';
+                if (btnUsd) {
+                    btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#059669] text-white shadow-xs cursor-pointer transition-all';
+                }
+                if (btnKhr) {
+                    btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-500 hover:text-slate-900 dark:text-[#8e8e9f] dark:hover:text-white cursor-pointer transition-all';
+                }
+                
+                const val = parseFloat(costInput.value) || 0;
+                if (val >= 500) {
+                    costInput.value = (val / KHR_RATE).toFixed(2);
+                }
+            }
             calculateRestockTotal();
         }
 
         function calculateRestockTotal() {
             const select = document.getElementById('restockItemSelect');
+            if (!select) return;
             const selectedOpt = select.selectedOptions[0];
-            const qtyInput = parseFloat(document.getElementById('restockQtyInput').value) || 0;
-            const mult = parseFloat(document.getElementById('restockMultiplier').value) || 1.0;
-
-            const baseAdded = qtyInput * mult;
             const onHand = selectedOpt && selectedOpt.dataset.qty ? parseFloat(selectedOpt.dataset.qty) : 0;
-            const unit = selectedOpt && selectedOpt.dataset.unit ? selectedOpt.dataset.unit : 'units';
+            const currentCost = selectedOpt && selectedOpt.dataset.cost ? parseFloat(selectedOpt.dataset.cost) : 0;
+            const itemBaseUnit = selectedOpt && selectedOpt.dataset.unit ? selectedOpt.dataset.unit.toLowerCase() : 'g';
 
-            document.getElementById('restockAddedBaseUnits').textContent = `+${formatNumber(baseAdded)} ${unit}`;
-            document.getElementById('restockCurrentQty').textContent = `${formatNumber(onHand)} ${unit}`;
-            document.getElementById('restockNewQty').textContent = `${formatNumber(onHand + baseAdded)} ${unit}`;
+            const pType = document.getElementById('restockPurchaseUnit')?.value || 'kg';
+            const qty = parseFloat(document.getElementById('restockQtyInput')?.value) || 0;
+            const volumePerUnit = parseFloat(document.getElementById('restockVolumePerUnit')?.value) || 0;
+            const subMultiplier = parseFloat(document.getElementById('restockSubUnitMultiplier')?.value) || 1;
+
+            const rawCost = parseFloat(document.getElementById('restockTotalCostInput')?.value) || 0;
+            const costCurr = document.getElementById('restockCostCurrency')?.value || 'KHR';
+            const totalCostUsd = costCurr === 'KHR' ? (rawCost / KHR_RATE) : rawCost;
+
+            let totalUnits = qty;
+            let baseAdded = 0;
+
+            if (['case', 'box'].includes(pType)) {
+                totalUnits = qty * subMultiplier;
+                baseAdded = totalUnits * volumePerUnit;
+            } else if (pType === 'bag') {
+                totalUnits = qty;
+                baseAdded = qty * subMultiplier * 1000; // kg -> g
+            } else if (pType === 'gallon') {
+                totalUnits = qty;
+                baseAdded = qty * subMultiplier * 1000; // L -> ml
+            } else if (['sleeve', 'pack', 'dozen'].includes(pType)) {
+                totalUnits = qty;
+                baseAdded = qty * volumePerUnit;
+            } else if (['kg', 'g', 'L', 'ml'].includes(pType)) {
+                totalUnits = qty;
+                baseAdded = ['kg', 'L'].includes(pType) ? (qty * 1000) : qty;
+            } else if (['can', 'bottle'].includes(pType)) {
+                totalUnits = qty;
+                baseAdded = qty * volumePerUnit;
+            } else {
+                totalUnits = qty;
+                baseAdded = qty;
+            }
+
+            let newUnitCostUsd = currentCost;
+            if (rawCost > 0 && baseAdded > 0) {
+                newUnitCostUsd = totalCostUsd / baseAdded;
+            }
+            const newUnitCostKhr = newUnitCostUsd * KHR_RATE;
+            const newKhrFormatted = newUnitCostKhr >= 10 ? Math.round(newUnitCostKhr).toLocaleString('en-US') : (newUnitCostKhr > 0 ? newUnitCostKhr.toFixed(2) : '0');
+
+            const addedEl = document.getElementById('restockAddedBaseUnits');
+            const currentEl = document.getElementById('restockCurrentQty');
+            const newQtyEl = document.getElementById('restockNewQty');
+            const newCostEl = document.getElementById('restockNewUnitCost');
+
+            if (addedEl) addedEl.textContent = `+${formatNumber(baseAdded)} ${itemBaseUnit}`;
+            if (currentEl) currentEl.textContent = `${formatNumber(onHand)} ${itemBaseUnit}`;
+            if (newQtyEl) newQtyEl.textContent = `${formatNumber(onHand + baseAdded)} ${itemBaseUnit}`;
+            if (newCostEl) {
+                const usdTxt = newUnitCostUsd < 0.01 && newUnitCostUsd > 0 ? newUnitCostUsd.toFixed(4) : newUnitCostUsd.toFixed(2);
+                newCostEl.innerHTML = `$${usdTxt} / ${itemBaseUnit} <span class="text-xs font-bold ml-1 opacity-90">(≈ ${newKhrFormatted} ៛)</span>`;
+            }
+
+            const multHidden = document.getElementById('restockMultiplierHidden');
+            if (multHidden) {
+                multHidden.value = qty > 0 ? (baseAdded / qty) : 1;
+            }
+            const costHidden = document.getElementById('restockCostUnitHidden');
+            if (costHidden) costHidden.value = rawCost > 0 ? newUnitCostUsd.toFixed(6) : '';
         }
 
         async function handleQuickRestock(e) {
@@ -2896,7 +3993,7 @@ $categoriesList = [
                 showToast('Server connection error.', 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Confirm Restock';
+                btn.textContent = 'បញ្ជាក់ការថែមស្តុក (Confirm Restock)';
             }
         }
 
