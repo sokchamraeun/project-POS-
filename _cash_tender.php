@@ -196,7 +196,7 @@ body {
 }
 <?= $S ?>.btn-cancel:hover { color: var(--text-1); }
 <?php if ($tender_fragment): ?>
-/* The component rules above hardcode dark values, which is correct by default in
+/* The compobbbbbnent rules above hardcode dark values, which is correct by default in
    the modal. Restore the light versions when the host page is in light mode. */
 [data-theme="light"] .tender-card .cp-change-calc { background: rgba(85,224,135,.05); }
 [data-theme="light"] .tender-card .cp-change-calc input { background: var(--bg-card); color: var(--text-1); border-color: rgba(85,224,135,.35); color-scheme: light; }
