@@ -1,5 +1,7 @@
 <?php
 /**
+ * 
+ * test
  * Tender screen for a cash settlement taken at the counter.
  *
  * Included by admin_pay_cash.php on a GET. Renders and writes nothing — the
