@@ -54,11 +54,13 @@ if (isset($_POST['add_product'])) {
                     $ingIds  = $_POST['recipe_ingredient_id'];
                     $ingQtys = $_POST['recipe_amount_used'] ?? [];
                     $totalCogs = 0.0;
+                    $seenIngs  = [];
 
                     for ($i = 0; $i < count($ingIds); $i++) {
                         $ingId   = (int)($ingIds[$i] ?? 0);
                         $qtyUsed = (float)($ingQtys[$i] ?? 0);
-                        if ($ingId > 0 && $qtyUsed > 0) {
+                        if ($ingId > 0 && $qtyUsed > 0 && !isset($seenIngs[$ingId])) {
+                            $seenIngs[$ingId] = true;
                             $uStmt = $conn->prepare("SELECT unit, cost_per_unit FROM stock_items WHERE item_id = ?");
                             $uStmt->bind_param("i", $ingId);
                             $uStmt->execute();
@@ -792,6 +794,25 @@ html[data-theme="light"] .recipe-select option {
     background: rgba(209, 144, 75, 0.2);
     color: #d1904b;
 }
+.crd-item-row.disabled-in-recipe {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    background: transparent !important;
+}
+.crd-item-row.disabled-in-recipe .crd-item-meta::after {
+    content: " (In recipe)";
+    font-size: 9.5px;
+    color: #ef4444;
+    font-weight: 700;
+}
+.highlight-duplicate {
+    animation: flashRowDup 1.2s ease-in-out;
+}
+@keyframes flashRowDup {
+    0%, 100% { background: transparent; }
+    25%, 75% { background: rgba(239, 68, 68, 0.25); outline: 2px solid #ef4444; }
+    50% { background: transparent; }
+}
 .crd-item-name {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1521,7 +1542,83 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
     return html;
 }
 
+// Toast Notification Helper
+function showToast(message, type = 'success') {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.style.cssText = 'background:#1e1e24;color:#fff;border:1px solid #33333e;padding:10px 16px;border-radius:10px;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.4);pointer-events:auto;transition:all 0.25s ease;transform:translateY(0);opacity:1;';
+    
+    let icon = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+    if (type === 'error') {
+        icon = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i>';
+        toast.style.borderColor = 'rgba(244,63,94,0.4)';
+    } else if (type === 'warning' || type === 'info') {
+        icon = '<i class="fa-solid fa-circle-info text-amber-400"></i>';
+        toast.style.borderColor = 'rgba(209,144,75,0.4)';
+    }
+
+    toast.innerHTML = `${icon}<span>${escapeHtml(message)}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        setTimeout(() => toast.remove(), 250);
+    }, 3000);
+}
+
+function refreshCrdDisabledStates() {
+    const selectedIds = new Set();
+    document.querySelectorAll('.recipe-row select[name="recipe_ingredient_id[]"]').forEach(sel => {
+        if (sel.value && sel.value !== '') {
+            selectedIds.add(String(sel.value));
+        }
+    });
+
+    document.querySelectorAll('.crd-wrap').forEach(wrap => {
+        const row = wrap.closest('.recipe-row');
+        const currentSel = row ? row.querySelector('select[name="recipe_ingredient_id[]"]') : null;
+        const currentId = currentSel ? String(currentSel.value) : '';
+
+        wrap.querySelectorAll('.crd-item-row').forEach(itemEl => {
+            const itemId = String(itemEl.getAttribute('data-id'));
+            if (selectedIds.has(itemId) && itemId !== currentId) {
+                itemEl.classList.add('disabled-in-recipe');
+                itemEl.setAttribute('title', 'Already added to recipe');
+            } else {
+                itemEl.classList.remove('disabled-in-recipe');
+                itemEl.removeAttribute('title');
+            }
+        });
+    });
+}
+
 function addPackagingSetRow() {
+    // Check if packaging set already in recipe table
+    let existingRow = null;
+    document.querySelectorAll('.recipe-row').forEach(row => {
+        const sel = row.querySelector('select[name="recipe_ingredient_id[]"]');
+        if (sel && sel.options[sel.selectedIndex]) {
+            const txt = (sel.options[sel.selectedIndex].textContent || '').toLowerCase();
+            if (txt.includes('packaging set') || txt.includes('ឈុត')) {
+                existingRow = row;
+            }
+        }
+    });
+
+    if (existingRow) {
+        existingRow.classList.add('highlight-duplicate');
+        setTimeout(() => existingRow.classList.remove('highlight-duplicate'), 1200);
+        showToast('Packaging Set is already added to this recipe (1 set per drink).', 'info');
+        return;
+    }
+
     // Find the packaging set item from allIngredients
     const pkgItem = allIngredients.find(i => (i.ingredient_name && (i.ingredient_name.includes('Packaging Set') || i.ingredient_name.includes('ឈុត')))) 
                  || allIngredients.find(i => (i.category === 'Packaging' || (i.category && i.category.includes('វេចខ្ចប់'))));
@@ -1547,6 +1644,7 @@ function toggleCrd(btn, e) {
     if (isOpen) {
         pop.classList.remove('open');
     } else {
+        refreshCrdDisabledStates();
         pop.classList.add('open');
     }
 }
@@ -1563,13 +1661,38 @@ function crdSwitchCat(catEl, catName) {
 
 function crdSelectItem(itemEl, e) {
     if (e) e.stopPropagation();
+    const itemName = itemEl.getAttribute('data-name');
+    const itemId = itemEl.getAttribute('data-id');
+
+    if (itemEl.classList.contains('disabled-in-recipe')) {
+        showToast(`"${itemName}" is already added to this recipe!`, 'warning');
+        return;
+    }
+
     const wrap = itemEl.closest('.crd-wrap');
     const row = wrap.closest('.recipe-row');
     const select = row.querySelector('select[name="recipe_ingredient_id[]"]');
-    const itemId = itemEl.getAttribute('data-id');
-    const itemName = itemEl.getAttribute('data-name');
     const itemType = itemEl.getAttribute('data-type');
     const pop = wrap.querySelector('.crd-popover');
+
+    // Duplicate Check across other rows
+    let isDuplicate = false;
+    document.querySelectorAll('.recipe-row').forEach(r => {
+        if (r !== row) {
+            const otherSel = r.querySelector('select[name="recipe_ingredient_id[]"]');
+            if (otherSel && String(otherSel.value) === String(itemId)) {
+                isDuplicate = true;
+                r.classList.add('highlight-duplicate');
+                setTimeout(() => r.classList.remove('highlight-duplicate'), 1200);
+            }
+        }
+    });
+
+    if (isDuplicate) {
+        showToast(`"${itemName}" is already added in another row!`, 'error');
+        pop.classList.remove('open');
+        return;
+    }
 
     // Update select value
     select.value = itemId;
@@ -1591,6 +1714,9 @@ function crdSelectItem(itemEl, e) {
     // Close popover
     pop.classList.remove('open');
 
+    // Refresh disabled state across all dropdowns
+    refreshCrdDisabledStates();
+
     // Trigger change event and calculations
     updateRecipeRow(select);
 }
@@ -1607,14 +1733,36 @@ function addRecipeRow(ingId = '', amt = '') {
     const noMsg = document.getElementById('noRecipeMsg');
     if (noMsg) noMsg.classList.add('hidden');
 
+    // Collect already selected IDs
+    const selectedIds = new Set();
+    document.querySelectorAll('.recipe-row select[name="recipe_ingredient_id[]"]').forEach(sel => {
+        if (sel.value && sel.value !== '') selectedIds.add(String(sel.value));
+    });
+
+    let targetIngId = ingId;
+    if (!targetIngId) {
+        // Find first unused non-packaging ingredient
+        const available = allIngredients.find(i => {
+            const isPkg = (i.category === 'Packaging' || (i.ingredient_name && (i.ingredient_name.includes('Packaging Set') || i.ingredient_name.includes('ឈុត'))));
+            return !isPkg && !selectedIds.has(String(i.ingredient_id));
+        }) || allIngredients.find(i => !selectedIds.has(String(i.ingredient_id)));
+
+        if (available) {
+            targetIngId = available.ingredient_id;
+        } else {
+            showToast('All available ingredients have already been added to the recipe.', 'warning');
+            return;
+        }
+    }
+
     let defaultAmt = amt;
     let selectedUnit = '';
-    const selectedItem = allIngredients.find(i => i.ingredient_id == ingId);
+    const selectedItem = allIngredients.find(i => i.ingredient_id == targetIngId);
     if (selectedItem) {
         selectedUnit = (selectedItem.unit || '').toLowerCase();
     }
-    const options = buildIngredientOptionsHtml(ingId);
-    const crdHtml = buildCustomRecipeDropdownHtml(ingId);
+    const options = buildIngredientOptionsHtml(targetIngId);
+    const crdHtml = buildCustomRecipeDropdownHtml(targetIngId);
 
     if ((!defaultAmt || defaultAmt === '0' || defaultAmt === 0) && ['can', 'cans', 'bottle', 'bottles', 'pcs', 'piece', 'pieces', 'cup', 'cups', 'pack', 'packs', 'portion', 'item'].includes(selectedUnit)) {
         defaultAmt = 1;
@@ -1642,7 +1790,7 @@ function addRecipeRow(ingId = '', amt = '') {
             $<span class="row-total-label">0.00</span>
         </td>
         <td class="py-2 px-2 text-center">
-            <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Remove ingredient">
+            <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe(); refreshCrdDisabledStates();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Remove ingredient">
                 <i class="fa-solid fa-trash-can text-xs"></i>
             </button>
         </td>
@@ -1650,6 +1798,7 @@ function addRecipeRow(ingId = '', amt = '') {
     container.appendChild(tr);
     const sel = tr.querySelector('select');
     if (sel.value) updateRecipeRow(sel);
+    refreshCrdDisabledStates();
 }
 
 function updateRecipeRow(selectEl) {
@@ -1659,6 +1808,9 @@ function updateRecipeRow(selectEl) {
 
     const unit = (opt.dataset.unit || 'unit').trim();
     const cpu  = parseFloat(opt.dataset.cpu || '0');
+    const optText = (opt.textContent || '').toLowerCase();
+    const optType = opt.dataset.type || '';
+    const isPkg = (optType === 'packaging' || optText.includes('packaging set') || optText.includes('ឈុត'));
 
     const uLbl = row.querySelector('.unit-label');
     if (uLbl) uLbl.textContent = unit;
@@ -1671,12 +1823,24 @@ function updateRecipeRow(selectEl) {
     }
 
     const qtyInput = row.querySelector('.qty-input-field');
+    const qtyGroup = row.querySelector('.qty-unit-group');
     if (qtyInput) {
-        const cleanUnit = unit.toLowerCase();
-        const currentVal = parseFloat(qtyInput.value);
-        if (isNaN(currentVal) || currentVal === 0 || qtyInput.value === '' || qtyInput.value === '0') {
-            if (['can', 'cans', 'bottle', 'bottles', 'pcs', 'piece', 'pieces', 'cup', 'cups', 'pack', 'packs', 'portion', 'item'].includes(cleanUnit)) {
-                qtyInput.value = '1';
+        if (isPkg) {
+            qtyInput.value = '1';
+            qtyInput.readOnly = true;
+            qtyInput.title = 'Fixed 1 set per drink';
+            if (qtyGroup) qtyGroup.classList.add('opacity-80');
+        } else {
+            qtyInput.readOnly = false;
+            qtyInput.removeAttribute('title');
+            if (qtyGroup) qtyGroup.classList.remove('opacity-80');
+
+            const cleanUnit = unit.toLowerCase();
+            const currentVal = parseFloat(qtyInput.value);
+            if (isNaN(currentVal) || currentVal === 0 || qtyInput.value === '' || qtyInput.value === '0') {
+                if (['can', 'cans', 'bottle', 'bottles', 'pcs', 'piece', 'pieces', 'cup', 'cups', 'pack', 'packs', 'portion', 'item'].includes(cleanUnit)) {
+                    qtyInput.value = '1';
+                }
             }
         }
     }
@@ -1751,7 +1915,12 @@ function escapeHtml(str) {
 }
 
 // Initial calculation
-document.addEventListener('DOMContentLoaded', calculateTotalRecipeCost);
+document.addEventListener('DOMContentLoaded', () => {
+    calculateTotalRecipeCost();
+    refreshCrdDisabledStates();
+});
+calculateTotalRecipeCost();
+refreshCrdDisabledStates();
 
 // ESC to exit modal
 document.addEventListener('keydown', function(e) {
