@@ -272,8 +272,11 @@ foreach ($users as $u) {
 }
 
 body, input, select, textarea, button {
-    background-color: var(--bg);
     font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+    background-color: var(--bg);
     color: var(--text);
     margin: 0;
     padding: 0;

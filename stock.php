@@ -576,6 +576,9 @@ $stockItems = $initStmt->fetchAll();
 
         body, input, select, textarea, button {
             font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
             background-color: var(--bg);
             color: var(--text-main);
             margin: 0;

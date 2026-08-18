@@ -112,6 +112,9 @@ html, body {
     transition: border-color 0.2s, box-shadow 0.2s;
     min-width: 150px;
     height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    box-sizing: border-box;
 }
 .er-input[type="date"] {
     color-scheme: dark;
@@ -143,6 +146,9 @@ html, body {
     cursor: pointer;
     transition: all 0.2s;
     height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: center;

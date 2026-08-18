@@ -460,9 +460,12 @@ $manual_discount_formatted      = number_format($manual_discount_amount, 2);
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body, input, select, textarea, button {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
     background: var(--bg-body);
     color: var(--text-primary);
-    font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
     padding: 20px;
     background-image:

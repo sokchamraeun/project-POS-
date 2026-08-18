@@ -874,8 +874,11 @@ if ($fragment !== '') {
 }
 body, input, select, textarea, button {
   font-family:'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+body {
   background:var(--bg);
-  color:var(--text);min-height:100vh;
+  color:var(--text);
+  min-height:100vh;
 }
 :lang(km), [data-lang="km"], html[lang="km"] * {
   font-family:'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
