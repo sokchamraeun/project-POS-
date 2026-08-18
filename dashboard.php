@@ -9,11 +9,11 @@ $filter_user = 0;
 $user_options = [];
 if ($_is_mgr) {
     $user_options[0] = 'All Staff';
-    $q_users = $conn->query("SELECT u.user_id, u.username, u.role FROM users u ORDER BY u.username ASC");
+    $q_users = $conn->query("SELECT u.user_id, u.username, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY u.username ASC");
     if ($q_users) {
         while ($ur = $q_users->fetch_assoc()) {
-            $displayName = $ur['username'];
-            $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+            $displayName = $ur['display_name'] ?? $ur['username'];
+            $user_options[$ur['user_id']] = $displayName;
         }
     }
     $filter_user = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;

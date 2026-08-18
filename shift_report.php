@@ -57,16 +57,16 @@ $where_str = implode(' AND ', $where_cond);
 $user_options = [];
 if ($_is_mgr) {
     $user_options[0] = 'All Staff';
-    $q_users = $conn->query("SELECT u.user_id, COALESCE(NULLIF(u.name, ''), u.username) AS username, u.role FROM users u ORDER BY u.username ASC");
+    $q_users = $conn->query("SELECT u.user_id, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY display_name ASC");
     if ($q_users) {
         while ($ur = $q_users->fetch_assoc()) {
-            $displayName = $ur['username'];
-            $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+            $displayName = $ur['display_name'];
+            $user_options[$ur['user_id']] = $displayName;
         }
     }
 } else {
     $my_uid = (int)$_SESSION['user_id'];
-    $my_name = $_SESSION['username'] ?? 'My Report';
+    $my_name = $_SESSION['emp_name'] ?? ($_SESSION['username'] ?? 'My Report');
     $user_options[$my_uid] = $my_name;
 }
 

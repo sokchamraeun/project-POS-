@@ -1445,16 +1445,16 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
     $user_options = [];
     if ($_is_mgr) {
         $user_options[''] = 'All Staff';
-        $q_users = $conn->query("SELECT u.user_id, u.username, u.role FROM users u ORDER BY u.username ASC");
+        $q_users = $conn->query("SELECT u.user_id, u.username, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY u.username ASC");
         if ($q_users) {
             while ($ur = $q_users->fetch_assoc()) {
-                $displayName = $ur['username'];
-                $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
+                $displayName = $ur['display_name'] ?? $ur['username'];
+                $user_options[$ur['user_id']] = $displayName;
             }
         }
     } else {
         $my_uid = (int)$_SESSION['user_id'];
-        $my_name = $_SESSION['username'] ?? 'My Sales';
+        $my_name = $_SESSION['emp_name'] ?? ($_SESSION['username'] ?? 'My Sales');
         $user_options[$my_uid] = $my_name;
     }
 
