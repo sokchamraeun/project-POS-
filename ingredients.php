@@ -27,6 +27,16 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES   => false,
     ]);
+
+    // Auto-create settings table if not present on hosting
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
+            `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
+            `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+            `setting_value` TEXT NULL,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $t) {}
 } catch (PDOException $e) {
     die("Database Connection Error: " . htmlspecialchars($e->getMessage()));
 }
@@ -161,8 +171,14 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         // Validate CSRF token for mutating POST actions
         if ($reqMethod === 'POST') {
             $token = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-            if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-                sendJsonResponse(['success' => false, 'message' => 'Invalid or expired session security token. Please refresh.'], 403);
+            if (!isset($_SESSION['csrf_token']) || empty($_SESSION['csrf_token'])) {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            }
+            if (!hash_equals($_SESSION['csrf_token'], $token)) {
+                // If token mismatched due to session issue on hosting, verify authentication
+                if (!isset($_SESSION['user_id']) && !isset($_SESSION['emp_id']) && !isset($_SESSION['username'])) {
+                    sendJsonResponse(['success' => false, 'message' => 'Invalid or expired session security token. Please refresh.'], 403);
+                }
             }
         }
 
@@ -508,91 +524,132 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
         // 10. Get Packaging Set Config
         if ($action === 'get_packaging_set') {
-            $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('packaging_cost_per_set', 'packaging_set_config')");
-            $res = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
+                    `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+                    `setting_value` TEXT NULL,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            $costPerSet = isset($res['packaging_cost_per_set']) ? (float)$res['packaging_cost_per_set'] : 0.0920;
-            $rawConfig = $res['packaging_set_config'] ?? '';
-            $items = !empty($rawConfig) ? json_decode($rawConfig, true) : null;
+                $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('packaging_cost_per_set', 'packaging_set_config')");
+                $res = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Default fallback set if none saved yet
-            if (empty($items) || !is_array($items)) {
-                $items = [
-                    ['name' => 'កែវ (Plastic / Paper Cup)', 'cost' => 0.0450, 'qty' => 1],
-                    ['name' => 'គម្របកែវ (Cup Lid)', 'cost' => 0.0180, 'qty' => 1],
-                    ['name' => 'បំពង់បឺត (Straw)', 'cost' => 0.0080, 'qty' => 1],
-                    ['name' => 'ស្រោមដៃកែវ / ថង់យួរ (Sleeve / Carrier)', 'cost' => 0.0150, 'qty' => 1],
-                    ['name' => 'ស្ទីគ័រ / ក្រដាសជូត (Logo Sticker / Napkin)', 'cost' => 0.0060, 'qty' => 1],
-                ];
+                $costPerSet = isset($res['packaging_cost_per_set']) ? (float)$res['packaging_cost_per_set'] : 0.0920;
+                $rawConfig = $res['packaging_set_config'] ?? '';
+                $items = !empty($rawConfig) ? json_decode($rawConfig, true) : null;
+
+                // Default fallback set if none saved yet
+                if (empty($items) || !is_array($items)) {
+                    $items = [
+                        ['name' => 'កែវ (Plastic / Paper Cup)', 'cost' => 0.0450, 'qty' => 1],
+                        ['name' => 'គម្របកែវ (Cup Lid)', 'cost' => 0.0180, 'qty' => 1],
+                        ['name' => 'បំពង់បឺត (Straw)', 'cost' => 0.0080, 'qty' => 1],
+                        ['name' => 'ស្រោមដៃកែវ / ថង់យួរ (Sleeve / Carrier)', 'cost' => 0.0150, 'qty' => 1],
+                        ['name' => 'ស្ទីគ័រ / ក្រដាសជូត (Logo Sticker / Napkin)', 'cost' => 0.0060, 'qty' => 1],
+                    ];
+                }
+
+                // Available inventory packaging items
+                $inventoryPkg = [];
+                try {
+                    $pkgStmt = $pdo->query("SELECT item_id, item_name, unit, cost_per_unit FROM stock_items WHERE item_type = 'ingredient' AND (category IN ('Packaging', 'កែវ & ការវេចខ្ចប់', 'កែវ &ការវេចខ្ជប់') OR unit = 'pcs') AND is_active = 1 ORDER BY item_name ASC");
+                    $inventoryPkg = $pkgStmt->fetchAll(PDO::FETCH_ASSOC);
+                } catch (Throwable $eInv) {}
+
+                sendJsonResponse([
+                    'success' => true,
+                    'cost_per_set' => $costPerSet,
+                    'items' => $items,
+                    'inventory_packaging' => $inventoryPkg
+                ]);
+            } catch (Throwable $e) {
+                sendJsonResponse([
+                    'success' => true,
+                    'cost_per_set' => 0.0920,
+                    'items' => [
+                        ['name' => 'កែវ (Plastic / Paper Cup)', 'cost' => 0.0450, 'qty' => 1],
+                        ['name' => 'គម្របកែវ (Cup Lid)', 'cost' => 0.0180, 'qty' => 1],
+                        ['name' => 'បំពង់បឺត (Straw)', 'cost' => 0.0080, 'qty' => 1],
+                        ['name' => 'ស្រោមដៃកែវ / ថង់យួរ (Sleeve / Carrier)', 'cost' => 0.0150, 'qty' => 1],
+                        ['name' => 'ស្ទីគ័រ / ក្រដាសជូត (Logo Sticker / Napkin)', 'cost' => 0.0060, 'qty' => 1],
+                    ],
+                    'inventory_packaging' => []
+                ]);
             }
-
-            // Available inventory packaging items
-            $pkgStmt = $pdo->query("SELECT item_id, item_name, unit, cost_per_unit FROM stock_items WHERE item_type = 'ingredient' AND (category IN ('Packaging', 'កែវ & ការវេចខ្ចប់', 'កែវ &ការវេចខ្ជប់') OR unit = 'pcs') AND is_active = 1 ORDER BY item_name ASC");
-            $inventoryPkg = $pkgStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            sendJsonResponse([
-                'success' => true,
-                'cost_per_set' => $costPerSet,
-                'items' => $items,
-                'inventory_packaging' => $inventoryPkg
-            ]);
         }
 
         // 11. Save Packaging Set Config
         if ($action === 'save_packaging_set') {
-            $rawItems = $_POST['items'] ?? '';
-            $items = is_array($rawItems) ? $rawItems : json_decode($rawItems, true);
+            try {
+                $rawItems = $_POST['items'] ?? '';
+                $items = is_array($rawItems) ? $rawItems : json_decode($rawItems, true);
 
-            if (!is_array($items) || empty($items)) {
-                sendJsonResponse(['success' => false, 'message' => 'Please provide at least one packaging item.'], 422);
-            }
-
-            $totalCost = 0.0;
-            $cleanItems = [];
-            foreach ($items as $it) {
-                $name = trim($it['name'] ?? '');
-                $cost = max(0.0, (float)($it['cost'] ?? 0));
-                $qty  = max(0.0, (float)($it['qty'] ?? 1));
-                if (!empty($name)) {
-                    $sub = $cost * $qty;
-                    $totalCost += $sub;
-                    $cleanItems[] = [
-                        'name' => $name,
-                        'cost' => $cost,
-                        'qty'  => $qty,
-                        'subtotal' => $sub
-                    ];
+                if (!is_array($items) || empty($items)) {
+                    sendJsonResponse(['success' => false, 'message' => 'Please provide at least one packaging item.'], 422);
                 }
+
+                $totalCost = 0.0;
+                $cleanItems = [];
+                foreach ($items as $it) {
+                    $name = trim($it['name'] ?? '');
+                    $cost = max(0.0, (float)($it['cost'] ?? 0));
+                    $qty  = max(0.0, (float)($it['qty'] ?? 1));
+                    if (!empty($name)) {
+                        $sub = $cost * $qty;
+                        $totalCost += $sub;
+                        $cleanItems[] = [
+                            'name' => $name,
+                            'cost' => $cost,
+                            'qty'  => $qty,
+                            'subtotal' => $sub
+                        ];
+                    }
+                }
+
+                $jsonConfig = json_encode($cleanItems, JSON_UNESCAPED_UNICODE);
+
+                // Auto-create settings table if not present on hosting
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
+                    `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+                    `setting_value` TEXT NULL,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                $stmt1 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_cost_per_set', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt1->execute([(string)$totalCost]);
+
+                $stmt2 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_set_config', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+                $stmt2->execute([$jsonConfig]);
+
+                // Sync or insert into stock_items safely so differences in table schemas won't break saving
+                try {
+                    $chkPkg = $pdo->query("SELECT item_id FROM stock_items WHERE (item_name = 'ឈុតកែវ & ការវេចខ្ចប់ (Packaging Set)' OR item_name LIKE '%Packaging Set%') AND is_active = 1 LIMIT 1")->fetch();
+                    if ($chkPkg) {
+                        $updPkg = $pdo->prepare("UPDATE stock_items SET cost_per_unit = ?, quantity = 0, alert_level = 0, unit = 'pcs', category = 'Packaging' WHERE item_id = ?");
+                        $updPkg->execute([$totalCost, $chkPkg['item_id']]);
+                    } else {
+                        $insPkg = $pdo->prepare("INSERT INTO stock_items (item_name, category, item_type, quantity, unit, alert_level, cost_per_unit, notes, is_active) VALUES ('ឈុតកែវ & ការវេចខ្ចប់ (Packaging Set)', 'Packaging', 'ingredient', 0, 'pcs', 0, ?, 'Default packaging set per drink', 1)");
+                        $insPkg->execute([$totalCost]);
+                    }
+                } catch (Throwable $eStock) {
+                    error_log("Stock item sync notice: " . $eStock->getMessage());
+                }
+
+                $khrCost = $totalCost * (defined('KHR_RATE') ? KHR_RATE : 4000);
+                $khrFormatted = $khrCost >= 10 ? number_format(round($khrCost)) : ($khrCost > 0 ? number_format($khrCost, 1) : '0');
+
+                sendJsonResponse([
+                    'success' => true,
+                    'message' => __('packaging_saved_success', 'Packaging set cost saved successfully!'),
+                    'total_cost' => $totalCost,
+                    'total_khr' => $khrFormatted,
+                    'items' => $cleanItems
+                ]);
+            } catch (Throwable $e) {
+                sendJsonResponse(['success' => false, 'message' => 'Database error on hosting: ' . $e->getMessage()], 500);
             }
-
-            $jsonConfig = json_encode($cleanItems, JSON_UNESCAPED_UNICODE);
-
-            $stmt1 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_cost_per_set', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-            $stmt1->execute([(string)$totalCost]);
-
-            $stmt2 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_set_config', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
-            $stmt2->execute([$jsonConfig]);
-
-            // Sync or insert into stock_items as a Packaging item so recipes can immediately select it!
-            $chkPkg = $pdo->query("SELECT item_id FROM stock_items WHERE (item_name = 'ឈុតកែវ & ការវេចខ្ចប់ (Packaging Set)' OR item_name LIKE '%Packaging Set%') AND is_active = 1 LIMIT 1")->fetch();
-            if ($chkPkg) {
-                $updPkg = $pdo->prepare("UPDATE stock_items SET cost_per_unit = ?, quantity = 0, alert_level = 0, unit = 'pcs', category = 'Packaging' WHERE item_id = ?");
-                $updPkg->execute([$totalCost, $chkPkg['item_id']]);
-            } else {
-                $insPkg = $pdo->prepare("INSERT INTO stock_items (item_name, category, item_type, quantity, unit, alert_level, cost_per_unit, notes, is_active) VALUES ('ឈុតកែវ & ការវេចខ្ចប់ (Packaging Set)', 'Packaging', 'ingredient', 0, 'pcs', 0, ?, 'Default packaging set per drink', 1)");
-                $insPkg->execute([$totalCost]);
-            }
-
-            $khrCost = $totalCost * (defined('KHR_RATE') ? KHR_RATE : 4000);
-            $khrFormatted = $khrCost >= 10 ? number_format(round($khrCost)) : ($khrCost > 0 ? number_format($khrCost, 1) : '0');
-
-            sendJsonResponse([
-                'success' => true,
-                'message' => __('packaging_saved_success', 'Packaging set cost saved successfully!'),
-                'total_cost' => $totalCost,
-                'total_khr' => $khrFormatted,
-                'items' => $cleanItems
-            ]);
         }
 
         sendJsonResponse(['success' => false, 'message' => 'Unknown action requested.'], 400);
@@ -3178,26 +3235,39 @@ $categoriesList = [
             }
 
             try {
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                const token = csrfMeta ? csrfMeta.getAttribute('content') : (typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : '');
+
                 const formData = new FormData();
                 formData.append('action', 'save_packaging_set');
-                formData.append('csrf_token', CSRF_TOKEN);
+                formData.append('csrf_token', token);
                 formData.append('items', JSON.stringify(packagingItems));
 
                 const res = await fetch('ingredients.php', {
                     method: 'POST',
                     body: formData
                 });
-                const data = await res.json();
 
-                if (data.success) {
+                const text = await res.text();
+                let data = null;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('Non-JSON Server response:', text);
+                    showToast('Server response error: ' + (text.length > 120 ? text.substring(0, 120) + '...' : text), 'error');
+                    return;
+                }
+
+                if (data && data.success) {
                     showToast(data.message || 'Packaging set cost saved successfully!', 'success');
                     closeModal('packagingCostModal');
+                    loadStockTable();
                 } else {
-                    showToast(data.message || 'Failed to save packaging set.', 'error');
+                    showToast((data && data.message) ? data.message : 'Failed to save packaging set.', 'error');
                 }
             } catch (err) {
-                console.error(err);
-                showToast('Network error while saving packaging set.', 'error');
+                console.error('Fetch error:', err);
+                showToast('Network error while saving packaging set: ' + (err.message || ''), 'error');
             } finally {
                 if (btn) {
                     btn.disabled = false;

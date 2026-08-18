@@ -117,6 +117,13 @@ if (!defined('PAYMENT_API_TOKEN')) {
 // ── LOAD SETTINGS FROM DB ──
 $_cafe_settings = [];
 try {
+    @$conn->query("CREATE TABLE IF NOT EXISTS `settings` (
+        `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
+        `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+        `setting_value` TEXT NULL,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $_sr = @$conn->query("SELECT setting_key, setting_value FROM settings");
     if ($_sr) { while ($row = $_sr->fetch_assoc()) $_cafe_settings[$row['setting_key']] = $row['setting_value']; }
 } catch (Throwable $e) {}
