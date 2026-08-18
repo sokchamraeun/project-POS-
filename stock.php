@@ -689,6 +689,98 @@ $stockItems = $initStmt->fetchAll();
             box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
         }
 
+        /* ── Modern Adaptive Stock Image Upload Box ── */
+        .stock-img-upload-box {
+            background-color: #141418;
+            border: 1.5px dashed #2d2d38;
+            border-radius: 14px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: all 0.2s ease;
+        }
+        .stock-img-upload-box:hover, .stock-img-upload-box:focus-within {
+            border-color: #d1904b;
+            background-color: #1a1a20;
+        }
+        .stock-img-thumb {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            background-color: #1e1e24;
+            border: 1px solid #2e2e3a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .stock-img-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .stock-file-input {
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            color: #d1d1db !important;
+            font-size: 12px;
+            cursor: pointer;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        .stock-file-input::-webkit-file-upload-button,
+        .stock-file-input::file-selector-button {
+            margin-right: 12px;
+            padding: 6px 14px;
+            border-radius: 9px;
+            border: none;
+            font-size: 11.5px;
+            font-weight: 600;
+            background: rgba(209, 144, 75, 0.18);
+            color: #d1904b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .stock-file-input::-webkit-file-upload-button:hover,
+        .stock-file-input::file-selector-button:hover {
+            background: rgba(209, 144, 75, 0.3);
+            color: #e5a15a;
+        }
+        [data-theme="light"] .stock-img-upload-box {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+        }
+        [data-theme="light"] .stock-img-upload-box:hover,
+        [data-theme="light"] .stock-img-upload-box:focus-within {
+            border-color: #c47c2c !important;
+            background-color: #f1f5f9 !important;
+        }
+        [data-theme="light"] .stock-img-thumb {
+            background-color: #ffffff !important;
+            border-color: #e2e4ea !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        [data-theme="light"] .stock-file-input {
+            color: #334155 !important;
+            background-color: transparent !important;
+        }
+        [data-theme="light"] .stock-file-input::-webkit-file-upload-button,
+        [data-theme="light"] .stock-file-input::file-selector-button {
+            background-color: #fef3e2 !important;
+            color: #c47c2c !important;
+            border: 1px solid rgba(196, 124, 44, 0.28) !important;
+        }
+        [data-theme="light"] .stock-file-input::-webkit-file-upload-button:hover,
+        [data-theme="light"] .stock-file-input::file-selector-button:hover {
+            background-color: #fde8cc !important;
+            color: #ad6b22 !important;
+        }
+
         [data-theme="light"] .card-num { color: #111827 !important; }
         [data-theme="light"] .card-subtext { color: #64748b !important; }
         [data-theme="light"] .unit-text { color: #64748b !important; }
@@ -1253,10 +1345,10 @@ $stockItems = $initStmt->fetchAll();
 
                 <div>
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
-                    <div class="flex items-center gap-3 p-2.5 rounded-xl bg-[#141418] border border-[#282834]">
-                        <div class="w-12 h-12 rounded-lg bg-[#1e1e24] border border-[#2b2b36] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
-                            <img id="addStockImagePreview" src="uploads/no-image.png" class="w-full h-full object-cover hidden" alt="Preview">
-                            <i id="addStockImagePlaceholder" class="fa-solid fa-image text-lg text-[#7d7d8e]"></i>
+                    <div class="stock-img-upload-box">
+                        <div class="stock-img-thumb">
+                            <img id="addStockImagePreview" src="uploads/no-image.png" class="hidden" alt="Preview">
+                            <i id="addStockImagePlaceholder" class="fa-solid fa-image text-xl text-[#7d7d8e]"></i>
                         </div>
                         <div class="flex-1 min-w-0">
                             <input type="file" 
@@ -1264,8 +1356,8 @@ $stockItems = $initStmt->fetchAll();
                                    id="addStockImageInput" 
                                    accept="image/*" 
                                    onchange="previewStockImage(this, 'addStockImagePreview', 'addStockImagePlaceholder')" 
-                                   class="w-full text-xs text-[#b4b4c2] file:mr-2.5 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#d1904b]/20 file:text-[#d1904b] hover:file:bg-[#d1904b]/30 file:cursor-pointer">
-                            <p class="text-[10px] text-[#7d7d8e] mt-1">PNG, JPG, WebP (Optional)</p>
+                                   class="stock-file-input w-full">
+                            <p class="text-[10px] text-[#7d7d8e] mt-1">PNG, JPG, WebP up to 5MB (Optional)</p>
                         </div>
                     </div>
                 </div>
@@ -1502,9 +1594,9 @@ $stockItems = $initStmt->fetchAll();
 
                 <div>
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
-                    <div class="flex items-center gap-3 p-2.5 rounded-xl bg-[#141418] border border-[#282834]">
-                        <div class="w-12 h-12 rounded-lg bg-[#1e1e24] border border-[#2b2b36] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
-                            <img id="editStockImagePreview" src="uploads/no-image.png" class="w-full h-full object-cover" alt="Preview" onerror="this.src='uploads/no-image.png';">
+                    <div class="stock-img-upload-box">
+                        <div class="stock-img-thumb">
+                            <img id="editStockImagePreview" src="uploads/no-image.png" alt="Preview" onerror="this.src='uploads/no-image.png';">
                         </div>
                         <div class="flex-1 min-w-0">
                             <input type="file" 
@@ -1512,7 +1604,7 @@ $stockItems = $initStmt->fetchAll();
                                    id="editStockImageInput" 
                                    accept="image/*" 
                                    onchange="previewStockImage(this, 'editStockImagePreview', null)" 
-                                   class="w-full text-xs text-[#b4b4c2] file:mr-2.5 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#d1904b]/20 file:text-[#d1904b] hover:file:bg-[#d1904b]/30 file:cursor-pointer">
+                                   class="stock-file-input w-full">
                             <p class="text-[10px] text-[#7d7d8e] mt-1">Select a new image to replace current one</p>
                         </div>
                     </div>
