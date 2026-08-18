@@ -3,7 +3,7 @@
 /vendor/
 
 # Local secrets — real credentials live here, never commit
-bakong_config.local.php
+# bakong_config.local.php
 db_config.local.php
 # config.php
 
