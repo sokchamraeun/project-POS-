@@ -813,7 +813,7 @@ html, body {
 
 <!-- Filter Bar -->
 <div class="er-filter-card">
-    <form method="get" class="er-filter-form" id="erFilterForm">
+    <form method="get" class="er-filter-form" id="erFilterForm" onsubmit="event.preventDefault(); applyAjaxFilter();">
         <?php
         $_isKm_hdr = function_exists('current_lang') && current_lang() === 'km';
         $_hdr_months = [
@@ -835,12 +835,12 @@ html, body {
         <div class="er-filter-row">
             <div class="er-field-group">
                 <label><?= $_isKm_hdr ? 'ចាប់ពីថ្ងៃ' : 'Date From' ?></label>
-                <input type="date" name="from_date" value="<?= htmlspecialchars($_date_from) ?>" class="er-input">
+                <input type="date" name="from_date" value="<?= htmlspecialchars($_date_from) ?>" class="er-input" onchange="applyAjaxFilter()">
             </div>
 
             <div class="er-field-group">
                 <label><?= $_isKm_hdr ? 'ដល់ថ្ងៃ' : 'Date To' ?></label>
-                <input type="date" name="to_date" value="<?= htmlspecialchars($_date_to) ?>" class="er-input">
+                <input type="date" name="to_date" value="<?= htmlspecialchars($_date_to) ?>" class="er-input" onchange="applyAjaxFilter()">
             </div>
 
             <?php
@@ -870,7 +870,7 @@ html, body {
             <?php foreach ($_filters as $f): ?>
             <div class="er-field-group">
                 <label><?= htmlspecialchars($f['label']) ?></label>
-                <select name="<?= htmlspecialchars($f['name']) ?>" class="er-select">
+                <select name="<?= htmlspecialchars($f['name']) ?>" class="er-select" onchange="applyAjaxFilter()">
                     <?php foreach ($f['options'] as $val => $text): ?>
                     <option value="<?= htmlspecialchars($val) ?>" <?= (string)($f['selected'] ?? '') === (string)$val ? 'selected' : '' ?>>
                         <?= htmlspecialchars($text) ?>
@@ -899,6 +899,108 @@ html, body {
 </div>
 
 <script>
+let _erFilterAbortCtrl = null;
+
+function applyAjaxFilter() {
+    const form = document.getElementById('erFilterForm');
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    for (const [key, val] of formData.entries()) {
+        if (val !== '') {
+            params.append(key, val);
+        }
+    }
+
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.history.replaceState({}, '', newUrl);
+
+    if (_erFilterAbortCtrl) {
+        _erFilterAbortCtrl.abort();
+    }
+    _erFilterAbortCtrl = new AbortController();
+
+    const tableCard   = document.querySelector('.er-table-card');
+    const summaryCard = document.querySelector('.er-summary-card');
+    const btnFilter   = form.querySelector('.er-btn-filter');
+
+    if (tableCard) {
+        tableCard.style.transition = 'opacity 0.15s ease';
+        tableCard.style.opacity = '0.45';
+        tableCard.style.pointerEvents = 'none';
+    }
+    if (summaryCard) {
+        summaryCard.style.transition = 'opacity 0.15s ease';
+        summaryCard.style.opacity = '0.45';
+    }
+    if (btnFilter) {
+        btnFilter.style.opacity = '0.7';
+    }
+
+    fetch(newUrl, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: _erFilterAbortCtrl.signal
+    })
+    .then(r => r.text())
+    .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        const newTableCard = doc.querySelector('.er-table-card');
+        const curTableCard = document.querySelector('.er-table-card');
+        if (newTableCard && curTableCard) {
+            curTableCard.innerHTML = newTableCard.innerHTML;
+        }
+
+        const newSummaryCard = doc.querySelector('.er-summary-card');
+        const curSummaryCard = document.querySelector('.er-summary-card');
+        if (newSummaryCard && curSummaryCard) {
+            curSummaryCard.innerHTML = newSummaryCard.innerHTML;
+        }
+
+        const newToolbar = doc.querySelector('.er-toolbar-actions');
+        const curToolbar = document.querySelector('.er-toolbar-actions');
+        if (newToolbar && curToolbar) {
+            const newPdf = newToolbar.querySelector('a[href*="pdf"]');
+            const curPdf = curToolbar.querySelector('a[href*="pdf"]');
+            if (newPdf && curPdf) curPdf.href = newPdf.href;
+
+            const newXlsx = newToolbar.querySelector('a[href*="xlsx"]');
+            const curXlsx = curToolbar.querySelector('a[href*="xlsx"]');
+            if (newXlsx && curXlsx) curXlsx.href = newXlsx.href;
+        }
+
+        const searchInput = document.getElementById('erTableSearch');
+        if (searchInput && searchInput.value.trim()) {
+            const val = searchInput.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('.er-table tbody tr');
+            rows.forEach(tr => {
+                if (tr.classList.contains('no-data') || tr.classList.contains('total-summary-row')) return;
+                const text = tr.innerText.toLowerCase();
+                tr.style.display = text.includes(val) ? '' : 'none';
+            });
+        }
+    })
+    .catch(err => {
+        if (err && err.name !== 'AbortError') {
+            console.error('AJAX Filter error:', err);
+        }
+    })
+    .finally(() => {
+        if (tableCard) {
+            tableCard.style.opacity = '1';
+            tableCard.style.pointerEvents = 'auto';
+        }
+        if (summaryCard) {
+            summaryCard.style.opacity = '1';
+        }
+        if (btnFilter) {
+            btnFilter.style.opacity = '1';
+        }
+    });
+}
+
 function applyMonthPreset(monthNum) {
     if (!monthNum) return;
     const m = parseInt(monthNum, 10);
@@ -923,7 +1025,7 @@ function applyMonthPreset(monthNum) {
     if (fromInput) fromInput.value = fromStr;
     if (toInput)   toInput.value   = toStr;
 
-    form.submit();
+    applyAjaxFilter();
 }
 
 function applyQuickPreset(period) {
@@ -958,7 +1060,7 @@ function applyQuickPreset(period) {
     if (fromInput) fromInput.value = fromStr;
     if (toInput)   toInput.value   = toStr;
 
-    form.submit();
+    applyAjaxFilter();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -999,13 +1101,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
     const searchInput = document.getElementById('erTableSearch');
     if (!searchInput) return;
     searchInput.addEventListener('input', (e) => {
         const val = e.target.value.toLowerCase().trim();
         const rows = document.querySelectorAll('.er-table tbody tr');
         rows.forEach(tr => {
-            if (tr.classList.contains('no-data')) return;
+            if (tr.classList.contains('no-data') || tr.classList.contains('total-summary-row')) return;
             const text = tr.innerText.toLowerCase();
             tr.style.display = text.includes(val) ? '' : 'none';
         });
