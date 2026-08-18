@@ -1528,7 +1528,7 @@ $defaultMilk = 'Fresh Milk';
                    onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is currently out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
                    title="<?= e($outReason) ?>">
                 <div class="card-img relative">
-                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
+                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20">
                     <span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1">
                       <i class="fa-solid fa-circle-xmark"></i> Out of Stock
@@ -1565,7 +1565,7 @@ $defaultMilk = 'Fresh Milk';
                    role="button" tabindex="0">
                 <div class="card-img relative">
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
-                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
+                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="img-overlay"></div>
                   <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
                   <button class="quick-add-btn" onclick="event.stopPropagation(); openModalFromCard(this.closest('.product-card'));" title="Choose size"><i class="fa-solid fa-plus"></i></button>
@@ -1618,7 +1618,7 @@ $defaultMilk = 'Fresh Milk';
                    onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is currently out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
                    title="<?= e($outReason) ?>">
                 <div class="card-img relative">
-                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
+                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20">
                     <span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1">
                       <i class="fa-solid fa-circle-xmark"></i> Out of Stock
@@ -1655,7 +1655,7 @@ $defaultMilk = 'Fresh Milk';
                    role="button" tabindex="0">
                 <div class="card-img relative">
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
-                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
+                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="img-overlay"></div>
                   <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
                   <button class="quick-add-btn" onclick="event.stopPropagation(); openModalFromCard(this.closest('.product-card'));" title="Choose size"><i class="fa-solid fa-plus"></i></button>
@@ -1741,7 +1741,7 @@ $defaultMilk = 'Fresh Milk';
           ]);
         ?>
         <div class="cp-item" id="cp-item-<?= $i ?>">
-          <img src="<?= e($item['image'] ?? '') ?>" alt="<?= e($item['product_name'] ?? '') ?>">
+          <img src="<?= e($item['image'] ?? '') ?>" alt="<?= e($item['product_name'] ?? '') ?>" onerror="this.onerror=null; this.src='images/logo.png';">
           <div class="cp-item-info">
             <div class="cp-item-name"><?= e($item['product_name'] ?? '') ?></div>
             <?php if ($meta): ?><div class="cp-item-meta"><?= e(implode(' • ', $meta)) ?></div><?php endif; ?>
@@ -2731,7 +2731,7 @@ function renderCartPanel(data) {
     }
 
     itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '">' +
-      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
+      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" style="cursor:pointer;" title="Click to customize" onerror="this.onerror=null; this.src=\'images/logo.png\';">' +
       '<div class="cp-item-info js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
         '<div class="cp-item-name">' + escH(item.product_name) + '</div>' +
         (meta ? '<div class="cp-item-meta">' + escH(meta) + '</div>' : '') +

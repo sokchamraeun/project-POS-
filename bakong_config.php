@@ -10,12 +10,13 @@ if (file_exists($local)) {
     return require $local;
 }
 
-// Fallback placeholders — create bakong_config.local.php from the example to enable payments.
+// Default Bakong configuration for payments
 return [
-    'token' => 'YOUR_BAKONG_JWT_TOKEN',
-    'bakong_id' => 'your_account@bank',
-    'merchant_name' => 'YOUR MERCHANT NAME',
+    'token' => 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiYzA2YjdlYzU1NzE2NGUzNiJ9LCJpYXQiOjE3ODY5NDA3NjgsImV4cCI6MTc5NDcxNjc2OH0.u5_3GkBfst6O6xvdY-Ywa29iVNtDLz5jUQwkB7TXvwE',
+    'bakong_id' => 'sok_chamraeun@bkrt',
+    'merchant_name' => 'Sok Chamraeun',
+    'merchantCity' => 'PHNOM PENH',
     'merchant_city' => 'PHNOM PENH',
-    'mobile_number' => '855000000000',
+    'mobile_number' => '974749522',
     'currency' => KHQRData::CURRENCY_USD,
 ];
