@@ -13,17 +13,9 @@ if (empty($_SESSION['csrf_token'])) {
 // --- DETECT ADD TO ORDER MODE ---
 $add_to_order_id = isset($_SESSION['add_to_order_id']) ? (int)$_SESSION['add_to_order_id'] : 0;
 
-// ── LINKED LOYALTY CARD (session) ──
+// ── LINKED LOYALTY CARD (removed) ──
 $linked_loyalty = null;
-$linked_loyalty_id_int = isset($_SESSION['loyalty_card_id']) ? (int)$_SESSION['loyalty_card_id'] : 0;
-if ($linked_loyalty_id_int > 0) {
-    $lc_stmt = $conn->prepare("SELECT loyalty_id, points FROM loyalty_cards WHERE card_id = ?");
-    if ($lc_stmt) {
-        $lc_stmt->bind_param("i", $linked_loyalty_id_int);
-        $lc_stmt->execute();
-        $linked_loyalty = $lc_stmt->get_result()->fetch_assoc();
-    }
-}
+$linked_loyalty_id_int = 0;
 
 $cart = $_SESSION['cart'] ?? [];
 
@@ -646,19 +638,23 @@ body {
     text-align: center;
     font-weight: 600;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 13.5px;
+    font-weight: 700;
     background: transparent;
     border: none;
     outline: none;
     font-family: 'Poppins', sans-serif;
     padding: 0;
     -moz-appearance: textfield;
+    appearance: textfield;
+    -webkit-appearance: none;
 }
 
 .qty-control input[type="number"]::-webkit-inner-spin-button,
 .qty-control input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+    display: none !important;
 }
 
 .remove-btn {
@@ -1185,6 +1181,17 @@ body {
     </span>
 </div>
 
+<?php if (!empty($_SESSION['flash_error'])): ?>
+<div style="max-width: 1200px; margin: 0 auto 16px; padding: 14px 18px; border-radius: 12px; background: rgba(225,29,72,0.15); border: 1px solid rgba(225,29,72,0.4); color: #fda4af; display: flex; align-items: flex-start; gap: 12px; font-size: 13.5px; font-weight: 500;">
+    <i class="fa-solid fa-triangle-exclamation" style="color: #f43f5e; font-size: 18px; margin-top: 2px;"></i>
+    <div style="flex: 1;">
+        <strong style="color: #ffe4e6; display: block; margin-bottom: 2px;">Stock Insufficiency Alert</strong>
+        <?= htmlspecialchars($_SESSION['flash_error']) ?>
+    </div>
+</div>
+<?php unset($_SESSION['flash_error']); ?>
+<?php endif; ?>
+
 <div class="cart-container">
 
     <!-- CART ITEMS -->
@@ -1555,6 +1562,7 @@ function changeQty(index, delta) {
     const input = document.getElementById("qty-" + index);
     let qty = parseInt(input.value || "1", 10) + delta;
     if (qty < 1) qty = 1;
+    if (qty > 100) qty = 100;
     input.value = qty;
     updateQtyAjax(index, qty);
 }
@@ -1562,13 +1570,14 @@ function changeQty(index, delta) {
 function updateQtyInput(index, value) {
     let qty = parseInt(value || "1", 10);
     if (isNaN(qty) || qty < 1) qty = 1;
+    if (qty > 100) qty = 100;
     document.getElementById("qty-" + index).value = qty;
     updateQtyAjax(index, qty);
 }
 
 function validateQtyInput(input) {
     if (input.value < 1) input.value = 1;
-    if (input.value > 999) input.value = 999;
+    if (input.value > 100) input.value = 100;
 }
 
 // ── Update Qty AJAX ──

@@ -1,6 +1,7 @@
 <?php
 require 'auth.php';
 require 'config.php';
+require_once __DIR__ . '/lang.php';
 if (!can('products')) { header("Location: dashboard.php?denied=1"); exit; }
 $_can_manage_products = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 $_flash_welcome = !empty($_SESSION['flash_welcome']); unset($_SESSION['flash_welcome']);
@@ -9,51 +10,20 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
 }
 
-// Bulk action: enable sizes for every product in a category + seed default S/M/L rows
-if (($_POST['action'] ?? '') === 'bulk_enable_sizes' && hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
-    $cat = trim((string)($_POST['category'] ?? ''));
-    if ($cat !== '') {
-        $catEsc = $conn->real_escape_string($cat);
-        $conn->query("UPDATE products SET has_sizes=1 WHERE category='$catEsc'");
-
-        // seed default rows for products in that category that have none yet
-        $seed = $conn->query("SELECT p.product_id, p.price FROM products p
-            LEFT JOIN product_sizes ps ON ps.product_id=p.product_id
-            WHERE p.category='$catEsc' GROUP BY p.product_id, p.price HAVING COUNT(ps.size_id)=0");
-
-        // one single-row prepared insert, executed three times per product (S/M/L)
-        $ins = $conn->prepare("INSERT INTO product_sizes
-            (product_id,size_code,label,price,size_factor,sort_order) VALUES (?,?,?,?,?,?)");
-        while ($p = $seed->fetch_assoc()) {
-            $pid  = (int)$p['product_id'];
-            $base = (float)$p['price'];
-            $defaults = [
-                ['S','Small',  round($base*0.8,2), 0.80, 0],
-                ['M','Medium', $base,              1.00, 1],
-                ['L','Large',  round($base*1.2,2), 1.30, 2],
-            ];
-            foreach ($defaults as $d) {
-                $ins->bind_param("issddi", $pid, $d[0], $d[1], $d[2], $d[3], $d[4]);
-                $ins->execute();
-            }
-        }
-    }
-    header('Location: products.php'); exit;
-}
-
-// products flagged sized but with zero size rows
 $missing = [];
-$mr = $conn->query("SELECT p.product_id FROM products p
-    LEFT JOIN product_sizes ps ON ps.product_id=p.product_id
-    WHERE p.has_sizes=1 GROUP BY p.product_id HAVING COUNT(ps.size_id)=0");
-while ($row = $mr->fetch_assoc()) { $missing[(int)$row['product_id']] = true; }
 
 // Quick-view AJAX endpoint
 if (($_GET['action'] ?? '') === 'view') {
     header('Content-Type: application/json');
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) { echo json_encode(['ok' => false]); exit; }
-    $s = $conn->prepare("SELECT * FROM products WHERE product_id = ?");
+    $s = $conn->prepare("
+        SELECT p.*, COUNT(r.recipe_id) AS recipe_count 
+        FROM products p 
+        LEFT JOIN product_recipes r ON p.product_id = r.product_id 
+        WHERE p.product_id = ? 
+        GROUP BY p.product_id
+    ");
     $s->bind_param('i', $id);
     $s->execute();
     $p = $s->get_result()->fetch_assoc();
@@ -71,16 +41,25 @@ if (($_GET['action'] ?? '') === 'view') {
         'image'        => $src,
         'is_available' => (int)($p['is_available'] ?? 1),
         'badge_text'   => $p['badge_text'] ?? '',
+        'has_recipe'   => ((int)($p['recipe_count'] ?? 0) > 0),
     ]]);
     exit;
 }
 
-$result = $conn->query("SELECT * FROM products ORDER BY product_id DESC");
+$result = $conn->query("
+    SELECT p.*, 
+           COUNT(r.recipe_id) AS recipe_count 
+    FROM products p 
+    LEFT JOIN product_recipes r ON p.product_id = r.product_id 
+    GROUP BY p.product_id 
+    ORDER BY p.product_id DESC
+");
 $products = [];
 while ($row = $result->fetch_assoc()) { $products[] = $row; }
-$totalProducts = count($products);
-$availCount    = count(array_filter($products, fn($p) => ($p['is_available'] ?? 1) == 1));
-$unavailCount  = $totalProducts - $availCount;
+$totalProducts  = count($products);
+$availCount     = count(array_filter($products, fn($p) => ($p['is_available'] ?? 1) == 1));
+$unavailCount   = $totalProducts - $availCount;
+$noRecipeCount  = count(array_filter($products, fn($p) => (int)($p['recipe_count'] ?? 0) === 0));
 
 $catCounts = [];
 $realCategories = [];
@@ -534,10 +513,45 @@ body {
     width: 100%;
 }
 @media (max-width: 1024px) {
-    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .stats-bar { 
+        grid-template-columns: repeat(2, 1fr) !important; 
+        gap: 10px !important;
+    }
 }
-@media (max-width: 576px) {
-    .stats-bar { grid-template-columns: 1fr; }
+@media (max-width: 640px) {
+    .stats-bar { 
+        grid-template-columns: repeat(3, 1fr) !important; 
+        gap: 6px !important;
+    }
+    .stat-card {
+        padding: 8px 8px !important;
+        gap: 8px !important;
+        min-height: 54px !important;
+        border-radius: 11px !important;
+    }
+    .stat-card .stat-icon {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+    }
+    .stat-card .stat-label {
+        font-size: 8.5px !important;
+        letter-spacing: 0.03em !important;
+    }
+    .stat-card .stat-value {
+        font-size: 16px !important;
+    }
+    .stat-card .stat-sub {
+        display: none !important;
+    }
+    .stat-card .avail-progress-wrap {
+        display: none !important;
+    }
+    .stat-card.top-cat {
+        display: none !important; /* Hide secondary 4th card on mobile so 3 main cards stay in 1 single row */
+    }
 }
 
 .stat-card {
@@ -916,6 +930,101 @@ select.cat-filter-select option {
     background: #18181c;
     color: #ffffff;
     padding: 8px;
+}
+
+/* No Recipe Filter Button */
+.filter-no-recipe-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    background: rgba(18, 18, 21, 0.8);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 12px;
+    color: #f87171;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    user-select: none;
+    height: 41px;
+    box-sizing: border-box;
+}
+
+.filter-no-recipe-btn i {
+    font-size: 12px;
+    color: #ef4444;
+    transition: transform 0.2s ease;
+}
+
+.filter-no-recipe-btn .chip-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 50px;
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.filter-no-recipe-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+    color: #ffffff;
+}
+
+.filter-no-recipe-btn:hover i {
+    transform: scale(1.1);
+}
+
+.filter-no-recipe-btn.active {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.45);
+}
+
+.filter-no-recipe-btn.active i {
+    color: #ffffff !important;
+}
+
+.filter-no-recipe-btn.active .chip-count {
+    background: rgba(0, 0, 0, 0.3) !important;
+    color: #ffffff !important;
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] .filter-no-recipe-btn {
+    background: #ffffff;
+    border-color: #fca5a5;
+    color: #dc2626;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+[data-theme="light"] .filter-no-recipe-btn:hover {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #b91c1c;
+}
+[data-theme="light"] .filter-no-recipe-btn.active {
+    background: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 10px rgba(220, 38, 38, 0.35);
+}
+[data-theme="light"] .filter-no-recipe-btn .chip-count {
+    background: #fee2e2;
+    color: #dc2626;
+}
+[data-theme="light"] .filter-no-recipe-btn.active .chip-count {
+    background: rgba(0,0,0,0.2) !important;
+    color: #ffffff !important;
 }
 
 /* Add Product Button */
@@ -1538,6 +1647,43 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
     text-transform: uppercase;
     letter-spacing: 0.5px;
     pointer-events: none;
+    z-index: 5;
+}
+
+.no-recipe-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(239, 68, 68, 0.92);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 50px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    z-index: 5;
+    line-height: 1.2;
+}
+.no-recipe-badge i {
+    font-size: 9px;
+    color: #ffd2d2;
+}
+body.select-mode .no-recipe-badge {
+    display: none;
+}
+[data-theme="light"] .no-recipe-badge {
+    background: #dc2626;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
 }
 
 /* ========== BULK ACTION BAR ========== */
@@ -1971,15 +2117,175 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 .product-card .content h3.qv-trigger { cursor: pointer; }
 .product-card .content h3.qv-trigger:hover { text-decoration: underline; text-decoration-color: rgba(209,144,75,0.4); text-underline-offset: 3px; }
 
-/* Pagination */
-.pg-wrap { padding:14px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
-.pg-nav { display:flex; gap:4px; flex-wrap:wrap; }
-.pg-btn { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-size:13px; font-weight:600; text-decoration:none; transition:var(--transition); }
-.pg-btn:hover { border-color:var(--accent); color:var(--accent); }
-.pg-active { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; background:var(--accent); border:1px solid var(--accent); color:#000; font-size:13px; font-weight:700; }
-.pg-disabled { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 6px; border-radius:8px; border:1px solid var(--border); color:var(--text-muted); font-size:13px; opacity:.35; cursor:default; }
-.pg-ellipsis { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; color:var(--text-muted); font-size:13px; }
-.pg-info { font-size:12px; color:var(--text-muted); }
+/* ── Mobile Product Card Actions Layout ── */
+@media (max-width: 640px) {
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+    .product-card .content {
+        padding: 10px 10px 12px !important;
+    }
+    .product-card .content h3 {
+        font-size: 13px !important;
+        margin-bottom: 2px !important;
+    }
+    .product-card .content .top-row {
+        margin-bottom: 4px !important;
+    }
+    .product-card .content .category-badge {
+        font-size: 8.5px !important;
+        padding: 2px 7px !important;
+    }
+    .product-card .content .product-id {
+        font-size: 8.5px !important;
+    }
+    .card-metrics-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        margin-top: 4px !important;
+    }
+    .product-card .content .price {
+        font-size: 15px !important;
+        margin-top: 0 !important;
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    .product-card .content .actions {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 4px !important;
+        margin-top: 0 !important;
+    }
+    .product-card .content .actions .btn-action {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        padding: 0 !important;
+        border-radius: 7px !important;
+        font-size: 11px !important;
+        flex: none !important;
+    }
+    .product-card .content .actions .btn-action.edit {
+        background: rgba(16, 185, 129, 0.12) !important;
+        border-color: rgba(16, 185, 129, 0.3) !important;
+        color: #34d399 !important;
+    }
+    .product-card .content .actions .btn-action.delete {
+        background: rgba(239, 68, 68, 0.12) !important;
+        border-color: rgba(239, 68, 68, 0.3) !important;
+        color: #f87171 !important;
+    }
+    .product-card .content .actions .btn-action.edit span,
+    .product-card .content .actions .btn-action.avail-on span,
+    .product-card .content .actions .btn-action.avail-off span {
+        display: none !important;
+    }
+    .product-card .content .actions .btn-action.avail-on,
+    .product-card .content .actions .btn-action.avail-off {
+        display: none !important; /* Hide On/Off toggle text button in compact mobile card, keeping Edit and Delete icons */
+    }
+
+    /* Small Screen: Only Grid View (Hide list/grid switcher) */
+    .view-mode-toggle {
+        display: none !important;
+    }
+
+    /* ── Mobile 2-Column Search & Category Filter ── */
+    .prod-controls-bar {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        margin-bottom: 8px !important;
+    }
+    .prod-controls-left {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    .search-box {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .search-box input {
+        width: 100% !important;
+        height: 40px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        padding: 0 10px 0 32px !important;
+        border-radius: 10px !important;
+        border: 1px solid #E5E7EB !important;
+        background: #FFFFFF !important;
+        color: #111827 !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+        box-sizing: border-box !important;
+    }
+    [data-theme="dark"] .search-box input,
+    html:not([data-theme="light"]) .search-box input {
+        background: rgba(18, 18, 21, 0.8) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+        color: #f5f5f5 !important;
+    }
+    .search-box .search-icon {
+        left: 11px !important;
+        font-size: 12px !important;
+    }
+    .filter-select-wrap {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    select.cat-filter-select {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 40px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        padding: 0 24px 0 28px !important;
+        border-radius: 10px !important;
+        border: 1px solid #E5E7EB !important;
+        background-color: #FFFFFF !important;
+        color: #111827 !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+        background-position: calc(100% - 8px) center !important;
+        text-overflow: ellipsis !important;
+        box-sizing: border-box !important;
+    }
+    [data-theme="dark"] select.cat-filter-select,
+    html:not([data-theme="light"]) select.cat-filter-select {
+        background-color: rgba(18, 18, 21, 0.8) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+        color: #f5f5f5 !important;
+    }
+    .filter-select-wrap .filter-icon {
+        left: 10px !important;
+        font-size: 11px !important;
+    }
+    .prod-controls-right {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        gap: 8px !important;
+    }
+    .results-info {
+        font-size: 11.5px !important;
+    }
+    .btn-add-product {
+        padding: 6px 12px !important;
+        font-size: 11.5px !important;
+        border-radius: 8px !important;
+    }
+}
 </style>
 </head>
 
@@ -2058,6 +2364,17 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+                <!-- No Recipe Filter Button -->
+                <button type="button" 
+                        id="noRecipeFilterBtn" 
+                        class="filter-no-recipe-btn" 
+                        onclick="toggleNoRecipeFilter()" 
+                        title="Filter products without recipe">
+                    <i class="fa-solid fa-mortar-pestle"></i>
+                    <span><?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></span>
+                    <span class="chip-count" id="noRecipeCountBadge"><?= $noRecipeCount ?></span>
+                </button>
             </div>
 
             <div class="prod-controls-right">
@@ -2111,6 +2428,7 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                     $sellP = (float)$row['price'];
                     $mDol  = $sellP - $costP;
                     $mPct  = $sellP > 0 ? (($sellP - $costP) / $sellP) * 100 : 0;
+                    $hasRecipe = ((int)($row['recipe_count'] ?? 0) > 0) ? '1' : '0';
                 ?>
                 <div class="product-card <?= $available ? '' : 'unavailable' ?>"
                      data-category="<?= htmlspecialchars($row['category'] ?: 'Uncategorized') ?>"
@@ -2119,6 +2437,7 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                      data-id="<?= (int)$row['product_id'] ?>"
                      data-avail="<?= $available ?>"
                      data-badge="<?= product_badge_label($row) !== '' ? '1' : '0' ?>"
+                     data-has-recipe="<?= $hasRecipe ?>"
                      style="animation-delay:<?= min($i * 0.04, 0.6) ?>s">
 
                     <!-- Selection overlay (intercepts clicks in select mode) -->
@@ -2138,6 +2457,9 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                         <?php if (!$available): ?>
                         <div class="sold-out-badge">Inactive</div>
                         <?php endif; ?>
+                        <?php if ((int)($row['recipe_count'] ?? 0) === 0): ?>
+                        <div class="no-recipe-badge" title="No Recipe Linked"><i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></div>
+                        <?php endif; ?>
                         <?php $__badge = product_badge_label($row); if ($__badge !== ''): ?>
                         <span class="product-badge"><?= htmlspecialchars($__badge) ?></span>
                         <?php endif; ?>
@@ -2155,27 +2477,28 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
                             <span class="price" data-pid="<?= $row['product_id'] ?>" title="Double-click to edit price">
                                 $<?= number_format($row['price'], 2) ?>
                             </span>
+
+                            <?php if ($_can_manage_products): ?>
+                            <div class="actions">
+                                <a href="edit_product.php?id=<?= $row['product_id'] ?>" class="btn-action edit" title="Edit Product">
+                                    <i class="fa-solid fa-pen-to-square"></i> <span>Edit</span>
+                                </a>
+                                <button type="button" class="btn-action <?= $available ? 'avail-on' : 'avail-off' ?>"
+                                        onclick="toggleAvailability(<?= $row['product_id'] ?>, this, event)"
+                                        title="<?= $available ? 'Mark as inactive' : 'Mark as available' ?>">
+                                    <i class="fa-solid <?= $available ? 'fa-eye' : 'fa-eye-slash' ?>"></i>
+                                    <span><?= $available ? 'On' : 'Off' ?></span>
+                                </button>
+                                <button type="button" class="btn-action delete"
+                                        onclick="confirmDelete(<?= $row['product_id'] ?>, '<?= htmlspecialchars(addslashes($row['name'])) ?>', event)"
+                                        title="Delete Product">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <?php if (!empty($missing[(int)$row['product_id']])): ?>
                         <span class="badge badge-danger" title="has_sizes is on but no size prices set">missing size prices</span>
-                        <?php endif; ?>
-
-                        <?php if ($_can_manage_products): ?>
-                        <div class="actions">
-                            <a href="edit_product.php?id=<?= $row['product_id'] ?>" class="btn-action edit">
-                                <i class="fa-solid fa-pen-to-square"></i> Edit
-                            </a>
-                            <button type="button" class="btn-action <?= $available ? 'avail-on' : 'avail-off' ?>"
-                                    onclick="toggleAvailability(<?= $row['product_id'] ?>, this, event)"
-                                    title="<?= $available ? 'Mark as inactive' : 'Mark as available' ?>">
-                                <i class="fa-solid <?= $available ? 'fa-eye' : 'fa-eye-slash' ?>"></i>
-                                <?= $available ? 'On' : 'Off' ?>
-                            </button>
-                            <button type="button" class="btn-action delete"
-                                    onclick="confirmDelete(<?= $row['product_id'] ?>, '<?= htmlspecialchars(addslashes($row['name'])) ?>', event)">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -2266,15 +2589,35 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 <script>
 // ── Card data ──
 let allCards    = Array.from(document.querySelectorAll('.product-card'));
-let activeFilter     = 'all';
-let activeAvail      = 'all'; // 'all', '1' (Available), '0' (Inactive)
-let activeSearch     = '';
-let activeSort       = 'default';
-let activePriceMin   = 0;
-let activePriceMax   = 99999;
-let activeBadge      = 'all';
-let selectMode       = false;
-let selectedIds      = new Set();
+let activeFilter       = 'all';
+let activeAvail        = 'all'; // 'all', '1' (Available), '0' (Inactive)
+let activeSearch       = '';
+let activeSort         = 'default';
+let activePriceMin     = 0;
+let activePriceMax     = 99999;
+let activeBadge        = 'all';
+let activeRecipeFilter = 'all'; // 'all', 'no_recipe'
+let selectMode         = false;
+let selectedIds        = new Set();
+
+// Category Select Change Listener
+document.getElementById('catSelect')?.addEventListener('change', function () {
+    activeFilter = this.value;
+    applyFilters();
+});
+
+// No Recipe Filter Toggle
+function toggleNoRecipeFilter() {
+    const btn = document.getElementById('noRecipeFilterBtn');
+    if (activeRecipeFilter === 'no_recipe') {
+        activeRecipeFilter = 'all';
+        btn?.classList.remove('active');
+    } else {
+        activeRecipeFilter = 'no_recipe';
+        btn?.classList.add('active');
+    }
+    applyFilters();
+}
 
 // ─────────────────────────────────────────────
 // STAT CARDS FILTER
@@ -2326,6 +2669,7 @@ function updateStatCounts() {
     const total = allCards.length;
     const avail = allCards.filter(c => c.dataset.avail === '1').length;
     const unavail = total - avail;
+    const noRecipe = allCards.filter(c => c.dataset.hasRecipe === '0').length;
 
     const elTotal = document.querySelector('#statTotal .stat-value');
     if (elTotal) elTotal.textContent = total;
@@ -2338,6 +2682,9 @@ function updateStatCounts() {
 
     const elTotalSum = document.getElementById('totalCountSummary');
     if (elTotalSum) elTotalSum.textContent = total;
+
+    const elNoRecipeCount = document.getElementById('noRecipeCountBadge');
+    if (elNoRecipeCount) elNoRecipeCount.textContent = noRecipe;
 }
 
 function updateRowNumbersAndCounts() {
@@ -2438,9 +2785,11 @@ function applyFilters() {
         const nameMatch  = card.dataset.name.includes(activeSearch);
         const price      = parseFloat(card.dataset.price);
         const priceMatch = price >= activePriceMin && price <= activePriceMax;
-        const hasBadge   = card.dataset.badge === '1';
-        const badgeMatch = activeBadge === 'all' || (activeBadge === 'has' ? hasBadge : !hasBadge);
-        return catMatch && availMatch && nameMatch && priceMatch && badgeMatch;
+        const hasBadge    = card.dataset.badge === '1';
+        const badgeMatch  = activeBadge === 'all' || (activeBadge === 'has' ? hasBadge : !hasBadge);
+        const hasRecipe   = card.dataset.hasRecipe === '1';
+        const recipeMatch = activeRecipeFilter === 'all' || (activeRecipeFilter === 'no_recipe' && !hasRecipe);
+        return catMatch && availMatch && nameMatch && priceMatch && badgeMatch && recipeMatch;
     });
     lastFiltered.sort((a, b) => {
         switch (activeSort) {

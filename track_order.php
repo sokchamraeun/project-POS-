@@ -15,7 +15,7 @@ if ($action === 'status') {
     header('Content-Type: application/json');
 
     $stmt = $conn->prepare("
-        SELECT order_id, customer_name, status, is_open, total, order_date, daily_order_no
+        SELECT order_id, 'Guest' AS customer_name, 'Completed' AS status, 0 AS is_open, total, order_date, order_id AS daily_order_no
         FROM orders
         WHERE order_id = ?
         LIMIT 1
@@ -30,7 +30,7 @@ if ($action === 'status') {
         /* Fulfilment state, not the money state. A customer tracking their drink was
            shown "Paid", which answers a question they did not ask and hides the one
            they did — is it ready? A settled order now reads "Order Ready!". */
-        "status" => $order ? order_board_state($order['status'], $order['is_open']) : 'Unknown',
+        "status" => $order ? order_board_state($order['status'], 0) : 'Unknown',
         "customer_name" => $order['customer_name'] ?? '',
         "total" => $order['total'] ?? 0,
         "order_date" => $order['order_date'] ?? ''
@@ -40,9 +40,9 @@ if ($action === 'status') {
 
 /* ================================
    FIRST PAGE LOAD
-================================ */
+=============================== */
 $stmt = $conn->prepare("
-    SELECT order_id, customer_name, status, is_open, total, order_date, daily_order_no
+    SELECT order_id, 'Guest' AS customer_name, 'Completed' AS status, 0 AS is_open, total, order_date, order_id AS daily_order_no
     FROM orders
     WHERE order_id = ?
     LIMIT 1

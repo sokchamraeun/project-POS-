@@ -1,5 +1,6 @@
 <?php
-require 'auth.php';   // session + login + role refresh + config (provides can())
+require 'auth.php';
+require 'config.php';
 
 $order_id   = (int)($_GET['order_id'] ?? 0);
 $new_status = $_GET['status'] ?? '';
@@ -40,84 +41,11 @@ if (!$authorized) {
     us_respond(false, 'You are not allowed to perform this action.', $is_ajax, '?denied=1');
 }
 
-// Fetch current status
-$stmt = $conn->prepare("SELECT status FROM orders WHERE order_id = ?");
-$stmt->bind_param("i", $order_id);
-$stmt->execute();
-$row = $stmt->get_result()->fetch_assoc();
-
-if (!$row) {
-    us_respond(false, 'Order not found.', $is_ajax);
-}
-
-$current_status = $row['status'];
-
-// Validate transition
-if (!isset($allowed_transitions[$current_status]) || !in_array($new_status, $allowed_transitions[$current_status], true)) {
-    us_respond(false, 'This order can no longer be updated.', $is_ajax, '?error=invalid_transition');
-}
-
-// Apply status update.
-// Completion means the drinks are made, NOT that the tab is paid — do NOT set is_open here.
-// A pay-later order must stay open (is_open=1) until the cashier settles it (matches
-// view_order.php action=complete / mark_made). Cash/Paid orders are already is_open=0.
-$extra_sql  = ($new_status === 'Completed') ? ", completed_at = NOW()" : "";
-$extra_sql .= ($new_status === 'Paid') ? ", completed_at = NOW()" : "";
-$stmt = $conn->prepare("UPDATE orders SET status = ? $extra_sql WHERE order_id = ?");
-$stmt->bind_param("si", $new_status, $order_id);
-$stmt->execute();
-
 // Mark every drink made on completion — bring made_qty up to quantity (and stamp made_at)
-// so the per-unit barista state agrees with the completed order (mirrors action=complete).
 if ($new_status === 'Completed') {
     $stmt_made = $conn->prepare("UPDATE order_items SET made_qty = quantity, made_at = NOW() WHERE order_id = ? AND made_qty < quantity");
     $stmt_made->bind_param("i", $order_id);
     $stmt_made->execute();
-}
-
-// ── LOYALTY: Earn points when order is Paid or Completed ──
-if ($new_status === 'Paid' || $new_status === 'Completed') {
-    // Get loyalty card ID from order
-    $stmt = $conn->prepare("SELECT loyalty_card_id, points_earned FROM orders WHERE order_id = ?");
-    $stmt->bind_param("i", $order_id);
-    $stmt->execute();
-    $order = $stmt->get_result()->fetch_assoc();
-
-    // Guard: only award if a card is linked AND points were not already granted
-    // (confirm_order.php / check_payment.php award at creation/settlement — avoid double-counting)
-    if ($order['loyalty_card_id'] && (int)($order['points_earned'] ?? 0) === 0) {
-        // Get total quantity of drinks (excluding loyalty items with price 0)
-        $stmt = $conn->prepare("
-            SELECT SUM(quantity) as total_drinks
-            FROM order_items
-            WHERE order_id = ? AND price > 0
-        ");
-        $stmt->bind_param("i", $order_id);
-        $stmt->execute();
-        $items = $stmt->get_result()->fetch_assoc();
-        $total_drinks = (int)($items['total_drinks'] ?? 0);
-
-        if ($total_drinks > 0) {
-            // Add points (1 point per drink)
-            $stmt = $conn->prepare("UPDATE loyalty_cards SET points = points + ?, total_orders = total_orders + 1, total_drinks = total_drinks + ?, last_used = NOW() WHERE card_id = ?");
-            $stmt->bind_param("iii", $total_drinks, $total_drinks, $order['loyalty_card_id']);
-            $stmt->execute();
-
-            // Add history
-            $stmt = $conn->prepare("
-                INSERT INTO loyalty_history (card_id, order_id, points_change, type, description)
-                VALUES (?, ?, ?, 'earned', ?)
-            ");
-            $description = "Earned {$total_drinks} points from order #{$order_id}";
-            $stmt->bind_param("iiis", $order['loyalty_card_id'], $order_id, $total_drinks, $description);
-            $stmt->execute();
-
-            // Record on the order so points are never granted twice (the guard above reads this)
-            $stmt = $conn->prepare("UPDATE orders SET points_earned = ? WHERE order_id = ?");
-            $stmt->bind_param("ii", $total_drinks, $order_id);
-            $stmt->execute();
-        }
-    }
 }
 
 us_respond(true, '', $is_ajax);

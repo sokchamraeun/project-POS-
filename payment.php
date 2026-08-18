@@ -17,9 +17,11 @@ if ($order_id > 0) {
 
 // ── Try QR Again: clear md5 so a fresh QR is generated ──
 if (($_GET['action'] ?? '') === 'refresh') {
-    $s = $conn->prepare("UPDATE orders SET bakong_md5 = NULL WHERE order_id = ?");
-    $s->bind_param("i", $order_id);
-    $s->execute();
+    $s = $conn->prepare("UPDATE order_payments SET reference = NULL WHERE order_id = ? AND payment_method = 'bakong'");
+    if ($s) {
+        $s->bind_param("i", $order_id);
+        $s->execute();
+    }
     header("Location: payment.php?order_id=$order_id");
     exit;
 }
@@ -36,7 +38,7 @@ if (($_GET['action'] ?? '') === 'switch_cash') {
         ");
         $s->bind_param("ii", $order_id, $order_id);
         $s->execute();
-        $conn->query("UPDATE orders SET status='Preparing', payment_method='cash', bakong_md5=NULL WHERE order_id=$order_id");
+        $conn->query("UPDATE orders SET payment_method='cash' WHERE order_id=$order_id");
         $conn->commit();
     } catch (Exception $e) {
         $conn->rollback();
@@ -47,8 +49,8 @@ if (($_GET['action'] ?? '') === 'switch_cash') {
 
 // ── Get order and payment data ──
 $stmt = $conn->prepare("
-    SELECT o.order_id, o.customer_name, o.total, o.status, o.bakong_md5, o.daily_order_no,
-           o.order_type, o.table_number, o.payment_method,
+    SELECT o.order_id, 'Guest' AS customer_name, o.total, 'Completed' AS status, '' AS bakong_md5, o.order_id AS daily_order_no,
+           'drink_in' AS order_type, '' AS table_number, o.payment_method,
            op.payment_id, op.amount AS bakong_amount, op.payment_status,
            (SELECT COUNT(*) FROM order_payments WHERE order_id = o.order_id AND payment_method = 'cash' AND payment_status = 'pending') AS has_cash_pending,
            (SELECT COUNT(*) FROM order_payments WHERE order_id = o.order_id) AS total_payment_methods
@@ -125,9 +127,11 @@ if (empty($md5)) {
     $qrString = $khqrResponse->data['qr'];
     $md5 = $khqrResponse->data['md5'];
 
-    $stmt = $conn->prepare("UPDATE orders SET bakong_md5 = ? WHERE order_id = ?");
-    $stmt->bind_param("si", $md5, $order_id);
-    $stmt->execute();
+    $stmt = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ? AND payment_method = 'bakong'");
+    if ($stmt) {
+        $stmt->bind_param("si", $md5, $order_id);
+        $stmt->execute();
+    }
 } else {
     $individualInfo = new IndividualInfo(
         bakongAccountID: $config['bakong_id'],
@@ -150,9 +154,11 @@ if (empty($md5)) {
     $newMd5 = $khqrResponse->data['md5'] ?? '';
     if (!empty($newMd5) && $newMd5 !== $md5) {
         $md5 = $newMd5;
-        $stmt = $conn->prepare("UPDATE orders SET bakong_md5 = ? WHERE order_id = ?");
-        $stmt->bind_param("si", $md5, $order_id);
-        $stmt->execute();
+        $stmt = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ? AND payment_method = 'bakong'");
+        if ($stmt) {
+            $stmt->bind_param("si", $md5, $order_id);
+            $stmt->execute();
+        }
     }
 }
 

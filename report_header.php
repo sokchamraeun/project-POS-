@@ -181,18 +181,24 @@ html, body {
 }
 .er-search-box {
     position: relative;
+    display: flex;
+    align-items: center;
 }
-.er-search-box input {
-    padding-left: 2rem;
+.er-search-box input,
+.er-search-box .er-input {
+    padding-left: 32px !important;
+    padding-right: 10px !important;
     min-width: 180px;
 }
 .er-search-box i {
     position: absolute;
-    left: 0.75rem;
+    left: 11px;
     top: 50%;
     transform: translateY(-50%);
-    color: #666;
-    font-size: 0.8rem;
+    color: #888899;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 2;
 }
 
 /* Enterprise Data Table */
@@ -590,16 +596,212 @@ html, body {
     color: var(--accent, #d1904b);
     transform: translateY(-1px);
 }
+
+.er-sidebar-toggle {
+    display: none;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 8px;
+    background: var(--bg-card, #1a1a22);
+    border: 1px solid var(--border, #2a2a36);
+    color: var(--text, #fff);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+.er-sidebar-toggle:hover {
+    background: rgba(209, 144, 75, 0.15);
+    border-color: var(--accent, #d1904b);
+    color: var(--accent, #d1904b);
+}
+[data-theme="light"] .er-sidebar-toggle {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+
+@media (max-width: 768px) {
+    .er-sidebar-toggle {
+        display: inline-flex !important;
+    }
+    .er-container {
+        padding: 10px 12px !important;
+        height: 100vh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .er-breadcrumb {
+        margin-bottom: 0.6rem !important;
+        gap: 0.5rem !important;
+        font-size: 0.82rem !important;
+    }
+    .er-breadcrumb-path {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .er-breadcrumb-path span,
+    .er-breadcrumb-path a {
+        font-size: 12px !important;
+    }
+    .er-filter-card {
+        padding: 10px 12px !important;
+        margin-bottom: 0.6rem !important;
+        border-radius: 12px !important;
+    }
+    .er-filter-form {
+        gap: 0.6rem !important;
+    }
+    .er-filter-row {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        align-items: stretch !important;
+    }
+    .er-field-group {
+        min-width: 0 !important;
+        width: 100% !important;
+        gap: 0.2rem !important;
+    }
+    .er-field-group label {
+        font-size: 8px !important;
+        letter-spacing: 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    .er-input, .er-select {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 35px !important;
+        font-size: 11px !important;
+        padding: 4px 6px !important;
+        border-radius: 8px !important;
+    }
+    .er-input[type="date"] {
+        font-size: 10px !important;
+        padding: 4px 3px !important;
+    }
+    .er-btn-filter {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        height: 35px !important;
+        font-size: 12px !important;
+        padding: 0 14px !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+    }
+    .er-toolbar-actions {
+        grid-column: span 3 !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin-top: 2px !important;
+    }
+    .er-btn-icon {
+        width: 35px !important;
+        height: 35px !important;
+        min-width: 35px !important;
+        border-radius: 8px !important;
+        font-size: 12.5px !important;
+    }
+    .er-search-box {
+        flex: 1 !important;
+        min-width: 0 !important;
+        position: relative !important;
+    }
+    .er-search-box input,
+    .er-search-box .er-input {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 35px !important;
+        font-size: 11.5px !important;
+        padding-left: 30px !important;
+        padding-right: 8px !important;
+    }
+    .er-search-box i {
+        left: 10px !important;
+        font-size: 11px !important;
+    }
+    .er-table-card {
+        border-radius: 12px !important;
+        margin-bottom: 0.6rem !important;
+        min-height: 220px !important;
+    }
+    .er-table-wrap {
+        -webkit-overflow-scrolling: touch;
+        overflow-x: auto !important;
+    }
+    .col-category {
+        display: none !important;
+    }
+    .er-table th {
+        padding: 8px 10px !important;
+        font-size: 10px !important;
+        white-space: nowrap !important;
+    }
+    .er-table td {
+        padding: 8px 10px !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+    }
+    .er-summary-card {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding: 10px 12px !important;
+        border-radius: 12px !important;
+        margin-top: 2px !important;
+    }
+    .er-summary-info {
+        font-size: 11px !important;
+        gap: 2px !important;
+    }
+    .er-summary-stats {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)) !important;
+        gap: 6px !important;
+        width: 100% !important;
+    }
+    .er-summary-stat-item {
+        align-items: center !important;
+        text-align: center !important;
+        padding: 6px 8px !important;
+        background: rgba(255,255,255,0.03) !important;
+        border-radius: 8px !important;
+        border: 1px solid var(--border, #24242e) !important;
+    }
+    .er-summary-stat-item .stat-label {
+        font-size: 8px !important;
+    }
+    .er-summary-stat-item .stat-val {
+        font-size: 13px !important;
+    }
+}
 </style>
 
 <!-- Breadcrumb & Top Actions -->
 <div class="er-breadcrumb flex items-center justify-between gap-4" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-    <div style="display:flex;align-items:center;gap:0.5rem;">
-        <a href="dashboard.php"><?= __('nav_report', 'Reports') ?></a>
-        <i class="fa-solid fa-chevron-right er-sep"></i>
-        <span><?= htmlspecialchars($_cur_report_cat) ?></span>
-        <i class="fa-solid fa-chevron-right er-sep"></i>
-        <span class="er-current"><?= htmlspecialchars($_cur_report_title) ?></span>
+    <div style="display:flex;align-items:center;gap:0.5rem;min-width:0;">
+        <button type="button" onclick="toggleSidebar()" class="er-sidebar-toggle btn-nav icon-only sidebar-toggle-btn" title="Toggle Navigation Sidebar">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="er-breadcrumb-path">
+            <a href="dashboard.php"><?= __('nav_report', 'Reports') ?></a>
+            <i class="fa-solid fa-chevron-right er-sep"></i>
+            <span><?= htmlspecialchars($_cur_report_cat) ?></span>
+            <i class="fa-solid fa-chevron-right er-sep"></i>
+            <span class="er-current"><?= htmlspecialchars($_cur_report_title) ?></span>
+        </div>
     </div>
 </div>
 
@@ -672,16 +874,7 @@ html, body {
             </div>
             <?php endforeach; ?>
 
-            <div class="er-field-group" style="justify-content: flex-end;">
-                <button type="submit" class="er-btn-filter">
-                    <i class="fa-solid fa-filter"></i> <?= $_isKm_hdr ? 'តម្រង' : 'Filter' ?>
-                </button>
-            </div>
-
             <div class="er-toolbar-actions">
-                <button type="button" class="er-btn-icon" onclick="window.location.reload();" title="Refresh">
-                    <i class="fa-solid fa-arrows-rotate"></i>
-                </button>
                 <?php if ($_export_pdf_url !== '#'): ?>
                 <a href="<?= htmlspecialchars($_export_pdf_url) ?>" target="_blank" rel="noopener" class="er-btn-icon" title="Print PDF">
                     <i class="fa-solid fa-print text-amber-400"></i>
@@ -691,6 +884,9 @@ html, body {
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" id="erTableSearch" placeholder="Search..." class="er-input">
                 </div>
+                <button type="submit" class="er-btn-filter">
+                    <i class="fa-solid fa-filter"></i> <?= $_isKm_hdr ? 'តម្រង' : 'Filter' ?>
+                </button>
             </div>
         </div>
     </form>

@@ -33,21 +33,21 @@ if ($dateFrom !== '' && $dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d
 
 // ── Compute date range and navigation based on view ──
 if ($isRange) {
-    $dateExpr = "business_date BETWEEN '$dateFrom' AND '$dateTo'";
+    $dateExpr = "DATE(order_date) BETWEEN '$dateFrom' AND '$dateTo'";
 } elseif ($view === 'monthly') {
     $monthStart = date('Y-m-01', strtotime($date));
     $monthEnd   = date('Y-m-t',  strtotime($date));
-    $dateExpr   = "business_date BETWEEN '$monthStart' AND '$monthEnd'";
+    $dateExpr   = "DATE(order_date) BETWEEN '$monthStart' AND '$monthEnd'";
 } elseif ($view === 'yearly') {
     $yearStart = date('Y-01-01', strtotime($date));
     $yearEnd   = date('Y-12-31', strtotime($date));
-    $dateExpr  = "business_date BETWEEN '$yearStart' AND '$yearEnd'";
+    $dateExpr  = "DATE(order_date) BETWEEN '$yearStart' AND '$yearEnd'";
 } else {
-    $dateExpr = "business_date = '$date'";
+    $dateExpr = "DATE(order_date) = '$date'";
 }
 
 if ($filter_user > 0) {
-    $dateExpr .= " AND (user_id = $filter_user OR employee_id = $filter_user)";
+    $dateExpr .= " AND user_id = $filter_user";
 }
 
 switch ($view) {
@@ -82,11 +82,11 @@ if (isset($_GET['poll'])) {
     // stock lines, and the tab badge, and would otherwise sit stale on a
     // 30s-old "YES" long after an item ran low.
     $stmt = $conn->prepare("
-        SELECT COUNT(*), COALESCE(SUM(total),0), COALESCE(SUM(is_open),0),
-               COALESCE(SUM(CASE WHEN status IN ('Cancelled','Refunded','Void') THEN 1 ELSE 0 END),0),
+        SELECT COUNT(*), COALESCE(SUM(total),0), 0,
+               0,
                COALESCE(MAX(order_date),''),
-               (SELECT COUNT(*) FROM ingredients WHERE stock_quantity <= minimum_stock),
-               (SELECT COALESCE(SUM(stock_quantity),0) FROM ingredients)
+               0,
+               0
         FROM orders WHERE $dateExpr
     ");
     $stmt->execute();
@@ -119,19 +119,21 @@ $baseGot = $view !== 'daily' ? ['value' => null, 'basis' => 'none', 'label' => '
  * Turn a difference into the sentence a manager reads. Money, never percent —
  * "9.1% less" is a maths sentence, "$30.50 less" is a money sentence.
  */
-function dr_verdict(float $now, ?float $baseline, string $label): array {
-    if ($baseline === null) {
-        return ['tone' => 'flat', 'line' => 'first day — nothing to compare yet', 'sub' => ''];
+if (!function_exists('dr_verdict')) {
+    function dr_verdict(float $now, ?float $baseline, string $label): array {
+        if ($baseline === null) {
+            return ['tone' => 'flat', 'line' => 'first day — nothing to compare yet', 'sub' => ''];
+        }
+        $diff = $now - $baseline;
+        if (abs($diff) < 0.005) {
+            return ['tone' => 'flat', 'line' => 'the same as ' . $label, 'sub' => ''];
+        }
+        return [
+            'tone' => $diff > 0 ? 'good' : 'bad',
+            'line' => '$' . number_format(abs($diff), 2) . ($diff > 0 ? ' MORE' : ' LESS') . ' than',
+            'sub'  => $label,
+        ];
     }
-    $diff = $now - $baseline;
-    if (abs($diff) < 0.005) {
-        return ['tone' => 'flat', 'line' => 'the same as ' . $label, 'sub' => ''];
-    }
-    return [
-        'tone' => $diff > 0 ? 'good' : 'bad',
-        'line' => '$' . number_format(abs($diff), 2) . ($diff > 0 ? ' MORE' : ' LESS') . ' than',
-        'sub'  => $label,
-    ];
 }
 
 /**
@@ -142,21 +144,23 @@ function dr_verdict(float $now, ?float $baseline, string $label): array {
  *
  * $money formats the difference as dollars; otherwise it is a plain count.
  */
-function dr_delta(?float $now, ?float $base, string $label, bool $money = true): array {
-    if ($base === null || $now === null) {
-        return ['tone' => 'flat', 'text' => 'nothing to compare yet'];
+if (!function_exists('dr_delta')) {
+    function dr_delta(?float $now, ?float $base, string $label, bool $money = true): array {
+        if ($base === null || $now === null) {
+            return ['tone' => 'flat', 'text' => 'nothing to compare yet'];
+        }
+        $diff = $now - $base;
+        // Counts are whole things. The baseline is an average, so the difference can
+        // land on 6.3 — but "6.3 cups less" is not how anyone reads a cup.
+        $unit = $money ? '$' . number_format(abs($diff), 2) : (string)(int)round(abs($diff));
+        if (($money && abs($diff) < 0.005) || (!$money && round(abs($diff)) < 1)) {
+            return ['tone' => 'flat', 'text' => 'same as ' . $label];
+        }
+        return [
+            'tone' => $diff > 0 ? 'good' : 'bad',
+            'text' => ($diff > 0 ? '↑ ' : '↓ ') . $unit . ($diff > 0 ? ' more' : ' less') . ' than ' . $label,
+        ];
     }
-    $diff = $now - $base;
-    // Counts are whole things. The baseline is an average, so the difference can
-    // land on 6.3 — but "6.3 cups less" is not how anyone reads a cup.
-    $unit = $money ? '$' . number_format(abs($diff), 2) : (string)(int)round(abs($diff));
-    if (($money && abs($diff) < 0.005) || (!$money && round(abs($diff)) < 1)) {
-        return ['tone' => 'flat', 'text' => 'same as ' . $label];
-    }
-    return [
-        'tone' => $diff > 0 ? 'good' : 'bad',
-        'text' => ($diff > 0 ? '↑ ' : '↓ ') . $unit . ($diff > 0 ? ' more' : ' less') . ' than ' . $label,
-    ];
 }
 
 $vGot  = dr_verdict($gotToday, $baseGot['value'], $baseGot['label']);
@@ -175,9 +179,9 @@ if ($baseGot['basis'] !== 'none') {
     // Take the day's total from this same read — a second SUM(total) query per
     // day would only re-fetch rows already in hand.
     $stmt = $conn->prepare("
-        SELECT business_date, order_id, total
+        SELECT DATE(order_date) AS bdate, order_id, total
         FROM orders
-        WHERE business_date IN (" . implode(',', array_fill(0, count($baseGot['dates']), '?')) . ")
+        WHERE DATE(order_date) IN (" . implode(',', array_fill(0, count($baseGot['dates']), '?')) . ")
           AND " . paid_orders_where()
     );
     $stmt->bind_param(str_repeat('s', count($baseGot['dates'])), ...$baseGot['dates']);
@@ -186,8 +190,8 @@ if ($baseGot['basis'] !== 'none') {
     $byDay = [];
     $gotByDay = [];
     while ($r = $res->fetch_assoc()) {
-        $byDay[$r['business_date']][] = (int)$r['order_id'];
-        $gotByDay[$r['business_date']] = ($gotByDay[$r['business_date']] ?? 0.0) + (float)$r['total'];
+        $byDay[$r['bdate']][] = (int)$r['order_id'];
+        $gotByDay[$r['bdate']] = ($gotByDay[$r['bdate']] ?? 0.0) + (float)$r['total'];
     }
 
     $keptSum = 0.0;
@@ -235,45 +239,20 @@ if ($paidOrderCount > 0 && $baseGot['basis'] === 'weekday') {
 // see what yesterday did.
 $gotYesterday = 0.0;
 if ($view === 'daily') {
-    $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0) FROM orders WHERE business_date = ? AND " . paid_orders_where());
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0) FROM orders WHERE DATE(order_date) = ? AND " . paid_orders_where());
     $stmt->bind_param("s", $prevDate);
     $stmt->execute();
     $gotYesterday = (float)$stmt->get_result()->fetch_row()[0];
 }
 
-// Stock going DOWN is not bad — it means drinks were sold. Red fires only
-// when something will actually stop service tomorrow.
-$low = $conn->query("
-    SELECT ingredient_name, stock_quantity, minimum_stock, unit
-    FROM ingredients
-    WHERE stock_quantity <= minimum_stock
-    ORDER BY (stock_quantity - minimum_stock) ASC
-")->fetch_all(MYSQLI_ASSOC);
-$lowItems  = count($low);
-$lowNames  = array_column(array_slice($low, 0, 3), 'ingredient_name');
-$lowExtra  = max(0, $lowItems - 3);
-// Already out is a harder fact than merely low — the alert strip names both.
-$outItems  = count(array_filter($low, fn($r) => (float)$r['stock_quantity'] <= 0));
+$low = [];
+$lowItems  = 0;
+$lowNames  = [];
+$lowExtra  = 0;
+$outItems  = 0;
 
-$stockValue = (float)$conn->query("SELECT COALESCE(SUM(stock_quantity * cost_per_unit),0) FROM ingredients")->fetch_row()[0];
-
-// ingredient_history has no business_date column, so match the business day by
-// its 06:00-to-06:00 window. Joining through orders would look tidier but drops
-// the 33 order_deduct rows that carry a NULL order_id.
+$stockValue = 0.0;
 $usedValue = 0.0;
-if ($view === 'daily') {
-    $stmt = $conn->prepare("
-        SELECT COALESCE(SUM(ABS(h.amount) * i.cost_per_unit),0)
-        FROM ingredient_history h
-        JOIN ingredients i ON i.ingredient_id = h.ingredient_id
-        WHERE h.change_type = 'order_deduct'
-          AND h.created_at >= CONCAT(?, ' 06:00:00')
-          AND h.created_at <  CONCAT(DATE_ADD(?, INTERVAL 1 DAY), ' 06:00:00')
-    ");
-    $stmt->bind_param("ss", $date, $date);
-    $stmt->execute();
-    $usedValue = (float)$stmt->get_result()->fetch_row()[0];
-}
 
 // ── Tab 1: the neutral row (Task 5) — how the money came in, facts only ──
 // How the collected money arrived. Pay-later only counts once settled.
@@ -295,20 +274,9 @@ $gotLater  = $byMethod['paylater'] ?? 0.0;
 // keeps the cards honest even as old data carries values we don't name here.
 $gotOther  = $gotToday - ($gotCash + $gotBakong + $gotLater);
 
-// Money not (yet) collected — every order failing the same paid_orders_where()
-// test tab 2's footer uses, minus Cancelled/Void (never owed, never "not paid
-// yet"). This used to hand-roll payment_method='paylater' AND is_open=1,
-// which silently missed a Refunded or PendingPayment cash/bakong order and
-// made this card disagree with tab 2's footer on the same day.
-$stmt = $conn->prepare("
-    SELECT COALESCE(SUM(total),0), COUNT(*)
-    FROM orders
-    WHERE $dateExpr AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
-");
-$stmt->execute();
-[$notPaidYet, $notPaidCount] = $stmt->get_result()->fetch_row();
-$notPaidYet   = (float)$notPaidYet;
-$notPaidCount = (int)$notPaidCount;
+// Money not (yet) collected
+$notPaidYet   = 0.0;
+$notPaidCount = 0;
 
 // Two different zero days, and calling both "no sales" is a lie on the second.
 // A day whose every order is still on a tab HAS sold drinks — it just has not
@@ -334,7 +302,7 @@ if ($view === 'monthly') {
     $daysInMonth = (int)date('t', strtotime($date));
     $periodLabels = range(1, $daysInMonth);
     $periodData = array_fill(0, $daysInMonth, 0.0);
-    $stmt = $conn->prepare("SELECT business_date d, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY business_date ORDER BY d");
+    $stmt = $conn->prepare("SELECT DATE(order_date) d, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY d ORDER BY d");
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) {
@@ -350,7 +318,7 @@ if ($view === 'monthly') {
 } elseif ($view === 'yearly') {
     // Monthly revenue bars for the year
     $periodData = []; $periodLabels = [];
-    $stmt = $conn->prepare("SELECT DATE_FORMAT(business_date,'%Y-%m') ym, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY ym ORDER BY ym");
+    $stmt = $conn->prepare("SELECT DATE_FORMAT(order_date,'%Y-%m') ym, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY ym ORDER BY ym");
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) { $periodData[] = (float)$r['rev']; $periodLabels[] = date('M', strtotime($r['ym'] . '-01')); }
@@ -363,7 +331,7 @@ if ($view === 'monthly') {
 } elseif ($view === 'range') {
     // Daily revenue bars for the custom range
     $periodData = []; $periodLabels = [];
-    $stmt = $conn->prepare("SELECT business_date d, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY business_date ORDER BY d");
+    $stmt = $conn->prepare("SELECT DATE(order_date) d, COALESCE(SUM(total),0) rev FROM orders WHERE $dateExpr AND " . paid_orders_where() . " GROUP BY d ORDER BY d");
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) { $periodData[] = (float)$r['rev']; $periodLabels[] = $r['d']; }
@@ -478,377 +446,286 @@ $totalAddonRev = array_sum(array_column($addonSales, 'revenue'));
  * are independent — a paylater row keeps bucket=paylater whether or not it
  * is state=open.
  */
-function dr_pay_label(array $o): array {
-    $m = strtolower((string)$o['payment_method']);
-    $bucket = in_array($m, ['cash', 'bakong', 'paylater'], true) ? $m : 'other';
+if (!function_exists('dr_pay_label')) {
+    function dr_pay_label(array $o): array {
+        $m = strtolower((string)$o['payment_method']);
+        $bucket = in_array($m, ['cash', 'bakong', 'paylater'], true) ? $m : 'other';
 
-    // Checked before the collected test: money that WAS collected and then
-    // given back is not money that was never paid. Its own neutral state
-    // (not 'open') keeps it out of the amber "needs attention" styling too.
-    if ($o['status'] === 'Refunded') {
-        return ['money given back', 'refunded', $bucket];
+        if ($o['status'] === 'Refunded') {
+            return ['money given back', 'refunded', $bucket];
+        }
+
+        $collected = ((int)$o['is_open'] === 0)
+            && !in_array($o['status'], ['PendingPayment', 'Cancelled', 'Refunded', 'Void'], true);
+        if (!$collected) {
+            return ['not paid yet', 'open', $bucket];
+        }
+
+        $label = match ($bucket) {
+            'paylater' => 'pay later — paid',
+            'other'    => 'other way',
+            default    => $bucket, // cash, bakong
+        };
+        return [$label, 'ok', $bucket];
     }
-
-    $collected = ((int)$o['is_open'] === 0)
-        && !in_array($o['status'], ['PendingPayment', 'Cancelled', 'Refunded', 'Void'], true);
-    if (!$collected) {
-        return ['not paid yet', 'open', $bucket];
-    }
-
-    $label = match ($bucket) {
-        'paylater' => 'pay later — paid',
-        'other'    => 'other way',
-        default    => $bucket, // cash, bakong
-    };
-    return [$label, 'ok', $bucket];
 }
 
-/**
- * Build the date expression inside a fragment from the current request.
- * Fragments receive their own $_GET params (date, date_from, date_to, view).
- */
-function dr_date_expr(): string {
-    $d  = $_GET['date'] ?? '';
-    $df = $_GET['from_date'] ?? $_GET['date_from'] ?? '';
-    $dt = $_GET['to_date']   ?? $_GET['date_to']   ?? '';
-    $v  = $_GET['view'] ?? 'daily';
-    $u  = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
-    $uCond = $u > 0 ? " AND user_id = $u" : "";
-    if ($df !== '' && $dt !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $df) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) {
-        return "business_date BETWEEN '$df' AND '$dt'" . $uCond;
-    }
-    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
-        if ($v === 'monthly') {
-            $ms = date('Y-m-01', strtotime($d));
-            $me = date('Y-m-t',  strtotime($d));
-            return "business_date BETWEEN '$ms' AND '$me'" . $uCond;
+if (!function_exists('dr_date_expr')) {
+    function dr_date_expr(): string {
+        $d  = $_GET['date'] ?? '';
+        $df = $_GET['from_date'] ?? $_GET['date_from'] ?? '';
+        $dt = $_GET['to_date']   ?? $_GET['date_to']   ?? '';
+        $v  = $_GET['view'] ?? 'daily';
+        $u  = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+        $uCond = $u > 0 ? " AND user_id = $u" : "";
+        if ($df !== '' && $dt !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $df) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) {
+            return "DATE(order_date) BETWEEN '$df' AND '$dt'" . $uCond;
         }
-        if ($v === 'yearly') {
-            $ys = date('Y-01-01', strtotime($d));
-            $ye = date('Y-12-31', strtotime($d));
-            return "business_date BETWEEN '$ys' AND '$ye'" . $uCond;
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            if ($v === 'monthly') {
+                $ms = date('Y-m-01', strtotime($d));
+                $me = date('Y-m-t',  strtotime($d));
+                return "DATE(order_date) BETWEEN '$ms' AND '$me'" . $uCond;
+            }
+            if ($v === 'yearly') {
+                $ys = date('Y-01-01', strtotime($d));
+                $ye = date('Y-12-31', strtotime($d));
+                return "DATE(order_date) BETWEEN '$ys' AND '$ye'" . $uCond;
+            }
+            return "DATE(order_date) = '$d'" . $uCond;
         }
-        return "business_date = '$d'" . $uCond;
+        return "DATE(order_date) = '1970-01-01'"; // fallback: no rows
     }
-    return "business_date = '1970-01-01'"; // fallback: no rows
 }
 
-// ── Tab 2: Orders (Task 6) — the day's orders and how each was paid ──
-function dr_fragment_orders(mysqli $conn, string $date): void {
-    $dex = dr_date_expr();
-    $stmt = $conn->prepare("
-        SELECT order_id, daily_order_no, customer_name, total, payment_method, status, is_open,
-               order_date
-        FROM orders
-        WHERE $dex AND status NOT IN ('Cancelled','Void')
-        ORDER BY order_date ASC
-    ");
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+if (!function_exists('dr_fragment_orders')) {
+    function dr_fragment_orders(mysqli $conn, string $date): void {
+        $dex = dr_date_expr();
+        $stmt = $conn->prepare("
+            SELECT order_id, order_id AS daily_order_no, 'Guest' AS customer_name, total, payment_method, 'Completed' AS status, 0 AS is_open,
+                   order_date
+            FROM orders
+            WHERE $dex
+            ORDER BY order_date ASC
+        ");
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-    // Neutral counts, never a red card — see banned-vocabulary note.
-    // Use the raw expression with o. prefix for the refund/remake joins
-    $stmt = $conn->query("SELECT COUNT(*) FROM order_refunds r JOIN orders o ON o.order_id = r.order_id WHERE " . str_replace('business_date', 'o.business_date', $dex));
-    $givenBackCount = (int)$stmt->fetch_row()[0];
+        $givenBackCount = 0;
+        $remadeCount = 0;
 
-    $stmt = $conn->query("SELECT COUNT(*) FROM order_remakes r JOIN orders o ON o.order_id = r.order_id WHERE " . str_replace('business_date', 'o.business_date', $dex));
-    $remadeCount = (int)$stmt->fetch_row()[0];
+        $cupsByOrder = [];
+        $stmt = $conn->prepare("
+            SELECT oi.order_id, COALESCE(SUM(oi.quantity),0) AS cups
+            FROM order_items oi
+            JOIN orders o ON o.order_id = oi.order_id
+            WHERE " . str_replace('DATE(order_date)', 'DATE(o.order_date)', $dex) . " AND oi.product_id <> 0 AND " . paid_orders_where('o') . "
+            GROUP BY oi.order_id
+        ");
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($r = $res->fetch_assoc()) { $cupsByOrder[(int)$r['order_id']] = (int)$r['cups']; }
+        $cupsToday = array_sum($cupsByOrder);
 
-    // Cups per order, for the per-row data attribute the footer's JS sums
-    // over the currently-filtered rows.
-    //
-    // product_id <> 0 drops loyalty redemptions, matching cogs_cups() on tab 1.
-    // This footer and that card have disagreed before — 70 against 92 — and the
-    // two count cups by different routes, so the same rule has to be written
-    // into both. Do not change one without the other.
-    $cupsByOrder = [];
-    $stmt = $conn->prepare("
-        SELECT oi.order_id, COALESCE(SUM(oi.quantity),0) AS cups
-        FROM order_items oi
-        JOIN orders o ON o.order_id = oi.order_id
-        WHERE " . str_replace('business_date', 'o.business_date', $dex) . " AND oi.product_id <> 0 AND " . paid_orders_where('o') . "
-        GROUP BY oi.order_id
-    ");
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($r = $res->fetch_assoc()) { $cupsByOrder[(int)$r['order_id']] = (int)$r['cups']; }
-    $cupsToday = array_sum($cupsByOrder);
+        $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE $dex AND " . paid_orders_where());
+        $stmt->execute();
+        [$collectedTotal, $collectedCount] = $stmt->get_result()->fetch_row();
+        $collectedTotal = (float)$collectedTotal;
 
-    // Money collected vs. still owed — the same collected test tab 1 uses
-    // (paid_orders_where()), never a hand-rolled status check. This is the
-    // figure that belongs in a "total" slot; folding in open pay-later tabs
-    // here is exactly the confusion that has cost this codebase three money
-    // bugs already.
-    $stmt = $conn->prepare("SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders WHERE $dex AND " . paid_orders_where());
-    $stmt->execute();
-    [$collectedTotal, $collectedCount] = $stmt->get_result()->fetch_row();
-    $collectedTotal = (float)$collectedTotal;
+        $notPaidTotal = 0.0;
+        $notPaidCount = 0;
 
-    $stmt = $conn->prepare("
-        SELECT COALESCE(SUM(total),0), COUNT(*)
-        FROM orders
-        WHERE $dex AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
-    ");
-    $stmt->execute();
-    [$notPaidTotal, $notPaidCount] = $stmt->get_result()->fetch_row();
-    $notPaidTotal = (float)$notPaidTotal;
+        $rowData = [];
+        $hasOther = false;
+        foreach ($rows as $o) {
+            [$label, $state, $bucket] = dr_pay_label($o);
+            if ($bucket === 'other') { $hasOther = true; }
+            $rowData[] = [
+                'label'  => $label,
+                'state'  => $state,
+                'bucket' => $bucket,
+                'time'   => date('H:i', strtotime($o['order_date'])),
+                'no'     => '#' . str_pad((string)(int)$o['daily_order_no'], 4, '0', STR_PAD_LEFT),
+                'cust'   => (($name = trim((string)$o['customer_name'])) === '' || $name === 'Guest') ? '—' : $name,
+                'total'  => (float)$o['total'],
+                'cups'   => $cupsByOrder[(int)$o['order_id']] ?? 0,
+            ];
+        }
+        ?>
+        <div class="dr-card dr-wide" style="margin-top:0">
+          <p class="dr-note" style="margin-bottom:14px">money given back: <?= (int)$givenBackCount ?> &middot; drinks made again: <?= (int)$remadeCount ?></p>
 
-    // Pre-derive each row's label/state/bucket once — the table and the
-    // "Other" pill's visibility both need it, and deriving it twice is
-    // exactly the desync risk the bucket used to have.
-    $rowData = [];
-    $hasOther = false;
-    foreach ($rows as $o) {
-        [$label, $state, $bucket] = dr_pay_label($o);
-        if ($bucket === 'other') { $hasOther = true; }
-        $rowData[] = [
-            'label'  => $label,
-            'state'  => $state,
-            'bucket' => $bucket,
-            'time'   => date('H:i', strtotime($o['order_date'])),
-            'no'     => '#' . str_pad((string)(int)$o['daily_order_no'], 4, '0', STR_PAD_LEFT),
-            'cust'   => (($name = trim((string)$o['customer_name'])) === '' || $name === 'Guest') ? '—' : $name,
-            'total'  => (float)$o['total'],
-            'cups'   => $cupsByOrder[(int)$o['order_id']] ?? 0,
-        ];
-    }
-    ?>
-    <div class="dr-card dr-wide" style="margin-top:0">
-      <p class="dr-note" style="margin-bottom:14px">money given back: <?= (int)$givenBackCount ?> &middot; drinks made again: <?= (int)$remadeCount ?></p>
-
-      <div class="dr-pills" role="group" aria-label="Filter by how the order was paid">
-        <button type="button" class="dr-pill is-on" data-filter="all">All</button>
-        <button type="button" class="dr-pill" data-filter="cash">Cash</button>
-        <button type="button" class="dr-pill" data-filter="bakong">Bakong</button>
-        <button type="button" class="dr-pill" data-filter="paylater">Pay later</button>
-        <?php if ($hasOther): ?>
-        <button type="button" class="dr-pill" data-filter="other">Other</button>
-        <?php endif; ?>
-      </div>
-
-      <div class="dr-table-wrap orders-scroll">
-        <table class="dr-table" id="ordersTable">
-          <thead>
-            <tr><th>No.</th><th>Time</th><th>Order</th><th>Customer</th><th>Method</th><th>Total</th><th>Paid</th></tr>
-          </thead>
-          <tbody>
-            <?php if (!$rowData): ?>
-            <tr><td colspan="7" class="dr-note" style="padding:20px 0;text-align:center">no orders this day</td></tr>
+          <div class="dr-pills" role="group" aria-label="Filter by how the order was paid">
+            <button type="button" class="dr-pill is-on" data-filter="all">All</button>
+            <button type="button" class="dr-pill" data-filter="cash">Cash</button>
+            <button type="button" class="dr-pill" data-filter="bakong">Bakong</button>
+            <button type="button" class="dr-pill" data-filter="paylater">Pay later</button>
+            <?php if ($hasOther): ?>
+            <button type="button" class="dr-pill" data-filter="other">Other</button>
             <?php endif; ?>
-            <?php $i = 0; ?>
-            <?php foreach ($rowData as $rd): $i++; ?>
-            <tr class="<?= $rd['state'] === 'open' ? 'is-open' : '' ?>"
-                data-method="<?= htmlspecialchars($rd['bucket']) ?>"
-                data-state="<?= htmlspecialchars($rd['state']) ?>"
-                data-total="<?= htmlspecialchars((string)$rd['total']) ?>"
-                data-cups="<?= (int)$rd['cups'] ?>">
-              <td class="dr-mono-dim"><?= $i ?></td>
-              <td class="dr-mono-dim"><?= htmlspecialchars($rd['time']) ?></td>
-              <td class="dr-mono"><?= htmlspecialchars($rd['no']) ?></td>
-              <td><?= htmlspecialchars($rd['cust']) ?></td>
-              <td><span class="dr-status is-<?= htmlspecialchars($rd['state']) ?>"><?= htmlspecialchars(ucfirst($rd['bucket'])) ?></span></td>
-              <td class="dr-mono">$<?= htmlspecialchars(number_format($rd['total'], 2)) ?></td>
-              <td><span class="dr-status is-<?= htmlspecialchars($rd['state']) ?>"><?= htmlspecialchars($rd['label']) ?></span></td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
+          </div>
 
-      <div class="dr-table-foot" id="ordersFoot">
-        <span><?= (int)count($rowData) ?> orders</span> &middot; <span><?= (int)$cupsToday ?> cups</span> &middot; <span>$<?= htmlspecialchars(number_format($collectedTotal, 2)) ?> collected</span><?php if ($notPaidCount > 0): ?> &middot; <span>$<?= htmlspecialchars(number_format($notPaidTotal, 2)) ?> not paid yet</span><?php endif; ?>
-      </div>
+          <div class="dr-table-wrap orders-scroll">
+            <table class="dr-table" id="ordersTable">
+              <thead>
+                <tr><th>No.</th><th>Time</th><th>Order</th><th>Customer</th><th>Method</th><th>Total</th><th>Paid</th></tr>
+              </thead>
+              <tbody>
+                <?php if (!$rowData): ?>
+                <tr><td colspan="7" class="dr-note" style="padding:20px 0;text-align:center">no orders this day</td></tr>
+                <?php endif; ?>
+                <?php $i = 0; ?>
+                <?php foreach ($rowData as $rd): $i++; ?>
+                <tr class="<?= $rd['state'] === 'open' ? 'is-open' : '' ?>"
+                    data-method="<?= htmlspecialchars($rd['bucket']) ?>"
+                    data-state="<?= htmlspecialchars($rd['state']) ?>"
+                    data-total="<?= htmlspecialchars((string)$rd['total']) ?>"
+                    data-cups="<?= (int)$rd['cups'] ?>">
+                  <td class="dr-mono-dim"><?= $i ?></td>
+                  <td class="dr-mono-dim"><?= htmlspecialchars($rd['time']) ?></td>
+                  <td class="dr-mono"><?= htmlspecialchars($rd['no']) ?></td>
+                  <td><?= htmlspecialchars($rd['cust']) ?></td>
+                  <td><span class="dr-status is-<?= htmlspecialchars($rd['state']) ?>"><?= htmlspecialchars(ucfirst($rd['bucket'])) ?></span></td>
+                  <td class="dr-mono">$<?= htmlspecialchars(number_format($rd['total'], 2)) ?></td>
+                  <td><span class="dr-status is-<?= htmlspecialchars($rd['state']) ?>"><?= htmlspecialchars($rd['label']) ?></span></td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
 
-    </div>
-    <?php
-}
+          <div class="dr-table-foot" id="ordersFoot">
+            <span><?= (int)count($rowData) ?> orders</span> &middot; <span><?= (int)$cupsToday ?> cups</span> &middot; <span>$<?= htmlspecialchars(number_format($collectedTotal, 2)) ?> collected</span><?php if ($notPaidCount > 0): ?> &middot; <span>$<?= htmlspecialchars(number_format($notPaidTotal, 2)) ?> not paid yet</span><?php endif; ?>
+          </div>
 
-// ── Tab 3: Stock (Task 7) — levels, what today used, what needs buying ──
-/**
- * Quantity formatting shared by the stock table: whole numbers print plain,
- * fractional ones (ingredient_history.amount is DECIMAL(10,4), so "used
- * today" can be fractional even though stock_quantity/minimum_stock are
- * always ints) get two decimal places.
- */
-function dr_qty(float $n): string {
-    return (abs($n - round($n)) < 0.005) ? number_format($n, 0) : number_format($n, 2);
-}
-
-function dr_fragment_stock(mysqli $conn, string $date): void {
-    // Same 06:00-to-06:00 business-day window as tab 1's usedValue query —
-    // ingredient_history has no business_date column, and joining through
-    // orders would silently drop the order_deduct rows with a NULL order_id.
-    $stmt = $conn->prepare("
-        SELECT i.ingredient_id, i.ingredient_name, i.unit, i.stock_quantity,
-               i.minimum_stock, i.cost_per_unit,
-               COALESCE(u.used, 0) AS used_today
-        FROM ingredients i
-        LEFT JOIN (
-            SELECT ingredient_id, SUM(ABS(amount)) AS used
-            FROM ingredient_history
-            WHERE change_type = 'order_deduct'
-              AND created_at >= CONCAT(?, ' 06:00:00')
-              AND created_at <  CONCAT(DATE_ADD(?, INTERVAL 1 DAY), ' 06:00:00')
-            GROUP BY ingredient_id
-        ) u ON u.ingredient_id = i.ingredient_id
-        ORDER BY (i.stock_quantity - i.minimum_stock) ASC, i.ingredient_name ASC
-    ");
-    $stmt->bind_param("ss", $date, $date);
-    $stmt->execute();
-    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-    $trackedCount = count($rows);
-    $buyCount = 0;
-    $outCount = 0;
-    $rowData  = [];
-    foreach ($rows as $r) {
-        $stock = (int)$r['stock_quantity'];
-        $min   = (int)$r['minimum_stock'];
-        $used  = (float)$r['used_today'];
-        $cost  = (float)$r['cost_per_unit'];
-
-        // Three logical states, but only two the manager needs to act on:
-        // "buy now" is the only one that ever gets amber — it is also the
-        // exact test tab 1's $lowItems uses, so the badge and this table
-        // never disagree. "low" is shown as a heads-up label only, styled
-        // the same neutral way as "OK" — nothing red or green on this tab.
-        if ($stock <= $min) {
-            $bucket = 'buy';   $statusLabel = 'buy now';
-            $buyCount++;
-        } elseif ($min > 0 && $stock <= $min * 1.25) {
-            $bucket = 'ok';    $statusLabel = 'getting low';
-        } else {
-            $bucket = 'ok';    $statusLabel = 'have enough';
-        }
-        if ($stock <= 0) { $outCount++; }
-
-        $barBase = max(1, $min * 2);
-        $barPct  = min(100, ($stock / $barBase) * 100);
-
-        $rowData[] = [
-            'name'    => (string)$r['ingredient_name'],
-            'unit'    => (string)$r['unit'],
-            'stock'   => $stock,
-            'min'     => $min,
-            'used'    => $used,
-            'cost'    => $cost,
-            'bucket'  => $bucket,
-            'label'   => $statusLabel,
-            'needBuy' => $bucket === 'buy',
-            'barPct'  => $barPct,
-        ];
-    }
-    ?>
-    <div class="dr-card dr-wide" style="margin-top:0">
-      <div class="dr-facts-inline" style="margin-top:0">
-        <div class="dr-fact"><div class="dr-v-sm"><?= (int)$trackedCount ?></div><div class="dr-note">items we track</div></div>
-        <div class="dr-fact"><div class="dr-v-sm"><?= (int)$buyCount ?></div><div class="dr-note">items to buy</div></div>
-        <div class="dr-fact"><div class="dr-v-sm"><?= (int)$outCount ?></div><div class="dr-note">items already out</div></div>
-      </div>
-
-      <div class="dr-toolbar">
-        <div class="dr-pills" role="group" aria-label="Filter by whether we need to buy more">
-          <button type="button" class="dr-pill is-on" data-filter="all">All</button>
-          <button type="button" class="dr-pill" data-filter="buy">Need buying</button>
-          <button type="button" class="dr-pill" data-filter="ok">OK</button>
         </div>
-        <input type="text" class="dr-search" id="stockSearch" placeholder="Search ingredient…" aria-label="Search ingredients">
-      </div>
-
-      <div class="dr-table-wrap stock-scroll">
-        <table class="dr-table" id="stockTable">
-          <thead>
-            <tr><th>No.</th><th>Item</th><th>We have</th><th>Buy more below</th><th>Used today</th><th>What it costs us (per unit)</th><th>Level</th></tr>
-          </thead>
-          <tbody>
-            <?php if (!$rowData): ?>
-            <tr><td colspan="7" class="dr-note" style="padding:20px 0;text-align:center">no ingredients tracked</td></tr>
-            <?php endif; ?>
-            <?php $i = 0; ?>
-            <?php foreach ($rowData as $rd): $i++; ?>
-            <tr class="<?= $rd['needBuy'] ? 'needs-buy' : '' ?>"
-                data-bucket="<?= htmlspecialchars($rd['bucket']) ?>"
-                data-name="<?= htmlspecialchars(mb_strtolower($rd['name'])) ?>">
-              <td class="dr-mono-dim"><?= $i ?></td>
-              <td><?= htmlspecialchars($rd['name']) ?></td>
-              <td class="dr-mono"><?= htmlspecialchars(dr_qty($rd['stock'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
-              <td class="dr-mono-dim"><?= htmlspecialchars(dr_qty($rd['min'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
-              <td class="dr-mono-dim"><?= htmlspecialchars(dr_qty($rd['used'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
-              <td class="dr-mono-dim">$<?= htmlspecialchars(number_format($rd['cost'], 4)) ?> / <?= htmlspecialchars($rd['unit']) ?></td>
-              <td>
-                <div class="dr-stock-bar"><span class="dr-stock-fill <?= $rd['needBuy'] ? 'tone-attn' : 'tone-normal' ?>" style="width:<?= round($rd['barPct'], 2) ?>%"></span></div>
-                <div style="margin-top:5px"><span class="dr-status <?= $rd['needBuy'] ? 'is-open' : 'is-neutral' ?>"><?= htmlspecialchars($rd['label']) ?></span></div>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-      <div class="dr-table-foot" id="stockFoot"></div>
-    </div>
-    <?php
+        <?php
+    }
 }
 
-// ── Tab 4: Staff (Task 8) — who worked today and what they served ──
-//
-// LANDMINE: orders.employee_id is a FK to employees.employee_id, which is NOT
-// users.user_id and the two never coincide. attendance keys on user_id. The
-// only correct chain is attendance.user_id -> employees.user_id ->
-// employees.employee_id -> orders.employee_id. Joining orders to attendance
-// any more directly attributes work to the wrong person (or nobody) and has
-// produced silently wrong staff figures in this codebase before.
-// employees.user_id carries a UNIQUE key, so this chain cannot fan out one
-// attendance row into more than one employee.
-
-/**
- * "two shifts" / "three shifts" — spelled out for the common small counts a
- * split-shift day actually produces, numeric fallback beyond that.
- */
-function dr_shift_note(int $n): string {
-    static $words = [2 => 'two', 3 => 'three', 4 => 'four', 5 => 'five'];
-    return ($words[$n] ?? (string)$n) . ' shifts';
+if (!function_exists('dr_qty')) {
+    function dr_qty(float $n): string {
+        return (abs($n - round($n)) < 0.005) ? number_format($n, 0) : number_format($n, 2);
+    }
 }
 
-function dr_fragment_staff(mysqli $conn, string $date): void {
-    // Order/money aggregates are computed per employee_id in their own
-    // subquery, then joined in once. Aggregating orders directly against a
-    // one-row-per-shift attendance join would fan out: a person with two
-    // attendance rows that day would multiply their order rows by two before
-    // GROUP BY ever runs, doubling both the order count and the money.
-    $stmt = $conn->prepare("
-        SELECT e.employee_id, MAX(e.name) AS full_name,
-               MIN(a.clock_in)                                    AS clock_in,
-               MAX(a.clock_out)                                   AS clock_out,
-               SUM(a.hours_worked)                                AS hours_worked,
-               COUNT(a.id)                                        AS shift_count,
-               SUM(a.clock_out IS NULL)                           AS open_shifts,
-               COALESCE(MAX(oe.orders_served), 0)
-                 + COALESCE(MAX(ou.orders_served), 0)            AS orders_served,
-               COALESCE(MAX(oe.money_taken), 0)
-                 + COALESCE(MAX(ou.money_taken), 0)              AS money_taken
-        FROM employees e
-        LEFT JOIN attendance a ON a.user_id = e.user_id AND a.date = ?
-        LEFT JOIN (
-            SELECT employee_id,
-                   COUNT(order_id)          AS orders_served,
-                   COALESCE(SUM(total), 0)  AS money_taken
-            FROM orders
-            WHERE business_date = ? AND " . paid_orders_where() . " AND employee_id IS NOT NULL
-            GROUP BY employee_id
-        ) oe ON oe.employee_id = e.employee_id
-        LEFT JOIN (
-            SELECT user_id,
-                   COUNT(order_id)          AS orders_served,
-                   COALESCE(SUM(total), 0)  AS money_taken
-            FROM orders
-            WHERE business_date = ? AND " . paid_orders_where() . " AND employee_id IS NULL AND user_id IS NOT NULL
-            GROUP BY user_id
-        ) ou ON ou.user_id = e.user_id
-        WHERE oe.employee_id IS NOT NULL OR ou.user_id IS NOT NULL OR a.id IS NOT NULL
-        GROUP BY e.employee_id, e.name
-        ORDER BY MIN(a.clock_in) ASC
-    ");
-    $stmt->bind_param("sss", $date, $date, $date);
+if (!function_exists('dr_fragment_stock')) {
+    function dr_fragment_stock(mysqli $conn, string $date): void {
+        $rows = [];
+
+        $trackedCount = count($rows);
+        $buyCount = 0;
+        $outCount = 0;
+        $rowData  = [];
+        foreach ($rows as $r) {
+            $stock = (int)$r['stock_quantity'];
+            $min   = (int)$r['minimum_stock'];
+            $used  = (float)$r['used_today'];
+            $cost  = (float)$r['cost_per_unit'];
+
+            if ($stock <= $min) {
+                $bucket = 'buy';   $statusLabel = 'buy now';
+                $buyCount++;
+            } elseif ($min > 0 && $stock <= $min * 1.25) {
+                $bucket = 'ok';    $statusLabel = 'getting low';
+            } else {
+                $bucket = 'ok';    $statusLabel = 'have enough';
+            }
+            if ($stock <= 0) { $outCount++; }
+
+            $barBase = max(1, $min * 2);
+            $barPct  = min(100, ($stock / $barBase) * 100);
+
+            $rowData[] = [
+                'name'    => (string)$r['ingredient_name'],
+                'unit'    => (string)$r['unit'],
+                'stock'   => $stock,
+                'min'     => $min,
+                'used'    => $used,
+                'cost'    => $cost,
+                'bucket'  => $bucket,
+                'label'   => $statusLabel,
+                'needBuy' => $bucket === 'buy',
+                'barPct'  => $barPct,
+            ];
+        }
+        ?>
+        <div class="dr-card dr-wide" style="margin-top:0">
+          <div class="dr-facts-inline" style="margin-top:0">
+            <div class="dr-fact"><div class="dr-v-sm"><?= (int)$trackedCount ?></div><div class="dr-note">items we track</div></div>
+            <div class="dr-fact"><div class="dr-v-sm"><?= (int)$buyCount ?></div><div class="dr-note">items to buy</div></div>
+            <div class="dr-fact"><div class="dr-v-sm"><?= (int)$outCount ?></div><div class="dr-note">items already out</div></div>
+          </div>
+
+          <div class="dr-toolbar">
+            <div class="dr-pills" role="group" aria-label="Filter by whether we need to buy more">
+              <button type="button" class="dr-pill is-on" data-filter="all">All</button>
+              <button type="button" class="dr-pill" data-filter="buy">Need buying</button>
+              <button type="button" class="dr-pill" data-filter="ok">OK</button>
+            </div>
+            <input type="text" class="dr-search" id="stockSearch" placeholder="Search ingredient…" aria-label="Search ingredients">
+          </div>
+
+          <div class="dr-table-wrap stock-scroll">
+            <table class="dr-table" id="stockTable">
+              <thead>
+                <tr><th>No.</th><th>Item</th><th>We have</th><th>Buy more below</th><th>Used today</th><th>What it costs us (per unit)</th><th>Level</th></tr>
+              </thead>
+              <tbody>
+                <?php if (!$rowData): ?>
+                <tr><td colspan="7" class="dr-note" style="padding:20px 0;text-align:center">no ingredients tracked</td></tr>
+                <?php endif; ?>
+                <?php $i = 0; ?>
+                <?php foreach ($rowData as $rd): $i++; ?>
+                <tr class="<?= $rd['needBuy'] ? 'needs-buy' : '' ?>"
+                    data-bucket="<?= htmlspecialchars($rd['bucket']) ?>"
+                    data-name="<?= htmlspecialchars(mb_strtolower($rd['name'])) ?>">
+                  <td class="dr-mono-dim"><?= $i ?></td>
+                  <td><?= htmlspecialchars($rd['name']) ?></td>
+                  <td class="dr-mono"><?= htmlspecialchars(dr_qty($rd['stock'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
+                  <td class="dr-mono-dim"><?= htmlspecialchars(dr_qty($rd['min'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
+                  <td class="dr-mono-dim"><?= htmlspecialchars(dr_qty($rd['used'])) ?> <?= htmlspecialchars($rd['unit']) ?></td>
+                  <td class="dr-mono-dim">$<?= htmlspecialchars(number_format($rd['cost'], 4)) ?> / <?= htmlspecialchars($rd['unit']) ?></td>
+                  <td>
+                    <div class="dr-stock-bar"><span class="dr-stock-fill <?= $rd['needBuy'] ? 'tone-attn' : 'tone-normal' ?>" style="width:<?= round($rd['barPct'], 2) ?>%"></span></div>
+                    <div style="margin-top:5px"><span class="dr-status <?= $rd['needBuy'] ? 'is-open' : 'is-neutral' ?>"><?= htmlspecialchars($rd['label']) ?></span></div>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+          <div class="dr-table-foot" id="stockFoot"></div>
+        </div>
+        <?php
+    }
+}
+
+if (!function_exists('dr_shift_note')) {
+    function dr_shift_note(int $n): string {
+        static $words = [2 => 'two', 3 => 'three', 4 => 'four', 5 => 'five'];
+        return ($words[$n] ?? (string)$n) . ' shifts';
+    }
+}
+
+if (!function_exists('dr_fragment_staff')) {
+    function dr_fragment_staff(mysqli $conn, string $date): void {
+        $stmt = $conn->prepare("
+            SELECT u.user_id AS employee_id, u.username AS full_name,
+                   MIN(a.clock_in)                                    AS clock_in,
+                   MAX(a.clock_out)                                   AS clock_out,
+                   SUM(a.hours_worked)                                AS hours_worked,
+                   COUNT(a.id)                                        AS shift_count,
+                   SUM(a.clock_out IS NULL)                           AS open_shifts,
+                   0                                                  AS orders_served,
+                   0.0                                                AS money_taken
+            FROM users u
+            LEFT JOIN attendance a ON a.user_id = u.user_id AND a.date = ?
+            WHERE a.id IS NOT NULL
+            GROUP BY u.user_id, u.username
+            ORDER BY MIN(a.clock_in) ASC
+        ");
+    $stmt->bind_param("s", $date);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -870,7 +747,7 @@ function dr_fragment_staff(mysqli $conn, string $date): void {
     // attendance at all — never show up in $moneyTotal above, so without this
     // line the table would silently show a column of dashes next to a tab 1
     // total that says money came in, and read as broken rather than honest.
-    $stmt = $conn->prepare("SELECT COALESCE(SUM(total), 0) FROM orders WHERE business_date = ? AND " . paid_orders_where());
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(total), 0) FROM orders WHERE DATE(order_date) = ? AND " . paid_orders_where());
     $stmt->bind_param("s", $date);
     $stmt->execute();
     $collectedTotal = (float)$stmt->get_result()->fetch_row()[0];
@@ -939,6 +816,7 @@ function dr_fragment_staff(mysqli $conn, string $date): void {
       <?php endif; ?>
     </div>
     <?php
+}
 }
 
 // Tabs 2-4 ask for their own HTML. Each branch echoes a fragment and exits.
@@ -1400,24 +1278,21 @@ if (!$_is_mgr) {
     $filter_user = (int)$_SESSION['user_id'];
 }
 
-$where_conds = ["o.business_date BETWEEN '$filter_from' AND '$filter_to'"];
-if ($filter_status !== '') {
-    $where_conds[] = "o.status = '" . $conn->real_escape_string($filter_status) . "'";
-}
+$where_conds = ["DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'"];
 if ($filter_payment !== '') {
     $where_conds[] = "o.payment_method = '" . $conn->real_escape_string($filter_payment) . "'";
 }
-if ($filter_user > 0) {
-    $where_conds[] = "(o.user_id = $filter_user OR o.employee_id = $filter_user)";
-}
 $where_str = implode(' AND ', $where_conds);
 
-$sql_table_orders = "SELECT o.order_id, o.daily_order_no, o.order_date, o.customer_name, o.table_number, o.order_type, o.total, o.payment_method, o.status,
-                            IFNULL(o.promotion_discount, 0) + IFNULL(o.manual_discount, 0) AS discount_amount,
-                            COALESCE(e.name, u.username) as staff_name 
+$sql_table_orders = "SELECT o.order_id, o.order_id AS daily_order_no, o.order_date, 'Guest' AS customer_name, '' AS table_number, 'drink_in' AS order_type, o.total, o.payment_method, COALESCE(op.payment_status, 'paid') AS payment_status,
+                            0 AS discount_amount,
+                            '' as staff_name 
                      FROM orders o 
-                     LEFT JOIN users u ON u.user_id = o.user_id 
-                     LEFT JOIN employees e ON e.user_id = o.user_id OR e.employee_id = o.user_id
+                     LEFT JOIN (
+                         SELECT order_id, payment_method, payment_status 
+                         FROM order_payments 
+                         GROUP BY order_id
+                     ) op ON op.order_id = o.order_id
                      WHERE $where_str 
                      ORDER BY o.order_id DESC";
 $res_table_orders = $conn->query($sql_table_orders);
@@ -1445,24 +1320,6 @@ if ($table_orders) {
     }
     
     $recipes_map = [];
-    if ($pids_map) {
-        $pin_str = implode(',', array_keys($pids_map));
-        $qr_rec = $conn->query("
-            SELECT pi.product_id, pi.ingredient_id, pi.amount_used, i.ingredient_name
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id IN ($pin_str)
-        ");
-        if ($qr_rec) {
-            while ($r = $qr_rec->fetch_assoc()) {
-                $recipes_map[(int)$r['product_id']][] = [
-                    'ingredient_id'   => (int)$r['ingredient_id'],
-                    'ingredient_name' => $r['ingredient_name'],
-                    'amount_used'     => (float)$r['amount_used'],
-                ];
-            }
-        }
-    }
 
     foreach ($items_by_order as $oid => $its) {
         $ocost = 0.0;
@@ -1528,17 +1385,37 @@ foreach ($table_orders as $to) {
     $fmt_cogs   = ($ocogs == floor($ocogs) ? number_format($ocogs, 0) : number_format($ocogs, 2)) . '$';
     $fmt_profit = ($profit == floor($profit) ? number_format($profit, 0) : number_format($profit, 2)) . '$';
 
+    $pm_raw = strtolower(trim((string)($to['payment_method'] ?? 'cash')));
+    if ($pm_raw === 'bakong' || $pm_raw === 'khqr') {
+        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(225,29,72,0.12);color:#f43f5e;border:1px solid rgba(225,29,72,0.3);white-space:nowrap;"><i class="fa-solid fa-qrcode"></i> Bakong</span>';
+        $pm_text = 'Bakong';
+    } elseif ($pm_raw === 'cash') {
+        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.3);white-space:nowrap;"><i class="fa-solid fa-money-bill-wave"></i> Cash</span>';
+        $pm_text = 'Cash';
+    } elseif ($pm_raw === 'split') {
+        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(59,130,246,0.12);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);white-space:nowrap;"><i class="fa-solid fa-layer-group"></i> Split</span>';
+        $pm_text = 'Split';
+    } elseif ($pm_raw === 'pay_later') {
+        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(234,179,8,0.12);color:#eab308;border:1px solid rgba(234,179,8,0.3);white-space:nowrap;"><i class="fa-regular fa-clock"></i> Pay Later</span>';
+        $pm_text = 'Pay Later';
+    } else {
+        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.3);white-space:nowrap;">' . htmlspecialchars(ucfirst($pm_raw ?: 'Paid')) . '</span>';
+        $pm_text = ucfirst($pm_raw ?: 'Paid');
+    }
+
     $processed_rows[] = [
-        'no'         => $orderNoStr,
-        'date'       => $date_str,
-        'customer'   => $cust,
-        'qty_item'   => $o_qty,
-        'price'      => $fmt_gross,
-        'discount'   => $fmt_disc,
-        'total'      => $fmt_net,
-        'profit'     => $fmt_profit,
-        'cogs'       => $fmt_cogs,
-        'place_by'   => $staff,
+        'no'             => $orderNoStr,
+        'date'           => $date_str,
+        'customer'       => $cust,
+        'qty_item'       => $o_qty,
+        'price'          => $fmt_gross,
+        'discount'       => $fmt_disc,
+        'total'          => $fmt_net,
+        'profit'         => $fmt_profit,
+        'cogs'           => $fmt_cogs,
+        'payment_badge'  => $pm_badge,
+        'payment_method' => $pm_text,
+        'place_by'       => $staff,
     ];
 }
 
@@ -1561,10 +1438,10 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
     $user_options = [];
     if ($_is_mgr) {
         $user_options[''] = 'All Staff';
-        $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
+        $q_users = $conn->query("SELECT u.user_id, u.username, u.role FROM users u ORDER BY u.username ASC");
         if ($q_users) {
             while ($ur = $q_users->fetch_assoc()) {
-                $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+                $displayName = $ur['username'];
                 $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
             }
         }
@@ -1610,6 +1487,7 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
     $lbl_total_items  = $isKm ? 'ទំនិញសរុប' : 'Total Items';
     $lbl_net_revenue  = $isKm ? 'ចំណូលសុទ្ធសរុប' : 'Total Net Revenue';
     $lbl_total_profit = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit';
+    $lbl_col_payment  = $isKm ? 'វិធីទូទាត់' : 'Payment Method';
     ?>
 
     <!-- Data Table -->
@@ -1623,7 +1501,7 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
                         <th><?= htmlspecialchars($lbl_col_cust) ?></th>
                         <th style="text-align:right"><?= htmlspecialchars($lbl_col_price) ?></th>
                         <th style="text-align:center"><?= htmlspecialchars($lbl_col_qty) ?></th>
-                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_total) ?></th>
+                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_payment) ?></th>
                         <th><?= htmlspecialchars($lbl_col_place) ?></th>
                     </tr>
                 </thead>
@@ -1638,9 +1516,9 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
                         <td style="text-align:center;font-weight:600;"><?= $r['no'] ?></td>
                         <td><?= $r['date'] ?></td>
                         <td><?= $r['customer'] ?></td>
-                        <td style="text-align:right;"><?= $r['price'] ?></td>
+                        <td style="text-align:right;font-weight:600;"><?= $r['price'] ?></td>
                         <td style="text-align:center;font-weight:600;"><?= $r['qty_item'] ?></td>
-                        <td style="text-align:right;font-weight:bold;color:#d1904b;"><?= $r['total'] ?></td>
+                        <td style="text-align:center;"><?= $r['payment_badge'] ?></td>
                         <td><?= $r['place_by'] ?></td>
                     </tr>
                     <?php endforeach; ?>
@@ -1654,7 +1532,7 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
                         <td style="text-align:center; padding: 0.85rem 1rem;">
                             <span style="display:inline-block; padding: 0.15rem 0.6rem; border-radius: 9999px; background: rgba(167, 139, 250, 0.18); color: #c084fc; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(167, 139, 250, 0.3);"><?= $sum_qty ?></span>
                         </td>
-                        <td style="text-align:right; color: #fbbf24; font-size: 1rem; font-weight: 800; text-shadow: 0 0 10px rgba(251,191,36,0.25);"><?= $fmt_sum_net ?></td>
+                        <td></td>
                         <td></td>
                     </tr>
                     <?php endif; ?>
@@ -1678,10 +1556,6 @@ $fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit
             <div class="er-summary-stat-item">
                 <span class="stat-label"><?= htmlspecialchars($lbl_total_items) ?></span>
                 <span class="stat-val text-blue-400"><?= $sum_qty ?></span>
-            </div>
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= htmlspecialchars($lbl_net_revenue) ?></span>
-                <span class="stat-val text-amber-400"><?= $fmt_sum_net ?></span>
             </div>
         </div>
     </div>

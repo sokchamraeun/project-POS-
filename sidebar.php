@@ -5,18 +5,7 @@ if (!function_exists('can')) {
 }
 $_cur_page = basename($_SERVER['PHP_SELF'] ?? '');
 $_is_admin = (($_SESSION['role'] ?? '') === 'admin');
-$_username = $_SESSION['emp_name'] ?? null;
-if (!$_username) {
-    $_uid = (int)($_SESSION['user_id'] ?? 0);
-    if ($_uid > 0 && isset($conn)) {
-        $_sq = $conn->query("SELECT name FROM employees WHERE user_id = {$_uid} OR employee_id = {$_uid} LIMIT 1");
-        if ($_sq && $_sr = $_sq->fetch_assoc()) {
-            $_username = $_sr['name'];
-            $_SESSION['emp_name'] = $_username;
-        }
-    }
-    if (!$_username) $_username = $_SESSION['username'] ?? 'User';
-}
+$_username = $_SESSION['emp_name'] ?? ($_SESSION['username'] ?? 'User');
 $_user_role = ucfirst($_SESSION['role'] ?? 'Staff');
 $_role_color = ($_SESSION['role'] ?? '') === 'admin' ? '#ff6b6b' : (($_SESSION['role'] ?? '') === 'manager' ? '#f0b429' : '#d1904b');
 ?>
@@ -378,7 +367,7 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
     bottom: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
-    z-index: 998;
+    z-index: 99998;
     opacity: 0;
     transition: opacity 0.25s ease;
 }
@@ -390,12 +379,16 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
 @media (max-width: 768px) {
     .sidebar {
         position: fixed !important;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        z-index: 999 !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        width: 280px !important;
+        min-width: 280px !important;
+        max-width: 280px !important;
+        z-index: 99999 !important;
         height: 100vh !important;
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5) !important;
+        height: 100dvh !important;
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.75) !important;
         transform: translateX(0);
         transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s ease !important;
     }
@@ -408,19 +401,28 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
 <script>
 // Immediate inline execution before render to prevent flash animation
 (function() {
-    window.__isSidebarCollapsed = (localStorage.getItem('sidebar_collapsed') === 'true');
+    if (window.innerWidth <= 768) {
+        window.__isSidebarCollapsed = true;
+    } else {
+        window.__isSidebarCollapsed = (localStorage.getItem('sidebar_collapsed') === 'true');
+    }
 })();
 </script>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <aside class="w-64 h-full shrink-0 bg-[#121215] border-r border-[#1f1f24] flex flex-col justify-between p-4 text-[#a0a0ab] z-50 overflow-y-auto sidebar sidebar-no-anim" id="sidebar">
     <script>
     if (window.__isSidebarCollapsed) {
         document.getElementById('sidebar').classList.add('collapsed');
+        if (window.innerWidth > 768) {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
     }
     </script>
     <div class="flex flex-col gap-2">
         <!-- Profile Header -->
-        <div class="flex items-center gap-3 p-2.5 rounded-2xl bg-[#18181c] border border-[#24242b] sidebar-profile">
+        <a href="profile.php" class="flex items-center gap-3 p-2.5 rounded-2xl bg-[#18181c] border border-[#24242b] sidebar-profile hover:border-[#d1904b] transition-all cursor-pointer" title="View My Profile">
             <div class="w-8 h-8 rounded-full bg-[#d1904b]/20 text-[#d1904b] font-bold flex items-center justify-center text-xs flex-shrink-0 profile-avatar">
                 <?= strtoupper(substr($_username, 0, 1)) ?>
             </div>
@@ -428,7 +430,7 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
                 <div class="text-sm font-semibold text-white truncate profile-name"><?= htmlspecialchars($_username) ?></div>
                 <div class="text-xs text-[#888] truncate profile-role" style="--role-color: <?= $_role_color ?>;"><?= htmlspecialchars($_user_role) ?></div>
             </div>
-        </div>
+        </a>
 
         <!-- Brand Header with Collapse Toggle Button -->
         <div class="flex items-center justify-between px-2 py-0.5 sidebar-header">
@@ -476,6 +478,17 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
             </a>
             <?php endif; ?>
 
+            <?php if (can('products') || can('inventory') || in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])): ?>
+            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= in_array($_cur_page, ['stock.php', 'stock_count.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="stock.php">
+                <i class="fa-solid fa-wine-bottle w-5 text-center"></i>
+                <span class="nav-label"><?= __('nav_stock_drinks', 'Direct Drinks Stock') ?></span>
+            </a>
+            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'ingredients.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="ingredients.php">
+                <i class="fa-solid fa-seedling w-5 text-center"></i>
+                <span class="nav-label"><?= __('nav_raw_ingredients', 'Raw Ingredients') ?></span>
+            </a>
+            <?php endif; ?>
+
             <?php if (can('manage_categories')): ?>
             <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'manage_categories.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="manage_categories.php">
                 <i class="fa-solid fa-tags w-5 text-center"></i>
@@ -483,64 +496,40 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
             </a>
             <?php endif; ?>
 
-
-            <?php 
-            $_report_pages = ['daily_report.php', 'report.php', 'shift_report.php'];
-            $_is_report_active = in_array($_cur_page, $_report_pages, true);
-            $_is_admin_or_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager'], true);
-            $_available_reports_count = (can('report_sale') ? 1 : 0) + (can('report_product') ? 1 : 0) + (can('report_employee') ? 1 : 0);
-            ?>
-
-            <?php if ($_available_reports_count > 0): ?>
-                <?php if ($_is_admin_or_mgr || $_available_reports_count > 1): ?>
-                <div class="nav-group flex flex-col">
-                    <button type="button" 
-                            id="reportNavToggle"
-                            class="nav-item flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white cursor-pointer w-full text-left <?= $_is_report_active ? 'text-[#d1904b] font-semibold bg-[#1a1a20]' : '' ?>"
-                            onclick="toggleReportSubmenu(event)">
-                        <div class="flex items-center gap-3">
-                            <i class="fa-solid fa-chart-simple w-5 text-center"></i>
-                            <span class="nav-label"><?= __('nav_report', 'Report') ?></span>
-                        </div>
-                        <i id="reportChevron" class="fa-solid fa-chevron-down text-xs transition-transform duration-200 <?= $_is_report_active ? 'rotate-180 text-[#d1904b]' : 'text-[#666]' ?>"></i>
-                    </button>
-                    
-                    <div id="reportSubmenu" class="mt-1 flex flex-col gap-1 <?= $_is_report_active ? '' : 'hidden' ?>" style="padding-left: 1.5rem; border-left: 2px solid rgba(209, 144, 75, 0.25); margin-left: 1.25rem;">
-                        <?php if (can('report_sale')): ?>
-                        <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white <?= $_cur_page === 'daily_report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : 'text-[#a0a0ab]' ?>" href="daily_report.php">
-                            <i class="fa-solid fa-chart-line w-4 text-center"></i>
-                            <span class="nav-label"><?= __('nav_report_sale', 'Report Sale') ?></span>
-                        </a>
-                        <?php endif; ?>
-
-                        <?php if (can('report_product')): ?>
-                        <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white <?= $_cur_page === 'report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : 'text-[#a0a0ab]' ?>" href="report.php">
-                            <i class="fa-solid fa-cube w-4 text-center"></i>
-                            <span class="nav-label"><?= __('nav_report_product', 'Report Product') ?></span>
-                        </a>
-                        <?php endif; ?>
-
-                        <?php if (can('report_employee')): ?>
-                        <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white <?= $_cur_page === 'shift_report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : 'text-[#a0a0ab]' ?>" href="shift_report.php">
-                            <i class="fa-solid fa-user-tie w-4 text-center"></i>
-                            <span class="nav-label"><?= __('nav_employee_report', 'Report User') ?></span>
-                        </a>
-                        <?php endif; ?>
+            <?php if (can('daily_report') || can('sales_report') || can('shift_report')): ?>
+            <!-- Reports Collapsible Group -->
+            <div>
+                <button type="button" 
+                        id="reportNavToggle" 
+                        onclick="toggleReportSubmenu(event)" 
+                        class="nav-item w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white cursor-pointer<?= in_array($_cur_page, ['daily_report.php', 'report.php', 'shift_report.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <i class="fa-solid fa-chart-column w-5 text-center flex-shrink-0"></i>
+                        <span class="nav-label truncate"><?= __('nav_reports', 'Reports') ?></span>
                     </div>
+                    <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200 nav-chevron" id="reportChevron"></i>
+                </button>
+                <div class="hidden flex-col gap-1 pl-4 mt-1 space-y-1" id="reportSubmenu">
+                    <?php if (can('daily_report')): ?>
+                    <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'daily_report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="daily_report.php">
+                        <i class="fa-solid fa-[#d1904b] fa-calendar-day w-4 text-center"></i>
+                        <span class="nav-label"><?= __('nav_daily_report', 'Daily Summary') ?></span>
+                    </a>
+                    <?php endif; ?>
+                    <?php if (can('sales_report')): ?>
+                    <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="report.php">
+                        <i class="fa-solid fa-[#d1904b] fa-chart-line w-4 text-center"></i>
+                        <span class="nav-label"><?= __('nav_sales_report', 'Analytics & Export') ?></span>
+                    </a>
+                    <?php endif; ?>
+                    <?php if (can('shift_report')): ?>
+                    <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'shift_report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="shift_report.php">
+                        <i class="fa-solid fa-[#d1904b] fa-clock w-4 text-center"></i>
+                        <span class="nav-label"><?= __('nav_shift_report', 'Shift Audit') ?></span>
+                    </a>
+                    <?php endif; ?>
                 </div>
-                <?php else: ?>
-                <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_is_report_active ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="daily_report.php">
-                    <i class="fa-solid fa-chart-simple w-5 text-center"></i>
-                    <span class="nav-label"><?= __('nav_report', 'Report') ?></span>
-                </a>
-                <?php endif; ?>
-            <?php endif; ?>
-
-            <?php if (can('manage_users')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'manage_admin.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="manage_admin.php">
-                <i class="fa-solid fa-users w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_users', 'Users') ?></span>
-            </a>
+            </div>
             <?php endif; ?>
 
             <?php if (can('settings')): ?>
@@ -550,23 +539,31 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
             </a>
             <?php endif; ?>
 
+            <?php if (in_array($_SESSION['role'] ?? '', ['admin', 'manager'], true)): ?>
+            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'users.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="users.php">
+                <i class="fa-solid fa-users-gear w-5 text-center"></i>
+                <span class="nav-label">Users</span>
+            </a>
+            <?php endif; ?>
 
         </nav>
     </div>
 
-    <!-- SIDEBAR FOOTER -->
-    <div class="pt-3 border-t border-[#24242b] sidebar-footer flex flex-col gap-2">
-        <!-- Theme Switcher Button -->
+    <!-- Sidebar Footer -->
+    <div class="pt-3 border-t border-[#24242b] flex flex-col gap-1.5 sidebar-footer">
+        <!-- Dark/Light Theme Toggle Button -->
         <button type="button" 
                 onclick="toggleTheme()" 
-                class="nav-item flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#a0a0ab] hover:bg-[#1a1a20] hover:text-white transition-all cursor-pointer w-full text-left" 
+                class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#a0a0ab] hover:bg-[#1a1a20] hover:text-white transition-all cursor-pointer" 
                 title="Toggle Theme">
-            <i class="fa-solid fa-moon text-[#d1904b] text-center w-5" id="sidebarThemeIcon"></i>
-            <span class="px-2 py-0.5 rounded-full bg-[#d1904b]/15 text-[#d1904b] font-bold text-[11px]" id="sidebarThemeBadge">
+            <div class="flex items-center gap-3 min-w-0">
+                <i class="fa-solid fa-moon text-[#d1904b] w-5 text-center flex-shrink-0" id="sidebarThemeIcon"></i>
+                <span class="nav-label truncate" id="sidebarThemeText">Dark Mode</span>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-[#18181c] border border-[#24242b] text-[#d1904b] font-bold text-[10px] uppercase tracking-wider sidebar-orders-badge" id="sidebarThemeBadge">
                 Dark
             </span>
         </button>
-
         <!-- Language Switcher Button -->
         <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" class="nav-item flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#a0a0ab] hover:bg-[#1a1a20] hover:text-white transition-all" title="Language Switcher">
             <i class="fa-solid fa-globe text-[#d1904b] w-5 text-center"></i>
@@ -582,16 +579,81 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
 </aside>
 
 <script>
-function toggleSidebar() {
+function closeSidebar() {
     const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
     if (!sidebar) return;
     sidebar.classList.remove('sidebar-no-anim');
-    const isCollapsed = sidebar.classList.toggle('collapsed');
-    document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
-    localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+    sidebar.classList.add('collapsed');
+    if (window.innerWidth > 768) {
+        document.documentElement.classList.add('sidebar-collapsed');
+        localStorage.setItem('sidebar_collapsed', 'true');
+    } else {
+        document.documentElement.classList.remove('sidebar-collapsed');
+    }
+
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
 
     const toggleIcon = document.getElementById('sidebarToggleIcon');
     if (toggleIcon) {
+        toggleIcon.classList.remove('fa-angles-left');
+        toggleIcon.classList.add('fa-angles-right');
+    }
+}
+
+function openSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+    sidebar.classList.remove('sidebar-no-anim');
+    sidebar.classList.remove('collapsed');
+    if (window.innerWidth > 768) {
+        document.documentElement.classList.remove('sidebar-collapsed');
+        localStorage.setItem('sidebar_collapsed', 'false');
+    } else {
+        document.documentElement.classList.remove('sidebar-collapsed');
+    }
+
+    if (overlay && window.innerWidth <= 768) {
+        overlay.classList.add('active');
+    }
+
+    const toggleIcon = document.getElementById('sidebarToggleIcon');
+    if (toggleIcon) {
+        toggleIcon.classList.remove('fa-angles-right');
+        toggleIcon.classList.add('fa-angles-left');
+    }
+}
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    if (sidebar.classList.contains('collapsed')) {
+        openSidebar();
+    } else {
+        closeSidebar();
+    }
+}
+
+window.closeSidebar = closeSidebar;
+window.openSidebar = openSidebar;
+window.toggleSidebar = toggleSidebar;
+
+// Enable smooth transitions only after initial render completes
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    if (sidebar) {
+        setTimeout(() => {
+            sidebar.classList.remove('sidebar-no-anim');
+        }, 50);
+    }
+    const toggleIcon = document.getElementById('sidebarToggleIcon');
+    if (toggleIcon) {
+        const isCollapsed = sidebar ? sidebar.classList.contains('collapsed') : false;
         if (isCollapsed) {
             toggleIcon.classList.remove('fa-angles-left');
             toggleIcon.classList.add('fa-angles-right');
@@ -599,21 +661,6 @@ function toggleSidebar() {
             toggleIcon.classList.remove('fa-angles-right');
             toggleIcon.classList.add('fa-angles-left');
         }
-    }
-}
-
-// Enable smooth transitions only after initial render completes
-document.addEventListener('DOMContentLoaded', () => {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        setTimeout(() => {
-            sidebar.classList.remove('sidebar-no-anim');
-        }, 50);
-    }
-    const toggleIcon = document.getElementById('sidebarToggleIcon');
-    if (toggleIcon && localStorage.getItem('sidebar_collapsed') === 'true') {
-        toggleIcon.classList.remove('fa-angles-left');
-        toggleIcon.classList.add('fa-angles-right');
     }
 });
 
@@ -656,12 +703,12 @@ function toggleUserMgmtSubmenu(e) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const sidebarNav = document.getElementById('sidebarNav');
-    if (!sidebarNav) return;
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
 
     function setActiveNavTab(targetHref) {
         const page = targetHref ? targetHref.split('?')[0].split('/').pop() : (window.location.pathname.split('/').pop() || 'dashboard.php');
-        sidebarNav.querySelectorAll('a.nav-item').forEach(el => {
+        sidebar.querySelectorAll('a.nav-item').forEach(el => {
             const itemHref = (el.getAttribute('href') || '').split('?')[0].split('/').pop();
             if (itemHref && itemHref === page) {
                 el.classList.add('active', 'bg-[#1a1a20]', 'text-[#d1904b]', 'font-semibold');
@@ -691,21 +738,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    window.setActiveNavTab = setActiveNavTab;
+
     // Initialize active tab on load
     setActiveNavTab();
 
-    sidebarNav.addEventListener('click', (e) => {
-        const link = e.target.closest('a.nav-item');
+    // Auto-close sidebar when clicking navigation links on small screens
+    sidebar.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
         if (!link) return;
-        const href = link.getAttribute('href');
-        if (!href || href === '#' || href.startsWith('logout.php')) return;
 
-        setActiveNavTab(href);
-        window.location.href = href;
+        const href = link.getAttribute('href');
+        if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+        if (window.innerWidth <= 768) {
+            closeSidebar();
+        }
+
+        const currentPage = window.location.pathname.split('/').pop() || 'dashboard.php';
+        const targetPage = href.split('?')[0].split('/').pop();
+        if (currentPage === targetPage && !href.includes('?') && !href.includes('#')) {
+            e.preventDefault();
+        }
     });
 
     window.addEventListener('popstate', () => {
         setActiveNavTab();
+    });
+
+    // Close sidebar on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && window.innerWidth <= 768) {
+            closeSidebar();
+        }
+    });
+
+    // Handle screen resize cleanly
+    window.addEventListener('resize', () => {
+        const overlay = document.getElementById('sidebarOverlay');
+        if (window.innerWidth > 768) {
+            if (overlay) overlay.classList.remove('active');
+            const isCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                document.documentElement.classList.add('sidebar-collapsed');
+            } else {
+                sidebar.classList.remove('collapsed');
+                document.documentElement.classList.remove('sidebar-collapsed');
+            }
+        } else {
+            if (sidebar.classList.contains('collapsed') && overlay) {
+                overlay.classList.remove('active');
+            }
+        }
     });
 });
 

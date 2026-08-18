@@ -42,32 +42,10 @@ if ($type === 'daily') {
     $items_sold_result = mysqli_query($conn, $items_sold_sql);
     $items_sold = mysqli_fetch_assoc($items_sold_result)['items_sold'];
     
-    // ── REFUND DATA ──
-    $refund_sql = "SELECT IFNULL(SUM(refund_amount), 0) AS total_refunds, COUNT(*) AS refund_count FROM order_refunds WHERE DATE(refunded_at) = CURDATE()";
-    $refund_result = mysqli_query($conn, $refund_sql);
-    $refund_data = mysqli_fetch_assoc($refund_result);
-    $total_refunds = $refund_data['total_refunds'];
-    $refund_count = $refund_data['refund_count'];
-    
-    // ── Refunded orders list ──
-    $refund_list_sql = "
-        SELECT
-            o.daily_order_no,
-            o.customer_name,
-            orr.refund_amount,
-            orr.refund_reason,
-            orr.refunded_by,
-            DATE_FORMAT(orr.refunded_at, '%H:%i') AS refund_time
-        FROM order_refunds orr
-        JOIN orders o ON o.order_id = orr.order_id
-        WHERE DATE(orr.refunded_at) = CURDATE()
-        ORDER BY orr.refunded_at DESC
-    ";
-    $refund_list_result = mysqli_query($conn, $refund_list_sql);
+    // ── REFUND DATA (removed) ──
+    $total_refunds = 0;
+    $refund_count = 0;
     $refund_list = [];
-    while ($row = mysqli_fetch_assoc($refund_list_result)) {
-        $refund_list[] = $row;
-    }
     
     // ── Top selling products ──
     $top_sql = "SELECT p.name, SUM(oi.quantity) AS qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE DATE(o.order_date) = CURDATE() AND " . paid_orders_where('o') . " GROUP BY p.product_id ORDER BY qty DESC LIMIT 5";
@@ -264,24 +242,10 @@ if ($type === 'daily') {
 
 // ── STOCK ALERT ──
 if ($type === 'stock') {
-    $low_sql = "SELECT ingredient_name, stock_quantity, minimum_stock, unit, cost_per_unit FROM ingredients WHERE stock_quantity < minimum_stock";
-    $low_result = mysqli_query($conn, $low_sql);
     $low_items = [];
     $total_value_at_risk = 0;
     $most_critical = null;
     $max_needed = 0;
-    
-    while ($row = mysqli_fetch_assoc($low_result)) {
-        $low_items[] = $row;
-        $needed = $row['minimum_stock'] - $row['stock_quantity'];
-        $value_risk = $needed * $row['cost_per_unit'];
-        $total_value_at_risk += $value_risk;
-        
-        if ($needed > $max_needed) {
-            $max_needed = $needed;
-            $most_critical = $row['ingredient_name'];
-        }
-    }
     
     if (count($low_items) === 0) {
         echo json_encode(['success' => true, 'message' => '✅ No low stock items to report']);

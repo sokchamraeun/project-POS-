@@ -15,8 +15,8 @@
  */
 require 'auth.php';
 require 'config.php';
-if (!can('stock_count')) { header('Location: dashboard.php?denied=1'); exit; }
-require 'dompdf/dompdf/autoload.inc.php';
+header('Location: dashboard.php');
+exit;
 
 use Dompdf\Dompdf;
 use Dompdf\Options;

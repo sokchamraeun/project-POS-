@@ -1,8 +1,8 @@
 <?php
 require 'auth.php';
 require 'config.php';
-if (!can('stock_count')) { header("Location: dashboard.php?denied=1"); exit; }
-if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+header("Location: dashboard.php");
+exit;
 
 /* ── Business date (before 6 AM = yesterday) ── */
 $now_h  = (int)date('G');
@@ -187,38 +187,16 @@ if (!$session) {
 
     // Populate items: all ingredients
     $ings = $conn->query("SELECT ingredient_id, ingredient_name, stock_quantity FROM ingredients ORDER BY ingredient_name ASC");
-    while ($ing = $ings->fetch_assoc()) {
-        $iid = (int)$ing['ingredient_id'];
-
-        // Opening stock: from ingredient_daily_stock if available, else estimate
-        $os_row = $conn->prepare("SELECT opening_stock FROM ingredient_daily_stock WHERE ingredient_id=? AND business_date=? LIMIT 1");
-        $os_row->bind_param("is", $iid, $bdate);
-        $os_row->execute();
-        $os = $os_row->get_result()->fetch_assoc();
-
-        // Usage today: order_deduct entries
-        $used_q = $conn->prepare("SELECT COALESCE(SUM(amount),0) AS used FROM ingredient_history WHERE ingredient_id=? AND change_type='order_deduct' AND DATE(created_at)=?");
-        $used_q->bind_param("is", $iid, $bdate);
-        $used_q->execute();
-        $used_today = (float)$used_q->get_result()->fetch_assoc()['used'];
-
-        // Restocks today
-        $rst_q = $conn->prepare("SELECT COALESCE(SUM(amount),0) AS added FROM ingredient_history WHERE ingredient_id=? AND change_type IN ('quick_restock','po_received') AND DATE(created_at)=?");
-        $rst_q->bind_param("is", $iid, $bdate);
-        $rst_q->execute();
-        $restocked = (float)$rst_q->get_result()->fetch_assoc()['added'];
-
-        if ($os) {
-            $opening = (float)$os['opening_stock'];
-        } else {
-            // Fallback: current stock + used - restocked = opening
-            $opening = (float)$ing['stock_quantity'] + $used_today - $restocked;
+    if ($ings) {
+        while ($ing = $ings->fetch_assoc()) {
+            $iid = (int)$ing['ingredient_id'];
+            $opening = (float)$ing['stock_quantity'];
+            $expected = $opening;
+            $used_today = 0.0;
+            $ii = $conn->prepare("INSERT INTO stock_count_items (count_id, ingredient_id, opening_stock, system_used, expected_qty) VALUES (?,?,?,?,?)");
+            $ii->bind_param("iiddd", $count_id, $iid, $opening, $used_today, $expected);
+            $ii->execute();
         }
-        $expected = $opening - $used_today + $restocked;
-
-        $ii = $conn->prepare("INSERT INTO stock_count_items (count_id, ingredient_id, opening_stock, system_used, expected_qty) VALUES (?,?,?,?,?)");
-        $ii->bind_param("iiddd", $count_id, $iid, $opening, $used_today, $expected);
-        $ii->execute();
     }
 
     $sc2 = $conn->prepare("SELECT * FROM stock_counts WHERE count_id=? LIMIT 1");

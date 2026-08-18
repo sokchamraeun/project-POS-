@@ -11,7 +11,7 @@ if (isset($_POST['add_product'])) {
     $price       = round((float)($_POST['price'] ?? 0), 2);
     $cost_price  = round((float)($_POST['cost_price'] ?? 0), 2);
     $category    = $_POST['category']    ?? '';
-    $is_avail    = isset($_POST['is_available']) ? 1 : 1;
+    $is_avail    = isset($_POST['is_available']) ? 1 : 0;
     $badge_text  = substr(trim($_POST['badge_text'] ?? ''), 0, 40) ?: null;
     $promo_percent = max(0, min(100, (int)($_POST['promo_percent'] ?? 0)));
 
@@ -51,28 +51,41 @@ if (isset($_POST['add_product'])) {
             if ($stmt->execute()) {
                 $new_id = $stmt->insert_id;
 
-                // Save Recipe Ingredients
+                // ── Save Recipe / Bill of Materials (BOM) ──
                 if (!empty($_POST['recipe_ingredient_id']) && is_array($_POST['recipe_ingredient_id'])) {
-                    $pi_stmt = $conn->prepare("INSERT INTO product_ingredients (product_id, ingredient_id, amount_used) VALUES (?, ?, ?)");
-                    foreach ($_POST['recipe_ingredient_id'] as $idx => $r_ing_id) {
-                        $r_ing_id = (int)$r_ing_id;
-                        $r_amt    = (float)($_POST['recipe_amount_used'][$idx] ?? 0);
-                        if ($r_ing_id > 0 && $r_amt > 0) {
-                            $pi_stmt->bind_param("iid", $new_id, $r_ing_id, $r_amt);
-                            $pi_stmt->execute();
+                    $insRec = $conn->prepare("INSERT INTO product_recipes (product_id, item_id, quantity_required, unit, notes) VALUES (?, ?, ?, ?, ?)");
+                    $ingIds  = $_POST['recipe_ingredient_id'];
+                    $ingQtys = $_POST['recipe_amount_used'] ?? [];
+                    $totalCogs = 0.0;
+
+                    for ($i = 0; $i < count($ingIds); $i++) {
+                        $ingId   = (int)($ingIds[$i] ?? 0);
+                        $qtyUsed = (float)($ingQtys[$i] ?? 0);
+                        if ($ingId > 0 && $qtyUsed > 0) {
+                            $uStmt = $conn->prepare("SELECT unit, cost_per_unit FROM stock_items WHERE item_id = ?");
+                            $uStmt->bind_param("i", $ingId);
+                            $uStmt->execute();
+                            $uRow = $uStmt->get_result()->fetch_assoc();
+                            $unit = $uRow['unit'] ?? 'g';
+                            $cpu  = (float)($uRow['cost_per_unit'] ?? 0);
+                            $totalCogs += ($qtyUsed * $cpu);
+                            $note = "Recipe for " . $name;
+
+                            $insRec->bind_param("iidss", $new_id, $ingId, $qtyUsed, $unit, $note);
+                            $insRec->execute();
+                            $uStmt->close();
                         }
                     }
-                }
+                    $insRec->close();
 
-                // Auto-recalculate authoritative cost_price from product_ingredients
-                $cogsQ = $conn->prepare("SELECT SUM(pi.amount_used * i.cost_per_unit) AS cogs FROM product_ingredients pi JOIN ingredients i ON pi.ingredient_id = i.ingredient_id WHERE pi.product_id = ?");
-                $cogsQ->bind_param("i", $new_id);
-                $cogsQ->execute();
-                $calcCogs = (float)($cogsQ->get_result()->fetch_assoc()['cogs'] ?? 0);
-                if ($calcCogs > 0) {
-                    $upCogs = $conn->prepare("UPDATE products SET cost_price = ? WHERE product_id = ?");
-                    $upCogs->bind_param("di", $calcCogs, $new_id);
-                    $upCogs->execute();
+                    // Update cost_price in products to match exact COGS
+                    if ($totalCogs > 0) {
+                        $cost_price = round($totalCogs, 2);
+                        $updCost = $conn->prepare("UPDATE products SET cost_price = ? WHERE product_id = ?");
+                        $updCost->bind_param("di", $cost_price, $new_id);
+                        $updCost->execute();
+                        $updCost->close();
+                    }
                 }
 
                 header("Location: products.php");
@@ -88,11 +101,15 @@ $cats = [];
 $_cat_r = $conn->query("SELECT slug, name FROM categories WHERE is_active = 1 ORDER BY display_order");
 while ($_c = $_cat_r->fetch_assoc()) $cats[$_c['slug']] = $_c['name'];
 
+// ── Load All Stock Items for Recipe Dropdowns ──
 $allIngredients = [];
-$ingRes = $conn->query("SELECT ingredient_id, ingredient_name, unit, stock_quantity, cost_per_unit FROM ingredients ORDER BY ingredient_name ASC");
-if ($ingRes) {
-    while ($ingRow = $ingRes->fetch_assoc()) {
-        $allIngredients[] = $ingRow;
+$stockRes = $conn->query("SELECT item_id AS ingredient_id, item_name AS ingredient_name, category, item_type, unit, cost_per_unit, quantity AS stock_quantity, purchase_unit, conversion_rate 
+                          FROM stock_items 
+                          WHERE is_active = 1 
+                          ORDER BY category ASC, item_name ASC");
+if ($stockRes) {
+    while ($si = $stockRes->fetch_assoc()) {
+        $allIngredients[] = $si;
     }
 }
 ?>
@@ -121,7 +138,7 @@ if ($ingRes) {
     --radius:  14px;
 }
 
-/* ══ LIGHT THEME OVERRIDES FOR ADD PRODUCT ══ */
+/* ══ LIGHT THEME OVERRIDES ══ */
 [data-theme="light"], html[data-theme="light"] {
     --bg:      #f4efe9 !important;
     --surface: #ede8e0 !important;
@@ -199,12 +216,180 @@ if ($ingRes) {
     color: #1a1410 !important;
 }
 
-/* Light Mode Backdrop Blur */
-[data-theme="light"] .fixed.inset-0 {
-    background-color: rgba(0,0,0,0.2) !important;
-    backdrop-filter: blur(4px) !important;
-    -webkit-backdrop-filter: blur(4px) !important;
+/* ── Recipe Table & Summary Styling ── */
+.recipe-table-wrap {
+    background: #121215;
+    border: 1px solid #24242b;
 }
+.recipe-thead {
+    background: #18181c;
+    color: #888888;
+    border-bottom: 1px solid #24242b;
+}
+.recipe-tbody {
+    border-color: #1c1c22;
+}
+.no-recipe-box {
+    color: #888888;
+}
+.no-recipe-title {
+    color: #ffffff;
+}
+.no-recipe-sub {
+    color: #777777;
+}
+.recipe-summary-box {
+    background: #141418;
+    border: 1px solid #24242b;
+}
+.summary-label {
+    color: #888888;
+}
+.recipe-select {
+    width: 100%;
+    font-size: 12px;
+    background: #18181c;
+    border: 1px solid #2b2b36;
+    border-radius: 8px;
+    padding: 8px;
+    color: #ffffff;
+    outline: none;
+}
+.recipe-select:focus {
+    border-color: #d1904b;
+}
+
+/* ══ Light Theme Overrides ══ */
+[data-theme="light"] .recipe-table-wrap,
+html[data-theme="light"] .recipe-table-wrap {
+    background: #fbf9f6 !important;
+    border-color: #e0d4c4 !important;
+}
+[data-theme="light"] .recipe-thead,
+html[data-theme="light"] .recipe-thead {
+    background: #ede8e0 !important;
+    color: #5a4a3a !important;
+    border-bottom-color: #e0d4c4 !important;
+}
+[data-theme="light"] .recipe-table th {
+    color: #5a4a3a !important;
+}
+[data-theme="light"] .recipe-tbody,
+html[data-theme="light"] .recipe-tbody {
+    border-color: #e0d4c4 !important;
+}
+[data-theme="light"] .recipe-tbody tr,
+html[data-theme="light"] .recipe-tbody tr {
+    border-color: #e0d4c4 !important;
+}
+[data-theme="light"] .no-recipe-box,
+html[data-theme="light"] .no-recipe-box {
+    color: #7a6a5a !important;
+}
+[data-theme="light"] .no-recipe-title,
+html[data-theme="light"] .no-recipe-title {
+    color: #1a1410 !important;
+}
+[data-theme="light"] .no-recipe-sub,
+html[data-theme="light"] .no-recipe-sub {
+    color: #7a6a5a !important;
+}
+[data-theme="light"] .recipe-summary-box,
+html[data-theme="light"] .recipe-summary-box {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+}
+[data-theme="light"] .summary-label,
+html[data-theme="light"] .summary-label {
+    color: #5a4a3a !important;
+}
+[data-theme="light"] .recipe-select,
+html[data-theme="light"] .recipe-select {
+    background: #ede8e0 !important;
+    border-color: #d0c5b5 !important;
+    color: #1a1410 !important;
+}
+[data-theme="light"] .recipe-select option,
+html[data-theme="light"] .recipe-select option {
+    background: #ffffff !important;
+    color: #1a1410 !important;
+}
+[data-theme="light"] .unit-label-pill {
+    background: #ede8e0 !important;
+    color: #c47c2c !important;
+    border-color: #d0c5b5 !important;
+}
+[data-theme="light"] .unit-price-label {
+    color: #1a1410 !important;
+}
+[data-theme="light"] .unit-name-label {
+    color: #5a4a3a !important;
+}
+[data-theme="light"] .selling-price-disp,
+[data-theme="light"] #dispSellingPrice {
+    color: #1a1410 !important;
+}
+
+/* Unified Identical-Size Quantity & Unit Input Box */
+.qty-unit-group {
+    display: inline-flex;
+    align-items: center;
+    width: 104px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #141418;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+.qty-unit-group:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(209, 144, 75, 0.15);
+}
+.qty-input-field {
+    width: 62px !important;
+    height: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    color: var(--text) !important;
+    padding: 0 4px !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.qty-unit-addon {
+    width: 42px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(209, 144, 75, 0.12);
+    border-left: 1px solid var(--border);
+    color: #d1904b;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: lowercase;
+    flex-shrink: 0;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+[data-theme="light"] .qty-unit-group {
+    background: #f4efe9 !important;
+    border-color: #d0c5b5 !important;
+}
+[data-theme="light"] .qty-input-field {
+    color: #1a1410 !important;
+}
+[data-theme="light"] .qty-unit-addon {
+    background: #ede8e0 !important;
+    border-left: 1px solid #d0c5b5 !important;
+    color: #b8732d !important;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: Poppins, sans-serif;
@@ -214,19 +399,29 @@ body {
     font-size: 14px;
 }
 
-/* ── LAYOUT ── */
+/* ── 3-COLUMN RESPONSIVE LAYOUT ── */
 .page-wrap {
     max-width: 100%;
     margin: 0 auto;
     padding: 0;
     display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 20px;
+    grid-template-columns: 240px 300px 1fr;
+    gap: 22px;
     align-items: start;
 }
-@media (max-width: 768px) {
+@media (min-width: 1280px) {
+    .page-wrap {
+        grid-template-columns: 250px 310px 1fr;
+    }
+}
+@media (max-width: 1080px) {
     .page-wrap { grid-template-columns: 1fr; }
 }
+
+.recipe-table select {
+    min-width: 240px;
+}
+
 @keyframes scaleUp {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
@@ -238,7 +433,7 @@ body {
     display: flex; flex-direction: column; gap: 10px;
 }
 .img-preview-wrap {
-    height: 180px;
+    height: 220px;
     width: 100%;
     border-radius: var(--radius);
     overflow: hidden;
@@ -268,7 +463,7 @@ body {
 .img-preview-wrap.drag-over .img-overlay { opacity: 1; }
 
 .no-image {
-    height: 180px;
+    height: 220px;
     width: 100%;
     border-radius: var(--radius);
     background: #141414;
@@ -306,12 +501,11 @@ body {
 .section-head {
     padding: 14px 18px;
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
     position: relative;
     background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
 }
-.section-head i { color: var(--accent); font-size: 14px; }
-.section-head h3 { font-size: 14px; font-weight: 600; }
+.section-head h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .section-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 
 /* ── FIELDS ── */
@@ -406,47 +600,67 @@ select.cat-select option {
 }
 .btn-save:hover { filter: brightness(1.15); transform: translateY(-1px); }
 
+/* ── Recipe Table & Chips ── */
+.recipe-row {
+    transition: background-color 0.15s ease;
+}
+.recipe-row:hover {
+    background-color: rgba(209, 144, 75, 0.08) !important;
+}
+.unit-label-pill {
+    padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    background: #141418; border: 1px solid #282834; color: #d1904b;
+}
+.unit-price-label {
+    color: var(--text);
+    font-weight: 600;
+}
+.unit-name-label {
+    color: #888;
+}
+.selling-price-disp {
+    color: var(--text);
+}
+.btn-add-ing {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+    border-radius: 10px; border: 1px dashed rgba(209,144,75,0.5);
+    background: rgba(209,144,75,0.06); color: #d1904b; font-size: 12px; font-weight: 600;
+    transition: all .2s; cursor: pointer;
+}
+.btn-add-ing:hover {
+    background: rgba(209,144,75,0.15); border-color: #d1904b;
+}
+
 /* ── ALERTS ── */
 .alert {
     padding: 12px 16px; border-radius: 10px; font-size: 13px;
     display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 }
-.alert-danger  { background: rgba(255,77,77,.12);  color: var(--danger);  border: 1px solid rgba(255,77,77,.25); }
-
-.orb {
-    position: fixed; border-radius: 50%; filter: blur(90px);
-    pointer-events: none; z-index: 0;
-}
-.orb-a {
-    width: 400px; height: 400px;
-    background: radial-gradient(circle, rgba(209,144,75,.15) 0%, transparent 70%);
-    top: -120px; right: -120px;
-}
-.orb-b {
-    width: 300px; height: 300px;
-    background: radial-gradient(circle, rgba(93,173,226,.1) 0%, transparent 70%);
-    bottom: -80px; left: -80px;
-}
+.alert-danger { background: rgba(255,77,77,.12); color: var(--danger); border: 1px solid rgba(255,77,77,.25); }
 </style>
 </head>
 <body>
-
 <div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
-<div class="orb orb-a"></div>
-<div class="orb orb-b"></div>
 
 <!-- ADD PRODUCT MODAL BACKDROP -->
 <div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
-    <!-- MODAL DIALOG CONTAINER -->
-    <div class="relative w-full max-w-4xl max-h-[92vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
+    <!-- MODAL DIALOG CONTAINER (Expanded horizontal width for Recipe BOM) -->
+    <div class="relative w-[96vw] max-w-[1380px] max-h-[94vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
         
         <!-- MODAL HEADER -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0">
-            <h2 class="text-lg font-bold text-white leading-tight flex items-center gap-2">
-                <i class="fa-solid fa-plus-circle text-[#d1904b]"></i> Add New Product
-            </h2>
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-[#d1904b]/15 border border-[#d1904b]/30 flex items-center justify-center text-[#d1904b]">
+                    <i class="fa-solid fa-plus-circle"></i>
+                </div>
+                <div>
+                    <h2 class="text-base md:text-lg font-bold text-white leading-tight">
+                        Add New Product
+                    </h2>
+                </div>
+            </div>
             
             <a href="products.php" class="w-9 h-9 rounded-xl bg-[#22222a] text-[#888] hover:text-white hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Close Modal (Esc)">
                 <i class="fa-solid fa-xmark text-lg"></i>
@@ -454,7 +668,7 @@ select.cat-select option {
         </div>
 
         <!-- MODAL BODY -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+        <div class="flex-1 overflow-y-auto p-5 md:p-6">
             <?php if ($error): ?>
             <div class="alert alert-danger">
                 <i class="fa-solid fa-circle-exclamation"></i>
@@ -465,50 +679,50 @@ select.cat-select option {
             <form method="POST" enctype="multipart/form-data" id="addForm">
                 <input type="hidden" name="add_product" value="1">
                 <input type="file" name="image" id="f_img_input" accept="image/*" style="display:none">
+                <input type="hidden" name="cost_price" id="f_cost_price" value="0.00">
 
                 <div class="page-wrap">
-                    <!-- COLUMN 1: PRODUCT IMAGE -->
+                    
+                    <!-- ════ COLUMN 1: PRODUCT IMAGE ════ -->
                     <div class="section-card">
                         <div class="section-head">
-                            <i class="fa-solid fa-image text-[#d1904b]"></i>
-                            <h3>Product Image</h3>
+                            <h3><i class="fa-solid fa-image text-[#d1904b]"></i> Product Image</h3>
                         </div>
                         <div class="section-body flex flex-col gap-3">
                             <div class="image-panel">
                                 <div class="no-image" id="noImgBox" onclick="document.getElementById('f_img_input').click()">
-                                    <i class="fa-solid fa-cloud-arrow-up"></i>
-                                    <span>Click or drag to upload image</span>
+                                    <i class="fa-solid fa-cloud-arrow-up text-3xl mb-2 text-[#d1904b]"></i>
+                                    <span class="text-xs font-semibold">Click or drag to upload image</span>
                                 </div>
                                 <div class="img-preview-wrap" id="imgPreviewWrap" style="display:none" onclick="document.getElementById('f_img_input').click()">
                                     <img id="imgPreview" src="" alt="Preview">
                                     <div class="img-overlay">
-                                        <i class="fa-solid fa-camera"></i>
+                                        <i class="fa-solid fa-camera text-xl"></i>
                                         <span>Change Image</span>
                                     </div>
                                 </div>
-                                <div class="img-file-info text-center">
+                                <div class="img-file-info text-center" id="fileInfo">
                                     <span id="imgStatusText" class="text-[11px] text-[#888]">No image selected</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- COLUMN 2: PRODUCT DETAILS -->
+                    <!-- ════ COLUMN 2: PRODUCT DETAILS ════ -->
                     <div class="flex flex-col gap-4">
                         <div class="section-card">
                             <div class="section-head">
-                                <i class="fa-solid fa-pen-line text-[#d1904b]"></i>
-                                <h3>Product Details</h3>
+                                <h3><i class="fa-solid fa-file-pen text-[#d1904b]"></i> Product Details</h3>
                             </div>
-                            <div class="section-body flex flex-col gap-4">
+                            <div class="section-body flex flex-col gap-3.5">
                                 <div class="field">
-                                    <label class="flabel" for="f_name">Product Name</label>
+                                    <label class="flabel" for="f_name">Product Name *</label>
                                     <input type="text" name="name" id="f_name" value="" placeholder="e.g. Oolong Macchiato" required>
                                 </div>
 
                                 <!-- CATEGORY -->
                                 <div class="field">
-                                    <label class="flabel" for="f_cat">Category</label>
+                                    <label class="flabel" for="f_cat">Category *</label>
                                     <select name="category" id="f_cat" class="cat-select" required>
                                         <option value="">Select Category…</option>
                                         <?php foreach ($cats as $slug => $label): ?>
@@ -521,7 +735,7 @@ select.cat-select option {
 
                                 <!-- SELLING PRICE -->
                                 <div class="field">
-                                    <label class="flabel" for="f_price">Selling Price</label>
+                                    <label class="flabel" for="f_price">Selling Price *</label>
                                     <div class="input-wrap">
                                         <span class="prefix">$</span>
                                         <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
@@ -550,11 +764,68 @@ select.cat-select option {
                             <i class="fa-solid fa-plus"></i> Add Product
                         </button>
                     </div>
-                </div>
-            </form>
-        </div>
 
-    </div>
+                    <!-- ════ COLUMN 3: RECIPE & INVENTORY (BILL OF MATERIALS - BOM) ════ -->
+                    <div class="section-card flex-1">
+                        <div class="section-head">
+                            <h3><i class="fa-solid fa-mortar-pestle text-[#d1904b]"></i> Recipe & Ingredients (BOM)</h3>
+                            <button type="button" onclick="addRecipeRow()" class="btn-add-ing">
+                                <i class="fa-solid fa-plus text-xs"></i> Add Ingredient
+                            </button>
+                        </div>
+                        <div class="section-body flex flex-col gap-4">
+                            
+                            <!-- Recipe Table -->
+                            <div class="recipe-table-wrap overflow-x-auto rounded-xl">
+                                <table class="w-full text-left text-xs recipe-table">
+                                    <thead class="recipe-thead uppercase tracking-wider font-semibold">
+                                        <tr>
+                                            <th class="py-2.5 px-3">Raw Ingredient</th>
+                                            <th class="py-2.5 px-2 text-center w-28">Qty Required</th>
+                                            <th class="py-2.5 px-2 text-right">Unit Cost</th>
+                                            <th class="py-2.5 px-2 text-right">Total Cost</th>
+                                            <th class="py-2.5 px-2 text-center w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recipeRowsContainer" class="recipe-tbody divide-y">
+                                    </tbody>
+                                </table>
+
+                                <!-- Empty State -->
+                                <div id="noRecipeMsg" class="no-recipe-box flex flex-col items-center justify-center py-6 text-center">
+                                    <i class="fa-solid fa-mortar-pestle text-2xl text-[#d1904b] mb-1 opacity-70"></i>
+                                    <p class="no-recipe-title text-xs font-semibold">No Recipe Ingredients Linked</p>
+                                    <p class="no-recipe-sub text-[11px] max-w-xs mt-0.5">Click "Add Ingredient" to connect raw materials.</p>
+                                </div>
+                            </div>
+
+                            <!-- Live Recipe COGS & Gross Profit Calculator -->
+                            <div class="recipe-summary-box p-3.5 rounded-xl text-xs flex items-center justify-between">
+                                <div class="space-y-0.5">
+                                    <div class="text-[10px] uppercase font-bold summary-label">Estimated Recipe Cost (COGS)</div>
+                                    <div class="text-lg font-black text-[#d1904b]">$<span id="totalRecipeCogs">0.00</span></div>
+                                </div>
+                                <div class="space-y-0.5 text-center">
+                                    <div class="text-[10px] uppercase font-bold summary-label">Selling Price</div>
+                                    <div class="text-lg font-black selling-price-disp">$<span id="dispSellingPrice">0.00</span></div>
+                                </div>
+                                <div class="space-y-0.5 text-right">
+                                    <div class="text-[10px] uppercase font-bold summary-label">Gross Profit Margin</div>
+                                    <div id="grossMarginWrap" class="text-lg font-black text-[#3ecf70]">
+                                        <span id="grossMarginDol">$0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div><!-- /.page-wrap -->
+            </form>
+        </div><!-- /.modal-body -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-backdrop -->
+</main>
 </div>
 
 <script>
@@ -608,31 +879,38 @@ const allIngredients = <?= json_encode($allIngredients) ?>;
 function addRecipeRow(ingId = '', amt = '') {
     const container = document.getElementById('recipeRowsContainer');
     const noMsg = document.getElementById('noRecipeMsg');
-    if (noMsg) noMsg.style.display = 'none';
+    if (noMsg) noMsg.classList.add('hidden');
 
+    let defaultAmt = amt;
+    let selectedUnit = '';
     let options = '<option value="">Select ingredient…</option>';
     allIngredients.forEach(i => {
         const sel = (i.ingredient_id == ingId) ? 'selected' : '';
         const cpu = parseFloat(i.cost_per_unit || 0);
-        options += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)} (Stock: ${i.stock_quantity} ${escapeHtml(i.unit)})</option>`;
+        if (sel) selectedUnit = (i.unit || '').toLowerCase();
+        options += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)}</option>`;
     });
 
+    if ((!defaultAmt || defaultAmt === '0' || defaultAmt === 0) && ['can', 'cans', 'bottle', 'bottles', 'pcs', 'piece', 'pieces', 'cup', 'cups', 'pack', 'packs', 'portion', 'item'].includes(selectedUnit)) {
+        defaultAmt = 1;
+    }
+
     const tr = document.createElement('tr');
-    tr.className = 'recipe-row hover:bg-[#151519] transition-all';
+    tr.className = 'recipe-row';
     tr.innerHTML = `
         <td class="py-2 px-3">
-            <select name="recipe_ingredient_id[]" class="w-full text-xs bg-[#18181c] border border-[#333] rounded-lg p-2 text-white outline-none focus:border-[#d1904b]" onchange="updateRecipeRow(this)" required>
+            <select name="recipe_ingredient_id[]" class="recipe-select" onchange="updateRecipeRow(this)" required>
                 ${options}
             </select>
         </td>
-        <td class="py-2 px-2">
-            <div class="flex items-center justify-center gap-1">
-                <input type="number" step="any" min="0" name="recipe_amount_used[]" value="${amt}" placeholder="0" class="w-16 text-xs bg-[#18181c] border border-[#333] rounded-md px-2 py-1.5 text-white outline-none focus:border-[#d1904b] text-right font-bold row-qty-input" oninput="calculateRowTotal(this)" required>
-                <span class="unit-label text-[11px] text-[#d1904b] font-bold min-w-[20px]">unit</span>
+        <td class="py-2 px-2 text-center">
+            <div class="qty-unit-group mx-auto">
+                <input type="number" step="any" min="0.01" name="recipe_amount_used[]" value="${defaultAmt || ''}" placeholder="1" class="qty-input-field" oninput="calculateRowTotal(this)" required>
+                <span class="qty-unit-addon unit-label">unit</span>
             </div>
         </td>
-        <td class="py-2 px-2 text-right text-[11px] text-[#aaa]">
-            <span class="unit-price-label text-white font-semibold">$0.00</span>/<span class="unit-name-label text-[#777]">unit</span>
+        <td class="py-2 px-2 text-right text-[11px]">
+            <span class="unit-price-label">$0.00</span><span class="unit-name-label">/unit</span>
         </td>
         <td class="py-2 px-2 text-right text-xs font-bold text-[#3ecf70]">
             $<span class="row-total-label">0.00</span>
@@ -653,7 +931,7 @@ function updateRecipeRow(selectEl) {
     const row = selectEl.closest('.recipe-row');
     if (!row || !opt) return;
 
-    const unit = opt.dataset.unit || 'unit';
+    const unit = (opt.dataset.unit || 'unit').trim();
     const cpu  = parseFloat(opt.dataset.cpu || '0');
 
     const uLbl = row.querySelector('.unit-label');
@@ -666,7 +944,18 @@ function updateRecipeRow(selectEl) {
         upLbl.textContent = '$' + cpuStr;
     }
 
-    calculateRowTotal(row.querySelector('.row-qty-input'));
+    const qtyInput = row.querySelector('.qty-input-field');
+    if (qtyInput) {
+        const cleanUnit = unit.toLowerCase();
+        const currentVal = parseFloat(qtyInput.value);
+        if (isNaN(currentVal) || currentVal === 0 || qtyInput.value === '' || qtyInput.value === '0') {
+            if (['can', 'cans', 'bottle', 'bottles', 'pcs', 'piece', 'pieces', 'cup', 'cups', 'pack', 'packs', 'portion', 'item'].includes(cleanUnit)) {
+                qtyInput.value = '1';
+            }
+        }
+    }
+
+    calculateRowTotal(qtyInput);
 }
 
 function calculateRowTotal(qtyInput) {
@@ -689,7 +978,7 @@ function calculateRowTotal(qtyInput) {
 function calculateTotalRecipeCost() {
     let grandTotal = 0;
     document.querySelectorAll('.recipe-row').forEach(row => {
-        const qtyInput = row.querySelector('.row-qty-input');
+        const qtyInput = row.querySelector('.qty-input-field');
         const selectEl = row.querySelector('select[name="recipe_ingredient_id[]"]');
         const opt = selectEl ? selectEl.options[selectEl.selectedIndex] : null;
         const cpu = opt ? parseFloat(opt.dataset.cpu || '0') : 0;
@@ -699,9 +988,6 @@ function calculateTotalRecipeCost() {
 
     const cogsEl = document.getElementById('totalRecipeCogs');
     if (cogsEl) cogsEl.textContent = grandTotal.toFixed(2);
-
-    const tblCogs = document.getElementById('tableTotalCogs');
-    if (tblCogs) tblCogs.textContent = grandTotal.toFixed(2);
 
     const costPriceInput = document.getElementById('f_cost_price');
     if (costPriceInput) costPriceInput.value = grandTotal.toFixed(2);
@@ -715,27 +1001,22 @@ function calculateTotalRecipeCost() {
     const marginPct    = sellingPrice > 0 ? ((sellingPrice - grandTotal) / sellingPrice) * 100 : 0;
 
     const gmDolEl = document.getElementById('grossMarginDol');
-    const gmPctEl = document.getElementById('grossMarginPct');
     const gmWrap  = document.getElementById('grossMarginWrap');
 
-    if (gmDolEl) gmDolEl.textContent = marginDol.toFixed(2);
-    if (gmPctEl) gmPctEl.textContent = marginPct.toFixed(1) + '%';
+    if (gmDolEl) gmDolEl.textContent = '$' + marginDol.toFixed(2) + (sellingPrice > 0 ? ` (${marginPct.toFixed(1)}%)` : '');
 
     if (gmWrap) {
-        if (marginDol > 0 || marginPct > 0) gmWrap.className = 'text-sm font-extrabold text-[#3ecf70]';
-        else if (sellingPrice > 0 && marginDol <= 0) gmWrap.className = 'text-sm font-extrabold text-[#ff4d4d]';
-        else gmWrap.className = 'text-sm font-extrabold text-[#777]';
+        if (marginDol > 0 || marginPct > 0) gmWrap.className = 'text-lg font-black text-[#3ecf70]';
+        else if (sellingPrice > 0 && marginDol <= 0) gmWrap.className = 'text-lg font-black text-[#ff4d4d]';
+        else gmWrap.className = 'text-lg font-black text-[#777]';
     }
-
-    const summary = document.getElementById('recipeFooterSummary');
-    if (summary) summary.style.display = document.querySelectorAll('.recipe-row').length > 0 ? 'table-footer-group' : 'none';
 }
 
 function checkEmptyRecipe() {
     const container = document.getElementById('recipeRowsContainer');
     const noMsg = document.getElementById('noRecipeMsg');
     if (container.querySelectorAll('.recipe-row').length === 0) {
-        if (noMsg) noMsg.style.display = 'flex';
+        if (noMsg) noMsg.classList.remove('hidden');
     }
 }
 
@@ -753,7 +1034,5 @@ document.addEventListener('keydown', function(e) {
     }
 });
 </script>
-</main>
-</div>
 </body>
 </html>

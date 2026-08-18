@@ -9,10 +9,10 @@ $filter_user = 0;
 $user_options = [];
 if ($_is_mgr) {
     $user_options[0] = 'All Staff';
-    $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
+    $q_users = $conn->query("SELECT u.user_id, u.username, u.role FROM users u ORDER BY u.username ASC");
     if ($q_users) {
         while ($ur = $q_users->fetch_assoc()) {
-            $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+            $displayName = $ur['username'];
             $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
         }
     }
@@ -25,9 +25,12 @@ $user_clause_w = $filter_user > 0 ? " AND (user_id = $filter_user OR employee_id
 $user_clause_o = $filter_user > 0 ? " AND (o.user_id = $filter_user OR o.employee_id = $filter_user)" : "";
 
 // Load roles for badge colours and nav icon lookups
-$_roles_db = [];
-$_rdb = $conn->query("SELECT slug, name, icon, color FROM roles ORDER BY is_system DESC, id ASC");
-while ($_rdbr = $_rdb->fetch_assoc()) $_roles_db[$_rdbr['slug']] = $_rdbr;
+$_roles_db = [
+    'admin'   => ['slug' => 'admin',   'name' => 'Admin',   'color' => '#d1904b', 'icon' => 'fa-user-shield'],
+    'manager' => ['slug' => 'manager', 'name' => 'Manager', 'color' => '#3498db', 'icon' => 'fa-user-tie'],
+    'staff'   => ['slug' => 'staff',   'name' => 'Cashier', 'color' => '#55e087', 'icon' => 'fa-user'],
+    'barista' => ['slug' => 'barista', 'name' => 'Barista', 'color' => '#d1904b', 'icon' => 'fa-mug-hot'],
+];
 
 $_cur_role = $_SESSION['role'] ?? 'staff';
 $_cur_role_info = $_roles_db[$_cur_role] ?? null;
@@ -102,17 +105,17 @@ if ($_quick_range === 'today') {
 }
 
 if ($date_start === $date_end) {
-    $date_cond_w = "business_date = '$date_start'";
-    $date_cond_o = "o.business_date = '$date_start'";
+    $date_cond_w = "DATE(order_date) = '$date_start'";
+    $date_cond_o = "DATE(o.order_date) = '$date_start'";
 } else {
-    $date_cond_w = "business_date BETWEEN '$date_start' AND '$date_end'";
-    $date_cond_o = "o.business_date BETWEEN '$date_start' AND '$date_end'";
+    $date_cond_w = "DATE(order_date) BETWEEN '$date_start' AND '$date_end'";
+    $date_cond_o = "DATE(o.order_date) BETWEEN '$date_start' AND '$date_end'";
 }
 
 $stmt_sales = $conn->query("SELECT IFNULL(SUM(total),0) AS total_sales FROM orders WHERE $date_cond_w " . $user_clause_w . " AND " . paid_orders_where());
 $sales = (float)$stmt_sales->fetch_assoc()['total_sales'];
 
-$stmt_yest = $conn->prepare("SELECT IFNULL(SUM(total),0) AS yesterday_sales FROM orders WHERE business_date=? " . $user_clause_w . " AND " . paid_orders_where());
+$stmt_yest = $conn->prepare("SELECT IFNULL(SUM(total),0) AS yesterday_sales FROM orders WHERE DATE(order_date)=? " . $user_clause_w . " AND " . paid_orders_where());
 $stmt_yest->bind_param("s", $prev_business_date);
 $stmt_yest->execute();
 $yesterday_sales   = $stmt_yest->get_result()->fetch_assoc()['yesterday_sales'];
@@ -123,109 +126,44 @@ $trend_icon        = $sales_trend >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
 $stmt_ord = $conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w " . $user_clause_w);
 $total_orders = (int)$stmt_ord->fetch_assoc()['total_orders'];
 
-$low_result  = mysqli_query($conn, "SELECT COUNT(*) AS low_count FROM ingredients WHERE stock_quantity < minimum_stock");
-$low_stock   = mysqli_fetch_assoc($low_result)['low_count'];
+$low_stock = 0;
 
-// Recipes whose ingredients are running low — surfaced on the "Drink Recipe" tile for prep-facing roles (e.g. barista)
-$low_recipe_result = mysqli_query($conn, "
-    SELECT COUNT(DISTINCT pi.product_id) AS low_recipe_count
-    FROM product_ingredients pi
-    JOIN ingredients i ON pi.ingredient_id = i.ingredient_id
-    WHERE pi.amount_used > 0 AND i.stock_quantity < i.minimum_stock
-");
-$low_recipe_count = mysqli_fetch_assoc($low_recipe_result)['low_recipe_count'];
+// ── Low stock recipe ingredients (removed) ──
+$low_recipe_count = 0;
 
-// ── Inventory-clerk dashboard metrics (only computed for that role) ──
+// ── Inventory-clerk dashboard metrics ──
 $inv_total_products = 0; $inv_pending_po = 0; $inv_out_of_stock = 0;
 $inv_low_list = [];      $inv_activity = [];
 if (($_SESSION['role'] ?? '') === 'inventory_clerk') {
     $inv_total_products = (int)($conn->query("SELECT COUNT(*) c FROM products")->fetch_assoc()['c'] ?? 0);
-
-    $inv_pending_po = (int)($conn->query(
-        "SELECT COUNT(*) c FROM purchase_orders WHERE status IN ('Draft','Ordered','Partially Received')"
-    )->fetch_assoc()['c'] ?? 0);
-
-    // Out of stock = ingredients currently at (or below) zero — the "order now" alarm
-    $inv_out_of_stock = (int)($conn->query(
-        "SELECT COUNT(*) c FROM ingredients WHERE stock_quantity <= 0"
-    )->fetch_assoc()['c'] ?? 0);
-
-    $lr = $conn->query(
-        "SELECT ingredient_name, stock_quantity, minimum_stock, unit
-         FROM ingredients WHERE stock_quantity < minimum_stock
-         ORDER BY (stock_quantity/NULLIF(minimum_stock,0)) ASC"
-    );
-    while ($lr && $row = $lr->fetch_assoc()) $inv_low_list[] = $row;
-
-    $ar = $conn->query(
-        "SELECT ih.change_type, ih.amount, ih.created_at, i.ingredient_name
-         FROM ingredient_history ih
-         JOIN ingredients i ON ih.ingredient_id = i.ingredient_id
-         WHERE ih.change_type NOT IN ('order_deduct','order_restore')
-         ORDER BY ih.created_at DESC LIMIT 6"
-    );
-    while ($ar && $row = $ar->fetch_assoc()) $inv_activity[] = $row;
 }
 
-// Cash reconciliation alert — short/over records today
+// Cash reconciliation and announcements (removed)
 $_recon_alerts = 0;
-if (can('cash_reconciliation')) {
-    $_rar = $conn->query("SELECT COUNT(*) FROM cash_counts WHERE shift_date = CURDATE() AND ABS(difference) >= 0.01");
-    if ($_rar) $_recon_alerts = (int)$_rar->fetch_row()[0];
-}
-
-// Unread announcements count for current user
 $_unread_ann = 0;
-if (can('announcements')) {
-    $_ar = $conn->prepare("
-        SELECT COUNT(*) FROM announcements a
-        WHERE a.is_active = 1
-          AND (a.expires_at IS NULL OR a.expires_at >= CURDATE())
-          AND (a.starts_at IS NULL OR a.starts_at <= CURDATE())
-          AND NOT EXISTS (
-              SELECT 1 FROM announcement_reads r
-              WHERE r.announcement_id = a.id AND r.user_id = ?
-          )
-    ");
-    $_ar->bind_param('i', $_SESSION['user_id']);
-    $_ar->execute();
-    $_ar->bind_result($_unread_ann);
-    $_ar->fetch();
-    $_ar->close();
-}
 
-$stmt_unpaid = $conn->prepare("SELECT COUNT(*) AS unpaid_count FROM orders WHERE status='PendingPayment' AND business_date=?" . $user_clause_w);
-$stmt_unpaid->bind_param("s", $business_date);
-$stmt_unpaid->execute();
-$unpaid_count = $stmt_unpaid->get_result()->fetch_assoc()['unpaid_count'];
+$unpaid_count = 0;
 
-$paylater_result = mysqli_query($conn, "SELECT COUNT(*) AS cnt FROM orders WHERE payment_method='paylater' AND status IN ('Preparing','PendingPayment','Completed')" . $user_clause_w);
+$paylater_result = mysqli_query($conn, "SELECT COUNT(*) AS cnt FROM orders WHERE payment_method='paylater'" . $user_clause_w);
 $paylater_count  = (int)mysqli_fetch_assoc($paylater_result)['cnt'];
 
-$unpaid_orders_result = mysqli_query($conn, "SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number FROM orders WHERE status='PendingPayment'" . $user_clause_w . " ORDER BY order_date DESC LIMIT 5");
+$unpaid_orders_result = false;
+$paid_open_result = false;
 
-$paid_open_result = mysqli_query($conn, "SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number FROM orders WHERE status='Preparing' AND is_open=0" . $user_clause_w . " ORDER BY order_date DESC LIMIT 5");
+$total_refunds = 0;
+$refund_count  = 0;
 
-$refund_result = mysqli_query($conn, "SELECT IFNULL(SUM(refund_amount),0) AS total_refunds, COUNT(*) AS refund_count FROM order_refunds WHERE DATE(refunded_at)=CURDATE()");
-$refund_data   = mysqli_fetch_assoc($refund_result);
-$total_refunds = $refund_data['total_refunds'];
-$refund_count  = $refund_data['refund_count'];
-
-$stmt_status = $conn->query("SELECT status, COUNT(*) as count FROM orders WHERE $date_cond_w " . $user_clause_w . " GROUP BY status");
-$status_counts = [];
-if ($stmt_status) {
-    while ($row = $stmt_status->fetch_assoc()) { $status_counts[$row['status']] = $row['count']; }
-}
-$pending_count   = $status_counts['PendingPayment'] ?? 0;
-$preparing_count = $status_counts['Preparing']      ?? 0;
-$completed_count = $status_counts['Completed']      ?? 0;
-$cancelled_count = $status_counts['Cancelled']      ?? 0;
+$status_counts = ['Completed' => $total_orders];
+$pending_count   = 0;
+$preparing_count = 0;
+$completed_count = $total_orders;
+$cancelled_count = 0;
 
 $stmt_items = $conn->query("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o'));
 $items_sold = (int)$stmt_items->fetch_assoc()['total_items'];
 
 // ── Profit Today calculation ──
-$stmt_today_ids = $conn->prepare("SELECT o.order_id FROM orders o WHERE o.business_date = ? " . $user_clause_o . " AND " . paid_orders_where('o'));
+$stmt_today_ids = $conn->prepare("SELECT o.order_id FROM orders o WHERE DATE(o.order_date) = ? " . $user_clause_o . " AND " . paid_orders_where('o'));
 $stmt_today_ids->bind_param("s", $business_date);
 $stmt_today_ids->execute();
 $res_today_ids = $stmt_today_ids->get_result();
@@ -239,24 +177,21 @@ $cogs_today = (float)$cogs_info_today['total'];
 $profit_today = $sales - $cogs_today;
 $margin_today = $sales > 0 ? round(($profit_today / $sales) * 100, 1) : 0;
 
-$stmt_kitchen = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, order_date, token_number FROM orders WHERE business_date=?" . $user_clause_w . " AND status='Preparing' ORDER BY order_date ASC LIMIT 8");
-$stmt_kitchen->bind_param("s", $business_date);
-$stmt_kitchen->execute();
-$kitchen_result = $stmt_kitchen->get_result();
+$kitchen_result = false;
 
-$stmt_recent = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, status, order_date FROM orders WHERE business_date=?" . $user_clause_w . " ORDER BY order_date DESC LIMIT 20");
+$stmt_recent = $conn->prepare("SELECT order_id, order_id AS daily_order_no, 'Guest' AS customer_name, total, 'Completed' AS status, order_date FROM orders WHERE DATE(order_date)=?" . $user_clause_w . " ORDER BY order_date DESC LIMIT 20");
 $stmt_recent->bind_param("s", $business_date);
 $stmt_recent->execute();
 $recent_orders = $stmt_recent->get_result();
 
 $top_selling_result = mysqli_query($conn, "SELECT p.name, p.image, SUM(oi.quantity) as total_sold, p.price FROM products p JOIN order_items oi ON p.product_id=oi.product_id JOIN orders o ON oi.order_id=o.order_id WHERE " . paid_orders_where('o') . $user_clause_o . " GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 5");
 
-$activity_result = mysqli_query($conn, "SELECT * FROM (SELECT 'order' as type, order_id as ref_id, customer_name as name, total as amount, status, order_date as date FROM orders WHERE 1=1 " . $user_clause_w . " UNION ALL SELECT 'stock' as type, ingredient_id as ref_id, ingredient_name as name, purchase_qty as amount, 'restocked' as status, NULL as date FROM ingredients) as activity ORDER BY date DESC LIMIT 5");
+$activity_result = mysqli_query($conn, "SELECT 'order' as type, order_id as ref_id, 'Guest' as name, total as amount, 'Completed' as status, order_date as date FROM orders WHERE 1=1 " . $user_clause_w . " ORDER BY date DESC LIMIT 5");
 
 $filter_status = isset($_GET['status']) ? trim($_GET['status']) : '';
 if ($filter_status) {
-    $stmt_filter = $conn->prepare("SELECT order_id, daily_order_no, customer_name, total, status, order_date FROM orders WHERE business_date=? AND status=?" . $user_clause_w . " ORDER BY order_date DESC LIMIT 20");
-    $stmt_filter->bind_param("ss", $business_date, $filter_status);
+    $stmt_filter = $conn->prepare("SELECT order_id, order_id AS daily_order_no, 'Guest' AS customer_name, total, 'Completed' AS status, order_date FROM orders WHERE DATE(order_date)=?" . $user_clause_w . " ORDER BY order_date DESC LIMIT 20");
+    $stmt_filter->bind_param("s", $business_date);
     $stmt_filter->execute();
     $recent_orders = $stmt_filter->get_result();
 }
@@ -273,12 +208,12 @@ for ($i = 6; $i >= 0; $i--) {
     $d_date = (new DateTime($business_date))->modify("-$i days")->format("Y-m-d");
     $d_label = (new DateTime($d_date))->format("D (j/n)");
     
-    $st_rev = $conn->prepare("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date=? " . $user_clause_w . " AND " . paid_orders_where());
+    $st_rev = $conn->prepare("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE DATE(order_date)=? " . $user_clause_w . " AND " . paid_orders_where());
     $st_rev->bind_param("s", $d_date);
     $st_rev->execute();
     $d_rev = (float)$st_rev->get_result()->fetch_assoc()['rev'];
     
-    $st_day_ids = $conn->prepare("SELECT o.order_id FROM orders o WHERE o.business_date = ? " . $user_clause_o . " AND " . paid_orders_where('o'));
+    $st_day_ids = $conn->prepare("SELECT o.order_id FROM orders o WHERE DATE(o.order_date) = ? " . $user_clause_o . " AND " . paid_orders_where('o'));
     $st_day_ids->bind_param("s", $d_date);
     $st_day_ids->execute();
     $res_day_ids = $st_day_ids->get_result();
@@ -660,7 +595,9 @@ body.no-sidebar{--sidebar-w:0px;}
     transition: color .2s var(--ease);
 }
 .dash-filter-select {
-    padding: 8px 30px 8px 32px !important;
+    padding: 8px 24px 8px 16px !important;
+    text-align: center !important;
+    text-align-last: center !important;
     border-radius: 12px !important;
     font-size: 12.5px !important;
     font-weight: 600 !important;
@@ -1319,20 +1256,48 @@ a.kpi-card:hover .kpi-drill{ opacity:.95; transform:translateX(0); }
 @media(max-width:820px) {.kpi-row{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:600px) {.kpi-row{grid-template-columns:1fr;}}
 @media(max-width:768px){
-    .sidebar{transform:translateX(-100%);}
-    .sidebar.open{transform:translateX(0);}
-    .menu-toggle{display:flex;}
-    .main{margin-left:0;padding:68px 16px 32px;max-width:100vw;}
-    .dash-header h1{font-size:19px;}
-    .kpi-value{font-size:28px;}
-    .qa-tiles{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;}
-    .qa-tile{min-height:138px;padding:26px 16px;}
-    .qa-tile i{width:64px;height:64px;font-size:28px;}
-    .qa-hero-btn{font-size:19px;padding:24px 26px;min-height:90px;}
-    .qx-tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
-    .qx-tile{min-height:84px;padding:14px 16px;gap:12px;}
-    .qx-tile i{width:42px;height:42px;font-size:20px;}
-    .qx-hero{font-size:15px;min-height:54px;padding:14px 20px;max-width:none;}
+    .main{margin-left:0;padding:16px 12px 32px;max-width:100vw;}
+    .dash-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .dash-header h1{font-size:18px;}
+    .header-actions {
+        width: 100%;
+        overflow: visible;
+        padding-bottom: 0;
+    }
+    #dashFilterForm {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        width: 100% !important;
+        gap: 6px !important;
+    }
+    .filter-wrapper {
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 4px 8px !important;
+        overflow: hidden;
+    }
+    .dash-filter-select {
+        width: 100% !important;
+        font-size: 11px !important;
+        padding-left: 8px !important;
+        padding-right: 18px !important;
+        text-align: center !important;
+        text-align-last: center !important;
+        text-overflow: ellipsis;
+    }
+    .kpi-value{font-size:26px;}
+    .qa-tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+    .qa-tile{min-height:120px;padding:18px 12px;}
+    .qa-tile i{width:52px;height:52px;font-size:24px;}
+    .qa-hero-btn{font-size:17px;padding:18px 20px;min-height:76px;}
+    .qx-tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+    .qx-tile{min-height:76px;padding:12px 14px;gap:10px;}
+    .qx-tile i{width:36px;height:36px;font-size:18px;}
+    .qx-hero{font-size:14px;min-height:48px;padding:12px 16px;max-width:none;}
 }
 
 /* ── INVENTORY-CLERK DASHBOARD (StockMate layout) ── */
@@ -1459,23 +1424,31 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
     <?php if (($_SESSION['role'] ?? '') !== 'inventory_clerk'): ?>
     <!-- HEADER -->
     <div class="dash-header fu" style="animation-delay:.0s">
-        <div>
-            <h1>
-                Good <span id="timeOfDay">morning</span>, <span class="name"><?= htmlspecialchars($admin_name) ?></span>
-                <?php if (!$_is_mgr): ?>
-                <span class="role-badge" style="--role-color:<?= htmlspecialchars($_cur_role_color) ?>;"><?= htmlspecialchars($_cur_role_name) ?></span>
-                <?php endif; ?>
-            </h1>
-            <p class="header-sub">
-                <i class="fa-regular fa-calendar-days"></i>
-                <?= date("l, d F Y") ?>
-            </p>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button type="button" 
+                    onclick="toggleSidebar()" 
+                    class="sidebar-toggle-btn"
+                    style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);color:var(--amber);cursor:pointer;flex-shrink:0;"
+                    title="Toggle Navigation Sidebar">
+                <i class="fa-solid fa-bars" style="font-size:15px;"></i>
+            </button>
+            <div>
+                <h1>
+                    Good <span id="timeOfDay">morning</span>, <span class="name"><?= htmlspecialchars($admin_name) ?></span>
+                    <?php if (!$_is_mgr): ?>
+                    <span class="role-badge" style="--role-color:<?= htmlspecialchars($_cur_role_color) ?>;"><?= htmlspecialchars($_cur_role_name) ?></span>
+                    <?php endif; ?>
+                </h1>
+                <p class="header-sub">
+                    <i class="fa-regular fa-calendar-days"></i>
+                    <?= date("l, d F Y") ?>
+                </p>
+            </div>
         </div>
         <div class="header-actions">
             <form id="dashFilterForm" method="GET" action="dashboard.php" style="margin:0;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <!-- Quick Range Dropdown -->
                 <div class="filter-wrapper range-filter">
-                    <i class="fa-solid fa-calendar-day"></i>
                     <select id="dashQuickRange" name="quick_range" class="dash-filter-select filter-range">
                         <option value=""><?= __('quick_range', '-- Quick Range --') ?></option>
                         <option value="today" <?= $_quick_range === 'today' ? 'selected' : '' ?>>Today</option>
@@ -1487,7 +1460,6 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
 
                 <!-- Month Dropdown -->
                 <div class="filter-wrapper month-filter">
-                    <i class="fa-solid fa-calendar-week"></i>
                     <select id="dashMonthSelect" name="select_month" class="dash-filter-select filter-month">
                         <option value=""><?= __('select_month', '-- Select Month --') ?></option>
                         <?php foreach ($months_list as $mnum => $mname): ?>
@@ -1499,7 +1471,6 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
                 <?php if ($_is_mgr && !empty($user_options)): ?>
                 <!-- Staff Member Dropdown -->
                 <div class="filter-wrapper user-filter">
-                    <i class="fa-solid fa-user-gear"></i>
                     <select id="dashUserSelect" name="user_id" class="dash-filter-select filter-user">
                         <?php foreach ($user_options as $uid => $uname): ?>
                         <option value="<?= $uid ?>" <?= $filter_user == $uid ? 'selected' : '' ?>><?= htmlspecialchars($uname) ?></option>
@@ -1508,16 +1479,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
                 </div>
                 <?php endif; ?>
 
-                <!-- Clear / Reset Filter Button -->
-                <button type="button" id="dashResetBtn" class="dash-reset-btn" title="Reset filter to current date/time" onclick="resetDashFilter()">
-                    <i class="fa-solid fa-rotate-left"></i>
-                    <span>Clear</span>
-                </button>
             </form>
-            <button class="theme-toggle" onclick="toggleTheme()">
-                <i class="fa-solid fa-moon" id="themeIcon"></i>
-                <span id="themeText"><?= __('dark_mode', 'Dark') ?></span>
-            </button>
             <?php if (!$_is_mgr): ?>
             <?php
             $clocked  = $_is_clocked_in;
@@ -1727,19 +1689,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
             </div>
             <?php endif; ?>
 
-            <?php if (can('suppliers')||can('purchase_orders')): ?>
-            <div class="inv-sec-label">Procurement</div>
-            <div class="inv-tiles">
-              <?php if (can('suppliers')): ?>
-              <a class="inv-tile" href="suppliers.php"><span class="inv-tile-ico" style="color:#5b9bd5"><i class="fa-solid fa-truck-ramp-box"></i></span>
-                <span><span class="inv-tile-t">Suppliers</span><span class="inv-tile-d">Vendor management</span></span><i class="fa-solid fa-chevron-right inv-tile-arw"></i></a>
-              <?php endif; ?>
-              <?php if (can('purchase_orders')): ?>
-              <a class="inv-tile" href="purchase_orders.php"><span class="inv-tile-ico" style="color:var(--amber)"><i class="fa-solid fa-file-invoice"></i></span>
-                <span><span class="inv-tile-t">Purchase Orders</span><span class="inv-tile-d">Track and manage POs</span></span><i class="fa-solid fa-chevron-right inv-tile-arw"></i></a>
-              <?php endif; ?>
-            </div>
-            <?php endif; ?>
+
           </div>
           <aside class="inv-rail">
             <div class="inv-panel">
@@ -1986,20 +1936,8 @@ setInterval(updateSidebarClock,1000);
 })();
 
 
-/* ── Mobile sidebar overlay helper ── */
-function closeSidebar(){
-    const sb = document.getElementById('sidebar');
-    const ov = document.querySelector('.overlay');
-    if (!sb || !ov) return;
-    sb.classList.remove('open');
-    ov.classList.remove('active');
-}
-document.addEventListener('keydown',e=>{
-    if(e.key==='Escape') closeSidebar();
-});
-window.addEventListener('resize',()=>{
-    if(window.innerWidth>768) closeSidebar();
-});
+/* ── Mobile sidebar overlay helper (delegates to sidebar.php) ── */
+// uses window.closeSidebar provided by sidebar.php
 
 /* ── Theme toggle ── */
 function toggleTheme(){

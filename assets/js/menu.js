@@ -263,6 +263,9 @@ function _bindProductCards() {
 
         // Open Product modal check for drink cards
         const card = e.target.closest('.js-open-product, .product-card, .seller-card, .drink-card, [data-product-id], [data-id]');
+        if (card && (card.classList.contains('disabled') || card.classList.contains('out-of-stock-card') || card.dataset.stockStatus === 'out_of_stock')) {
+            return;
+        }
         if (card && !e.target.closest('button, a, input, select, .quick-add-btn, [data-quick-add]') && !card.getAttribute('onclick')) {
             if (typeof openModalFromCard === 'function') {
                 openModalFromCard(card);

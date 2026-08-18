@@ -75,26 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $u = $conn->prepare("UPDATE categories SET name=?, icon=?, is_active=?, offer_sweetness=?, offer_ice=?, offer_milk=?, offer_addons=?, earns_points=? WHERE category_id=?");
                 $u->bind_param('ssiiiiiii', $name, $icon, $active, $os, $oi, $om, $oa, $ep, $id);
                 $u->execute();
-                $seeded = 0;
-                if ($oa) {
-                    // Seed-only: give every product in this category that has NO add-ons yet
-                    // the full active add-on set. Products with a custom set are left untouched.
-                    $slugRow = $conn->query("SELECT slug FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
-                    $catSlug = $slugRow['slug'] ?? '';
-                    if ($catSlug !== '') {
-                        $seed = $conn->prepare("
-                            INSERT IGNORE INTO product_addons (product_id, addon_id)
-                            SELECT p.product_id, a.id
-                            FROM products p CROSS JOIN addons a
-                            WHERE p.category = ? AND a.is_active = 1
-                              AND NOT EXISTS (SELECT 1 FROM product_addons pa WHERE pa.product_id = p.product_id)
-                        ");
-                        $seed->bind_param('s', $catSlug);
-                        $seed->execute();
-                        $seeded = $conn->affected_rows;
-                    }
-                }
-                $flash = ['type'=>'success','msg'=>'Category updated.' . ($seeded > 0 ? " Seeded add-ons for products that had none." : '')];
+                $flash = ['type'=>'success','msg'=>'Category updated.'];
                 break;
             }
             case 'toggle': {
@@ -513,16 +494,283 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
     z-index: 2;
 }
 
-@media (max-width: 1200px) {
-    .vo-stats-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
 @media (max-width: 768px) {
-    .vo-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .app-main {
+        padding: 12px 14px !important;
+    }
+    .wrap {
+        padding: 0 !important;
+        margin: 10px 0 30px !important;
+        gap: 12px !important;
+    }
+    .topbar {
+        padding: 8px 12px !important;
+        gap: 8px !important;
+        border-radius: 14px !important;
+        margin-bottom: 8px !important;
+    }
+    .brand-icon {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+    }
+    .brand-title {
+        font-size: 14px !important;
+        font-weight: 700 !important;
+    }
+    .brand-sub {
+        display: none !important;
+    }
+    .topbar-right {
+        gap: 6px !important;
+    }
+    .btn-primary-teal {
+        padding: 6px 12px !important;
+        font-size: 11.5px !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+    }
+    .btn-nav.icon-only {
+        padding: 0 !important;
+        width: 32px !important;
+        height: 32px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 8px !important;
+    }
+    .vo-stats-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 4px !important;
+    }
+    .vo-stat-box {
+        padding: 8px 8px !important;
+        min-height: 54px !important;
+        height: auto !important;
+        gap: 8px !important;
+        border-radius: 11px !important;
+    }
+    .vo-stat-icon {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+    }
+    .vo-stat-content {
+        gap: 1px !important;
+        min-width: 0 !important;
+    }
+    .vo-stat-title {
+        font-size: 8.5px !important;
+        letter-spacing: 0.02em !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    .vo-stat-value {
+        font-size: 16px !important;
+        line-height: 1.1 !important;
+    }
+    .vo-stat-sub {
+        display: none !important;
+    }
+    .col-products,
+    .col-offers,
+    .col-status {
+        display: none !important;
+    }
+    .col-actions {
+        display: table-cell !important;
+        text-align: right !important;
+        width: 105px !important;
+        padding-right: 8px !important;
+    }
+    .cat-name-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .cat-name-title {
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+    .cat-product-badge-mobile {
+        display: block !important;
+        font-size: 10px;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+    .cat-table-wrapper {
+        border-radius: 14px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .cat-table th {
+        padding: 10px 8px !important;
+        font-size: 10.5px !important;
+        white-space: nowrap !important;
+    }
+    .cat-table td {
+        padding: 10px 8px !important;
+        font-size: 12.5px !important;
+    }
+    .cat-icon {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 12px !important;
+        border-radius: 8px !important;
+    }
+    .act-btn-group {
+        display: inline-flex !important;
+        gap: 4px !important;
+    }
+    .act-icon-btn {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 11.5px !important;
+        border-radius: 7px !important;
+    }
 }
 
-@media (max-width: 576px) {
-    .vo-stats-grid { grid-template-columns: 1fr; }
+@media (min-width: 769px) {
+    .cat-product-badge-mobile {
+        display: none !important;
+    }
+}
+
+@media (max-width: 430px) {
+    .vo-stats-grid {
+        gap: 5px !important;
+    }
+    .vo-stat-box {
+        padding: 6px 6px !important;
+        gap: 5px !important;
+        border-radius: 9px !important;
+    }
+    .vo-stat-icon {
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        font-size: 11.5px !important;
+        border-radius: 6px !important;
+    }
+    .vo-stat-title {
+        font-size: 7.5px !important;
+    }
+    .vo-stat-value {
+        font-size: 14px !important;
+    }
+    .btn-primary-teal .btn-text {
+        display: none !important;
+    }
+    .btn-primary-teal {
+        padding: 6px 9px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* ── Action Icon Buttons (View, Edit, Delete) ── */
+.act-btn-group {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.act-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    border: 1px solid transparent;
+    box-sizing: border-box;
+}
+
+.act-icon-btn.view-btn {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.25);
+}
+.act-icon-btn.view-btn:hover {
+    background: #38bdf8;
+    color: #000000;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.35);
+}
+
+.act-icon-btn.edit-btn {
+    background: rgba(209, 144, 75, 0.12);
+    color: var(--accent, #d1904b);
+    border-color: rgba(209, 144, 75, 0.25);
+}
+.act-icon-btn.edit-btn:hover {
+    background: var(--accent, #d1904b);
+    color: #000000;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(209, 144, 75, 0.35);
+}
+
+.act-icon-btn.delete-btn {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger, #ff5f5f);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+.act-icon-btn.delete-btn:hover:not(:disabled) {
+    background: var(--danger, #ff5f5f);
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+.act-icon-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: #6b7280 !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Light Mode Overrides for Action Icon Buttons */
+[data-theme="light"] .act-icon-btn.view-btn {
+    background: rgba(2, 132, 199, 0.1) !important;
+    color: #0284c7 !important;
+    border-color: rgba(2, 132, 199, 0.25) !important;
+}
+[data-theme="light"] .act-icon-btn.view-btn:hover {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .act-icon-btn.edit-btn {
+    background: rgba(209, 144, 75, 0.12) !important;
+    color: #b37330 !important;
+    border-color: rgba(209, 144, 75, 0.3) !important;
+}
+[data-theme="light"] .act-icon-btn.edit-btn:hover {
+    background: #d1904b !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .act-icon-btn.delete-btn {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #dc2626 !important;
+    border-color: rgba(239, 68, 68, 0.25) !important;
+}
+[data-theme="light"] .act-icon-btn.delete-btn:hover:not(:disabled) {
+    background: #dc2626 !important;
+    color: #ffffff !important;
 }
 
 .vo-stat-box {
@@ -816,6 +1064,101 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 }
 .btn-cancel-modal:hover { background: rgba(255, 255, 255, 0.15); }
 
+/* ── Category Modal File Upload Upgrade ── */
+.cat-file-upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.cat-img-preview-box {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1.5px dashed rgba(209, 144, 75, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.cat-img-preview-box:hover {
+    border-color: var(--accent, #d1904b);
+    background: rgba(209, 144, 75, 0.1);
+    transform: scale(1.04);
+}
+.cat-img-preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.cat-img-placeholder {
+    color: var(--accent, #d1904b);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cat-file-choose-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+.btn-choose-file {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    color: var(--text, #f5f5f5);
+    font-family: 'Poppins', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.btn-choose-file:hover {
+    background: rgba(209, 144, 75, 0.12);
+    border-color: var(--accent, #d1904b);
+    color: var(--accent, #d1904b);
+}
+.btn-choose-file i {
+    color: var(--accent, #d1904b);
+    font-size: 14px;
+}
+
+[data-theme="light"] .cat-img-preview-box {
+    background: #ede8e0 !important;
+    border-color: rgba(209, 144, 75, 0.5) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] .btn-choose-file {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+[data-theme="light"] .btn-choose-file:hover {
+    background: rgba(209, 144, 75, 0.15) !important;
+    border-color: #d1904b !important;
+    color: #a0702a !important;
+}
+
 /* ── Page entrance fade-in ── */
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .topbar { animation: fadeInUp .45s ease both; }
@@ -830,15 +1173,15 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 <main class="app-main flex-1 h-full overflow-y-auto p-6" style="flex:1; height:100%; overflow-y:auto;">
 
 <div class="topbar">
-    <a href="products.php" class="btn-nav icon-only" title="Back to Products"><i class="fa-solid fa-arrow-left"></i></a>
-    <div class="brand-icon"><i class="fa-solid fa-tags"></i></div>
+    <button type="button" onclick="toggleSidebar()" class="btn-nav icon-only sidebar-toggle-btn" title="Toggle Navigation Sidebar">
+        <i class="fa-solid fa-bars"></i>
+    </button>
     <div class="brand-text">
         <span class="brand-title"><?= __('manage_categories', 'Manage Categories') ?></span>
         <span class="brand-sub">Bird's Nest Coffee &rsaquo; <?= __('catalog', 'Catalog') ?></span>
     </div>
     <div class="topbar-right">
-        <button type="button" class="btn-primary-teal" onclick="openAddCategoryModal()" style="padding: 7px 16px; font-size: 12.5px;"><i class="fa-solid fa-plus"></i> <?= __('add_category', 'Add Category') ?></button>
-        <button class="btn-nav icon-only" onclick="toggleTheme()" title="Toggle theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+        <button type="button" class="btn-primary-teal" onclick="openAddCategoryModal()"><i class="fa-solid fa-plus"></i> <span class="btn-text"><?= __('add_category', 'Add Category') ?></span></button>
     </div>
 </div>
 
@@ -886,20 +1229,20 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
     <table class="cat-table">
         <thead>
             <tr>
-                <th style="width:70px; text-align:center;"><?= __('col_no', 'No.') ?></th>
-                <th style="width:60px; text-align:center;"><?= __('image', 'Image') ?></th>
-                <th style="width:35%;"><?= __('category_name', 'Category Name') ?></th>
-                <th style="width:15%; text-align:center;"><?= __('nav_products', 'Products') ?></th>
-                <th style="width:20%; text-align:center;"><?= __('offers', 'Offers') ?></th>
-                <th style="width:12%; text-align:center;"><?= __('active', 'Active') ?></th>
-                <th style="width:160px; text-align:right;"><?= __('actions', 'Actions') ?></th>
+                <th class="col-no" style="width:50px; text-align:center;"><?= __('col_no', 'No.') ?></th>
+                <th class="col-image" style="width:55px; text-align:center;"><?= __('image', 'Image') ?></th>
+                <th class="col-name"><?= __('category_name', 'Category Name') ?></th>
+                <th class="col-products" style="width:14%; text-align:center;"><?= __('nav_products', 'Products') ?></th>
+                <th class="col-offers" style="width:18%; text-align:center;"><?= __('offers', 'Offers') ?></th>
+                <th class="col-status" style="width:12%; text-align:center;"><?= __('active', 'Active') ?></th>
+                <th class="col-actions" style="text-align:right; width:120px;"><?= __('actions', 'Actions') ?></th>
             </tr>
         </thead>
         <tbody>
         <?php foreach ($categories as $i => $c): ?>
             <tr class="cat-row <?= $c['is_active'] ? '' : 'inactive' ?>" data-active="<?= (int)$c['is_active'] ?>">
-                <td style="text-align:center;"><strong><?= $i + 1 ?></strong></td>
-                <td style="text-align:center;">
+                <td class="col-no" style="text-align:center;"><strong><?= $i + 1 ?></strong></td>
+                <td class="col-image" style="text-align:center;">
                     <?php $__icon = $c['icon'] ?: 'fa-circle'; ?>
                     <?php if (str_contains($__icon, '/')): ?>
                     <span class="cat-icon" style="overflow:hidden;background:rgba(209,144,75,.15);"><img src="<?= he($__icon) ?>" alt="" style="width:100%;height:100%;object-fit:cover;"></span>
@@ -907,33 +1250,47 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
                     <span class="cat-icon"><i class="fa-solid <?= he($__icon) ?>"></i></span>
                     <?php endif; ?>
                 </td>
-                <td><?= he($c['name']) ?><?php if (!$c['is_active']): ?> <span class="pill pill-inactive"><?= __('inactive', 'Inactive') ?></span><?php endif; ?></td>
-                <td style="text-align:center; font-weight:700;"><?= (int)$c['product_count'] ?></td>
-                <td style="text-align:center; white-space:nowrap;">
+                <td class="col-name">
+                    <div class="cat-name-cell">
+                        <span class="cat-name-title"><?= he($c['name']) ?></span>
+                        <span class="cat-product-badge-mobile"><?= (int)$c['product_count'] ?> <?= __('nav_products', 'products') ?></span>
+                        <?php if (!$c['is_active']): ?> <span class="pill pill-inactive" style="font-size:9.5px;padding:2px 6px;margin-top:2px;display:inline-block;"><?= __('inactive', 'Inactive') ?></span><?php endif; ?>
+                    </div>
+                </td>
+                <td class="col-products" style="text-align:center; font-weight:700;"><?= (int)$c['product_count'] ?></td>
+                <td class="col-offers" style="text-align:center; white-space:nowrap;">
                     <div style="display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;">
                         <?php foreach ([[__('sugar','Sugar'),$c['offer_sweetness']],[__('ice','Ice'),$c['offer_ice']]] as $__o): ?>
                         <span class="pill <?= $__o[1] ? 'offer-pill-on' : 'offer-pill-off' ?>" title="<?= $__o[1] ? 'Offered' : 'Hidden' ?>" style="white-space:nowrap;"><?= $__o[0] ?></span>
                         <?php endforeach; ?>
                     </div>
                 </td>
-                <td style="text-align:center;">
+                <td class="col-status" style="text-align:center;">
                     <button type="button" class="act-link <?= $c['is_active'] ? 'avail-on' : 'avail-off' ?>"
                             onclick="toggleCategoryActive(<?= (int)$c['category_id'] ?>, this, event)">
                         <?= $c['is_active'] ? __('on', 'On') : __('off', 'Off') ?>
                     </button>
                 </td>
-                <td style="text-align:right; white-space:nowrap;">
-                    <button type="button" class="act-link" onclick="openEditCategoryModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>)"><?= __('edit', 'Edit') ?></button>
-                    <?php if ((int)$c['product_count'] > 0): ?>
-                    <button type="button" class="act-link danger-link" disabled title="Cannot delete: <?= (int)$c['product_count'] ?> product(s) use this category"><?= __('delete', 'Delete') ?></button>
-                    <?php else: ?>
-                    <form method="POST" style="display:inline;" onsubmit="return deleteCategory(<?= (int)$c['category_id'] ?>, this, event);">
-                        <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="category_id" value="<?= (int)$c['category_id'] ?>">
-                        <button type="submit" class="act-link danger-link"><?= __('delete', 'Delete') ?></button>
-                    </form>
-                    <?php endif; ?>
+                <td class="col-actions" style="text-align:right; white-space:nowrap;">
+                    <div class="act-btn-group">
+                        <button type="button" class="act-icon-btn edit-btn" onclick="openEditCategoryModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>)" title="<?= __('edit', 'Edit Category') ?>">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <?php if ((int)$c['product_count'] > 0): ?>
+                        <button type="button" class="act-icon-btn delete-btn" disabled title="Cannot delete: <?= (int)$c['product_count'] ?> product(s) use this category">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                        <?php else: ?>
+                        <form method="POST" style="display:inline;" onsubmit="return deleteCategory(<?= (int)$c['category_id'] ?>, this, event);">
+                            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="category_id" value="<?= (int)$c['category_id'] ?>">
+                            <button type="submit" class="act-icon-btn delete-btn" title="<?= __('delete', 'Delete Category') ?>">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
                 </td>
             </tr>
         <?php endforeach; ?>
@@ -964,15 +1321,24 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
             </div>
 
             <div class="form-group-item">
-                <label class="form-label">Icon Image</label>
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <img id="edit_cat_icon_preview" src="" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);display:none;">
-                    <input type="file" name="icon" id="edit_cat_icon" class="form-input" onchange="previewIconImage(this,'edit_cat_icon_preview')">
+                <label class="form-label"><?= __('icon_image', 'Icon Image') ?></label>
+                <div class="cat-file-upload-row">
+                    <div class="cat-img-preview-box" id="edit_cat_icon_box" onclick="document.getElementById('edit_cat_icon').click()" title="Click to choose image">
+                        <img id="edit_cat_icon_preview" src="" alt="Icon" style="display:none;">
+                        <div id="edit_cat_icon_placeholder" class="cat-img-placeholder">
+                            <i class="fa-solid fa-image"></i>
+                        </div>
+                    </div>
+                    <div class="cat-file-choose-wrap">
+                        <input type="file" name="icon" id="edit_cat_icon" accept="image/*" style="display:none;" onchange="previewCategoryIcon(this, 'edit_cat_icon_preview', 'edit_cat_icon_placeholder', 'edit_cat_file_name')">
+                        <button type="button" class="btn-choose-file" onclick="document.getElementById('edit_cat_icon').click()">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span id="edit_cat_file_name">Choose Image...</span>
+                        </button>
+                    </div>
                 </div>
-                <span class="form-subtext">Upload an icon file (any type). Leave empty to keep the current icon.</span>
+                <span class="form-subtext">Upload an icon file (PNG, JPG, SVG, WebP). Leave empty to keep current icon.</span>
             </div>
-
-
 
             <div class="form-checkbox-card">
                 <label class="checkbox-row">
@@ -1019,12 +1385,23 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
             </div>
 
             <div class="form-group-item">
-                <label class="form-label">Icon Image</label>
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <img id="add_cat_icon_preview" src="" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);display:none;">
-                    <input type="file" name="icon" id="add_cat_icon" class="form-input" onchange="previewIconImage(this,'add_cat_icon_preview')">
+                <label class="form-label"><?= __('icon_image', 'Icon Image') ?></label>
+                <div class="cat-file-upload-row">
+                    <div class="cat-img-preview-box" id="add_cat_icon_box" onclick="document.getElementById('add_cat_icon').click()" title="Click to choose image">
+                        <img id="add_cat_icon_preview" src="" alt="Icon" style="display:none;">
+                        <div id="add_cat_icon_placeholder" class="cat-img-placeholder">
+                            <i class="fa-solid fa-image"></i>
+                        </div>
+                    </div>
+                    <div class="cat-file-choose-wrap">
+                        <input type="file" name="icon" id="add_cat_icon" accept="image/*" style="display:none;" onchange="previewCategoryIcon(this, 'add_cat_icon_preview', 'add_cat_icon_placeholder', 'add_cat_file_name')">
+                        <button type="button" class="btn-choose-file" onclick="document.getElementById('add_cat_icon').click()">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span id="add_cat_file_name">Choose Image...</span>
+                        </button>
+                    </div>
                 </div>
-                <span class="form-subtext">Upload an icon file (any type).</span>
+                <span class="form-subtext">Upload an icon file (PNG, JPG, SVG, WebP).</span>
             </div>
 
             <div class="form-checkbox-card">
@@ -1057,10 +1434,17 @@ function openEditCategoryModal(catData) {
     document.getElementById('edit_cat_id').value = catData.category_id;
     document.getElementById('edit_cat_name').value = catData.name;
     document.getElementById('edit_cat_icon').value = '';
+    document.getElementById('edit_cat_file_name').textContent = 'Choose Image...';
     const prev = document.getElementById('edit_cat_icon_preview');
+    const placeholder = document.getElementById('edit_cat_icon_placeholder');
     const isImg = catData.icon && catData.icon.indexOf('/') !== -1;
-    if (isImg) { prev.style.display = 'block'; prev.src = catData.icon; }
-    else { prev.style.display = 'none'; prev.src = ''; }
+    if (isImg) {
+        if (prev) { prev.style.display = 'block'; prev.src = catData.icon; }
+        if (placeholder) placeholder.style.display = 'none';
+    } else {
+        if (prev) { prev.style.display = 'none'; prev.src = ''; }
+        if (placeholder) placeholder.style.display = 'flex';
+    }
     const slugEl = document.getElementById('edit_cat_slug'); if (slugEl) slugEl.value = catData.slug;
     document.getElementById('edit_is_active').checked = Number(catData.is_active) === 1;
     document.getElementById('edit_offer_sweetness').checked = Number(catData.offer_sweetness) === 1;
@@ -1078,8 +1462,11 @@ function closeEditCategoryModal() {
 function openAddCategoryModal() {
     document.getElementById('add_cat_name').value = '';
     document.getElementById('add_cat_icon').value = '';
-    document.getElementById('add_cat_icon_preview').style.display = 'none';
-    document.getElementById('add_cat_icon_preview').src = '';
+    document.getElementById('add_cat_file_name').textContent = 'Choose Image...';
+    const prev = document.getElementById('add_cat_icon_preview');
+    const placeholder = document.getElementById('add_cat_icon_placeholder');
+    if (prev) { prev.style.display = 'none'; prev.src = ''; }
+    if (placeholder) placeholder.style.display = 'flex';
     document.getElementById('add_slugPreview').textContent = 'Slug will be: —';
     document.getElementById('addCategoryModal').style.display = 'flex';
 }
@@ -1093,15 +1480,30 @@ function updateAddSlugPreview() {
     document.getElementById('add_slugPreview').textContent = 'Slug will be: ' + (v || '—');
 }
 
-function previewIconImage(input, previewId) {
+function previewCategoryIcon(input, previewId, placeholderId, nameSpanId) {
     const prev = document.getElementById(previewId);
+    const placeholder = document.getElementById(placeholderId);
+    const nameSpan = document.getElementById(nameSpanId);
     if (input.files && input.files[0]) {
-        prev.style.display = 'block';
-        prev.src = URL.createObjectURL(input.files[0]);
+        const file = input.files[0];
+        if (prev) {
+            prev.src = URL.createObjectURL(file);
+            prev.style.display = 'block';
+        }
+        if (placeholder) placeholder.style.display = 'none';
+        if (nameSpan) nameSpan.textContent = file.name;
     } else {
-        prev.style.display = 'none';
-        prev.src = '';
+        if (prev) {
+            prev.src = '';
+            prev.style.display = 'none';
+        }
+        if (placeholder) placeholder.style.display = 'flex';
+        if (nameSpan) nameSpan.textContent = 'Choose Image...';
     }
+}
+
+function previewIconImage(input, previewId) {
+    previewCategoryIcon(input, previewId, null, null);
 }
 
 function toggleTheme() {

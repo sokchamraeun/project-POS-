@@ -26,7 +26,7 @@ if ($product_id <= 0) {
     json_out(false, 'Missing product ID', 0, null, 400);
 }
 
-$qty = max(1, min(99, (int)($_POST['qty'] ?? 1)));
+$qty = max(1, min(100, (int)($_POST['qty'] ?? 1)));
 
 $sweetness = trim((string)($_POST['sweetness'] ?? ''));
 $ice       = trim((string)($_POST['ice']       ?? ''));
@@ -36,19 +36,9 @@ $size_code = trim((string)($_POST['size'] ?? ''));
 // Validate options against allowed values
 $valid_sweetness = ['0%', '25%', '50%', '75%', '100%', ''];
 $valid_ice       = ['No Ice', 'Less Ice', 'Normal Ice', 'More Ice', ''];
-// Milk whitelist is admin-managed (milk_options); build it from the active set + '' (no milk).
-$valid_milk = [''];
-$mk_wl = $conn->query("SELECT name FROM milk_options WHERE is_active = 1");
-if ($mk_wl) { while ($mw = $mk_wl->fetch_assoc()) $valid_milk[] = $mw['name']; }
-
-if ($sweetness !== '' && !in_array($sweetness, $valid_sweetness)) {
-    json_out(false, 'Invalid sweetness option', 0, null, 400);
-}
-if ($ice !== '' && !in_array($ice, $valid_ice)) {
-    json_out(false, 'Invalid ice option', 0, null, 400);
-}
+$valid_milk = ['Fresh Milk', 'Almond Milk', 'Soy Milk', 'Oat Milk', ''];
 if ($milk !== '' && !in_array($milk, $valid_milk)) {
-    json_out(false, 'Invalid milk option', 0, null, 400);
+    $milk = '';
 }
 
 // Fetch product
@@ -63,36 +53,40 @@ if (!$res || $res->num_rows === 0) {
 
 $p = $res->fetch_assoc();
 
-// ── Add-ons: validate posted ids against this product's active assignments ──
-$posted_addons = array_values(array_unique(array_map('intval', $_POST['addons'] ?? [])));
-$addons = [];       // ordered [{id,name,price}]
-$addon_sum = 0.0;
-if ($posted_addons) {
-    $in = implode(',', array_fill(0, count($posted_addons), '?'));
-    $types = str_repeat('i', count($posted_addons));
-    // Gate on the product's category Offer too (mirror menu: hidden pills must not be addable via a stale/crafted POST)
-    $sql = "SELECT a.id, a.name, a.price
-            FROM product_addons pa
-            JOIN addons a      ON a.id = pa.addon_id
-            JOIN products pr   ON pr.product_id = pa.product_id
-            JOIN categories c  ON c.slug = pr.category
-            WHERE pa.product_id = ? AND a.is_active = 1 AND c.offer_addons = 1 AND a.id IN ($in)
-            ORDER BY a.display_order ASC, a.id ASC";
-    $st = $conn->prepare($sql);
-    $st->bind_param('i' . $types, $product_id, ...$posted_addons);
-    $st->execute();
-    $rs = $st->get_result();
-    $valid_ids = [];
-    while ($r = $rs->fetch_assoc()) {
-        $addons[] = ['id'=>(int)$r['id'], 'name'=>$r['name'], 'price'=>(float)$r['price']];
-        $addon_sum += (float)$r['price'];
-        $valid_ids[] = (int)$r['id'];
+// ── Stock Check: Validate inventory ingredients ──
+try {
+    $stockCheck = $conn->prepare("
+        SELECT s.item_name, s.quantity, r.quantity_required, s.unit
+        FROM product_recipes r
+        JOIN stock_items s ON r.item_id = s.item_id
+        WHERE r.product_id = ? AND s.is_active = 1
+    ");
+    if ($stockCheck) {
+        $stockCheck->bind_param("i", $product_id);
+        $stockCheck->execute();
+        $stockRes = $stockCheck->get_result();
+
+        $outOfStock = [];
+        while ($sr = $stockRes->fetch_assoc()) {
+            $needed = (float)$sr['quantity_required'] * (float)$qty;
+            $available = (float)$sr['quantity'];
+            if ($available <= 0 || $available < $needed) {
+                $outOfStock[] = "{$sr['item_name']} (Available: " . (floor($available) == $available ? number_format($available, 0) : number_format($available, 2)) . " {$sr['unit']})";
+            }
+        }
+        $stockCheck->close();
+
+        if (!empty($outOfStock)) {
+            json_out(false, "Cannot add '{$p['name']}': Insufficient stock for " . implode(', ', $outOfStock), 0, null, 400);
+        }
     }
-    // reject if any posted id was not a valid assignment
-    if (count($valid_ids) !== count($posted_addons)) {
-        json_out(false, 'Invalid add-on selection', 0, null, 400);
-    }
+} catch (Throwable $e) {
+    error_log("add_to_cart stock check error: " . $e->getMessage());
 }
+
+// ── Add-ons (removed) ──
+$addons = [];
+$addon_sum = 0.0;
 
 // ── Resolve size (per-size absolute price; defensive fallback to base) ──
 $line_price   = (float)$p['price'];   // products.price == Medium / base
@@ -100,30 +94,7 @@ $size_label   = '';
 $size_factor  = 1.0;
 $resolved_code = '';
 
-if ((int)$p['has_sizes'] === 1) {
-    $rows = [];
-    $sz = $conn->prepare("SELECT size_code, label, price, size_factor FROM product_sizes WHERE product_id = ?");
-    $sz->bind_param("i", $product_id);
-    $sz->execute();
-    $rs = $sz->get_result();
-    while ($r = $rs->fetch_assoc()) { $rows[$r['size_code']] = $r; }
 
-    if (!empty($rows)) {
-        if ($size_code === '') {
-            $size_code = count($rows) === 1 ? (string)array_key_first($rows) : ($rows['M']['size_code'] ?? (string)array_key_first($rows));
-        }
-        // size_code is required for a sized product
-        if (!isset($rows[$size_code])) {
-            json_out(false, 'Please choose a size', 0, null, 400);
-        }
-        $chosen        = $rows[$size_code];
-        $line_price    = (float)$chosen['price'];
-        $size_label    = (string)$chosen['label'];
-        $size_factor   = (float)$chosen['size_factor'];
-        $resolved_code = $size_code;
-    }
-    // has_sizes=1 but zero rows → fall through as unsized (base price, factor 1.0)
-}
 
 // ── Per-product promo: discount the drink only, not add-ons. Round per unit. ──
 $promo_percent = max(0, min(100, (int)($p['promo_percent'] ?? 0)));
@@ -141,9 +112,10 @@ if (!isset($_SESSION['cart'])) {
 
 $cart_was_empty = empty($_SESSION['cart']);
 
-// Merge identical items
+// Merge identical items up to max 100 per line item
 $addon_sig = implode(',', array_map(fn($a) => $a['id'], $addons));  // ordered ids
-$found = false;
+$remaining_qty = $qty;
+
 foreach ($_SESSION['cart'] as &$item) {
     if (
         $item['product_id'] == $product_id &&
@@ -153,16 +125,23 @@ foreach ($_SESSION['cart'] as &$item) {
         $item['sweetness']  == $sweetness  &&
         $item['ice']        == $ice        &&
         $item['milk']       == $milk       &&
-        (implode(',', array_map(fn($x) => $x['id'], $item['addons'] ?? [])) === $addon_sig)
+        (implode(',', array_map(fn($x) => $x['id'], $item['addons'] ?? [])) === $addon_sig) &&
+        (int)($item['qty'] ?? 0) < 100
     ) {
-        $item['qty'] += $qty;
-        $found = true;
-        break;
+        $space = 100 - (int)$item['qty'];
+        $add_here = min($remaining_qty, $space);
+        $item['qty'] += $add_here;
+        $remaining_qty -= $add_here;
+        if ($remaining_qty <= 0) {
+            break;
+        }
     }
 }
 unset($item);
 
-if (!$found) {
+// If there is still quantity to add (e.g. existing line was at 100), create new line(s) capped at 100
+while ($remaining_qty > 0) {
+    $line_qty = min(100, $remaining_qty);
     $_SESSION['cart'][] = [
         'product_id'   => $p['product_id'],
         'product_name' => $p['name'],
@@ -178,8 +157,9 @@ if (!$found) {
         'ice'          => $ice,
         'milk'         => $milk,
         'addons'       => $addons,
-        'qty'          => $qty,
+        'qty'          => $line_qty,
     ];
+    $remaining_qty -= $line_qty;
 }
 
 // Stamp when the first item is added to the cart

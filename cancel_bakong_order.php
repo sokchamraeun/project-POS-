@@ -50,9 +50,11 @@ if ($order_id > 0) {
     $stmt_del_pay->bind_param("i", $order_id);
     $stmt_del_pay->execute();
 
-    $stmt_del_ord = $conn->prepare("DELETE FROM orders WHERE order_id = ? AND status != 'Completed'");
-    $stmt_del_ord->bind_param("i", $order_id);
-    $stmt_del_ord->execute();
+    $stmt_del_ord = $conn->prepare("DELETE FROM orders WHERE order_id = ?");
+    if ($stmt_del_ord) {
+        $stmt_del_ord->bind_param("i", $order_id);
+        $stmt_del_ord->execute();
+    }
 }
 
 header("Location: menu.php");

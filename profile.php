@@ -8,29 +8,23 @@ $username = $_SESSION['username'] ?? '';
 $role     = $_SESSION['role']     ?? 'staff';
 
 // Fetch staff & user information
-$stmt_emp = $conn->prepare("
-    SELECT u.user_id, u.username,
-           r.name AS role_name, r.color AS role_color, r.icon AS role_icon,
-           emp.employee_id, emp.name AS emp_name, emp.phone, emp.job_title, emp.hire_date, emp.shift
-    FROM users u
-    LEFT JOIN roles r ON r.id = u.role_id
-    LEFT JOIN employees emp ON emp.user_id = u.user_id
-    WHERE u.user_id = ?
-");
-$stmt_emp->bind_param("i", $user_id);
-$stmt_emp->execute();
-$emp_info = $stmt_emp->get_result()->fetch_assoc();
+$role_map = [
+    'admin'   => ['name' => 'Admin',   'color' => '#d1904b', 'icon' => 'fa-user-shield'],
+    'manager' => ['name' => 'Manager', 'color' => '#3498db', 'icon' => 'fa-user-tie'],
+    'staff'   => ['name' => 'Cashier', 'color' => '#55e087', 'icon' => 'fa-user'],
+    'barista' => ['name' => 'Barista', 'color' => '#d1904b', 'icon' => 'fa-mug-hot'],
+];
+$r_info       = $role_map[$role] ?? ['name' => ucfirst($role), 'color' => '#d1904b', 'icon' => 'fa-user'];
+$role_display = $r_info['name'];
+$role_color   = $r_info['color'];
+$role_icon    = $r_info['icon'];
 
-$role_display = $emp_info['role_name'] ?? ucfirst(str_replace('_', ' ', $role));
-$role_color   = $emp_info['role_color'] ?? '#d1904b';
-$role_icon    = $emp_info['role_icon']  ?? 'fa-user-tie';
-
-$emp_display_name = !empty($emp_info['emp_name']) ? $emp_info['emp_name'] : $username;
-$emp_code         = !empty($emp_info['employee_id']) ? '#STF-' . $emp_info['employee_id'] : '#USR-' . $user_id;
-$emp_phone        = !empty($emp_info['phone']) ? $emp_info['phone'] : 'N/A';
-$emp_job          = !empty($emp_info['job_title']) ? $emp_info['job_title'] : $role_display;
-$emp_hire         = !empty($emp_info['hire_date']) ? date('F d, Y', strtotime($emp_info['hire_date'])) : 'N/A';
-$emp_shift        = !empty($emp_info['shift']) ? ucfirst($emp_info['shift']) : 'N/A';
+$emp_display_name = $username;
+$emp_code         = '#USR-' . $user_id;
+$emp_phone        = 'N/A';
+$emp_job          = $role_display;
+$emp_hire         = 'N/A';
+$emp_shift        = 'N/A';
 ?>
 <!DOCTYPE html>
 <html lang="en">

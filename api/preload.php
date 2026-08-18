@@ -26,8 +26,7 @@ switch ($role) {
         $r2 = $conn->query("SELECT COUNT(*) AS cnt FROM orders WHERE status IN ('PendingPayment','Preparing')");
         $data['active_orders'] = (int)$r2->fetch_assoc()['cnt'];
 
-        $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM ingredients WHERE stock_quantity < minimum_stock");
-        $data['low_stock'] = (int)$r3->fetch_assoc()['cnt'];
+        $data['low_stock'] = 0;
         break;
 
     case 'barista':
@@ -39,11 +38,8 @@ switch ($role) {
         break;
 
     case 'inventory_clerk':
-        $r = $conn->query("SELECT COUNT(*) AS total FROM ingredients");
-        $data['total_ingredients'] = (int)$r->fetch_assoc()['total'];
-
-        $r2 = $conn->query("SELECT COUNT(*) AS cnt FROM ingredients WHERE stock_quantity < minimum_stock");
-        $data['low_stock'] = (int)$r2->fetch_assoc()['cnt'];
+        $data['total_ingredients'] = 0;
+        $data['low_stock'] = 0;
         break;
 }
 

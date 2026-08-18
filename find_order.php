@@ -6,23 +6,7 @@ if (!can('find_orders')) { header("Location: dashboard.php?denied=1"); exit; }
 // ── Poll endpoint: returns current order IDs for change-detection ──
 if (isset($_GET['action']) && $_GET['action'] === 'poll') {
     header('Content-Type: application/json');
-    $poll_tab = $_GET['tab'] ?? 'all';
-    $poll_sql = "SELECT order_id FROM orders WHERE (
-        status = 'PendingPayment'
-        OR (status = 'Paid' AND is_open = 1)
-        OR (payment_method = 'paylater' AND status IN ('Preparing','PendingPayment','Completed'))
-    )
-    AND ( business_date = CURDATE() OR payment_method = 'paylater' )";
-    if ($poll_tab === 'paylater') {
-        $poll_sql .= " AND payment_method = 'paylater' AND status IN ('Preparing','PendingPayment','Completed')";
-    } elseif ($poll_tab === 'preparing') {
-        $poll_sql .= " AND status = 'Preparing'";
-    } elseif ($poll_tab === 'pending') {
-        $poll_sql .= " AND status = 'PendingPayment'";
-    } elseif ($poll_tab === 'paid_open') {
-        $poll_sql .= " AND status = 'Paid' AND is_open = 1";
-    }
-    $poll_sql = str_replace('SELECT order_id', 'SELECT order_id, status', $poll_sql);
+    $poll_sql = "SELECT order_id, 'Completed' AS status FROM orders WHERE ( DATE(order_date) = CURDATE() OR payment_method = 'paylater' )";
     $pr = mysqli_query($conn, $poll_sql);
     $sig = '';
     while ($row = mysqli_fetch_assoc($pr)) $sig .= $row['order_id'] . ':' . $row['status'] . '|';
@@ -44,36 +28,19 @@ $page    = max(1, (int)($_GET['page'] ?? 1));
 
 // ── Main query: unpaid OR paid-but-open orders ──
 $sql = "
-SELECT order_id, daily_order_no, customer_name, total, status, payment_method, order_date, is_open, token_number, table_number
+SELECT order_id, order_id AS daily_order_no, 'Guest' AS customer_name, total, 'Completed' AS status, payment_method, order_date, 0 AS is_open, order_id AS token_number, '' AS table_number
 FROM orders
-WHERE (
-    status = 'PendingPayment'
-    OR (status = 'Paid' AND is_open = 1)
-    OR (payment_method = 'paylater' AND status IN ('Preparing','PendingPayment','Completed'))
-)
-AND ( business_date = CURDATE() OR payment_method = 'paylater' )
+WHERE ( DATE(order_date) = CURDATE() OR payment_method = 'paylater' )
 ";
 
 if (!empty($search_value)) {
     $safe = $conn->real_escape_string($search_value);
-    if ($search_type === 'exact_id') {
-        $sql .= " AND order_id = " . (int)$search_value;
-    } elseif ($search_type === 'order_id') {
-        $sql .= " AND daily_order_no = '$safe'";
-    } else {
-        $sql .= " AND customer_name LIKE '%$safe%'";
-    }
+    $sql .= " AND order_id = " . (int)$safe;
 }
 
 // Tab filter
-if ($filter_tab === 'preparing') {
-    $sql .= " AND status = 'Preparing'";
-} elseif ($filter_tab === 'pending') {
-    $sql .= " AND status = 'PendingPayment'";
-} elseif ($filter_tab === 'paid_open') {
-    $sql .= " AND status = 'Paid' AND is_open = 1";
-} elseif ($filter_tab === 'paylater') {
-    $sql .= " AND payment_method = 'paylater' AND status IN ('Preparing', 'PendingPayment', 'Completed')";
+if ($filter_tab === 'paylater') {
+    $sql .= " AND payment_method = 'paylater'";
 }
 
 // Total matching rows (same filters, for pagination)
@@ -104,32 +71,16 @@ while ($row = mysqli_fetch_assoc($result)) {
 
 // ── Tab counts ──
 $count_sql = "
-SELECT status, is_open, payment_method, COUNT(*) as cnt
+SELECT payment_method, COUNT(*) as cnt
 FROM orders
-WHERE (
-    status = 'PendingPayment'
-    OR (status = 'Paid' AND is_open = 1)
-    OR (payment_method = 'paylater' AND status IN ('Preparing','PendingPayment','Completed'))
-)
-AND ( business_date = CURDATE() OR payment_method = 'paylater' )
-GROUP BY status, is_open, payment_method
+WHERE ( DATE(order_date) = CURDATE() OR payment_method = 'paylater' )
+GROUP BY payment_method
 ";
 $count_result = mysqli_query($conn, $count_sql);
 $tab_counts = ['all' => 0, 'preparing' => 0, 'pending' => 0, 'paid_open' => 0, 'paylater' => 0];
 while ($r = mysqli_fetch_assoc($count_result)) {
     $tab_counts['all'] += $r['cnt'];
-    if ($r['status'] === 'Preparing') {
-        $tab_counts['preparing'] += $r['cnt'];
-        if ($r['payment_method'] === 'paylater') $tab_counts['paylater'] += $r['cnt'];
-    }
-    if ($r['status'] === 'PendingPayment') {
-        $tab_counts['pending'] += $r['cnt'];
-        if ($r['payment_method'] === 'paylater') $tab_counts['paylater'] += $r['cnt'];
-    }
-    if ($r['status'] === 'Completed' && $r['payment_method'] === 'paylater') {
-        $tab_counts['paylater'] += $r['cnt'];
-    }
-    if ($r['status'] === 'Paid' && $r['is_open'] == 1) $tab_counts['paid_open'] += $r['cnt'];
+    if ($r['payment_method'] === 'paylater') $tab_counts['paylater'] += $r['cnt'];
 }
 
 // ── Shared empty-state markup (used by both AJAX and full render) ──

@@ -22,41 +22,20 @@ $_hour = (int)(new DateTime())->format('H');
 $_greeting = $_hour < 12 ? 'Good morning' : ($_hour < 18 ? 'Good afternoon' : 'Good evening');
 $_vo_username = htmlspecialchars($_SESSION['username'] ?? 'User', ENT_QUOTES, 'UTF-8');
 $_vo_role    = $_SESSION['role'] ?? 'staff';
-$_all_roles  = [];
-$_ar_res = $conn->query("SELECT slug, name, color, icon FROM roles");
-while ($_ar = $_ar_res->fetch_assoc()) $_all_roles[$_ar['slug']] = $_ar;
+$_all_roles  = [
+    'admin'   => ['slug' => 'admin', 'name' => 'Admin', 'color' => '#d1904b', 'icon' => 'fa-user-shield'],
+    'manager' => ['slug' => 'manager', 'name' => 'Manager', 'color' => '#3498db', 'icon' => 'fa-user-tie'],
+    'staff'   => ['slug' => 'staff', 'name' => 'Cashier', 'color' => '#55e087', 'icon' => 'fa-user'],
+    'barista' => ['slug' => 'barista', 'name' => 'Barista', 'color' => '#d1904b', 'icon' => 'fa-mug-hot'],
+];
 $_role_label = $_all_roles[$_vo_role]['name']  ?? ucfirst(str_replace('_', ' ', $_vo_role));
 $_role_color = $_all_roles[$_vo_role]['color'] ?? '#888888';
 $_date_str    = date('l, d F Y');
 
-/* ── MILK OPTIONS (admin-managed via manage_milk.php) ──
-   The remake modal used to hard-code this list, so anything added in Manage Milk was
-   invisible here and a retired option stayed selectable. Mirrors menu.php exactly. */
-$_remake_milk = [];
-$_mk = $conn->query("SELECT name FROM milk_options WHERE is_active = 1 ORDER BY display_order ASC, id ASC");
-if ($_mk) while ($_m = $_mk->fetch_assoc()) $_remake_milk[] = $_m['name'];
+$_remake_milk = ['Fresh Milk', 'Almond Milk', 'Soy Milk', 'Oat Milk'];
 
-/* Add-ons the barista can toggle on a remake, keyed by product. Mirrors the ordering
-   path's gate (add_to_cart.php): only add-ons assigned to that product, in a category
-   that offers add-ons. Offering the whole library here would let a remake put Extra Shot
-   on a juice that can't be ordered with one. */
+// Add-ons (removed)
 $_remake_addons = [];
-$_ad = $conn->query("
-    SELECT pa.product_id, a.id, a.name, a.price
-    FROM product_addons pa
-    JOIN addons a     ON a.id = pa.addon_id
-    JOIN products pr  ON pr.product_id = pa.product_id
-    JOIN categories c ON c.slug = pr.category
-    WHERE a.is_active = 1 AND c.offer_addons = 1
-    ORDER BY a.display_order ASC, a.id ASC
-");
-if ($_ad) while ($_a = $_ad->fetch_assoc()) {
-    $_remake_addons[(int)$_a['product_id']][] = [
-        'id'    => (int)$_a['id'],
-        'name'  => $_a['name'],
-        'price' => (float)$_a['price'],
-    ];
-}
 
 // Clock-in status
 $_is_clocked_in = false;
@@ -70,13 +49,8 @@ if ($_att_check && $_att_check->num_rows > 0) {
     if ($_crow) { $_is_clocked_in = true; $_clock_since = date('g:i A', strtotime($_crow['clock_in'])); }
 }
 
-// Fetch active announcements
-$_ann_check = $conn->query("SHOW TABLES LIKE 'announcements'");
+// Announcements (removed)
 $_announcements = [];
-if ($_ann_check && $_ann_check->num_rows > 0) {
-    $_ann_res = $conn->query("SELECT id, title, message, type FROM announcements WHERE is_active = 1 AND (expires_at IS NULL OR expires_at >= CURDATE()) AND (starts_at IS NULL OR starts_at <= CURDATE()) ORDER BY created_at DESC");
-    if ($_ann_res) $_announcements = $_ann_res->fetch_all(MYSQLI_ASSOC);
-}
 
 // ── Define Socket URL in one place ──
 if (!defined('SOCKET_URL')) {
@@ -132,6 +106,18 @@ if ($action === ""):
         --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    /* ── LIGHT MODE PALETTE ── */
+    html[data-theme="light"], [data-theme="light"] {
+        --bg: #ECEEF2;
+        --bg-card: #FFFFFF;
+        --bg-card-hover: #F5F7FA;
+        --border: #E2E5EA;
+        --border-hover: #CDD0D8;
+        --text: #111827;
+        --text-muted: #5A6373;
+        --text-light: #0B0F19;
+    }
+
     * { 
         box-sizing: border-box; 
         margin: 0; 
@@ -140,7 +126,7 @@ if ($action === ""):
 
     /* ── PREMIUM DARK BACKGROUND ── */
     body {
-        background-color: #09090b;
+        background-color: var(--bg, #09090b);
         background-image:
             radial-gradient(ellipse 90% 60% at 15% -10%, rgba(80,80,120,0.10) 0%, transparent 55%),
             radial-gradient(ellipse 70% 60% at 85% 110%, rgba(60,60,100,0.08) 0%, transparent 55%),
@@ -159,9 +145,14 @@ if ($action === ""):
         overflow: hidden;
     }
 
-    .vo-page-wrapper {
-        padding: 24px;
-        padding-bottom: 60px;
+    html[data-theme="light"] body,
+    [data-theme="light"] body,
+    [data-theme="light"] .app-layout,
+    [data-theme="light"] .app-main,
+    [data-theme="light"] .vo-page-wrapper {
+        background-color: #ECEEF2 !important;
+        color: #111827 !important;
+        background-image: none !important;
     }
 
     /* ── Coffee Steam Animation ── */
@@ -398,13 +389,36 @@ if ($action === ""):
 
     @media (max-width: 768px) {
         .vo-stats-grid {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+            margin-bottom: 16px !important;
         }
     }
 
-    @media (max-width: 576px) {
+    @media (max-width: 480px) {
         .vo-stats-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+        }
+        .search-bar {
+            gap: 8px !important;
+            margin-bottom: 12px !important;
+        }
+        .search-bar #searchInput {
+            min-width: 100% !important;
+            width: 100% !important;
+        }
+        .search-bar #staffFilterSelect {
+            flex: 1 !important;
+            min-width: 0 !important;
+        }
+        .search-bar .btn {
+            flex: 1 !important;
+            justify-content: center !important;
+            padding: 10px 14px !important;
+        }
+        .search-bar .btn-clear {
+            display: none !important;
         }
     }
 
@@ -689,7 +703,8 @@ if ($action === ""):
         display: flex;
         align-items: center;
         gap: 6px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        white-space: nowrap;
     }
 
     /* View Detail Button & Badges */
@@ -771,6 +786,135 @@ if ($action === ""):
         box-shadow: 0 4px 14px rgba(209, 144, 75, 0.3);
     }
 
+    .vo-mobile-select {
+        width: 100% !important;
+        padding: 10px 16px !important;
+        border-radius: 10px !important;
+        border: 1px solid rgba(209, 144, 75, 0.4) !important;
+        background-color: #161412 !important;
+        color: #f3cb98 !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        outline: none !important;
+        text-align: center !important;
+        text-align-last: center !important;
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d1904b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 14px center !important;
+    }
+
+    [data-theme="light"] .vo-mobile-select {
+        background-color: #fff9f2 !important;
+        color: #92581d !important;
+        border-color: rgba(209, 144, 75, 0.5) !important;
+    }
+
+    /* ── Search & Filter 2-Column Responsive Layout ── */
+    .vo-filter-controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 16px;
+        width: 100%;
+    }
+    .vo-filter-search-box {
+        flex: 1;
+        min-width: 0;
+    }
+    .vo-filter-search-box input {
+        width: 100%;
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.09);
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        color: var(--text);
+        font-family: 'Poppins', sans-serif;
+        font-size: 13.5px;
+        outline: none;
+        box-sizing: border-box;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .vo-filter-selects-box {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .vo-filter-selects-box select {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: #18181c;
+        color: var(--text);
+        font-family: 'Poppins', sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        outline: none;
+        cursor: pointer;
+    }
+
+    @media (max-width: 640px) {
+        .vo-stat-box {
+            padding: 10px 12px !important;
+            gap: 10px !important;
+            min-height: 62px !important;
+            border-radius: 12px !important;
+        }
+        .vo-stat-icon {
+            width: 34px !important;
+            height: 34px !important;
+            min-width: 34px !important;
+            font-size: 15px !important;
+            border-radius: 9px !important;
+        }
+        .vo-stat-title {
+            font-size: 9.5px !important;
+            letter-spacing: 0.04em !important;
+        }
+        .vo-stat-value {
+            font-size: 18px !important;
+        }
+
+        .vo-date-pills-desktop { display: none !important; }
+        .vo-date-select-mobile { display: block !important; flex: 1 !important; width: 100% !important; }
+        .vo-filter-controls {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            margin-bottom: 14px !important;
+            width: 100% !important;
+        }
+        .vo-filter-search-box {
+            width: 100% !important;
+        }
+        .vo-filter-search-box input {
+            width: 100% !important;
+            font-size: 12px !important;
+            padding: 10px 12px !important;
+            height: 42px !important;
+        }
+        .vo-filter-selects-box {
+            width: 100% !important;
+            display: flex !important;
+            gap: 6px !important;
+        }
+        .vo-filter-selects-box select,
+        .vo-mobile-select {
+            width: 100% !important;
+            height: 42px !important;
+            font-size: 12px !important;
+            padding: 9px 8px !important;
+            border-radius: 10px !important;
+        }
+        #staffFilterSelect {
+            display: none !important; /* On 2-col mobile, Column 1 is Search, Column 2 is Date Filter */
+        }
+    }
+
     .complete-btn {
         padding: 7px 16px;
         min-width: 110px;
@@ -832,6 +976,7 @@ if ($action === ""):
         color: var(--text);
         font-weight: 600;
         font-size: 13px;
+        white-space: nowrap !important;
     }
 
     .status-pill {
@@ -964,8 +1109,17 @@ if ($action === ""):
     [data-theme="light"] .vo-table td {
         color: #0F172A !important;
     }
-    [data-theme="light"] .vo-col-stand {
-        color: #64748B !important;
+    [data-theme="light"] .vo-items-count-badge {
+        background: #F1F5F9 !important;
+        border-color: #CBD5E1 !important;
+        color: #1E293B !important;
+    }
+    [data-theme="light"] .vo-items-count-badge i {
+        color: #d1904b !important;
+    }
+    [data-theme="light"] .vo-col-stand,
+    [data-theme="light"] .vo-col-placed {
+        color: #475569 !important;
     }
 
     /* Stat Cards in Light Mode */
@@ -2090,11 +2244,78 @@ if ($action === ""):
             border-radius: 14px;
         }
 
-        .orders-grid { grid-template-columns: 1fr; }
-
         .status {
             font-size: 11px;
             padding: 4px 12px;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .vo-stat-sub {
+            display: none !important;
+        }
+
+        /* ── Mobile View: Hide secondary columns (Date/Time & Staff) ── */
+        .vo-table th:nth-child(4),
+        .vo-table td:nth-child(4),
+        .vo-table th:nth-child(5),
+        .vo-table td:nth-child(5) {
+            display: none !important;
+        }
+
+        .vo-table .vo-col-items .vo-items-count-badge {
+            white-space: nowrap !important;
+            font-size: 11.5px !important;
+            padding: 4px 8px !important;
+        }
+
+        /* ── Action Buttons: Show icons only on mobile ── */
+        .card-actions button span,
+        .vo-col-actions button span,
+        .btn-view-detail span,
+        .btn-reprint span,
+        .paid-btn span,
+        .take-btn span,
+        .complete-btn span,
+        .print-btn span {
+            display: none !important;
+        }
+
+        .vo-table .vo-col-actions {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            white-space: nowrap !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+
+        .card-actions button,
+        .vo-col-actions button,
+        .btn-view-detail,
+        .btn-reprint,
+        .paid-btn,
+        .take-btn,
+        .complete-btn,
+        .print-btn {
+            padding: 8px 10px !important;
+            min-width: 34px !important;
+            height: 34px !important;
+            border-radius: 10px !important;
+            justify-content: center !important;
+            display: inline-flex !important;
+            align-items: center !important;
+        }
+        .card-actions button i,
+        .vo-col-actions button i,
+        .btn-view-detail i,
+        .btn-reprint i,
+        .paid-btn i,
+        .take-btn i,
+        .complete-btn i,
+        .print-btn i {
+            margin: 0 !important;
+            font-size: 14px !important;
         }
     }
 
@@ -2116,15 +2337,30 @@ if ($action === ""):
         }
     }
 /* Light theme (follows shared localStorage theme) */
-[data-theme="light"]{--bg:#ECEEF2;--bg-card:#FFFFFF;--bg-card-hover:#F5F7FA;--border:#E2E5EA;--border-hover:#CDD0D8;--text:#111827;--text-muted:#5A6373;--text-light:#0B0F19;}
-[data-theme="light"] body{
-    background-color:#ECEEF2;
+html[data-theme="light"], [data-theme="light"] {
+    --bg:#ECEEF2;
+    --bg-card:#FFFFFF;
+    --bg-card-hover:#F5F7FA;
+    --border:#E2E5EA;
+    --border-hover:#CDD0D8;
+    --text:#111827;
+    --text-muted:#5A6373;
+    --text-light:#0B0F19;
+}
+html[data-theme="light"] body,
+[data-theme="light"] body,
+[data-theme="light"] .app-layout,
+[data-theme="light"] .app-main,
+[data-theme="light"] .vo-page-wrapper,
+[data-theme="light"] .main-content-container {
+    background-color:#ECEEF2 !important;
+    color:#111827 !important;
     background-image:
         radial-gradient(ellipse 90% 60% at 15% -10%, rgba(120,120,160,0.06) 0%, transparent 55%),
         radial-gradient(ellipse 70% 60% at 85% 110%, rgba(100,100,140,0.05) 0%, transparent 55%),
         linear-gradient(rgba(0,0,0,0.028) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,0.028) 1px, transparent 1px);
-    background-size:auto, auto, 72px 72px, 72px 72px;
+        linear-gradient(90deg, rgba(0,0,0,0.028) 1px, transparent 1px) !important;
+    background-size:auto, auto, 72px 72px, 72px 72px !important;
 }
 [data-theme="light"] .order-card{
     background:#FFFFFF; border-color:#E2E5EA;
@@ -2645,28 +2881,34 @@ function showClockToast(msg, isErr) {
     </div>
 </div>
 
-<!-- Search Bar -->
-<div class="search-bar" style="display:flex; gap:12px; margin-bottom:16px; align-items:center; width:100%; flex-wrap:wrap;">
-    <input type="text" id="searchInput" placeholder="<?= __('search_orders_ph', 'Search by customer name, order #, or status...') ?>"
-           oninput="searchOrders()" onkeydown="if(event.key==='Escape')clearSearch()"
-           style="flex:1; width:100%; min-width:240px; padding:11px 18px; border-radius:10px; border:1px solid rgba(255,255,255,0.09); background:rgba(255,255,255,0.05); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--text); font-family:'Poppins',sans-serif; font-size:14px; outline:none; transition:var(--transition); box-shadow:0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);">
-    <select id="staffFilterSelect" onchange="filterByStaff(this.value)"
-            style="padding:11px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:#18181c; color:var(--text); font-family:'Poppins',sans-serif; font-size:13.5px; font-weight:500; outline:none; cursor:pointer; min-width:150px;">
-        <option value="mine" <?= (($_GET['staff'] ?? 'mine') === 'mine') ? 'selected' : '' ?>><?= __('filter_my_orders', 'My Orders') ?></option>
-        <option value="all" <?= (($_GET['staff'] ?? '') === 'all') ? 'selected' : '' ?>><?= __('filter_all_orders', 'All Orders') ?></option>
-    </select>
-    <button class="btn" onclick="searchOrders()" 
-            style="padding:11px 22px; border-radius:10px; border:none; background:var(--accent); color:#000; font-weight:600; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
-        <i class="fa-solid fa-magnifying-glass"></i> <?= __('search', 'Search') ?>
-    </button>
-    <button class="btn-clear" onclick="clearSearch()" 
-            style="padding:11px 22px; border-radius:10px; border:1px solid var(--border); background:rgba(18, 18, 18, 0.5); backdrop-filter:blur(10px); color:var(--text); font-weight:500; cursor:pointer; transition:var(--transition); font-family:'Poppins',sans-serif; font-size:14px; display:flex; align-items:center; gap:8px;">
-        <i class="fa-solid fa-xmark"></i> <?= __('clear', 'Clear') ?>
-    </button>
+<!-- Search & Filter Controls (2 Column Grid on Mobile) -->
+<div class="search-bar vo-filter-controls">
+    <div class="vo-filter-search-box">
+        <input type="text" id="searchInput" placeholder="<?= __('search_orders_ph', 'Search by customer name, order #, or status...') ?>"
+               oninput="searchOrders()" onkeydown="if(event.key==='Escape')clearSearch()">
+    </div>
+    
+    <div class="vo-filter-selects-box">
+        <!-- Date Dropdown (Mobile Select / Desktop Secondary) -->
+        <div class="vo-date-select-mobile">
+            <select id="voMobileDateSelect" class="vo-mobile-select" onchange="filterDateRange(this.value, null)">
+                <option value="all"><?= __('range_all', 'All Time') ?></option>
+                <option value="today"><?= __('range_today', 'Today') ?></option>
+                <option value="week"><?= __('range_this_week', 'This Week') ?></option>
+                <option value="month"><?= __('range_this_month', 'This Month') ?></option>
+                <option value="year"><?= __('range_this_year', 'This Year') ?></option>
+            </select>
+        </div>
+
+        <select id="staffFilterSelect" onchange="filterByStaff(this.value)">
+            <option value="all" <?= (($_GET['staff'] ?? 'all') === 'all') ? 'selected' : '' ?>><?= __('filter_all_orders', 'All Orders') ?></option>
+            <option value="mine" <?= (($_GET['staff'] ?? '') === 'mine') ? 'selected' : '' ?>><?= __('filter_my_orders', 'My Orders') ?></option>
+        </select>
+    </div>
 </div>
 
-<!-- Quick Date Filter Pills -->
-<div class="vo-date-filter-bar" style="display:flex; gap:8px; margin-bottom:24px; align-items:center; flex-wrap:wrap;">
+<!-- Desktop Quick Date Filter Pills (Hidden on Mobile) -->
+<div class="vo-date-pills-desktop" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
     <button type="button" class="vo-date-pill active" onclick="filterDateRange('all', this)">
         <i class="fa-solid fa-layer-group"></i> <?= __('range_all', 'All Time') ?>
     </button>
@@ -2688,7 +2930,9 @@ function showClockToast(msg, isErr) {
 <div class="vo-table-container" style="width:100% !important; max-width:100% !important; margin:0 !important; padding:0 !important;">
     <div id="ordersBody" class="orders-grid" style="width:100% !important; max-width:100% !important;"></div>
 </div>
-</div>
+</div><!-- /.vo-page-wrapper -->
+</div><!-- /.app-main -->
+</div><!-- /.app-layout -->
 <?php endif; ?>
 
 <!-- Printable 80mm thermal receipt container -->
@@ -2796,7 +3040,7 @@ function showClockToast(msg, isErr) {
 const tbody = document.getElementById("ordersBody");
 const known = new Set();
 let currentFilter = '<?= (($_SESSION['role'] ?? '') === 'barista') ? 'New' : 'all' ?>';
-let currentStaffFilter = '<?= (isset($_GET['staff']) && $_GET['staff'] === 'all') ? 'all' : 'mine' ?>';
+let currentStaffFilter = '<?= (isset($_GET['staff']) && $_GET['staff'] === 'mine') ? 'mine' : 'all' ?>';
 const myUsername = <?= json_encode($_SESSION['username'] ?? '') ?>;
 
 function filterByStaff(val) {
@@ -2841,6 +3085,13 @@ function truncReason(text, max = 80) {
 function roleLabel(role) {
     const map = <?= json_encode(array_map(fn($r) => $r['name'], $_all_roles), JSON_UNESCAPED_UNICODE) ?>;
     return map[role] || role;
+}
+
+function getEmployeeDisplayName(o) {
+    if (o && o.employee_name && o.employee_name.trim() !== '') {
+        return o.employee_name;
+    }
+    return 'Staff';
 }
 
 // ── Empty-state markup (role-aware, circle-wrapped icon) ──
@@ -2997,7 +3248,7 @@ function buildCardInner(o) {
             <div class="card-employee">
                 <i class="fa-solid fa-cash-register" style="font-size:11px;opacity:.85"></i>
                 <span style="opacity:.65;font-size:10px;">Taken by:</span>
-                ${escapeHtml(o.employee_name || 'Unknown')}
+                ${escapeHtml(getEmployeeDisplayName(o))}
                 ${o.employee_role ? `<span style="opacity:.55;font-size:10px;">(${roleLabel(o.employee_role)})</span>` : ''}
             </div>
             ${o.prepared_by ? `
@@ -3064,7 +3315,7 @@ function buildBaristaCardInner(o) {
         </div>
         ${items}
         <div class="card-footer" style="margin-top:8px">
-            <div class="card-employee"><span style="opacity:.6;font-size:10px">Taken by:</span> ${escapeHtml(o.employee_name || 'Unknown')}</div>
+            <div class="card-employee"><span style="opacity:.6;font-size:10px">Taken by:</span> ${escapeHtml(getEmployeeDisplayName(o))}</div>
         </div>
         ${o.remake_count > 0 && o.remake_reasons && o.remake_reasons.length > 0 ? `<div class="card-reason remake-reason" style="margin:6px 0 2px;"><i class="fa-solid fa-repeat"></i>${
             o.remake_reasons.length === 1
@@ -3199,7 +3450,7 @@ function getActionButtons(o) {
     if (o.status === 'PendingPayment' && userRole !== 'barista') {
         buttons += `
             <button class="paid-btn" onclick="markPaid(${Number(o.order_id)})" title="Mark as paid">
-                <i class="fa-solid fa-credit-card"></i> Paid
+                <i class="fa-solid fa-credit-card"></i> <span>Paid</span>
             </button>
         `;
     }
@@ -3208,7 +3459,7 @@ function getActionButtons(o) {
     if (state === 'New') {
         buttons += `
             <button class="take-btn" onclick="takeOrder(${Number(o.order_id)})" title="Take order into making">
-                <i class="fa-solid fa-hand"></i> Take
+                <i class="fa-solid fa-hand"></i> <span>Take</span>
             </button>
         `;
     }
@@ -3217,7 +3468,7 @@ function getActionButtons(o) {
     if (state === 'Making') {
         buttons += `
             <button class="complete-btn" onclick="completeOrder(${Number(o.order_id)})" title="Complete order">
-                <i class="fa-solid fa-check"></i> Complete
+                <i class="fa-solid fa-check"></i> <span>Complete</span>
             </button>
         `;
     }
@@ -3234,7 +3485,7 @@ function getActionButtons(o) {
     // Print Receipt Button
     buttons += `
         <button class="print-btn" onclick="printReceipt(${Number(o.order_id)})" title="Print Receipt">
-            <i class="fa-solid fa-print"></i> Print
+            <i class="fa-solid fa-print"></i> <span>Print</span>
         </button>
     `;
 
@@ -3284,7 +3535,7 @@ function applyFilters() {
 
         if (o && !isOrderInDateRange(o, currentDateRange)) {
             visible = false;
-        } else if (currentStaffFilter === 'mine' && o && (o.employee_name || '').trim().toLowerCase() !== (myUsername || '').trim().toLowerCase()) {
+        } else if (currentStaffFilter === 'mine' && o && (getEmployeeDisplayName(o) || '').trim().toLowerCase() !== (myUsername || '').trim().toLowerCase()) {
             visible = false;
         } else if (query) {
             // While searching, cross all tabs — match on text content
@@ -3309,7 +3560,7 @@ function applyFilters() {
     const staffAndDateFiltered = (allOrders || []).filter(o => {
         if (!isOrderInDateRange(o, currentDateRange)) return false;
         if (currentStaffFilter === 'mine') {
-            const empName = (o.employee_name || '').trim().toLowerCase();
+            const empName = (getEmployeeDisplayName(o) || '').trim().toLowerCase();
             const myName = (myUsername || '').trim().toLowerCase();
             if (empName !== myName) return false;
         }
@@ -3501,7 +3752,7 @@ function renderTableView() {
     const staffAndDateFiltered = (allOrders || []).filter(o => {
         if (!isOrderInDateRange(o, currentDateRange)) return false;
         if (currentStaffFilter === 'mine') {
-            const empName = (o.employee_name || '').trim().toLowerCase();
+            const empName = (getEmployeeDisplayName(o) || '').trim().toLowerCase();
             const myName = (myUsername || '').trim().toLowerCase();
             if (empName !== myName) return false;
         }
@@ -3514,7 +3765,7 @@ function renderTableView() {
     const filteredOrders = (allOrders || []).filter(o => {
         if (!isOrderInDateRange(o, currentDateRange)) return false;
         if (currentStaffFilter === 'mine') {
-            const empName = (o.employee_name || '').trim().toLowerCase();
+            const empName = (getEmployeeDisplayName(o) || '').trim().toLowerCase();
             const myName = (myUsername || '').trim().toLowerCase();
             if (empName !== myName) return false;
         }
@@ -3579,11 +3830,11 @@ function renderTableView() {
 
         const completeBtnHtml = (boardSt === 'Making') ? `
             <button class="complete-btn" onclick="completeOrder(${Number(o.order_id)})" title="Complete Order">
-                <i class="fa-solid fa-check"></i> Complete
+                <i class="fa-solid fa-check"></i> <span>Complete</span>
             </button>
         ` : '';
 
-        const orderNoPadded = String(o.daily_order_no || '').padStart(3, '0');
+        const orderNoPadded = String(o.daily_order_no || o.order_id || '').padStart(4, '0');
 
         return `
             <tr id="row-${o.order_id}" data-status="${boardSt}">
@@ -3591,13 +3842,13 @@ function renderTableView() {
                 <td class="vo-col-items">${itemsSummary}</td>
                 <td class="vo-col-total">$${parseFloat(o.total || 0).toFixed(2)}</td>
                 <td class="vo-col-date" title="${escapeHtml(o.order_date || '')}">${timeDisplay}</td>
-                <td class="vo-col-placed">${escapeHtml(o.employee_name || 'Staff')}</td>
-                <td class="vo-col-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <td class="vo-col-placed">${escapeHtml(getEmployeeDisplayName(o))}</td>
+                <td class="vo-col-actions" style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
                     <button class="btn-view-detail" onclick="openOrderDetailModal(${Number(o.order_id)})" title="View Order Details">
-                        <i class="fa-solid fa-eye"></i> ${window.I18N.view_detail}
+                        <i class="fa-solid fa-eye"></i> <span>${window.I18N.view_detail}</span>
                     </button>
                     <button class="btn-reprint" onclick="printReceipt(${Number(o.order_id)})" title="Reprint Receipt">
-                        <i class="fa-solid fa-print"></i> ${window.I18N.reprint}
+                        <i class="fa-solid fa-print"></i> <span>${window.I18N.reprint}</span>
                     </button>
                     ${completeBtnHtml}
                 </td>
@@ -3685,7 +3936,7 @@ function openOrderDetailModal(orderId) {
     const content = document.getElementById('orderDetailContent');
     if (!modal || !content) return;
 
-    const orderNoPaddedModal = String(o.daily_order_no || o.order_id || '').padStart(3, '0');
+    const orderNoPaddedModal = String(o.daily_order_no || o.order_id || '').padStart(4, '0');
     const promoDisc = parseFloat(o.promotion_discount || 0);
     const manualDisc = parseFloat(o.manual_discount || 0);
     const totalDisc = promoDisc + manualDisc;
@@ -3743,7 +3994,7 @@ function openOrderDetailModal(orderId) {
             <!-- Meta Data Grid -->
             <div style="font-size:11px;line-height:1.5;margin-bottom:12px;border-bottom:1px dashed #666666;padding-bottom:10px;">
                 <div style="display:flex;justify-content:space-between;">
-                    <span>អ្នកគិតលុយ : <b>${escapeHtml(o.employee_name || 'admin')}</b></span>
+                    <span>អ្នកគិតលុយ : <b>${escapeHtml(getEmployeeDisplayName(o))}</b></span>
                     <span>លេខវិក្កយបត្រ : <b>#${escapeHtml(orderNoPaddedModal)}</b></span>
                 </div>
                 <div style="display:flex;justify-content:space-between;margin-top:2px;">
@@ -3885,7 +4136,7 @@ function buildReceiptHtml(o) {
             <div><strong>Order #:</strong> #${escapeHtml(String(o.daily_order_no))}</div>
             <div><strong>Date:</strong> ${escapeHtml(o.order_date || '')}</div>
             <div><strong>Status:</strong> ${escapeHtml(boardState(o))}</div>
-            <div><strong>Cashier:</strong> ${escapeHtml(o.employee_name || 'Staff')}</div>
+            <div><strong>Cashier:</strong> ${escapeHtml(getEmployeeDisplayName(o))}</div>
         </div>
 
         <table class="receipt-items-table">
@@ -4660,13 +4911,13 @@ setInterval(() => {
 $_print_order_no = '';
 if (isset($_GET['print_order_id'])) {
     $_p_id = (int)$_GET['print_order_id'];
-    $_stmt_p = $conn->prepare("SELECT daily_order_no FROM orders WHERE order_id = ?");
+    $_stmt_p = $conn->prepare("SELECT order_id FROM orders WHERE order_id = ?");
     if ($_stmt_p) {
         $_stmt_p->bind_param("i", $_p_id);
         $_stmt_p->execute();
         $_res_p = $_stmt_p->get_result()->fetch_assoc();
-        if ($_res_p && !empty($_res_p['daily_order_no'])) {
-            $_print_order_no = sprintf('%03d', (int)$_res_p['daily_order_no']);
+        if ($_res_p && !empty($_res_p['order_id'])) {
+            $_print_order_no = sprintf('%04d', (int)$_res_p['order_id']);
         }
         $_stmt_p->close();
     }
@@ -4825,55 +5076,55 @@ if ($action === "fetch") {
     } else if ($req_range === 'week') {
         $w_start = date('Y-m-d', strtotime('monday this week'));
         $w_end   = date('Y-m-d', strtotime('sunday this week'));
-        $where_sql = "(o.business_date BETWEEN ? AND ? OR DATE(o.completed_at) BETWEEN ? AND ?)";
-        $bind_types = "ssss";
-        $bind_params = [$w_start, $w_end, $w_start, $w_end];
+        $where_sql = "DATE(o.order_date) BETWEEN ? AND ?";
+        $bind_types = "ss";
+        $bind_params = [$w_start, $w_end];
     } else if ($req_range === 'month') {
         $m_start = date('Y-m-01');
         $m_end   = date('Y-m-t');
-        $where_sql = "(o.business_date BETWEEN ? AND ? OR DATE(o.completed_at) BETWEEN ? AND ?)";
-        $bind_types = "ssss";
-        $bind_params = [$m_start, $m_end, $m_start, $m_end];
+        $where_sql = "DATE(o.order_date) BETWEEN ? AND ?";
+        $bind_types = "ss";
+        $bind_params = [$m_start, $m_end];
     } else if ($req_range === 'year') {
         $y_start = date('Y-01-01');
         $y_end   = date('Y-12-31');
-        $where_sql = "(o.business_date BETWEEN ? AND ? OR DATE(o.completed_at) BETWEEN ? AND ?)";
-        $bind_types = "ssss";
-        $bind_params = [$y_start, $y_end, $y_start, $y_end];
+        $where_sql = "DATE(o.order_date) BETWEEN ? AND ?";
+        $bind_types = "ss";
+        $bind_params = [$y_start, $y_end];
     } else {
-        $where_sql = "( o.business_date = ? OR DATE(o.completed_at) = ? OR DATE(oc.cancelled_at) = ? OR DATE(orr.refunded_at) = ? )";
-        $bind_types = "ssss";
-        $bind_params = [$business_date, $business_date, $business_date, $business_date];
+        $where_sql = "( DATE(o.order_date) = ? OR DATE(oc.cancelled_at) = ? )";
+        $bind_types = "ss";
+        $bind_params = [$business_date, $business_date];
     }
 
     $stmt = $conn->prepare("
         SELECT
             o.order_id,
-            o.daily_order_no,
-            o.customer_name,
+            o.order_id AS daily_order_no,
+            'Guest' AS customer_name,
             o.total,
-            o.status,
+            'Completed' AS status,
             o.order_date,
             o.started_at,
-            o.completed_at,
-            o.token_number,
-            o.employee_id,
-            o.employee_name,
-            ro.slug AS employee_role,
+            NULL AS completed_at,
+            o.order_id AS token_number,
+            o.user_id AS employee_id,
+            COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS employee_name,
+            COALESCE(u.role, '') AS employee_role,
             o.prepared_by,
-            o.prepared_by_role,
-            o.table_number,
-            o.order_type,
+            '' AS prepared_by_role,
+            '' AS table_number,
+            'drink_in' AS order_type,
             o.payment_method,
-            o.is_open,
-            o.promotion_discount,
-            o.manual_discount,
-            COUNT(rm.id) AS remake_count,
+            0 AS is_open,
+            0 AS promotion_discount,
+            0 AS manual_discount,
+            0 AS remake_count,
             oc.cancel_reason,
             oc.cancelled_by,
-            orr.refund_reason,
-            orr.refunded_by,
-            (SELECT GROUP_CONCAT(reason ORDER BY remade_at ASC SEPARATOR '|||') FROM order_remakes rml WHERE rml.order_id = o.order_id) AS remake_reasons,
+            '' AS refund_reason,
+            '' AS refunded_by,
+            NULL AS remake_reasons,
             oi.item_id,
             oi.product_name,
             oi.price,
@@ -4890,16 +5141,12 @@ if ($action === "fetch") {
             oi.product_id,
             p.category
         FROM orders o
-        LEFT JOIN employees emp ON emp.employee_id = o.employee_id
-        LEFT JOIN users u ON u.user_id = emp.user_id
-        LEFT JOIN roles ro ON ro.id = u.role_id
-        LEFT JOIN order_remakes rm ON rm.order_id = o.order_id
+        LEFT JOIN users u ON u.user_id = o.user_id
         LEFT JOIN order_items oi ON o.order_id = oi.order_id
         LEFT JOIN products p ON p.product_id = oi.product_id
         LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id
-        LEFT JOIN order_refunds orr ON orr.order_id = o.order_id
         WHERE {$where_sql}
-        GROUP BY o.order_id, oi.item_id, oi.product_name, oi.price, oi.orig_price, oi.promo_percent, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category
+        GROUP BY o.order_id, u.username, u.role, oi.item_id, oi.product_name, oi.price, oi.orig_price, oi.promo_percent, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category
         ORDER BY o.order_id DESC
     ");
 
@@ -4985,15 +5232,8 @@ if ($action === "fetch") {
         }
     }
 
-    // Fetch active announcements alongside orders
+    // Active announcements (removed)
     $_ann_data = [];
-    $_ann_res2 = $conn->query("SELECT id, title, message, type FROM announcements WHERE is_active = 1 AND (expires_at IS NULL OR expires_at >= CURDATE()) AND (starts_at IS NULL OR starts_at <= CURDATE()) ORDER BY created_at DESC");
-    if ($_ann_res2) {
-        foreach ($_ann_res2->fetch_all(MYSQLI_ASSOC) as $_a) {
-            $_ann_data[] = ['id' => (int)$_a['id'], 'title' => $_a['title'], 'message' => $_a['message'], 'type' => $_a['type']];
-        }
-    }
-
     echo json_encode(["orders" => array_values($map), "announcements" => $_ann_data]);
     exit;
 }
@@ -5017,10 +5257,6 @@ if ($action === "paid") {
 
     $conn->begin_transaction();
     try {
-        $s1 = $conn->prepare("UPDATE orders SET status = 'Preparing' WHERE order_id = ?");
-        $s1->bind_param("i", $order_id);
-        $s1->execute();
-
         // Sync any pending payment records so order_payments stays consistent
         $s2 = $conn->prepare("UPDATE order_payments SET payment_status = 'paid' WHERE order_id = ? AND payment_status != 'paid'");
         $s2->bind_param("i", $order_id);
@@ -5047,7 +5283,7 @@ if ($action === "take") {
         exit;
     }
 
-    $stmt = $conn->prepare("UPDATE orders SET status = 'Making', started_at = IFNULL(started_at, NOW()) WHERE order_id = ?");
+    $stmt = $conn->prepare("UPDATE orders SET started_at = IFNULL(started_at, NOW()) WHERE order_id = ?");
     $stmt->bind_param("i", $order_id);
 
     if ($stmt->execute()) {
@@ -5070,14 +5306,7 @@ if ($action === "prepare") {
         exit;
     }
 
-    $stmt = $conn->prepare("UPDATE orders SET status = 'Preparing' WHERE order_id = ?");
-    $stmt->bind_param("i", $order_id);
-    
-    if ($stmt->execute()) {
-        echo json_encode(["ok" => 1]);
-    } else {
-        echo json_encode(["ok" => 0, "error" => "Failed to update status"]);
-    }
+    echo json_encode(["ok" => 1]);
     exit;
 }
 
@@ -5096,31 +5325,9 @@ if ($action === "complete") {
     $conn->begin_transaction();
 
     try {
-        // Lock order
-        $stmt_check = $conn->prepare("SELECT status FROM orders WHERE order_id = ? FOR UPDATE");
-        $stmt_check->bind_param("i", $order_id);
-        $stmt_check->execute();
-        $check_res = $stmt_check->get_result();
-
-        if ($check_res->num_rows === 0) {
-            throw new Exception("Order not found");
-        }
-
-        $order = $check_res->fetch_assoc();
-
-        if ($order['status'] === 'Completed') {
-            $conn->commit();
-            echo json_encode(["ok" => 1]);
-            exit;
-        }
-
-        // Stock was already deducted at order creation (confirm_order.php).
-        // Deducting again here would double-consume ingredients and cause
-        // "Not enough stock" errors on busy days. Only mark the order complete.
-        $prepared_by      = $_SESSION['username'] ?? '';
-        $prepared_by_role = $_SESSION['role']     ?? '';
-        $stmt_update = $conn->prepare("UPDATE orders SET status = 'Completed', prepared_by = ?, prepared_by_role = ?, completed_at = NOW() WHERE order_id = ?");
-        $stmt_update->bind_param("ssi", $prepared_by, $prepared_by_role, $order_id);
+        $prepared_by = $_SESSION['username'] ?? '';
+        $stmt_update = $conn->prepare("UPDATE orders SET prepared_by = ? WHERE order_id = ?");
+        $stmt_update->bind_param("si", $prepared_by, $order_id);
         $stmt_update->execute();
 
         // Whole-order Complete = every drink made. Stamp made_at on still-unmade rows and

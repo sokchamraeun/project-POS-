@@ -2,12 +2,6 @@
 require 'config.php';
 date_default_timezone_set('Asia/Phnom_Penh');
 
-// Ensure columns exist (safe no-op after first run)
-if ($conn->query("SHOW COLUMNS FROM orders LIKE 'order_type'")->num_rows === 0)
-    $conn->query("ALTER TABLE orders ADD COLUMN order_type ENUM('drink_in','drink_out') NOT NULL DEFAULT 'drink_in'");
-if ($conn->query("SHOW COLUMNS FROM orders LIKE 'completed_at'")->num_rows === 0)
-    $conn->query("ALTER TABLE orders ADD COLUMN completed_at DATETIME NULL");
-
 $order_id = (int)($_GET['order_id'] ?? 0);
 
 if ($order_id <= 0) {
@@ -16,12 +10,14 @@ if ($order_id <= 0) {
 
 // ── FETCH ORDER ──
 $stmt = $conn->prepare("
-    SELECT o.order_id, o.customer_name, o.total, o.order_date, o.daily_order_no, o.status, o.employee_name, o.employee_id,
-           emp.name AS emp_real_name,
-           IFNULL(o.order_type,'drink_in') AS order_type, o.completed_at, o.table_number, o.started_at,
-           IFNULL(o.promotion_discount, 0) AS promotion_discount, IFNULL(o.manual_discount, 0) AS manual_discount
+    SELECT o.order_id, 'Guest' AS customer_name, o.total, o.order_date, o.order_id AS daily_order_no, 'Completed' AS status,
+           COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS employee_name,
+           u.user_id AS employee_id,
+           COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS emp_real_name,
+           'drink_in' AS order_type, '' AS completed_at, '' AS table_number, o.started_at,
+           0 AS promotion_discount, 0 AS manual_discount
     FROM orders o
-    LEFT JOIN employees emp ON emp.employee_id = o.employee_id
+    LEFT JOIN users u ON u.user_id = o.user_id
     WHERE o.order_id = ?
 ");
 $stmt->bind_param("i", $order_id);
@@ -40,13 +36,6 @@ if (!empty($e_real) && strtolower($e_real) !== strtolower($c_name)) {
     $cashier_display = $c_name;
 }
 
-// Backfill completed_at for paid orders that predate the column
-if (empty($order['completed_at']) && in_array($order['status'], ['Paid', 'Completed'])) {
-    $now = date('Y-m-d H:i:s');
-    $conn->query("UPDATE orders SET completed_at = '$now' WHERE order_id = $order_id AND completed_at IS NULL");
-    $order['completed_at'] = $now;
-}
-
 // ── FETCH ITEMS ──
 $stmt = $conn->prepare("
     SELECT product_name, price, quantity, sweetness, ice, milk, size_label, addons_snapshot, promo_percent, orig_price
@@ -57,10 +46,10 @@ $stmt->bind_param("i", $order_id);
 $stmt->execute();
 $items_res = $stmt->get_result();
 
-$items = [];
+$raw_items = [];
 $subtotal = 0;
 while ($row = $items_res->fetch_assoc()) {
-    $items[] = $row;
+    $raw_items[] = $row;
     $itemOrig  = (float)($row['orig_price'] ?? 0);
     $itemPrice = (float)($row['price'] ?? 0);
     $qty       = (float)($row['quantity'] ?? 1);
@@ -72,6 +61,18 @@ while ($row = $items_res->fetch_assoc()) {
         $subtotal += $itemPrice * $qty;
     }
 }
+
+// Merge identical items into a single line with combined total quantity for a clean receipt
+$items = [];
+foreach ($raw_items as $ri) {
+    $sig = ($ri['product_name'] ?? '').'|'.($ri['size_label'] ?? '').'|'.($ri['sweetness'] ?? '').'|'.($ri['ice'] ?? '').'|'.($ri['milk'] ?? '').'|'.($ri['addons_snapshot'] ?? '').'|'.($ri['price'] ?? 0).'|'.((int)($ri['promo_percent'] ?? 0));
+    if (isset($items[$sig])) {
+        $items[$sig]['quantity'] += (float)($ri['quantity'] ?? 1);
+    } else {
+        $items[$sig] = $ri;
+    }
+}
+$items = array_values($items);
 
 $discount = (float)($order['promotion_discount'] ?? 0) + (float)($order['manual_discount'] ?? 0);
 $total = (float)$order['total'] > 0 ? (float)$order['total'] : max(0, $subtotal - $discount);
@@ -171,17 +172,54 @@ body {
     line-height: 1.35;
 }
 
+@page {
+    size: 80mm auto;
+    margin: 0mm;
+}
+
 @media print {
-    @page {
-        width: 80mm;
-        margin: 0;
+    html, body {
+        width: 80mm !important;
+        max-width: 80mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
     }
-    body {
-        width: 80mm;
-        margin: 0;
+    .receipt {
+        width: 80mm !important;
+        max-width: 80mm !important;
+        padding: 4mm 3mm !important;
+        margin: 0 auto !important;
+        border: none !important;
+        box-shadow: none !important;
     }
     .no-print {
         display: none !important;
+    }
+}
+
+@media screen {
+    body {
+        background: #e4e4e7;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px 12px;
+    }
+    .receipt {
+        width: 320px;
+        background: #ffffff;
+        padding: 20px 16px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        border: 1px solid #d4d4d8;
+    }
+    .no-print {
+        width: 320px;
+        margin-bottom: 12px;
+        border-radius: 10px;
     }
 }
 
@@ -299,15 +337,6 @@ body {
 </style>
 </head>
 <body>
-
-<div class="no-print" style="display:flex; justify-content:center; gap:10px; padding:10px 12px; background:#f4f4f5; border-bottom:1px solid #e4e4e7; margin-bottom:10px;">
-    <button onclick="window.print()" style="padding:7px 16px; background:#18181b; color:#fff; border:none; border-radius:8px; font-weight:600; font-size:12px; cursor:pointer; font-family:'Poppins',sans-serif; display:flex; align-items:center; gap:6px;">
-        🖨️ Print Receipt
-    </button>
-    <a href="menu.php" style="padding:7px 16px; background:#d1904b; color:#fff; border:none; border-radius:8px; font-weight:600; font-size:12px; cursor:pointer; font-family:'Poppins',sans-serif; display:flex; align-items:center; gap:6px; text-decoration:none;">
-        ⬅️ Back to POS
-    </a>
-</div>
 
 <div class="receipt">
     <!-- Header -->

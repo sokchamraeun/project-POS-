@@ -19,7 +19,7 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) >
 $_SESSION['last_activity'] = time();
 
 // ── Role check: admin or manager only ──
-$stmt = $conn->prepare("SELECT r.slug AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.user_id = ?");
+$stmt = $conn->prepare("SELECT role FROM users WHERE user_id = ?");
 $stmt->bind_param("i", $_SESSION['user_id']);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();

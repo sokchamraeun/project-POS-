@@ -6,28 +6,36 @@ if (!can('report_product')) { header("Location: dashboard.php?denied=1"); exit; 
 
 date_default_timezone_set("Asia/Phnom_Penh");
 
-function businessRangeFromDate(string $dateYmd): array {
-    $start = new DateTime($dateYmd . " 06:00:00");
-    $end = clone $start;
-    $end->modify("+1 day")->modify("-1 second");
-    return [$start, $end];
+if (!function_exists('businessRangeFromDate')) {
+    function businessRangeFromDate(string $dateYmd): array {
+        $start = new DateTime($dateYmd . " 06:00:00");
+        $end = clone $start;
+        $end->modify("+1 day")->modify("-1 second");
+        return [$start, $end];
+    }
 }
 
-function fmtQty($n): string {
-    return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
+if (!function_exists('fmtQty')) {
+    function fmtQty($n): string {
+        return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
+    }
 }
 
-function fmtMoney($n): string {
-    return number_format((float)$n, 2);
+if (!function_exists('fmtMoney')) {
+    function fmtMoney($n): string {
+        return number_format((float)$n, 2);
+    }
 }
 
-function deltaStr(float $current, float $prev): string {
-    if ($prev <= 0) return '';
-    $pct = round(($current - $prev) / $prev * 100, 1);
-    if ($pct === 0.0) return '<span class="delta neutral">= same</span>';
-    $cls = $pct > 0 ? 'up' : 'down';
-    $arrow = $pct > 0 ? '&#9650;' : '&#9660;';
-    return "<span class=\"delta {$cls}\">{$arrow} " . abs($pct) . "%</span>";
+if (!function_exists('deltaStr')) {
+    function deltaStr(float $current, float $prev): string {
+        if ($prev <= 0) return '';
+        $pct = round(($current - $prev) / $prev * 100, 1);
+        if ($pct === 0.0) return '<span class="delta neutral">= same</span>';
+        $cls = $pct > 0 ? 'up' : 'down';
+        $arrow = $pct > 0 ? '&#9650;' : '&#9660;';
+        return "<span class=\"delta {$cls}\">{$arrow} " . abs($pct) . "%</span>";
+    }
 }
 
 /* =========================
@@ -156,31 +164,6 @@ if (count($orderIds) > 0) {
     }
 
     $recipes = [];
-
-    if (count($productIds) > 0) {
-        $inProduct = implode(",", array_map('intval', array_keys($productIds)));
-
-        $qRec = mysqli_query($conn, "
-            SELECT pi.product_id, pi.ingredient_id, pi.amount_used, i.ingredient_name
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id IN ($inProduct)
-        ");
-
-        while ($r = mysqli_fetch_assoc($qRec)) {
-            $pid = (int)$r['product_id'];
-
-            if (!isset($recipes[$pid])) {
-                $recipes[$pid] = [];
-            }
-
-            $recipes[$pid][] = [
-                "ingredient_id" => (int)$r['ingredient_id'],
-                "ingredient_name" => $r['ingredient_name'],
-                "amount_used" => (float)$r['amount_used']
-            ];
-        }
-    }
 
     foreach ($items as $it) {
         $pid      = (int)$it['product_id'];
@@ -355,73 +338,13 @@ if (count($orderIds) > 0) {
 $totalRefunded = 0;
 $refundCount = 0;
 $refundOrders = [];
-
-$sqlRefunds = "
-    SELECT
-        o.order_id,
-        o.daily_order_no,
-        o.customer_name,
-        orr.refund_amount,
-        orr.refund_reason,
-        orr.refunded_at,
-        orr.refunded_by,
-        o.total
-    FROM order_refunds orr
-    JOIN orders o ON o.order_id = orr.order_id
-    WHERE orr.refunded_at BETWEEN '$startStr' AND '$endStr'
-    ORDER BY orr.refunded_at DESC
-";
-
-$qRefunds = mysqli_query($conn, $sqlRefunds);
-
-while ($r = mysqli_fetch_assoc($qRefunds)) {
-    $totalRefunded += (float)$r['refund_amount'];
-    $refundCount++;
-    $refundOrders[] = [
-        'order_id' => (int)$r['order_id'],
-        'daily_order_no' => (int)$r['daily_order_no'],
-        'customer_name' => $r['customer_name'],
-        'refund_amount' => (float)$r['refund_amount'],
-        'refund_reason' => $r['refund_reason'],
-        'refunded_at' => $r['refunded_at'],
-        'refunded_by' => $r['refunded_by'],
-        'original_total' => (float)$r['total']
-    ];
-}
-
 $netRevenue = $totalSales - $totalRefunded;
 
 /* =========================
-   GET REMAKE DATA
+   GET REMAKE DATA (removed)
 ========================= */
 $remakeCount  = 0;
 $remakeOrders = [];
-$_tbl_check   = $conn->query("SHOW TABLES LIKE 'order_remakes'");
-if ($_tbl_check && $_tbl_check->num_rows > 0) {
-    $sqlRemakes = "
-        SELECT rm.id, rm.reason, rm.remade_by, rm.remade_at,
-               o.daily_order_no, o.customer_name,
-               GROUP_CONCAT(DISTINCT oi.product_name ORDER BY oi.product_name SEPARATOR ', ') AS products
-        FROM order_remakes rm
-        JOIN orders o ON o.order_id = rm.order_id
-        LEFT JOIN order_items oi ON oi.order_id = rm.order_id
-        WHERE rm.remade_at BETWEEN '$startStr' AND '$endStr'
-        GROUP BY rm.id
-        ORDER BY rm.remade_at DESC
-    ";
-    $qRemakes = mysqli_query($conn, $sqlRemakes);
-    while ($r = mysqli_fetch_assoc($qRemakes)) {
-        $remakeCount++;
-        $remakeOrders[] = [
-            'daily_order_no' => (int)$r['daily_order_no'],
-            'customer_name'  => $r['customer_name'],
-            'products'       => $r['products'],
-            'reason'         => $r['reason'],
-            'remade_by'      => $r['remade_by'],
-            'remade_at'      => $r['remade_at'],
-        ];
-    }
-}
 
 /* =========================
    PREVIOUS PERIOD COMPARISON
@@ -447,68 +370,9 @@ $deltaOrders = deltaStr((float)$orderCount, (float)$prevOrderCount);
 $deltaSales  = deltaStr($totalSales, $prevSales);
 
 /* =========================
-   GET DAILY REFUNDS FOR CHART (NEW)
+   GET DAILY REFUNDS FOR CHART (removed)
 ========================= */
 $refundChartData = [];
-
-if ($mode === 'daily') {
-    $sqlDaily = "
-        SELECT
-            HOUR(refunded_at) as hour,
-            COUNT(*) as count,
-            SUM(refund_amount) as total
-        FROM order_refunds
-        WHERE refunded_at BETWEEN '$startStr' AND '$endStr'
-        GROUP BY HOUR(refunded_at)
-        ORDER BY hour ASC
-    ";
-    $qDaily = mysqli_query($conn, $sqlDaily);
-    while ($r = mysqli_fetch_assoc($qDaily)) {
-        $refundChartData[] = [
-            'label' => (int)$r['hour'] . ':00',
-            'count' => (int)$r['count'],
-            'total' => (float)$r['total']
-        ];
-    }
-} elseif ($mode === 'monthly') {
-    $sqlMonthly = "
-        SELECT
-            DAY(refunded_at) as day,
-            COUNT(*) as count,
-            SUM(refund_amount) as total
-        FROM order_refunds
-        WHERE refunded_at BETWEEN '$startStr' AND '$endStr'
-        GROUP BY DAY(refunded_at)
-        ORDER BY day ASC
-    ";
-    $qMonthly = mysqli_query($conn, $sqlMonthly);
-    while ($r = mysqli_fetch_assoc($qMonthly)) {
-        $refundChartData[] = [
-            'label' => 'Day ' . (int)$r['day'],
-            'count' => (int)$r['count'],
-            'total' => (float)$r['total']
-        ];
-    }
-} else {
-    $sqlRange = "
-        SELECT
-            DATE(refunded_at) as date,
-            COUNT(*) as count,
-            SUM(refund_amount) as total
-        FROM order_refunds
-        WHERE refunded_at BETWEEN '$startStr' AND '$endStr'
-        GROUP BY DATE(refunded_at)
-        ORDER BY date ASC
-    ";
-    $qRange = mysqli_query($conn, $sqlRange);
-    while ($r = mysqli_fetch_assoc($qRange)) {
-        $refundChartData[] = [
-            'label' => date('M d', strtotime($r['date'])),
-            'count' => (int)$r['count'],
-            'total' => (float)$r['total']
-        ];
-    }
-}
 ?>
 <!DOCTYPE html>
 <html>
@@ -555,10 +419,10 @@ if ($mode === 'daily') {
     $selected_cat = trim($_GET['category'] ?? '');
 
     $user_options = ['' => 'All Staff'];
-    $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
+    $q_users = $conn->query("SELECT u.user_id, u.username, u.role FROM users u ORDER BY u.username ASC");
     if ($q_users) {
         while ($ur = $q_users->fetch_assoc()) {
-            $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+            $displayName = $ur['username'];
             $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
         }
     }
@@ -610,9 +474,8 @@ if ($mode === 'daily') {
             <table class="er-table">
                 <thead>
                     <tr>
-                        <th style="text-align:center"><?= $lbl_doc_type ?></th>
                         <th style="text-align:center"><?= $lbl_product_name ?></th>
-                        <th style="text-align:center"><?= $lbl_category ?></th>
+                        <th class="col-category" style="text-align:center"><?= $lbl_category ?></th>
                         <th style="text-align:center"><?= $lbl_qty_sold ?></th>
                         <th style="text-align:center"><?= $lbl_price_cup ?></th>
                         <th style="text-align:center"><?= $lbl_total_rev ?></th>
@@ -640,7 +503,7 @@ if ($mode === 'daily') {
                     ?>
                     <?php if (empty($filtered_products)): ?>
                     <tr class="no-data">
-                        <td colspan="6" class="no-data" style="text-align:center"><?= $lbl_no_data ?></td>
+                        <td colspan="5" class="no-data" style="text-align:center"><?= $lbl_no_data ?></td>
                     </tr>
                     <?php else: ?>
                     <?php foreach ($filtered_products as $pname => $pdata): ?>
@@ -653,9 +516,8 @@ if ($mode === 'daily') {
                         $cat_name = $cat_slug_to_name[$raw_cat] ?? $raw_cat;
                     ?>
                     <tr>
-                        <td style="text-align:center"><span class="er-badge-doc"><?= $lbl_doc_item ?></span></td>
                         <td style="text-align:center" class="er-prod-name"><?= htmlspecialchars($pname) ?></td>
-                        <td style="text-align:center"><span class="er-badge-cat"><?= htmlspecialchars($cat_name) ?></span></td>
+                        <td class="col-category" style="text-align:center"><span class="er-badge-cat"><?= htmlspecialchars($cat_name) ?></span></td>
                         <td style="text-align:center"><?= $p_qty ?></td>
                         <td style="text-align:center">$<?= number_format($avg_pr, 2) ?></td>
                         <td style="text-align:center" class="er-total-rev">$<?= number_format($p_rev, 2) ?></td>
@@ -669,11 +531,12 @@ if ($mode === 'daily') {
                         }
                     ?>
                     <tr class="total-summary-row">
-                        <td colspan="3" style="text-align:center; padding: 0.85rem 1rem;">
+                        <td style="text-align:center; padding: 0.85rem 1rem;">
                             <span class="er-badge-total">
                                 <i class="fa-solid fa-calculator" style="font-size:0.75rem;"></i> Total
                             </span>
                         </td>
+                        <td class="col-category"></td>
                         <td style="text-align:center; padding: 0.85rem 1rem;">
                             <span class="er-qty-pill"><?= $tot_qty ?></span>
                         </td>

@@ -9,10 +9,14 @@ if ($order_id <= 0) die('Invalid order.');
 
 // ── Fetch order ──
 $stmt = $conn->prepare("
-    SELECT order_id, customer_name, total, status, daily_order_no,
-           promotion_discount, manual_discount, order_type, payment_method,
-           completed_at, order_date, employee_name, points_earned, table_number
-    FROM orders WHERE order_id = ? LIMIT 1
+    SELECT o.order_id, 'Guest' AS customer_name, o.total, 'Completed' AS status, o.order_id AS daily_order_no,
+           0 AS promotion_discount, 0 AS manual_discount, 'drink_in' AS order_type, o.payment_method,
+           '' AS completed_at, o.order_date,
+           COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS employee_name,
+           0 AS points_earned, '' AS table_number
+    FROM orders o
+    LEFT JOIN users u ON u.user_id = o.user_id
+    WHERE o.order_id = ? LIMIT 1
 ");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();

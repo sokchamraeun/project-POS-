@@ -38,6 +38,7 @@ $lbl_col_total    = $isKm ? 'ចំណូល' : 'Revenue';
 $lbl_col_cogs     = $isKm ? 'ដើមទុន' : 'COGS';
 $lbl_col_profit   = $isKm ? 'ប្រាក់ចំណេញ' : 'Profit';
 $lbl_col_curr     = $isKm ? 'រូបិយប័ណ្ណ' : 'Currency';
+$lbl_col_payment  = $isKm ? 'វិធីទូទាត់' : 'Payment';
 $lbl_col_place    = $isKm ? 'អ្នកលក់' : 'Place by';
 $lbl_col_sum      = $isKm ? 'សរុប' : 'Total';
 
@@ -83,12 +84,12 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_from)) $filter_from = $today;
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_to))   $filter_to   = $today;
 if ($filter_from > $filter_to) [$filter_from, $filter_to] = [$filter_to, $filter_from];
 
-$where_conds = ["o.business_date BETWEEN '$filter_from' AND '$filter_to'"];
+$where_conds = ["DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'"];
 if ($filter_payment !== '') {
-    $where_conds[] = "o.payment_method = '" . $conn->real_escape_string($filter_payment) . "'";
+    $where_conds[] = "LOWER(o.payment_method) = '" . $conn->real_escape_string(strtolower($filter_payment)) . "'";
 }
 if ($filter_user > 0) {
-    $where_conds[] = "(o.user_id = $filter_user OR o.employee_id = $filter_user)";
+    $where_conds[] = "(o.user_id = $filter_user OR (o.user_id IS NULL AND LOWER(o.prepared_by) = (SELECT LOWER(username) FROM users WHERE user_id = $filter_user LIMIT 1)))";
 }
 $where_str = implode(' AND ', $where_conds);
 
@@ -96,9 +97,9 @@ $_gen_role = ucfirst($_SESSION['role'] ?? 'Admin');
 $_gen_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Admin';
 $gen_by_str = (strtolower($_gen_role) !== strtolower($_gen_name)) ? "{$_gen_role} ({$_gen_name})" : $_gen_name;
 
-$sql_table_orders = "SELECT o.order_id, o.daily_order_no, o.order_date, o.customer_name, o.table_number, o.order_type, o.total, o.payment_method, o.status,
-                            IFNULL(o.promotion_discount, 0) + IFNULL(o.manual_discount, 0) AS discount_amount,
-                            u.username as staff_name 
+$sql_table_orders = "SELECT o.order_id, o.order_id AS daily_order_no, o.order_date, 'Guest' AS customer_name, '' AS table_number, 'drink_in' AS order_type, o.total, o.payment_method, 'Completed' AS status,
+                            0 AS discount_amount,
+                            COALESCE(NULLIF(u.name, ''), u.username, 'Staff') as staff_name 
                      FROM orders o 
                      LEFT JOIN users u ON u.user_id = o.user_id 
                      WHERE $where_str 
@@ -128,24 +129,6 @@ if ($table_orders) {
     }
     
     $recipes_map = [];
-    if ($pids_map) {
-        $pin_str = implode(',', array_keys($pids_map));
-        $qr_rec = $conn->query("
-            SELECT pi.product_id, pi.ingredient_id, pi.amount_used, i.ingredient_name
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id IN ($pin_str)
-        ");
-        if ($qr_rec) {
-            while ($r = $qr_rec->fetch_assoc()) {
-                $recipes_map[(int)$r['product_id']][] = [
-                    'ingredient_id'   => (int)$r['ingredient_id'],
-                    'ingredient_name' => $r['ingredient_name'],
-                    'amount_used'     => (float)$r['amount_used'],
-                ];
-            }
-        }
-    }
 
     foreach ($items_by_order as $oid => $its) {
         $ocost = 0.0;
@@ -214,18 +197,31 @@ foreach ($table_orders as $to) {
         $cust = htmlspecialchars($raw_cust);
     }
     $staff = htmlspecialchars($to['staff_name'] ?: 'Visal');
+    $pm_raw = strtolower(trim((string)($to['payment_method'] ?? 'cash')));
+    if ($pm_raw === 'bakong' || $pm_raw === 'khqr') {
+        $pm_text = 'Bakong';
+    } elseif ($pm_raw === 'cash') {
+        $pm_text = 'Cash';
+    } elseif ($pm_raw === 'split') {
+        $pm_text = 'Split';
+    } elseif ($pm_raw === 'pay_later') {
+        $pm_text = 'Pay Later';
+    } else {
+        $pm_text = ucfirst($pm_raw ?: 'Paid');
+    }
 
     $processed_rows[] = [
-        'no'         => $orderNoStr,
-        'date'       => $date_str,
-        'customer'   => $cust,
-        'price'      => fmtNum($gross),
-        'qty_item'   => $o_qty,
-        'total'      => fmtNum($net),
-        'cogs'       => fmtNum($ocogs),
-        'profit'     => fmtNum($profit),
-        'currency'   => '$',
-        'place_by'   => $staff,
+        'no'             => $orderNoStr,
+        'date'           => $date_str,
+        'customer'       => $cust,
+        'price'          => fmtNum($gross),
+        'qty_item'       => $o_qty,
+        'payment_method' => $pm_text,
+        'total'          => fmtNum($net),
+        'cogs'           => fmtNum($ocogs),
+        'profit'         => fmtNum($profit),
+        'currency'       => '$',
+        'place_by'       => $staff,
     ];
 }
 
@@ -454,7 +450,7 @@ if (!empty($_GET['dompdf'])) {
     <button class="btn" onclick="window.print()">
       🖨️ <?= $isKm ? 'បោះពុម្ពឥឡូវនេះ (Print Now)' : 'Print Now' ?>
     </button>
-    <a href="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>&dompdf=1" class="btn btn-secondary">
+    <a href="<?= htmlspecialchars($_SERVER['REQUEST_URI'] ?? '') ?>&dompdf=1" class="btn btn-secondary">
       📄 <?= $isKm ? 'ទាញយក PDF (Download PDF)' : 'Download PDF' ?>
     </a>
   </div>
@@ -474,18 +470,19 @@ if (!empty($_GET['dompdf'])) {
   <table class="report-table">
     <thead>
       <tr>
-        <th style="width:8%;"><?= he($lbl_col_no) ?></th>
-        <th style="width:22%;"><?= he($lbl_col_date) ?></th>
-        <th style="width:18%;"><?= he($lbl_col_cust) ?></th>
-        <th style="width:12%;"><?= he($lbl_col_price) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_qty) ?></th>
-        <th style="width:14%;"><?= he($lbl_col_total) ?></th>
-        <th style="width:16%;"><?= he($lbl_col_place) ?></th>
+        <th style="width:7%;"><?= he($lbl_col_no) ?></th>
+        <th style="width:20%;"><?= he($lbl_col_date) ?></th>
+        <th style="width:16%;"><?= he($lbl_col_cust) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_price) ?></th>
+        <th style="width:8%;"><?= he($lbl_col_qty) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_payment) ?></th>
+        <th style="width:12%;"><?= he($lbl_col_total) ?></th>
+        <th style="width:15%;"><?= he($lbl_col_place) ?></th>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($processed_rows)): ?>
-        <tr><td colspan="7" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
+        <tr><td colspan="8" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
       <?php else: foreach ($processed_rows as $r): ?>
         <tr>
           <td><?= $r['no'] ?></td>
@@ -493,6 +490,7 @@ if (!empty($_GET['dompdf'])) {
           <td><?= $r['customer'] ?></td>
           <td><?= $r['price'] ?></td>
           <td><?= $r['qty_item'] ?></td>
+          <td><?= $r['payment_method'] ?></td>
           <td><?= $r['total'] ?></td>
           <td><?= $r['place_by'] ?></td>
         </tr>
@@ -501,6 +499,7 @@ if (!empty($_GET['dompdf'])) {
           <td colspan="3" style="text-align:center; background:#fff;"><?= he($lbl_col_sum) ?></td>
           <td style="background:#c6efce;"><?= $fmt_sum_gross ?></td>
           <td style="background:#c6efce;"><?= $sum_qty ?></td>
+          <td style="background:#fff;"></td>
           <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
           <td style="background:#fff;"></td>
         </tr>

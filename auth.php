@@ -158,7 +158,7 @@ $_SESSION['last_activity'] = time();
 
 // ── Re-sync role from DB so admin role changes take effect on next page load ──
 require_once 'config.php';
-$_rs = $conn->prepare("SELECT u.role_id, r.slug AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE u.user_id = ?");
+$_rs = $conn->prepare("SELECT u.role FROM users u WHERE u.user_id = ?");
 $_rs->bind_param("i", $_SESSION['user_id']);
 $_rs->execute();
 $_rr = $_rs->get_result()->fetch_assoc();
@@ -174,7 +174,6 @@ if (!$_rr) {
     header("Location: login.php");
     exit;
 }
-$_SESSION['role']    = $_rr['role'];
-$_SESSION['role_id'] = (int)$_rr['role_id'];
+$_SESSION['role']    = $_rr['role'] ?? 'staff';
 unset($_rs, $_rr);
 ?>

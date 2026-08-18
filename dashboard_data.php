@@ -26,8 +26,8 @@ if ($_is_mgr) {
     $filter_user = (int)$_SESSION['user_id'];
 }
 
-$user_clause_w = $filter_user > 0 ? " AND (user_id = $filter_user OR employee_id = $filter_user)" : "";
-$user_clause_o = $filter_user > 0 ? " AND (o.user_id = $filter_user OR o.employee_id = $filter_user)" : "";
+$user_clause_w = "";
+$user_clause_o = "";
 
 $_now = new DateTime();
 $business_date = (int)$_now->format("H") < 6
@@ -78,119 +78,54 @@ if ($_quick_range === 'today') {
 }
 
 if ($date_start === $date_end) {
-    $date_cond_w = "business_date = '$date_start'";
-    $date_cond_o = "o.business_date = '$date_start'";
+    $date_cond_w = "DATE(order_date) = '$date_start'";
+    $date_cond_o = "DATE(o.order_date) = '$date_start'";
 } else {
-    $date_cond_w = "business_date BETWEEN '$date_start' AND '$date_end'";
-    $date_cond_o = "o.business_date BETWEEN '$date_start' AND '$date_end'";
+    $date_cond_w = "DATE(order_date) BETWEEN '$date_start' AND '$date_end'";
+    $date_cond_o = "DATE(o.order_date) BETWEEN '$date_start' AND '$date_end'";
 }
 
 // ── TODAY SALES ──
 $sales_sql = "
 SELECT IFNULL(SUM(total),0) AS total_sales
 FROM orders
-WHERE $date_cond_w " . $user_clause_w . " AND " . paid_orders_where() . "
+WHERE $date_cond_w AND " . paid_orders_where() . "
 ";
 $sales = (float)$conn->query($sales_sql)->fetch_assoc()['total_sales'];
 
 // ── TOTAL ORDERS TODAY ──
-$total_orders = (int)$conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w " . $user_clause_w)->fetch_assoc()['total_orders'];
+$total_orders = (int)$conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w")->fetch_assoc()['total_orders'];
 
 // ── UNPAID ORDERS COUNT ──
-$unpaid_sql = "
-SELECT COUNT(*) AS unpaid_count
-FROM orders
-WHERE status = 'PendingPayment'
-";
-$unpaid_result = mysqli_query($conn, $unpaid_sql);
-$unpaid_count = mysqli_fetch_assoc($unpaid_result)['unpaid_count'];
+$unpaid_count = 0;
 
 // ── LOW STOCK ──
-$low_sql = "
-SELECT COUNT(*) AS low_count
-FROM ingredients
-WHERE stock_quantity < minimum_stock
-";
-$low_result = mysqli_query($conn, $low_sql);
-$low_stock = mysqli_fetch_assoc($low_result)['low_count'];
+$low_stock = 0;
 
-// ── REFUND DATA (NEW) ──
-$refund_sql = "
-SELECT
-    IFNULL(SUM(refund_amount), 0) AS total_refunds,
-    COUNT(*) AS refund_count
-FROM order_refunds
-WHERE DATE(refunded_at) = CURDATE()
-";
-$refund_result = mysqli_query($conn, $refund_sql);
-$refund_data = mysqli_fetch_assoc($refund_result);
-$total_refunds = $refund_data['total_refunds'];
-$refund_count = $refund_data['refund_count'];
+// ── REFUND DATA (removed) ──
+$total_refunds = 0;
+$refund_count = 0;
 
 // ── STATUS COUNTS ──
-$stmt_status = $conn->query("SELECT status, COUNT(*) as count FROM orders WHERE $date_cond_w " . $user_clause_w . " GROUP BY status");
-$status_counts = [];
-if ($stmt_status) {
-    while ($row = $stmt_status->fetch_assoc()) {
-        $status_counts[$row['status']] = $row['count'];
-    }
-}
-
-$pending_count = $status_counts['PendingPayment'] ?? 0;
-$paid_count = $status_counts['Preparing'] ?? 0;
-$preparing_count = $status_counts['Preparing'] ?? 0;
-$completed_count = $status_counts['Completed'] ?? 0;
-$cancelled_count = $status_counts['Cancelled'] ?? 0;
+$status_counts = ['Completed' => $total_orders];
+$pending_count = 0;
+$paid_count = $total_orders;
+$preparing_count = 0;
+$completed_count = $total_orders;
+$cancelled_count = 0;
 
 // ── UNPAID ORDERS LIST (LIMIT 5) ──
-$unpaid_orders_sql = "
-SELECT order_id, daily_order_no, customer_name, total, status, DATE_FORMAT(order_date, '%d %b %H:%i') as date, is_open
-FROM orders
-WHERE status = 'PendingPayment' " . $user_clause_w . "
-ORDER BY order_date DESC
-LIMIT 5
-";
-$unpaid_orders_result = mysqli_query($conn, $unpaid_orders_sql);
 $unpaid_orders = [];
-while ($row = mysqli_fetch_assoc($unpaid_orders_result)) {
-    $unpaid_orders[] = $row;
-}
 
 // ── KITCHEN QUEUE (LIMIT 5) ──
-$stmt_k = $conn->query("
-SELECT order_id, daily_order_no, customer_name, total, token_number, order_date
-FROM orders
-WHERE business_date = '$business_date' " . $user_clause_w . "
-AND status = 'Preparing'
-ORDER BY order_date ASC
-LIMIT 5
-");
 $kitchen_orders = [];
-if ($stmt_k) {
-    while ($row = $stmt_k->fetch_assoc()) {
-        $kitchen_orders[] = $row;
-    }
-}
 
 // ── ITEMS SOLD TODAY ──
 $stmt_items = $conn->query("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FROM order_items oi JOIN orders o ON oi.order_id=o.order_id WHERE $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o'));
 $items_sold = (int)$stmt_items->fetch_assoc()['total_items'];
 
 // ── PROFIT TODAY ──
-$stmt_cogs = $conn->query("
-    SELECT IFNULL(SUM(
-        oi.quantity * (
-            SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id = oi.product_id
-        )
-    ), 0) AS total_cogs
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.order_id
-    WHERE $date_cond_o " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o')
-);
-$cogs_today = (float)($stmt_cogs->fetch_assoc()['total_cogs'] ?? 0);
+$cogs_today = 0.0;
 $profit_today = $sales - $cogs_today;
 $margin_today = $sales > 0 ? round(($profit_today / $sales) * 100, 1) : 0;
 
@@ -202,23 +137,10 @@ for ($i = 6; $i >= 0; $i--) {
     $d_date = (new DateTime($business_date))->modify("-$i days")->format("Y-m-d");
     $d_label = (new DateTime($d_date))->format("D (j/n)");
     
-    $st_rev = $conn->query("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE business_date='$d_date' " . $user_clause_w . " AND " . paid_orders_where());
+    $st_rev = $conn->query("SELECT IFNULL(SUM(total),0) AS rev FROM orders WHERE DATE(order_date)='$d_date' " . $user_clause_w . " AND " . paid_orders_where());
     $d_rev = (float)$st_rev->fetch_assoc()['rev'];
     
-    $st_cogs = $conn->query("
-        SELECT IFNULL(SUM(
-            oi.quantity * (
-                SELECT IFNULL(SUM(pi.amount_used * COALESCE(NULLIF(i.cost_per_unit, 0), CASE WHEN i.purchase_qty > 0 THEN i.cost_price / i.purchase_qty ELSE 0 END, 0)), 0)
-                FROM product_ingredients pi
-                JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-                WHERE pi.product_id = oi.product_id
-            )
-        ), 0) AS total_cogs
-        FROM order_items oi
-        JOIN orders o ON oi.order_id = o.order_id
-        WHERE o.business_date = '$d_date' " . $user_clause_o . " AND oi.product_id <> 0 AND " . paid_orders_where('o')
-    );
-    $d_cogs = (float)$st_cogs->fetch_assoc()['total_cogs'];
+    $d_cogs = 0.0;
     
     $chart_7days_labels[]  = $d_label;
     $chart_7days_revenue[] = round($d_rev, 2);

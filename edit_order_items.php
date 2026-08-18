@@ -1,5 +1,6 @@
 <?php
 require 'auth.php';
+require 'config.php';
 if (!in_array($_SESSION['role'], ['admin', 'manager', 'staff'])) { header("Location: dashboard.php?denied=1"); exit; }
 
 $order_id = (int)($_GET['order_id'] ?? 0);
@@ -13,69 +14,7 @@ if ($order_id <= 0) { header("Location: find_order.php"); exit; }
  * (['name','need','had']) when a deduction ran short so the caller can warn staff.
  */
 function _sync_item_stock(mysqli $conn, int $product_id, int $delta_qty, string $milk_choice, int $order_id): array {
-    $shortfalls = [];
-    if ($delta_qty === 0 || $product_id <= 0) return $shortfalls;
-
-    $stmt = $conn->prepare("
-        SELECT pi.ingredient_id, pi.amount_used, i.ingredient_name
-        FROM product_ingredients pi
-        JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-        WHERE pi.product_id = ?
-    ");
-    $stmt->bind_param("i", $product_id);
-    $stmt->execute();
-    $rows = $stmt->get_result();
-
-    $created_by = $_SESSION['username'] ?? null;
-    $ref        = "Order #$order_id (edited)";
-    $units      = abs($delta_qty);
-    $isDeduct   = $delta_qty > 0;
-
-    while ($row = $rows->fetch_assoc()) {
-        $ing_id    = (int)$row['ingredient_id'];
-        $amount    = (float)$row['amount_used'] * $units;
-        $ing_name  = strtolower(trim($row['ingredient_name']));
-        $disp_name = trim($row['ingredient_name']);
-
-        if (strpos($ing_name, 'milk') !== false && !empty($milk_choice)) {
-            $m = $conn->prepare("SELECT ingredient_id, ingredient_name FROM ingredients WHERE LOWER(ingredient_name) = LOWER(?) LIMIT 1");
-            $m->bind_param("s", $milk_choice);
-            $m->execute();
-            $mr = $m->get_result()->fetch_assoc();
-            if ($mr) { $ing_id = (int)$mr['ingredient_id']; $disp_name = trim($mr['ingredient_name']); }
-        }
-
-        if ($isDeduct) {
-            $cs = $conn->prepare("SELECT stock_quantity FROM ingredients WHERE ingredient_id = ?");
-            $cs->bind_param("i", $ing_id);
-            $cs->execute();
-            $have = (float)($cs->get_result()->fetch_assoc()['stock_quantity'] ?? 0);
-
-            $deducted = $amount;
-            if ($have < $amount) {
-                $deducted     = max(0, $have);
-                $shortfalls[] = ['name' => $disp_name, 'need' => $amount, 'had' => max(0, $have)];
-            }
-            $u = $conn->prepare("UPDATE ingredients SET stock_quantity = GREATEST(0, stock_quantity - ?) WHERE ingredient_id = ?");
-            $u->bind_param("di", $amount, $ing_id);
-            $u->execute();
-
-            if ($deducted > 0) {
-                $h = $conn->prepare("INSERT INTO ingredient_history (ingredient_id, change_type, amount, order_id, reference, created_by) VALUES (?, 'order_deduct', ?, ?, ?, ?)");
-                $h->bind_param("idiss", $ing_id, $deducted, $order_id, $ref, $created_by);
-                $h->execute();
-            }
-        } else {
-            $u = $conn->prepare("UPDATE ingredients SET stock_quantity = stock_quantity + ? WHERE ingredient_id = ?");
-            $u->bind_param("di", $amount, $ing_id);
-            $u->execute();
-
-            $h = $conn->prepare("INSERT INTO ingredient_history (ingredient_id, change_type, amount, order_id, reference, created_by) VALUES (?, 'order_restore', ?, ?, ?, ?)");
-            $h->bind_param("idiss", $ing_id, $amount, $order_id, $ref, $created_by);
-            $h->execute();
-        }
-    }
-    return $shortfalls;
+    return [];
 }
 
 // ── AJAX: Save changes ──
@@ -89,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $qtys = isset($_POST['qtys']) ? json_decode($_POST['qtys'], true) : [];
 
     // Verify order is still editable and fetch order_date to preserve happy hour
-    $stmt = $conn->prepare("SELECT order_id, order_date, total, loyalty_card_id, points_earned FROM orders WHERE order_id = ? AND payment_method = 'paylater' AND status = 'Preparing'");
+    $stmt = $conn->prepare("SELECT order_id, order_date, total FROM orders WHERE order_id = ? AND payment_method = 'paylater'");
     $stmt->bind_param("i", $order_id);
     $stmt->execute();
     $editable_order = $stmt->get_result()->fetch_assoc();
@@ -201,8 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $tax    = $after * (TAX_RATE / 100);
         $total  = round($after + $tax, 2);
 
-        $stmt_upd = $conn->prepare("UPDATE orders SET total = ?, promotion_discount = ? WHERE order_id = ?");
-        $stmt_upd->bind_param("ddi", $total, $total_discount, $order_id);
+        $stmt_upd = $conn->prepare("UPDATE orders SET total = ? WHERE order_id = ?");
+        $stmt_upd->bind_param("di", $total, $order_id);
         $stmt_upd->execute();
 
         // ── AUDIT ── Record what this edit did to a already-placed order. Revenue on the
@@ -223,32 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($_changes) {
             $_total_before = (float)($editable_order['total'] ?? 0);
             log_order_audit($conn, $order_id, 'items_edited', implode('; ', $_changes), $_total_before, $total);
-        }
-
-        // ── LOYALTY: keep points in sync with the new drink count ──
-        // Points were granted at order creation (points_earned). After editing, adjust
-        // the card balance by the delta so adding drinks adds points and removing
-        // drinks takes them back. Only chargeable drinks (price > 0) count.
-        $lc_id = (int)($editable_order['loyalty_card_id'] ?? 0);
-        if ($lc_id > 0) {
-            $old_pts = (int)($editable_order['points_earned'] ?? 0);
-            $delta   = $points_qty - $old_pts;
-            if ($delta !== 0) {
-                $lc = $conn->prepare("UPDATE loyalty_cards SET points = GREATEST(0, points + ?), total_drinks = GREATEST(0, total_drinks + ?), last_used = NOW() WHERE card_id = ?");
-                $lc->bind_param("iii", $delta, $delta, $lc_id);
-                $lc->execute();
-
-                $htype = $delta > 0 ? 'adjusted_add' : 'adjusted_deduct';
-                $hdesc = "Order #{$order_id} edited — points adjusted by {$delta}";
-                $hi = $conn->prepare("INSERT INTO loyalty_history (card_id, order_id, points_change, type, description) VALUES (?, ?, ?, ?, ?)");
-                $hi->bind_param("iiiss", $lc_id, $order_id, $delta, $htype, $hdesc);
-                $hi->execute();
-
-                // Keep the order's recorded points current so future edits delta correctly
-                $up = $conn->prepare("UPDATE orders SET points_earned = ? WHERE order_id = ?");
-                $up->bind_param("ii", $points_qty, $order_id);
-                $up->execute();
-            }
         }
 
         $conn->commit();
@@ -278,9 +191,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // ── Fetch order ──
 $stmt = $conn->prepare("
-    SELECT order_id, daily_order_no, customer_name, total, token_number, promotion_discount, order_date
+    SELECT order_id, order_id AS daily_order_no, 'Guest' AS customer_name, total, order_id AS token_number, 0 AS promotion_discount, order_date
     FROM orders
-    WHERE order_id = ? AND payment_method = 'paylater' AND status = 'Preparing'
+    WHERE order_id = ? AND payment_method = 'paylater'
 ");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();

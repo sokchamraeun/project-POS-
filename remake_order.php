@@ -31,18 +31,13 @@ if (empty($reason)) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT order_id, daily_order_no, status FROM orders WHERE order_id = ?");
+$stmt = $conn->prepare("SELECT order_id, order_id AS daily_order_no, 'Completed' AS status FROM orders WHERE order_id = ?");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();
 $order = $stmt->get_result()->fetch_assoc();
 
 if (!$order) {
     echo json_encode(["ok" => 0, "error" => "Order not found"]);
-    exit;
-}
-
-if ($order['status'] !== 'Completed') {
-    echo json_encode(["ok" => 0, "error" => "Remakes can only be logged on Completed orders"]);
     exit;
 }
 
@@ -88,14 +83,7 @@ try {
 
 // Throw rather than exit: an exit inside the transaction would skip the rollback
 // below and leave the failure half-applied.
-$stmt2 = $conn->prepare("INSERT INTO order_remakes (order_id, reason, remade_by) VALUES (?, ?, ?)");
-if (!$stmt2) {
-    throw new RuntimeException("order_remakes table not found — run the schema migration first");
-}
-$stmt2->bind_param("iss", $order_id, $reason, $_SESSION['username']);
-if (!$stmt2->execute()) {
-    throw new RuntimeException("Failed to log remake. Please try again.");
-}
+
 
 // Apply item adjustments if provided
 $adjusted_milk   = [];   // item_id => the milk chosen for this remake
@@ -103,24 +91,8 @@ $adjustments_raw = trim($_POST['adjustments'] ?? '');
 if ($adjustments_raw) {
     $adjustments = json_decode($adjustments_raw, true);
     if (is_array($adjustments)) {
-        /* Allowed add-ons per product, with prices read from the server — a crafted POST
-           can neither invent a price nor attach an add-on this product can't be ordered
-           with. Same gate as add_to_cart.php: assigned to the product AND the category
-           offers add-ons. Keyed by product so each item is validated against its own drink. */
+        // Allowed add-ons per product (removed)
         $allowed = [];
-        $ap = $conn->query("
-            SELECT pa.product_id, a.id, a.name, a.price
-            FROM product_addons pa
-            JOIN addons a     ON a.id = pa.addon_id
-            JOIN products pr  ON pr.product_id = pa.product_id
-            JOIN categories c ON c.slug = pr.category
-            WHERE a.is_active = 1 AND c.offer_addons = 1
-            ORDER BY a.display_order ASC, a.id ASC
-        ");
-        if ($ap) while ($apr = $ap->fetch_assoc()) {
-            $allowed[(int)$apr['product_id']][$apr['name']] =
-                ['id' => (int)$apr['id'], 'name' => $apr['name'], 'price' => (float)$apr['price']];
-        }
 
         // product_id per item, so an adjustment can't be validated against another drink.
         $item_product = [];
@@ -179,18 +151,7 @@ foreach ($remake as $iid => $q) {
     $line = $lines[$iid];
     $pid  = (int)$line['product_id'];
 
-    /* The size multiplier, so a Large remake consumes Large quantities — the same
-       factor confirm_order.php applies at ordering. No matching row (an unsized
-       product) means 1.0. */
     $sf = 1.0;
-    if (!empty($line['size_label'])) {
-        $sq = $conn->prepare("SELECT size_factor FROM product_sizes
-                              WHERE product_id = ? AND label = ? LIMIT 1");
-        $sq->bind_param("is", $pid, $line['size_label']);
-        $sq->execute();
-        $srow = $sq->get_result()->fetch_assoc();
-        if ($srow) $sf = (float)$srow['size_factor'];
-    }
 
     // The milk being poured now, which the adjustments above may have just changed.
     $milk = (string)($adjusted_milk[$iid] ?? $line['milk'] ?? '');
@@ -213,7 +174,7 @@ foreach ($remake as $iid => $q) {
     $mu->execute();
 }
 
-$stmt3 = $conn->prepare("UPDATE orders SET status='Preparing', is_open=1 WHERE order_id=?");
+$stmt3 = $conn->prepare("UPDATE orders SET status='Preparing' WHERE order_id=?");
 $stmt3->bind_param("i", $order_id);
 $stmt3->execute();
 

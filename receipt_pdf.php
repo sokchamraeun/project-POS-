@@ -3,11 +3,7 @@ require 'config.php';
 require 'dompdf/dompdf/autoload.inc.php';
 date_default_timezone_set('Asia/Phnom_Penh');
 
-// Ensure columns exist (safe no-op after first run)
-if ($conn->query("SHOW COLUMNS FROM orders LIKE 'order_type'")->num_rows === 0)
-    $conn->query("ALTER TABLE orders ADD COLUMN order_type ENUM('drink_in','drink_out') NOT NULL DEFAULT 'drink_in'");
-if ($conn->query("SHOW COLUMNS FROM orders LIKE 'completed_at'")->num_rows === 0)
-    $conn->query("ALTER TABLE orders ADD COLUMN completed_at DATETIME NULL");
+
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -23,11 +19,13 @@ if ($order_id <= 0) {
 
 // ── FETCH ORDER ──
 $stmt = $conn->prepare("
-    SELECT order_id, customer_name, total, order_date, daily_order_no, promotion_discount, token_number,
-           manual_discount, manual_discount_reason, status, employee_name,
-           IFNULL(order_type,'drink_in') AS order_type, completed_at, table_number, started_at
-    FROM orders
-    WHERE order_id = ?
+    SELECT o.order_id, 'Guest' AS customer_name, o.total, o.order_date, o.order_id AS daily_order_no, 0 AS promotion_discount, o.order_id AS token_number,
+           0 AS manual_discount, '' AS manual_discount_reason, 'Completed' AS status,
+           COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS employee_name,
+           'drink_in' AS order_type, '' AS completed_at, '' AS table_number, o.started_at
+    FROM orders o
+    LEFT JOIN users u ON u.user_id = o.user_id
+    WHERE o.order_id = ?
 ");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();
@@ -35,13 +33,6 @@ $order = $stmt->get_result()->fetch_assoc();
 
 if (!$order) {
     die("Order not found");
-}
-
-// ── Backfill completed_at for paid orders that predate the column ──
-if (empty($order['completed_at']) && in_array($order['status'], ['Paid', 'Completed'])) {
-    $now = date('Y-m-d H:i:s');
-    $conn->query("UPDATE orders SET completed_at = '$now' WHERE order_id = $order_id AND completed_at IS NULL");
-    $order['completed_at'] = $now;
 }
 
 // ── FETCH ITEMS ──
@@ -597,65 +588,7 @@ $points_redeemed = 0;
 $points_balance  = 0;
 $points_progress = 0;
 
-$stmt = $conn->prepare("SELECT loyalty_card_id FROM orders WHERE order_id = ?");
-$stmt->bind_param("i", $order_id);
-$stmt->execute();
-$order_loyalty = $stmt->get_result()->fetch_assoc();
 
-if ($order_loyalty['loyalty_card_id']) {
-    $stmt = $conn->prepare("SELECT points, points_progress FROM loyalty_cards WHERE card_id = ?");
-    $stmt->bind_param("i", $order_loyalty['loyalty_card_id']);
-    $stmt->execute();
-    $card = $stmt->get_result()->fetch_assoc();
-    $points_balance  = (int)($card['points'] ?? 0);
-    $points_progress = (int)($card['points_progress'] ?? 0);
-    
-    // Get earned and redeemed points separately for this order
-    $stmt = $conn->prepare("
-        SELECT
-            COALESCE(SUM(CASE WHEN points_change > 0 THEN points_change ELSE 0 END), 0) AS earned,
-            COALESCE(ABS(SUM(CASE WHEN points_change < 0 THEN points_change ELSE 0 END)), 0) AS redeemed
-        FROM loyalty_history
-        WHERE order_id = ? AND card_id = ?
-    ");
-    if ($stmt) {
-        $stmt->bind_param("ii", $order_id, $order_loyalty['loyalty_card_id']);
-        $stmt->execute();
-        $history = $stmt->get_result()->fetch_assoc();
-        $points_earned   = (int)($history['earned']   ?? 0);
-        $points_redeemed = (int)($history['redeemed'] ?? 0);
-    }
-}
-
-if ($order_loyalty['loyalty_card_id']) {
-    $l_mode = LOYALTY_MODE;
-    $l_req  = LOYALTY_POINTS_DRINKS;
-    $l_prog = ($l_mode === 'spend') ? '$' . $points_progress . '/$' . $l_req : $points_progress . '/' . $l_req;
-    $html .= '
-<div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000;">
-    <div style="font-weight: 700; font-size: 10px; text-align: center; margin-bottom: 5px; letter-spacing: 1.5px; text-transform: uppercase;">Loyalty Points</div>
-    <div style="display: flex; justify-content: space-between; font-size: 10px; padding: 2px 0;">
-        <span>Points Earned</span>
-        <span>+' . $points_earned . '</span>
-    </div>';
-    if ($points_redeemed > 0) {
-        $html .= '
-    <div style="display: flex; justify-content: space-between; font-size: 10px; padding: 2px 0;">
-        <span>Points Redeemed</span>
-        <span>-' . $points_redeemed . '</span>
-    </div>';
-    }
-    $html .= '
-    <div style="display: flex; justify-content: space-between; font-size: 10px; padding: 2px 0;">
-        <span>Progress</span>
-        <span>' . $l_prog . '</span>
-    </div>
-    <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; padding: 4px 0; border-top: 1px solid #000;">
-        <span>Points Balance</span>
-        <span>' . $points_balance . '</span>
-    </div>
-</div>';
-}
 
 $html .= '
 <div class="footer">

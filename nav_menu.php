@@ -9,11 +9,8 @@
 $NAV_REGISTRY = [
     'view_orders'         => ['view_order.php',            'fa-receipt'],
     'products'            => ['products.php',              'fa-cube'],
-    'manage_categories'   => ['manage_categories.php',       'fa-tags'],
-
-    'report'              => ['daily_report.php',           'fa-chart-column'],
-    'employees'           => ['employees.php',             'fa-user-tie'],
-    'manage_roles'        => ['manage_roles.php',          'fa-shield-halved', true],
+    'manage_categories'   => ['manage_categories.php',     'fa-tags'],
+    'report'              => ['daily_report.php',          'fa-chart-column'],
 ];
 
 // Explicit section display order — never trust DB module/insertion order.
@@ -27,8 +24,13 @@ function nav_items(mysqli $conn): array {
     global $NAV_REGISTRY, $NAV_SECTION_ORDER;
     $isAdmin = (($_SESSION['role'] ?? '') === 'admin');
     $rows = [];
-    $res = $conn->query("SELECT id, slug, name, module, sort_order FROM permissions");
-    while ($res && $p = $res->fetch_assoc()) {
+    $static_perms = [
+        ['id' => 1, 'slug' => 'view_orders', 'name' => 'View Orders', 'module' => 'Orders', 'sort_order' => 1],
+        ['id' => 2, 'slug' => 'products', 'name' => 'Products', 'module' => 'Inventory', 'sort_order' => 2],
+        ['id' => 3, 'slug' => 'manage_categories', 'name' => 'Categories', 'module' => 'Inventory', 'sort_order' => 3],
+        ['id' => 4, 'slug' => 'report', 'name' => 'Daily Report', 'module' => 'Analytics', 'sort_order' => 4],
+    ];
+    foreach ($static_perms as $p) {
         $slug = $p['slug'];
         if (!isset($NAV_REGISTRY[$slug])) continue;                 // non-navigable
         [$href, $icon, $adminOnly] = array_pad($NAV_REGISTRY[$slug], 3, false);

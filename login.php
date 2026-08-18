@@ -20,22 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    // Rate-limit per USERNAME, not per IP: a whole shop shares one public IP, so
-    // IP-keyed throttling locked out every employee when one person mistyped 5x.
-    $conn->query("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-    $rate = $conn->prepare("SELECT COUNT(*) FROM login_attempts WHERE username = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-    $rate->bind_param("s", $username); $rate->execute();
-    $attempts = (int)$rate->get_result()->fetch_row()[0];
-    if ($attempts >= 5) {
-        // Real remaining time: window clears once the oldest blocking attempt ages past 15 min
-        $mq = $conn->prepare("SELECT TIMESTAMPDIFF(SECOND, MIN(attempted_at), NOW()) FROM login_attempts WHERE username = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-        $mq->bind_param("s", $username); $mq->execute();
-        $ageSec = (int)($mq->get_result()->fetch_row()[0] ?? 0);
-        $mins   = max(1, (int)ceil((900 - $ageSec) / 60));
-        header("Location: login.php?error=locked&mins=" . $mins); exit;
-    }
-
-    $stmt = $conn->prepare("SELECT u.*, r.slug AS role, COALESCE(e.name, u.username) AS emp_name FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN employees e ON e.user_id = u.user_id OR e.employee_id = u.user_id WHERE u.username = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT u.*, u.username AS emp_name FROM users u WHERE u.username = ? LIMIT 1");
     $stmt->bind_param("s", $username); $stmt->execute();
     $result = $stmt->get_result();
 
@@ -47,21 +32,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['username']          = $user['username'];
             $_SESSION['emp_name']          = $user['emp_name'] ?: $user['username'];
             $_SESSION['role']              = $user['role'];
-            $_SESSION['role_id']           = (int)$user['role_id'];
             $_SESSION['last_activity']     = time();
             $_SESSION['login_time']        = time();
             $_SESSION['flash_welcome']     = true;
             $_SESSION['flash_stock_alert'] = true;
-            $del = $conn->prepare("DELETE FROM login_attempts WHERE username = ?");
-            $del->bind_param("s", $username); $del->execute();
             if (!empty($user['must_change_password']) || (!empty($user['must_set_security']) && empty($user['security_question']))) { header("Location: profile.php"); exit; }
             header("Location: loading.php"); exit;
         }
     }
-    $log = $conn->prepare("INSERT INTO login_attempts (ip, username) VALUES (?, ?)");
-    $log->bind_param("ss", $ip, $username); $log->execute();
-    $remaining = max(0, 4 - $attempts);
-    header("Location: login.php?error=1&left=" . $remaining); exit;
+    header("Location: login.php?error=1"); exit;
 }
 ?>
 <!DOCTYPE html>

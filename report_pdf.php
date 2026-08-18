@@ -66,11 +66,9 @@ $ingredients = [];
 $cost_map_ref = ingredient_cost_map($conn);
 
 // ── Paid orders in range ──
-$where_conds = ["o.business_date BETWEEN '$dateFrom' AND '$dateTo'", paid_orders_where()];
+$where_conds = ["DATE(o.order_date) BETWEEN '$dateFrom' AND '$dateTo'", paid_orders_where()];
 $filter_payment = trim($_GET['payment_method'] ?? '');
-$filter_user    = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
-if ($filter_payment !== '') { $where_conds[] = "o.payment_method = '" . $conn->real_escape_string($filter_payment) . "'"; }
-if ($filter_user > 0) { $where_conds[] = "o.user_id = $filter_user"; }
+if ($filter_payment !== '') { $where_conds[] = "LOWER(o.payment_method) = '" . $conn->real_escape_string(strtolower($filter_payment)) . "'"; }
 $where_str = implode(' AND ', $where_conds);
 
 $qOrders = $conn->query("SELECT o.order_id FROM orders o WHERE $where_str");
@@ -114,25 +112,6 @@ if (!empty($orderIds)) {
     }
 
     $recipes = [];
-    if (!empty($productIds)) {
-        $inProduct = implode(',', array_keys($productIds));
-        $qRec = $conn->query("
-            SELECT pi.product_id, pi.ingredient_id, pi.amount_used, i.ingredient_name
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id IN ($inProduct)
-        ");
-        if ($qRec) {
-            while ($r = $qRec->fetch_assoc()) {
-                $pid = (int)$r['product_id'];
-                $recipes[$pid][] = [
-                    'ingredient_id'   => (int)$r['ingredient_id'],
-                    'ingredient_name' => $r['ingredient_name'],
-                    'amount_used'     => (float)$r['amount_used']
-                ];
-            }
-        }
-    }
 
     foreach ($items as $it) {
         $pid      = (int)$it['product_id'];

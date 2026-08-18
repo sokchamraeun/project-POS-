@@ -65,10 +65,8 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// ── FETCH ALL REWARDS ──
-$stmt = $conn->prepare("SELECT * FROM rewards ORDER BY points_required ASC");
-$stmt->execute();
-$rewards = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+// ── FETCH ALL REWARDS (removed) ──
+$rewards = [];
 
 // ── GET REWARD FOR EDITING ──
 $edit_reward = null;

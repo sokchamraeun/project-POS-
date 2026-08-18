@@ -38,15 +38,6 @@ $endStr   = $end->format("Y-m-d H:i:s");
 
 // ── Ingredient cost map ──
 $ingredients = [];
-$qIng = mysqli_query($conn, "SELECT ingredient_id, ingredient_name, cost_price, purchase_qty, cost_per_unit FROM ingredients");
-while ($r = mysqli_fetch_assoc($qIng)) {
-    $cpu = (float)$r['cost_per_unit'];
-    if ($cpu <= 0 && (float)$r['purchase_qty'] > 0)
-        $cpu = (float)$r['cost_price'] / (float)$r['purchase_qty'];
-    $iid = (int)$r['ingredient_id'];
-    $ingredients[$iid] = ['name' => $r['ingredient_name'], 'unit_cost' => $cpu];
-    $ingredients[strtolower(trim($r['ingredient_name']))] = ['id'=>$iid,'name'=>$r['ingredient_name'],'unit_cost'=>$cpu];
-}
 
 // ── Orders ──
 $orderIds = []; $totalSales = 0; $orderCount = 0;
@@ -78,19 +69,6 @@ if (count($orderIds) > 0) {
     }
 
     $recipes = [];
-    if (count($productIds) > 0) {
-        $inProduct = implode(",", array_map('intval', array_keys($productIds)));
-        $qRec = mysqli_query($conn, "
-            SELECT pi.product_id, pi.ingredient_id, pi.amount_used, i.ingredient_name
-            FROM product_ingredients pi
-            JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
-            WHERE pi.product_id IN ($inProduct)
-        ");
-        while ($r = mysqli_fetch_assoc($qRec)) {
-            $pid = (int)$r['product_id'];
-            $recipes[$pid][] = ['ingredient_id'=>(int)$r['ingredient_id'],'ingredient_name'=>$r['ingredient_name'],'amount_used'=>(float)$r['amount_used']];
-        }
-    }
 
     foreach ($items as $it) {
         $pid      = (int)$it['product_id'];
@@ -136,10 +114,8 @@ if (count($orderIds) > 0) {
 $totalProfit = $totalSales - $totalCOGS;
 $margin      = $totalSales > 0 ? ($totalProfit / $totalSales * 100) : 0;
 
-// ── Refunds ──
+// ── Refunds (removed) ──
 $totalRefunded = 0; $refundCount = 0;
-$qRef = mysqli_query($conn, "SELECT COALESCE(SUM(refund_amount),0) as total, COUNT(*) as cnt FROM order_refunds WHERE refunded_at BETWEEN '$startStr' AND '$endStr'");
-if ($rf = mysqli_fetch_assoc($qRef)) { $totalRefunded = (float)$rf['total']; $refundCount = (int)$rf['cnt']; }
 $netRevenue = $totalSales - $totalRefunded;
 
 // ── Peak hour + hourly data (daily only) ──

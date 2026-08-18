@@ -1,13 +1,6 @@
 <?php
 require 'auth.php';
-
-// ── Migrate: add order_type and completed_at if missing ──
-if ($conn->query("SHOW COLUMNS FROM orders LIKE 'order_type'")->num_rows === 0) {
-    $conn->query("ALTER TABLE orders ADD COLUMN order_type ENUM('drink_in','drink_out') NOT NULL DEFAULT 'drink_in'");
-}
-if ($conn->query("SHOW COLUMNS FROM orders LIKE 'completed_at'")->num_rows === 0) {
-    $conn->query("ALTER TABLE orders ADD COLUMN completed_at DATETIME NULL");
-}
+require 'config.php';
 
 if (empty($_SESSION['cart'])) {
     header("Location: menu.php");
@@ -24,7 +17,6 @@ if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', 
 }
 
 // Declared up-front: adding to an existing order must not re-apply order-level fields
-// (customer name, stand) that already belong to that order.
 $is_add_to_order = ($_POST['is_add_to_order'] ?? '0') === '1';
 
 $customer_name = trim($_POST['customer_name'] ?? '');
@@ -33,48 +25,6 @@ if (strlen($customer_name) < 1 || strlen($customer_name) > 120) {
 }
 if (!$is_add_to_order) {
     $_SESSION['customer_name'] = $customer_name;
-}
-
-$order_type    = in_array($_POST['order_type'] ?? '', ['drink_in','drink_out']) ? $_POST['order_type'] : 'drink_in';
-$table_number  = ($order_type === 'drink_in') ? (substr(trim($_POST['table_number'] ?? ''), 0, 10) ?: null) : null;
-if ($is_add_to_order) {
-    $table_number = null;   // never re-stamp or re-validate the stand on an add
-}
-
-// ── STAND DUPLICATE BLOCK ──
-if (!empty($table_number)) {
-    // Token-driven: a stand is taken until its placard is returned (released),
-    // so block reuse while any non-cancelled order today still holds it.
-    $s = $conn->prepare("SELECT daily_order_no, customer_name, status FROM orders WHERE UPPER(table_number) = UPPER(?) AND status NOT IN ('Cancelled','Refunded','Void') AND business_date = CURDATE() LIMIT 1");
-    $s->bind_param("s", $table_number);
-    $s->execute();
-    $dup = $s->get_result()->fetch_assoc();
-    if ($dup) {
-        $by = $dup['customer_name'] ? ' (' . htmlspecialchars($dup['customer_name']) . ')' : '';
-        die('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stand In Use</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Poppins,sans-serif;background:#fdf4f4;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.card{background:#fff;border:1.5px solid #f5c6cb;border-radius:18px;padding:40px 36px;max-width:440px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(220,53,69,.1)}
-.icon{font-size:52px;color:#dc3545;margin-bottom:16px}
-h1{font-size:22px;font-weight:700;color:#1a1410;margin-bottom:8px}
-p{font-size:14px;color:#5a4a3a;line-height:1.6;margin-bottom:6px}
-.highlight{display:inline-block;margin:12px 0;padding:10px 18px;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;color:#856404;font-size:13px;font-weight:600}
-.btn{display:inline-flex;align-items:center;gap:8px;margin-top:20px;padding:12px 28px;background:#d1904b;color:#fff;border:none;border-radius:50px;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;font-family:Poppins,sans-serif;transition:all .2s}
-.btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
-</style></head><body>
-<div class="card">
-  <div class="icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-  <h1>Stand Already In Use</h1>
-  <p>Stand number <strong>' . htmlspecialchars($table_number) . '</strong> is currently assigned to another active order.</p>
-  <div class="highlight"><i class="fa-solid fa-ticket"></i> Order #' . htmlspecialchars($dup['daily_order_no']) . $by . ' &mdash; ' . htmlspecialchars($dup['status']) . '</div>
-  <p>Please give the customer a different stand, or wait until the current order is completed.</p>
-  <a href="javascript:history.back()" class="btn"><i class="fa-solid fa-arrow-left"></i> Go Back</a>
-</div>
-</body></html>');
-    }
 }
 
 $payment_methods   = isset($_POST['payment_methods'])   ? $_POST['payment_methods']   : [];
@@ -90,6 +40,60 @@ if (in_array('riel', $payment_methods) && count($payment_methods) > 1) {
     die("Riel payment cannot be combined with other payment methods. <a href='cart.php'>Go back</a>");
 }
 
+// ── INVENTORY VALIDATION: Ensure all ingredients in cart are available before checkout ──
+$requiredStock = [];
+foreach (($_SESSION['cart'] ?? []) as $cItem) {
+    $pId = (int)($cItem['product_id'] ?? 0);
+    $q = max(1, (int)($cItem['qty'] ?? 1));
+    $sFactor = (float)($cItem['size_factor'] ?? 1.0);
+    if ($pId <= 0) continue;
+
+    $stmtBOM = $conn->prepare("SELECT r.item_id, r.quantity_required, s.item_name, s.quantity, s.unit 
+                               FROM product_recipes r 
+                               JOIN stock_items s ON r.item_id = s.item_id 
+                               WHERE r.product_id = ? AND s.is_active = 1");
+    if ($stmtBOM) {
+        $stmtBOM->bind_param("i", $pId);
+        $stmtBOM->execute();
+        $resBOM = $stmtBOM->get_result();
+        while ($bRow = $resBOM->fetch_assoc()) {
+            $iId = (int)$bRow['item_id'];
+            $req = (float)$bRow['quantity_required'] * (float)$q * $sFactor;
+            if (!isset($requiredStock[$iId])) {
+                $requiredStock[$iId] = [
+                    'name'      => $bRow['item_name'],
+                    'available' => (float)$bRow['quantity'],
+                    'unit'      => $bRow['unit'],
+                    'needed'    => 0.0
+                ];
+            }
+            $requiredStock[$iId]['needed'] += $req;
+        }
+        $stmtBOM->close();
+    }
+}
+
+$stockShortfalls = [];
+foreach ($requiredStock as $st) {
+    if ($st['available'] < $st['needed']) {
+        $availStr = (floor($st['available']) == $st['available']) ? number_format($st['available'], 0) : number_format($st['available'], 2);
+        $needStr  = (floor($st['needed']) == $st['needed']) ? number_format($st['needed'], 0) : number_format($st['needed'], 2);
+        $stockShortfalls[] = "{$st['name']} (Available: {$availStr} {$st['unit']}, Needed: {$needStr} {$st['unit']})";
+    }
+}
+
+if (!empty($stockShortfalls)) {
+    $shortMsg = "Checkout Blocked: Insufficient inventory stock for: " . implode('; ', $stockShortfalls) . ". Another cashier may have just sold the remaining stock. Please update your cart.";
+    if (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'insufficient_stock', 'message' => $shortMsg]);
+        exit;
+    }
+    $_SESSION['flash_error'] = $shortMsg;
+    header("Location: cart.php?error=insufficient_stock");
+    exit;
+}
+
 // ── EXISTING ORDER (add more items) ──
 // Only honour the session var when the form explicitly declares add-to-order mode.
 // A stale $_SESSION['add_to_order_id'] left over from a previous, abandoned
@@ -100,11 +104,9 @@ $existing_order_id = ($is_add_to_order && isset($_SESSION['add_to_order_id']))
 
 if ($existing_order_id > 0) {
     $stmt = $conn->prepare("
-        SELECT order_id, customer_name, total, promotion_discount, manual_discount, is_open, order_date, loyalty_card_id, points_earned
+        SELECT order_id, total, order_date
         FROM orders
         WHERE order_id = ?
-          AND is_open = 1
-          AND (status IN ('Preparing', 'Paid') OR (payment_method = 'paylater' AND status = 'Completed'))
     ");
     $stmt->bind_param("i", $existing_order_id);
     $stmt->execute();
@@ -359,78 +361,28 @@ if ($has_paylater) {
    point, so failing here would be worse than recording a sane default. */
 $primary_method = order_payment_method_or($payment_methods[0] ?? null, 'cash');
 
-// ── DAILY ORDER NUMBER ──
-date_default_timezone_set('Asia/Phnom_Penh');
-$now       = new DateTime();
-$today6am  = (clone $now)->setTime(6, 0, 0);
-if ($now < $today6am) $today6am->modify('-1 day');
-
-$start = $today6am->format('Y-m-d H:i:s');
-$end   = (clone $today6am)->modify('+1 day -1 second')->format('Y-m-d H:i:s');
-
-$stmt = $conn->prepare("SELECT COALESCE(MAX(daily_order_no), 0) + 1 AS next_no FROM orders WHERE order_date >= ? AND order_date <= ?");
-$stmt->bind_param("ss", $start, $end);
-$stmt->execute();
-$daily_no = (int)$stmt->get_result()->fetch_assoc()['next_no'];
-
 $conn->begin_transaction();
 
 try {
-    $business_date = $today6am->format('Y-m-d');
-
-    // ── UNIQUE TOKEN ──
-    $token_number  = rand(1, 999);
-    $stmt_tok = $conn->prepare("SELECT COUNT(*) FROM orders WHERE token_number = ? AND DATE(order_date) = CURDATE()");
-    $stmt_tok->bind_param("i", $token_number);
-    do {
-        $token_number = rand(1, 999);
-        $stmt_tok->bind_param("i", $token_number);
-        $stmt_tok->execute();
-        $tok_count = (int)$stmt_tok->get_result()->fetch_row()[0];
-    } while ($tok_count > 0);
-
-    $employee_name = $_SESSION['username'] ?? 'Unknown';
-    $_uid = (int)($_SESSION['user_id'] ?? 0);
-    $_emp_r = $conn->prepare("SELECT employee_id FROM employees WHERE user_id = ? LIMIT 1");
-    $_emp_r->bind_param("i", $_uid); $_emp_r->execute();
-    $_emp_row = $_emp_r->get_result()->fetch_assoc();
-    $employee_id = $_emp_row ? (int)$_emp_row['employee_id'] : null;
-
-    // ── IMPORTANT: Cast variables to the correct types ──
-    $customer_name   = (string)$customer_name;
-    $total           = (float)$total;
-    $daily_no        = (int)$daily_no;
-    $order_status    = (string)$order_status;
-    $business_date   = (string)$business_date;
-    $primary_method  = (string)$primary_method;
-    $total_discount  = (float)$total_discount;
-    $is_open         = (int)$is_open;
-    $token_number    = (int)$token_number;
-    // employee_id already resolved above (int or null)
-    $employee_name   = (string)$employee_name;
-
-    // Only stamp completed_at for fully-paid orders (not paylater which is still open)
-    $completed_at = ($order_status === 'Preparing' && $is_open === 0) ? date('Y-m-d H:i:s') : null;
-
-    // started_at = when first item was added to the session cart
-    $started_at = $_SESSION['cart_started_at'] ?? date('Y-m-d H:i:s');
+    $_uid           = (int)($_SESSION['user_id'] ?? 0);
+    $customer_name  = (string)$customer_name;
+    $total          = (float)$total;
+    $order_status   = (string)$order_status;
+    $primary_method = (string)$primary_method;
+    $started_at     = $_SESSION['cart_started_at'] ?? date('Y-m-d H:i:s');
 
     $stmt_order = $conn->prepare("
         INSERT INTO orders
-        (customer_name, total, daily_order_no, status, business_date, payment_method,
-         promotion_discount, is_open, token_number, employee_id, employee_name,
-         manual_discount, manual_discount_reason, order_type, completed_at, table_number, started_at, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, total, payment_method, order_date, started_at)
+        VALUES (?, ?, ?, NOW(), ?)
     ");
     $stmt_order->bind_param(
-        "sdisssdiiisdsssssi",
-        $customer_name, $total, $daily_no, $order_status, $business_date,
-        $primary_method, $total_discount, $is_open, $token_number,
-        $employee_id, $employee_name,
-        $manual_discount_co, $manual_reason_co, $order_type, $completed_at, $table_number, $started_at, $_uid
+        "idss",
+        $_uid, $total, $primary_method, $started_at
     );
     $stmt_order->execute();
     $order_id = $conn->insert_id;
+    $daily_no = $order_id;
 
     // ── PAYMENT RECORDS ──
     $stmt_pay = $conn->prepare("
@@ -454,6 +406,33 @@ try {
         if ($method === 'cash') {
             $parts     = tender_parts($reference);
             $reference = $parts === null ? '' : tender_ref($parts['usd'], $parts['khr']);
+        } elseif ($method === 'bakong' && empty($reference)) {
+            try {
+                require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+                $b_config = require __DIR__ . '/bakong_config.php';
+                $order_ts = !empty($started_at) ? strtotime($started_at) : time();
+                $exp_ts   = strval(($order_ts + 15 * 60) * 1000);
+
+                $b_info = new \KHQR\Models\IndividualInfo(
+                    bakongAccountID: $b_config['bakong_id'],
+                    merchantName: $b_config['merchant_name'],
+                    merchantCity: $b_config['merchant_city'],
+                    currency: $b_config['currency'],
+                    amount: $amount,
+                    billNumber: 'ORDER_' . $order_id,
+                    storeLabel: 'BirdNestCafe',
+                    terminalLabel: 'POS1',
+                    mobileNumber: $b_config['mobile_number'],
+                    expirationTimestamp: $exp_ts
+                );
+
+                $b_res = \KHQR\BakongKHQR::generateIndividual($b_info);
+                if (($b_res->status['code'] ?? 1) === 0 && !empty($b_res->data['md5'])) {
+                    $reference = $b_res->data['md5'];
+                }
+            } catch (Throwable $e) {
+                error_log("confirm_order.php: Bakong MD5 generation error: " . $e->getMessage());
+            }
         }
         $pay_status = in_array($method, ['bakong', 'paylater']) ? 'pending' : 'paid';
 
@@ -514,67 +493,9 @@ try {
         }
     }
 
-    // ── ADD REDEEMED REWARDS TO ORDER + deduct points now that order is confirmed ──
-    if (!empty($_SESSION['redeemed_rewards'])) {
-        $stmt_reward = $conn->prepare("
-            INSERT INTO order_items (order_id, product_id, product_name, price, quantity, sweetness, ice, milk, size_code, size_label, addons_snapshot, promo_percent, orig_price, earns_points)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt_deduct   = $conn->prepare("UPDATE loyalty_cards SET points = GREATEST(0, points - ?), last_used = NOW() WHERE card_id = ?");
-        $stmt_hist     = $conn->prepare("
-            INSERT INTO loyalty_history (card_id, order_id, points_change, type, reward_name, description)
-            VALUES (?, ?, ?, 'redeemed', ?, ?)
-        ");
 
-        foreach ($_SESSION['redeemed_rewards'] as $reward) {
-            // Add free item to order
-            $rid        = 0;
-            $rname      = "[GIFT] {$reward['reward_name']} (Loyalty)";
-            $rprice     = 0.0;
-            $rqty       = 1;
-            $rempty     = '';
-            $addons_json = json_encode($reward['addons'] ?? []);
-            $rpromo = 0; $rorig = 0.0; $rearn = 0;
-            $stmt_reward->bind_param("iisdissssssidi", $order_id, $rid, $rname, $rprice, $rqty, $rempty, $rempty, $rempty, $rempty, $rempty, $addons_json, $rpromo, $rorig, $rearn);
-            $stmt_reward->execute();
 
-            // Deduct points from card (the deduction that loyalty_redeem.php now defers)
-            $pts_used   = (int)$reward['points_required'];
-            $card_db_id = (int)($reward['card_id_int'] ?? 0);
-            if ($card_db_id > 0 && $pts_used > 0) {
-                $stmt_deduct->bind_param("ii", $pts_used, $card_db_id);
-                $stmt_deduct->execute();
 
-                $neg_pts   = -$pts_used;
-                $desc      = "Redeemed {$reward['reward_name']} for {$pts_used} points";
-                $rwd_name  = $reward['reward_name'];
-                $stmt_hist->bind_param("iiiss", $card_db_id, $order_id, $neg_pts, $rwd_name, $desc);
-                $stmt_hist->execute();
-            }
-        }
-
-        // Clear session — rewards are now committed to the DB
-        $_SESSION['redeemed_rewards'] = [];
-    }
-
-    // ── LINK CUSTOMER ──
-    if ($customer_name !== 'Guest' && $customer_name !== '') {
-        $stmt_cf = $conn->prepare("SELECT customer_id FROM customers WHERE name = ? LIMIT 1");
-        $stmt_cf->bind_param("s", $customer_name);
-        $stmt_cf->execute();
-        $cust_row = $stmt_cf->get_result()->fetch_assoc();
-        if ($cust_row) {
-            $cust_id = (int)$cust_row['customer_id'];
-        } else {
-            $stmt_cn = $conn->prepare("INSERT INTO customers (name) VALUES (?)");
-            $stmt_cn->bind_param("s", $customer_name);
-            $stmt_cn->execute();
-            $cust_id = $conn->insert_id;
-        }
-        $stmt_cu = $conn->prepare("UPDATE orders SET customer_id = ? WHERE order_id = ?");
-        $stmt_cu->bind_param("ii", $cust_id, $order_id);
-        $stmt_cu->execute();
-    }
 
     $conn->commit();
     _stash_stock_warning($stock_warnings);

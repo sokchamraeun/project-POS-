@@ -1,8 +1,10 @@
 <?php
-require 'auth.php';
-require 'config.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/lang.php';
 if (!can('settings')) { header("Location: dashboard.php?denied=1"); exit; }
 
+$isKm = (current_lang() === 'km');
 $message = '';
 $message_type = '';
 
@@ -18,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: settings.php?saved=exchange");
             exit;
         }
-        $message      = 'Error saving exchange rate: ' . $conn->error;
+        $message      = $isKm ? ('កំហុសក្នុងការរក្សាទុកអត្រាប្តូរប្រាក់៖ ' . $conn->error) : ('Error saving exchange rate: ' . $conn->error);
         $message_type = 'error';
     } elseif ($action === 'save_receipt') {
         $shop_name  = trim((string)($_POST['receipt_shop_name'] ?? 'The Bird Nest Cafe'));
@@ -41,9 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ── FLASH MESSAGE ──
 if (isset($_GET['saved'])) {
     if ($_GET['saved'] === 'exchange') {
-        $message = 'Exchange rate saved successfully.';
+        $message = $isKm ? 'បានរក្សាទុកអត្រាប្តូរប្រាក់ដោយជោគជ័យ។' : 'Exchange rate saved successfully.';
     } else {
-        $message = 'Receipt details (Shop Name, Location, Phone, Footer) saved successfully.';
+        $message = $isKm ? 'បានរក្សាទុកព័ត៌មានវិក្កយបត្រ (ឈ្មោះហាង, ទីតាំង, ទូរស័ព្ទ, សារ) ដោយជោគជ័យ។' : 'Receipt details (Shop Name, Location, Phone, Footer) saved successfully.';
     }
     $message_type = 'success';
 }
@@ -64,12 +66,12 @@ $receipt_phone      = $settings_map['receipt_phone']      ?? '+855 12 345 678';
 $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= $isKm ? 'km' : 'en' ?>">
 <head>
 <meta charset="UTF-8">
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bird's Nest Coffee — System & Receipt Settings</title>
+<title><?= $isKm ? 'ការកំណត់ប្រព័ន្ធ & វិក្កយបត្រ — Bird\'s Nest Coffee' : 'Bird\'s Nest Coffee — System & Receipt Settings' ?></title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -151,7 +153,7 @@ $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Kantumruy Pro', 'Poppins', sans-serif;
   font-size: 14px;
 }
 
@@ -298,26 +300,160 @@ body {
 }
 .msg.success { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; }
 .msg.error   { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.3);  color: #f87171; }
+
+/* ── Sidebar Toggle & Breadcrumb ── */
+.st-sidebar-toggle {
+    display: none;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 8px;
+    background: var(--panel, #18181c);
+    border: 1px solid var(--panel-border, #24242b);
+    color: var(--text, #fff);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 0;
+}
+.st-sidebar-toggle:hover {
+    background: rgba(209, 144, 75, 0.15);
+    border-color: var(--accent, #d1904b);
+    color: var(--accent, #d1904b);
+}
+[data-theme="light"] .st-sidebar-toggle {
+    background: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+}
+
+@media (max-width: 768px) {
+    .st-sidebar-toggle {
+        display: inline-flex !important;
+    }
+    .app-main {
+        padding: 12px 14px !important;
+    }
+    .hero {
+        padding: 18px 16px !important;
+        margin-bottom: 14px !important;
+        border-radius: 12px !important;
+    }
+    .hero-icon {
+        width: 38px !important;
+        height: 38px !important;
+        font-size: 18px !important;
+        margin-bottom: 10px !important;
+        border-radius: 10px !important;
+    }
+    .hero h1 {
+        font-size: 18px !important;
+        margin-bottom: 4px !important;
+    }
+    .hero p {
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+    }
+    .card {
+        margin-bottom: 14px !important;
+        border-radius: 12px !important;
+    }
+    .card-header {
+        padding: 12px 14px !important;
+        gap: 10px !important;
+    }
+    .card-icon {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+    }
+    .card-title {
+        font-size: 13.5px !important;
+    }
+    .card-sub {
+        font-size: 11px !important;
+    }
+    .card-inner {
+        padding: 14px 14px !important;
+    }
+    .form-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    .field label {
+        font-size: 11px !important;
+        margin-bottom: 4px !important;
+    }
+    .field input[type="text"],
+    .field input[type="number"] {
+        padding: 9px 12px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+    }
+    .field-hint {
+        font-size: 10.5px !important;
+        margin-top: 4px !important;
+    }
+    .receipt-preview-box {
+        max-width: 100% !important;
+        padding: 14px 12px !important;
+        margin-top: 14px !important;
+    }
+    .form-actions {
+        padding: 12px 14px !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .form-actions-info {
+        font-size: 11px !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+    .btn-save {
+        width: 100% !important;
+        justify-content: center !important;
+        height: 38px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+    }
+}
 </style>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body style="margin:0; padding:0; background:var(--bg); color:var(--text); height:100vh; overflow:hidden;">
 <div class="flex h-screen w-screen overflow-hidden app-layout" style="display:flex; width:100vw; height:100vh; overflow:hidden;">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
-<main class="app-main flex-1 h-full overflow-y-auto p-6" style="flex:1; height:100%; overflow-y:auto;">
+<main class="app-main flex-1 h-full overflow-y-auto p-6" style="flex:1; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch;">
 
 <div class="wrapper">
 
+    <!-- Top Breadcrumb & Mobile Sidebar Toggle -->
+    <div class="st-breadcrumb flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-2.5 min-w-0">
+            <button type="button" onclick="toggleSidebar()" class="st-sidebar-toggle" title="Toggle Navigation Sidebar">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <div class="flex items-center gap-1.5 text-xs font-semibold overflow-hidden whitespace-nowrap text-ellipsis">
+                <a href="dashboard.php" style="color:var(--text-muted);text-decoration:none;"><?= __('nav_settings', 'Settings') ?></a>
+                <span style="color:var(--text-muted);font-size:10px;">&rsaquo;</span>
+                <span style="color:var(--accent);"><?= $isKm ? 'ប្រព័ន្ធ & វិក្កយបត្រ' : 'System & Receipt' ?></span>
+            </div>
+        </div>
+    </div>
+
     <div class="hero">
         <div class="hero-icon"><i class="fa-solid fa-sliders"></i></div>
-        <h1>System & Receipt Settings</h1>
-        <p>Control thermal receipt details (Shop Name, Location, Phone, Footer) and USD to KHR Exchange Rate.</p>
+        <h1><?= $isKm ? 'ការកំណត់ប្រព័ន្ធ & វិក្កយបត្រ' : 'System & Receipt Settings' ?></h1>
+        <p><?= $isKm ? 'គ្រប់គ្រងព័ត៌មានវិក្កយបត្រ (ឈ្មោះហាង, ទីតាំង, លេខទូរស័ព្ទ, ចំណាំខាងក្រោម) និងអត្រាប្តូរប្រាក់ ដុល្លារ/រៀល' : 'Control thermal receipt details (Shop Name, Location, Phone, Footer) and USD to KHR Exchange Rate.' ?></p>
     </div>
 
     <?php if ($message): ?>
     <div class="msg <?= htmlspecialchars($message_type) ?>">
         <i class="fa-solid <?= $message_type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation' ?>"></i>
-        <strong>Settings:</strong>&nbsp;<?= htmlspecialchars($message) ?>
+        <strong><?= $isKm ? 'ការកំណត់៖' : 'Settings:' ?></strong>&nbsp;<?= htmlspecialchars($message) ?>
     </div>
     <?php endif; ?>
 
@@ -328,46 +464,42 @@ body {
             <div class="card-header">
                 <div class="card-icon"><i class="fa-solid fa-receipt"></i></div>
                 <div>
-                    <div class="card-title">Receipt Customization & Header/Footer</div>
-                    <div class="card-sub">Control shop title, address/location, contact phone, and thank-you footer printed on thermal receipts</div>
+                    <div class="card-title"><?= $isKm ? 'ការកំណត់វិក្កយបត្រ & ក្បាល/បាតទំព័រ' : 'Receipt Customization & Header/Footer' ?></div>
+                    <div class="card-sub"><?= $isKm ? 'គ្រប់គ្រងឈ្មោះហាង ទីតាំង លេខទូរស័ព្ទ និងសារថ្លែងអំណរគុណនៅលើវិក្កយបត្រកម្ដៅ' : 'Control shop title, address/location, contact phone, and thank-you footer printed on thermal receipts' ?></div>
                 </div>
             </div>
 
             <div class="card-inner">
                 <div class="form-grid">
                     <div class="field">
-                        <label><i class="fa-solid fa-store"></i> Shop Name / Brand Title</label>
+                        <label><i class="fa-solid fa-store"></i> <?= $isKm ? 'ឈ្មោះហាង / យីហោ' : 'Shop Name / Brand Title' ?></label>
                         <input type="text" name="receipt_shop_name" id="rcptShopName"
                                value="<?= htmlspecialchars($receipt_shop_name) ?>" placeholder="e.g. The Bird Nest Cafe" required>
-                        <span class="field-hint">Displays as header title on customer receipts</span>
                     </div>
 
                     <div class="field">
-                        <label><i class="fa-solid fa-location-dot"></i> Shop Location / Address</label>
+                        <label><i class="fa-solid fa-location-dot"></i> <?= $isKm ? 'ទីតាំងហាង / អាសយដ្ឋាន' : 'Shop Location / Address' ?></label>
                         <input type="text" name="receipt_location" id="rcptLocation"
                                value="<?= htmlspecialchars($receipt_location) ?>" placeholder="e.g. Phnom Penh" required>
-                        <span class="field-hint">Displays below shop title on thermal receipt</span>
                     </div>
 
                     <div class="field">
-                        <label><i class="fa-solid fa-phone"></i> Phone Number / Contact</label>
+                        <label><i class="fa-solid fa-phone"></i> <?= $isKm ? 'លេខទូរស័ព្ទ / ទំនាក់ទំនង' : 'Phone Number / Contact' ?></label>
                         <input type="text" name="receipt_phone" id="rcptPhone"
                                value="<?= htmlspecialchars($receipt_phone) ?>" placeholder="e.g. +855 12 345 678">
-                        <span class="field-hint">Optional contact number shown on receipt</span>
                     </div>
 
                     <div class="field">
-                        <label><i class="fa-solid fa-heart"></i> Receipt Footer Message</label>
+                        <label><i class="fa-solid fa-heart"></i> <?= $isKm ? 'សារខាងក្រោមវិក្កយបត្រ' : 'Receipt Footer Message' ?></label>
                         <input type="text" name="receipt_footer_msg" id="rcptFooterMsg"
                                value="<?= htmlspecialchars($receipt_footer_msg) ?>" placeholder="e.g. Thank You!" required>
-                        <span class="field-hint">Printed at the bottom of thermal receipts</span>
                     </div>
                 </div>
 
                 <!-- Live Thermal Receipt Preview Box -->
                 <div class="mt-6 pt-4 border-t border-[#24242b]">
                     <div class="text-xs font-semibold text-[#a0a0ab] uppercase tracking-wider text-center mb-3">
-                        <i class="fa-solid fa-eye text-[#d1904b]"></i> Live Receipt Header & Footer Preview
+                        <i class="fa-solid fa-eye text-[#d1904b]"></i> <?= $isKm ? 'ទិដ្ឋភាពជាក់ស្តែងនៃក្បាល & បាតវិក្កយបត្រ' : 'Live Receipt Header & Footer Preview' ?>
                     </div>
                     <div class="receipt-preview-box">
                         <div style="text-align: center; margin-bottom: 8px;">
@@ -384,7 +516,7 @@ body {
                         </div>
 
                         <div style="border-top: 1px dashed #666; border-bottom: 1px dashed #666; padding: 6px 0; margin: 8px 0; text-align: center; font-size: 10px; color: #555;">
-                            [ SAMPLE ORDER ITEMS LIST ]
+                            <?= $isKm ? '[ បញ្ជីទំនិញគំរូ ]' : '[ SAMPLE ORDER ITEMS LIST ]' ?>
                         </div>
 
                         <div style="border-top: 1px dotted #000; margin-top: 10px; padding-top: 6px; text-align: center;">
@@ -399,10 +531,10 @@ body {
             <div class="form-actions">
                 <div class="form-actions-info">
                     <i class="fa-solid fa-circle-info"></i>
-                    Saves thermal receipt header and footer settings
+                    <?= $isKm ? 'រក្សាទុកការកំណត់ក្បាល និងបាតវិក្កយបត្រ' : 'Saves thermal receipt header and footer settings' ?>
                 </div>
                 <button type="submit" class="btn btn-save">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Receipt Settings
+                    <i class="fa-solid fa-floppy-disk"></i> <?= $isKm ? 'រក្សាទុកការកំណត់វិក្កយបត្រ' : 'Save Receipt Settings' ?>
                 </button>
             </div>
         </div>
@@ -415,32 +547,30 @@ body {
             <div class="card-header">
                 <div class="card-icon"><i class="fa-solid fa-coins"></i></div>
                 <div>
-                    <div class="card-title">USD → KHR Exchange Rate</div>
-                    <div class="card-sub">Used for calculation when customers pay in Khmer Riel (KHR) and printing thermal receipts</div>
+                    <div class="card-title"><?= $isKm ? 'អត្រាប្តូរប្រាក់ USD → KHR' : 'USD → KHR Exchange Rate' ?></div>
                 </div>
             </div>
 
             <div class="card-inner">
                 <div class="field">
-                    <label><i class="fa-solid fa-dollar-sign"></i> Exchange Rate (KHR per 1 USD)</label>
+                    <label><i class="fa-solid fa-dollar-sign"></i> <?= $isKm ? 'អត្រាប្តូរប្រាក់ (រៀល ក្នុង ១ ដុល្លារ)' : 'Exchange Rate (KHR per 1 USD)' ?></label>
                     <input type="number" name="khr_exchange_rate" id="khrRate"
                            value="<?= $khr_rate ?>" min="100" max="99999" required>
-                    <span class="field-hint">e.g. 4000 means $1.00 = ៛4,000 KHR</span>
                 </div>
 
                 <div class="preview-row" id="khrPreview" style="margin-top:20px;">
                     <i class="fa-solid fa-tag"></i>
-                    <span id="khrPreviewText">$1.00 USD = ៛<?= number_format($khr_rate) ?> KHR</span>
+                    <span id="khrPreviewText">$1.00 USD = ៛<?= number_format($khr_rate) ?> <?= $isKm ? 'រៀល' : 'KHR' ?></span>
                 </div>
             </div>
 
             <div class="form-actions">
                 <div class="form-actions-info">
                     <i class="fa-solid fa-circle-info"></i>
-                    Saves USD to KHR Exchange Rate
+                    <?= $isKm ? 'រក្សាទុកអត្រាប្តូរប្រាក់ ដុល្លារ/រៀល' : 'Saves USD to KHR Exchange Rate' ?>
                 </div>
                 <button type="submit" class="btn btn-save">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Exchange Rate
+                    <i class="fa-solid fa-floppy-disk"></i> <?= $isKm ? 'រក្សាទុកអត្រាប្តូរប្រាក់' : 'Save Exchange Rate' ?>
                 </button>
             </div>
         </div>
@@ -479,8 +609,9 @@ function updateReceiptPreview() {
 // Live Exchange Rate Script
 function updateKHRPreview() {
     const rate = parseInt(document.getElementById('khrRate').value) || 4000;
+    const suffix = <?= json_encode($isKm ? 'រៀល' : 'KHR') ?>;
     document.getElementById('khrPreviewText').textContent =
-        '$1.00 USD = ៛' + rate.toLocaleString() + ' KHR';
+        '$1.00 USD = ៛' + rate.toLocaleString() + ' ' + suffix;
 }
 document.getElementById('khrRate').addEventListener('input', updateKHRPreview);
 updateKHRPreview();

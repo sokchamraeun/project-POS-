@@ -1,5 +1,6 @@
 <?php
-require 'auth.php'; // starts session, loads config ($conn), re-syncs $_SESSION['role']
+require 'auth.php';
+require 'config.php';
 // Cashiers (staff) handle pay-later orders (add-to-order + settle) — allow them alongside admin/manager
 if (!in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])) {
     header("Location: dashboard.php?denied=1");
@@ -17,8 +18,8 @@ $back_href     = $from_paylater ? 'find_order.php?tab=paylater' : 'menu.php';
 $back_label    = $from_paylater ? 'Back to Pay Later' : 'Back to Menu';
 
 $stmt = $conn->prepare("
-    SELECT order_id, daily_order_no, customer_name, total, is_open, token_number, promotion_discount,
-           order_type, table_number
+    SELECT order_id, order_id AS daily_order_no, 'Guest' AS customer_name, total, 0 AS is_open, order_id AS token_number, 0 AS promotion_discount,
+           'drink_in' AS order_type, '' AS table_number
     FROM orders
     WHERE order_id = ?
 ");

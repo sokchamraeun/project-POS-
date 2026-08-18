@@ -73,13 +73,9 @@ if ($cp_md && (float)($cp_md['amount'] ?? 0) > 0) {
 $cp_tax   = $cp_after * (TAX_RATE / 100);
 $cp_total = round($cp_after + $cp_tax, 2);
 
-/* ── LOYALTY ── */
+/* ── LOYALTY (removed) ── */
 $linked_loyalty = null;
-$linked_loyalty_id_int = isset($_SESSION['loyalty_card_id']) ? (int)$_SESSION['loyalty_card_id'] : 0;
-if ($linked_loyalty_id_int > 0) {
-    $lc = $conn->prepare("SELECT loyalty_id, points FROM loyalty_cards WHERE card_id = ?");
-    if ($lc) { $lc->bind_param("i", $linked_loyalty_id_int); $lc->execute(); $linked_loyalty = $lc->get_result()->fetch_assoc(); }
-}
+$linked_loyalty_id_int = 0;
 
 /* ── ADD TO EXISTING ORDER DETECTION ── */
 $add_to_order_mode = isset($_GET['add_to_order']) ? (int)$_GET['add_to_order'] : 0;
@@ -116,26 +112,8 @@ if ($add_to_order_mode === 0 && isset($_SESSION['cart_stash'])) {
 // Drinks held while adding to a tab — drives the notice on the add-to-order banner.
 $cart_stash_count = isset($_SESSION['cart_stash']) ? count($_SESSION['cart_stash']) : 0;
 
-/* When adding to an existing order, points are awarded against THAT order's card
-   (confirm_order.php reads $existing_order['loyalty_card_id']), never the session's.
-   So show the parent order's card read-only instead of a Link button that would
-   set a session value this flow ignores. */
 $parent_loyalty     = null;
 $parent_has_loyalty = false;
-if ($add_to_order_mode > 0) {
-    $pl = $conn->prepare("
-        SELECT lc.loyalty_id, lc.points
-        FROM orders o
-        JOIN loyalty_cards lc ON lc.card_id = o.loyalty_card_id
-        WHERE o.order_id = ?
-    ");
-    if ($pl) {
-        $pl->bind_param("i", $add_to_order_mode);
-        $pl->execute();
-        $parent_loyalty     = $pl->get_result()->fetch_assoc() ?: null;
-        $parent_has_loyalty = (bool)$parent_loyalty;
-    }
-}
 
 /* ── ACTIVE ORDERS COUNT ── */
 date_default_timezone_set('Asia/Phnom_Penh');
@@ -144,7 +122,7 @@ $today6am  = (clone $now_dt)->setTime(6, 0, 0);
 if ($now_dt < $today6am) $today6am->modify('-1 day');
 $day_start = $today6am->format('Y-m-d H:i:s');
 $day_end   = (clone $today6am)->modify('+1 day -1 second')->format('Y-m-d H:i:s');
-$stmt_ao   = $conn->prepare("SELECT COUNT(*) FROM orders WHERE status IN ('Preparing','PendingPayment') AND order_date >= ? AND order_date <= ?");
+$stmt_ao   = $conn->prepare("SELECT COUNT(*) FROM orders WHERE order_date >= ? AND order_date <= ?");
 $stmt_ao->bind_param('ss', $day_start, $day_end);
 $stmt_ao->execute();
 $active_orders = (int)$stmt_ao->get_result()->fetch_row()[0];
@@ -168,17 +146,30 @@ $search_term   = isset($_GET['search']) ? trim($_GET['search']) : '';
 $sort          = $_GET['sort'] ?? 'default';
 $is_price_sort = ($sort === 'price_low' || $sort === 'price_high');
 
-$query = "SELECT p.*, (SELECT COUNT(*) FROM product_ingredients pi JOIN ingredients i ON pi.ingredient_id = i.ingredient_id WHERE pi.product_id = p.product_id AND i.stock_quantity < pi.amount_used) AS low_count FROM products p WHERE p.is_available = 1";
-$query .= " ORDER BY " . ($sort === 'price_low' ? "p.price ASC" : ($sort === 'price_high' ? "p.price DESC" : "p.category, p.name"));
+$stock_sql_base = "SELECT 
+    p.*,
+    COUNT(r.recipe_id) AS recipe_count,
+    MIN(CASE WHEN s.item_id IS NOT NULL AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
+    SUM(CASE WHEN s.item_id IS NOT NULL AND s.quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock_ingredients,
+    SUM(CASE WHEN s.item_id IS NOT NULL AND s.quantity > 0 AND s.quantity <= s.alert_level THEN 1 ELSE 0 END) AS low_stock_ingredients,
+    GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND s.quantity <= 0 THEN s.item_name ELSE NULL END SEPARATOR ', ') AS missing_ingredients,
+    GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND s.quantity > 0 AND s.quantity <= s.alert_level THEN s.item_name ELSE NULL END SEPARATOR ', ') AS low_ingredients
+FROM products p
+LEFT JOIN product_recipes r ON p.product_id = r.product_id
+LEFT JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1
+WHERE p.is_available = 1";
+
+$order_by = " ORDER BY " . ($sort === 'price_low' ? "p.price ASC" : ($sort === 'price_high' ? "p.price DESC" : "p.category, p.name"));
+
 if (!empty($search_term)) {
-    $query = "SELECT p.*, (SELECT COUNT(*) FROM product_ingredients pi JOIN ingredients i ON pi.ingredient_id = i.ingredient_id WHERE pi.product_id = p.product_id AND i.stock_quantity < pi.amount_used) AS low_count FROM products p WHERE p.is_available = 1 AND p.name LIKE ?";
-    $query .= " ORDER BY " . ($sort === 'price_low' ? "p.price ASC" : ($sort === 'price_high' ? "p.price DESC" : "p.category, p.name"));
+    $query = $stock_sql_base . " AND p.name LIKE ? GROUP BY p.product_id " . $order_by;
     $stmt_search = $conn->prepare($query);
     $like_param  = '%' . $search_term . '%';
     $stmt_search->bind_param("s", $like_param);
     $stmt_search->execute();
     $result = $stmt_search->get_result();
 } else {
+    $query = $stock_sql_base . " GROUP BY p.product_id " . $order_by;
     $result = mysqli_query($conn, $query);
 }
 
@@ -196,37 +187,11 @@ while ($row = mysqli_fetch_assoc($result)) {
     $flat_products[] = $row;
 }
 
-/* ── SIZES PER PRODUCT (for sized products: has_sizes=1) ── */
+/* ── SIZES PER PRODUCT (removed) ── */
 $sizesByProduct = [];
-if (!empty($flat_products)) {
-    $sz_res = $conn->query("SELECT product_id, size_code, label, price FROM product_sizes ORDER BY product_id, sort_order ASC");
-    while ($sz_res && $sz_row = $sz_res->fetch_assoc()) {
-        $sizesByProduct[(int)$sz_row['product_id']][] = [
-            'code'  => $sz_row['size_code'],
-            'label' => $sz_row['label'],
-            'price' => (float)$sz_row['price'],
-        ];
-    }
-}
 
-/* ── ADD-ONS PER PRODUCT (active only) ── */
+/* ── ADD-ONS PER PRODUCT (removed) ── */
 $addonsByProduct = [];
-$ad_res = $conn->query("
-    SELECT pa.product_id, a.id, a.name, a.price
-    FROM product_addons pa
-    JOIN addons a ON a.id = pa.addon_id
-    WHERE a.is_active = 1
-    ORDER BY pa.product_id, a.display_order ASC, a.id ASC
-");
-if ($ad_res) {
-    while ($ad_row = $ad_res->fetch_assoc()) {
-        $addonsByProduct[(int)$ad_row['product_id']][] = [
-            'id'    => (int)$ad_row['id'],
-            'name'  => $ad_row['name'],
-            'price' => (float)$ad_row['price'],
-        ];
-    }
-}
 
 /* ── PER-CATEGORY OPTION VISIBILITY (sweetness / ice / milk), keyed by slug ── */
 $categoryOpts = [];
@@ -242,17 +207,9 @@ if ($co_res) {
     }
 }
 
-/* ── MILK OPTIONS (admin-managed via manage_milk.php) ── */
-$milkOptions = [];
-$defaultMilk = '';
-$mk_res = $conn->query("SELECT name, is_default FROM milk_options WHERE is_active = 1 ORDER BY display_order ASC, id ASC");
-if ($mk_res) {
-    while ($mk = $mk_res->fetch_assoc()) {
-        $milkOptions[] = $mk['name'];
-        if ((int)$mk['is_default'] === 1 && $defaultMilk === '') $defaultMilk = $mk['name'];
-    }
-}
-if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
+/* ── MILK OPTIONS ── */
+$milkOptions = ['Fresh Milk', 'Almond Milk', 'Soy Milk', 'Oat Milk'];
+$defaultMilk = 'Fresh Milk';
 
 ?>
 <!DOCTYPE html>
@@ -488,14 +445,28 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       transition: background .15s;
     }
     .cp-qty button:hover { background: rgba(209,144,75,.18); }
-    .cp-qty input[type="number"] {
-      width: 36px; text-align: center; font-size: 13px; font-weight: 700;
-      color: var(--text,#1a1410); background: transparent; border: none; outline: none;
+    .cp-qty input[type="number"], #modalQtyInput {
+      width: 38px; text-align: center; font-size: 13.5px; font-weight: 700;
+      color: #1a1410 !important; background: transparent; border: none; outline: none;
       font-family: 'Poppins',sans-serif; padding: 0; cursor: text;
-      -moz-appearance: textfield;
+      -moz-appearance: textfield !important;
+      appearance: textfield !important;
+      -webkit-appearance: none !important;
+    }
+    html.dark .cp-qty input[type="number"], body.dark .cp-qty input[type="number"] {
+      color: #ffffff !important;
+    }
+    #modalQtyInput {
+      color: #ffffff !important;
     }
     .cp-qty input[type="number"]::-webkit-inner-spin-button,
-    .cp-qty input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .cp-qty input[type="number"]::-webkit-outer-spin-button,
+    #modalQtyInput::-webkit-inner-spin-button,
+    #modalQtyInput::-webkit-outer-spin-button {
+      -webkit-appearance: none !important;
+      margin: 0 !important;
+      display: none !important;
+    }
     .cp-remove {
       width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
       border-radius: 50%; background: rgba(231,76,60,.08); color: #e74c3c;
@@ -525,6 +496,50 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     }
     .cp-free-icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: linear-gradient(135deg,#e8f5e9,#f0fff4); border-radius: 7px; flex-shrink: 0; }
     .cp-free-badge { background: #27ae60; color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 20px; font-weight: 700; vertical-align: middle; }
+
+    @keyframes inputShake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-4px); }
+      40%, 80% { transform: translateX(4px); }
+    }
+    .qty-limit-warning {
+      animation: inputShake 0.35s ease-in-out !important;
+      border-color: #ef4444 !important;
+      color: #ef4444 !important;
+    }
+    #toast-container {
+      position: fixed !important;
+      top: 24px !important;
+      right: 24px !important;
+      z-index: 2147483647 !important;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast {
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+      transform: translateY(-20px) scale(0.95);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto;
+      font-family: 'Poppins', sans-serif;
+    }
+    .toast.show {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    .toast.success { background: #059669; }
+    .toast.warning { background: #d97706; }
+    .toast.error   { background: #dc2626; }
 
     /* Summary area: pinned below the scrolling items, above the footer */
     .cp-summary { flex-shrink: 0; padding: 12px 16px; border-top: 1px solid var(--border,#e0d4c4); }
@@ -851,7 +866,14 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
 
 <!-- HEADER -->
 <header class="menu-header">
-  <div class="header-left" style="display:none;"></div>
+  <div class="header-left">
+    <button type="button" 
+            onclick="toggleSidebar()" 
+            class="sidebar-toggle-btn flex items-center justify-center w-9 h-9 rounded-xl bg-[#18181c] border border-[#24242b] text-[#d1904b] hover:text-white hover:border-[#d1904b] transition-all cursor-pointer shadow-sm"
+            title="Toggle Menu Sidebar">
+      <i class="fa-solid fa-bars text-sm"></i>
+    </button>
+  </div>
 
   <div class="header-center">
     <form class="search-form" method="GET" id="searchForm">
@@ -925,7 +947,7 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
     <nav class="cat-nav" id="catNav">
       <?php foreach ($categories as $key => $label):
         if (empty($products[$key])) continue;
-        $count  = count(array_filter($products[$key], fn($p) => (int)$p['low_count'] === 0));
+        $count  = count(array_filter($products[$key], fn($p) => ((int)($p['is_available'] ?? 1) === 1) && !((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0)));
         $anchor = e(cat_anchor_id($key));
         $icon   = $catIcons[$key] ?? 'fa-circle';
       ?>
@@ -955,14 +977,34 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
             </div>
           </div>
           <div class="product-grid">
-            <?php foreach ($flat_products as $p): ?>
-            <?php if ($p['low_count'] > 0): ?>
-              <div class="product-card disabled">
-                <div class="card-img"><img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>"><div class="out-of-stock"><span>Out of Stock</span></div></div>
-                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-price">Unavailable</div></div>
+            <?php foreach ($flat_products as $p): 
+              $isOut = ((int)($p['is_available'] ?? 1) === 0) || ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0);
+              $isLow = !$isOut && ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['low_stock_ingredients'] ?? 0) > 0);
+              $outReason = !empty($p['missing_ingredients']) ? 'Out of ' . $p['missing_ingredients'] : 'Out of Stock';
+              $servingsLeft = isset($p['max_servings']) && $p['max_servings'] !== null ? (int)$p['max_servings'] : null;
+            ?>
+            <?php if ($isOut): ?>
+              <div class="product-card disabled out-of-stock-card relative cursor-not-allowed opacity-60 grayscale-[35%]"
+                   data-product-id="<?= (int)$p['product_id'] ?>"
+                   data-stock-status="out_of_stock"
+                   onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is currently out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
+                   title="<?= e($outReason) ?>">
+                <div class="card-img relative">
+                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
+                  <div class="out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20">
+                    <span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1">
+                      <i class="fa-solid fa-circle-xmark"></i> Out of Stock
+                    </span>
+                    <span class="text-[9px] text-rose-200 mt-1 font-semibold line-clamp-1 px-1"><?= e($outReason) ?></span>
+                  </div>
+                </div>
+                <div class="card-info">
+                  <div class="card-name text-[#8e8e9f]"><?= e($p['name']) ?></div>
+                  <div class="card-price text-rose-400/90 font-bold">$<?= number_format($p['price'], 2) ?></div>
+                </div>
               </div>
             <?php else: ?>
-              <div class="product-card js-open-product"
+              <div class="product-card js-open-product relative <?= $isLow ? 'has-low-stock ring-1 ring-amber-500/30' : '' ?>"
                    data-product-id="<?= (int)$p['product_id'] ?>"
                    data-product-name="<?= e($p['name']) ?>"
                    data-product-price="<?= e($p['price']) ?>"
@@ -972,13 +1014,18 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                    data-product-badge="<?= e(product_badge_label($p)) ?>"
                    data-product-promo="<?= (int)($p['promo_percent'] ?? 0) ?>"
                    data-product-has-sizes="<?= (int)($p['has_sizes'] ?? 0) ?>"
+                   data-stock-status="<?= $isLow ? 'low_stock' : 'in_stock' ?>"
+                   data-max-servings="<?= $servingsLeft !== null ? $servingsLeft : '' ?>"
                    data-product-sizes='<?= htmlspecialchars(json_encode($sizesByProduct[(int)$p['product_id']] ?? []), ENT_QUOTES) ?>'
                    data-product-addons='<?= htmlspecialchars(json_encode($addonsByProduct[(int)$p['product_id']] ?? []), ENT_QUOTES) ?>'
-                   data-is-bestseller="<?= $p['name']===$bestSellerName?'1':'0' ?>"
                    role="button" tabindex="0">
-                <div class="card-img">
-                  <?php if ($p['name']===$bestSellerName): ?><span class="badge-bestseller">&#x2605; Best Seller</span><?php endif; ?>
+                <div class="card-img relative">
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
+                  <?php if ($isLow): ?>
+                    <span class="product-badge low-stock-badge absolute top-2 left-2 bg-amber-500/95 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-10">
+                      <i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock <?= $servingsLeft !== null ? "({$servingsLeft} left)" : '' ?>
+                    </span>
+                  <?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
                   <div class="img-overlay"></div>
                   <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
@@ -987,7 +1034,15 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                   <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Quick add"><i class="fa-solid fa-plus"></i></button>
                   <?php endif; ?>
                 </div>
-                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-price">$<?= number_format($p['price'], 2) ?></div></div>
+                <div class="card-info">
+                  <div class="card-name"><?= e($p['name']) ?></div>
+                  <div class="card-price flex items-center justify-between">
+                    <span>$<?= number_format($p['price'], 2) ?></span>
+                    <?php if ($isLow && $servingsLeft !== null): ?>
+                    <span class="text-[10px] text-amber-400 font-semibold"><?= $servingsLeft ?> left</span>
+                    <?php endif; ?>
+                  </div>
+                </div>
               </div>
             <?php endif; ?>
             <?php endforeach; ?>
@@ -1009,19 +1064,39 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
               </div>
               <div class="cat-title-text">
                 <h2><?= e($label) ?></h2>
-                <?php $_in_stock = count(array_filter($products[$key], fn($p) => (int)$p['low_count'] === 0)); ?>
+                <?php $_in_stock = count(array_filter($products[$key], fn($p) => ((int)($p['is_available'] ?? 1) === 1) && !((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0))); ?>
                 <span><?= $_in_stock ?> <?= $_in_stock !== 1 ? __('item_plural', 'items') : __('item_single', 'item') ?></span>
               </div>
             </div>
             <div class="product-grid">
-            <?php foreach ($products[$key] as $p): ?>
-              <?php if ($p['low_count'] > 0): ?>
-              <div class="product-card disabled">
-                <div class="card-img"><img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>"><div class="out-of-stock"><span>Out of Stock</span></div></div>
-                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-price" style="color:#dc3545">Unavailable</div></div>
+            <?php foreach ($products[$key] as $p): 
+              $isOut = ((int)($p['is_available'] ?? 1) === 0) || ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0);
+              $isLow = !$isOut && ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['low_stock_ingredients'] ?? 0) > 0);
+              $outReason = !empty($p['missing_ingredients']) ? 'Out of ' . $p['missing_ingredients'] : 'Out of Stock';
+              $servingsLeft = isset($p['max_servings']) && $p['max_servings'] !== null ? (int)$p['max_servings'] : null;
+            ?>
+              <?php if ($isOut): ?>
+              <div class="product-card disabled out-of-stock-card relative cursor-not-allowed opacity-60 grayscale-[35%]"
+                   data-product-id="<?= (int)$p['product_id'] ?>"
+                   data-stock-status="out_of_stock"
+                   onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is currently out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
+                   title="<?= e($outReason) ?>">
+                <div class="card-img relative">
+                  <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
+                  <div class="out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20">
+                    <span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1">
+                      <i class="fa-solid fa-circle-xmark"></i> Out of Stock
+                    </span>
+                    <span class="text-[9px] text-rose-200 mt-1 font-semibold line-clamp-1 px-1"><?= e($outReason) ?></span>
+                  </div>
+                </div>
+                <div class="card-info">
+                  <div class="card-name text-[#8e8e9f]"><?= e($p['name']) ?></div>
+                  <div class="card-price text-rose-400/90 font-bold">$<?= number_format($p['price'], 2) ?></div>
+                </div>
               </div>
               <?php else: ?>
-              <div class="product-card js-open-product"
+              <div class="product-card js-open-product relative <?= $isLow ? 'has-low-stock ring-1 ring-amber-500/30' : '' ?>"
                    data-product-id="<?= (int)$p['product_id'] ?>"
                    data-product-name="<?= e($p['name']) ?>"
                    data-product-price="<?= e($p['price']) ?>"
@@ -1031,13 +1106,18 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                    data-product-badge="<?= e(product_badge_label($p)) ?>"
                    data-product-promo="<?= (int)($p['promo_percent'] ?? 0) ?>"
                    data-product-has-sizes="<?= (int)($p['has_sizes'] ?? 0) ?>"
+                   data-stock-status="<?= $isLow ? 'low_stock' : 'in_stock' ?>"
+                   data-max-servings="<?= $servingsLeft !== null ? $servingsLeft : '' ?>"
                    data-product-sizes='<?= htmlspecialchars(json_encode($sizesByProduct[(int)$p['product_id']] ?? []), ENT_QUOTES) ?>'
                    data-product-addons='<?= htmlspecialchars(json_encode($addonsByProduct[(int)$p['product_id']] ?? []), ENT_QUOTES) ?>'
-                   data-is-bestseller="<?= $p['name']===$bestSellerName?'1':'0' ?>"
                    role="button" tabindex="0">
-                <div class="card-img">
-                  <?php if ($p['name']===$bestSellerName): ?><span class="badge-bestseller">&#x2605; Best Seller</span><?php endif; ?>
+                <div class="card-img relative">
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
+                  <?php if ($isLow): ?>
+                    <span class="product-badge low-stock-badge absolute top-2 left-2 bg-amber-500/95 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-10">
+                      <i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock <?= $servingsLeft !== null ? "({$servingsLeft} left)" : '' ?>
+                    </span>
+                  <?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
                   <div class="img-overlay"></div>
                   <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
@@ -1046,7 +1126,15 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
                   <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Quick add"><i class="fa-solid fa-plus"></i></button>
                   <?php endif; ?>
                 </div>
-                <div class="card-info"><div class="card-name"><?= e($p['name']) ?></div><div class="card-price">$<?= number_format($p['price'], 2) ?></div></div>
+                <div class="card-info">
+                  <div class="card-name"><?= e($p['name']) ?></div>
+                  <div class="card-price flex items-center justify-between">
+                    <span>$<?= number_format($p['price'], 2) ?></span>
+                    <?php if ($isLow && $servingsLeft !== null): ?>
+                    <span class="text-[10px] text-amber-400 font-semibold"><?= $servingsLeft ?> left</span>
+                    <?php endif; ?>
+                  </div>
+                </div>
               </div>
               <?php endif; ?>
             <?php endforeach; ?>
@@ -1295,10 +1383,13 @@ if ($defaultMilk === '' && !empty($milkOptions)) $defaultMilk = $milkOptions[0];
       <!-- Price & Quantity Row -->
       <div class="modal-price-row flex items-center justify-between bg-white/[0.03] p-3 rounded-2xl border border-white/[0.05]">
         <span class="modal-price text-xl font-bold text-amber-500" id="modalPrice"></span>
-        <div class="qty-control flex items-center gap-3 bg-[#1a1a1e] px-3 py-1.5 rounded-xl border border-gray-800">
-          <button type="button" class="text-amber-500 text-base font-bold w-6 h-6 flex items-center justify-center" onclick="changeQty(-1)">&#x2212;</button>
-          <span id="modalQtyDisplay" class="font-bold text-sm min-w-[20px] text-center text-white">1</span>
-          <button type="button" class="text-amber-500 text-base font-bold w-6 h-6 flex items-center justify-center" onclick="changeQty(1)">+</button>
+        <div class="qty-control flex items-center gap-2 bg-[#1a1a1e] px-2.5 py-1.5 rounded-xl border border-gray-800">
+          <button type="button" class="text-amber-500 text-base font-bold w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-white/10 rounded-lg transition" onclick="changeQty(-1)">&#x2212;</button>
+          <input type="number" id="modalQtyInput" value="1" min="1" max="100"
+                 class="w-12 bg-transparent text-center font-bold text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50 rounded"
+                 oninput="onModalQtyInput(this)" onchange="onModalQtyChange(this)" onfocus="this.select()"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();addToCart();}">
+          <button type="button" class="text-amber-500 text-base font-bold w-6 h-6 flex items-center justify-center cursor-pointer hover:bg-white/10 rounded-lg transition" onclick="changeQty(1)">+</button>
         </div>
       </div>
 
@@ -1555,7 +1646,11 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
   document.getElementById('modalName').textContent = name;
   document.getElementById('modalDesc').textContent = desc || '';
   document.getElementById('modalPrice').textContent = '$' + promoNet(p, promoPct).toFixed(2);
-  document.getElementById('modalQtyDisplay').textContent = '1';
+  var _mInp = document.getElementById('modalQtyInput') || document.getElementById('modalQtyDisplay');
+  if (_mInp) {
+    if (_mInp.tagName === 'INPUT') _mInp.value = '1';
+    else _mInp.textContent = '1';
+  }
   // Per-category option visibility (configured in Manage Categories); default = show all.
   var co = CATEGORY_OPTS[cat] || { sweet: 1, ice: 1, milk: 1, addons: 1 };
   var _optSw = document.getElementById('optSweetness');
@@ -1576,21 +1671,94 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
   document.body.style.overflow = 'hidden';
 }
 
-// Open the product modal using a card's data-product-* attributes (avoids inline-onclick string interpolation)
+// Open the product modal using a card's data-product-* attributes
 function openModalFromCard(card) {
   if (!card) return;
+  if (card.dataset.stockStatus === 'out_of_stock' || card.classList.contains('disabled') || card.classList.contains('out-of-stock-card')) {
+    showToast((card.dataset.productName || 'This item') + ' is currently out of stock.', 'warning');
+    return;
+  }
   var sizes = [], addons = [];
   try { sizes = JSON.parse(card.dataset.productSizes || '[]'); } catch (e) { sizes = []; }
   try { addons = JSON.parse(card.dataset.productAddons || '[]'); } catch (e) { addons = []; }
+  
+  var m = document.getElementById('product-modal') || document.getElementById('modal');
+  if (m) m.dataset.currentProductId = card.dataset.productId;
+
   openModal(card.dataset.productId, card.dataset.productName||'', Number(card.dataset.productPrice||0), card.dataset.productImage||'', card.dataset.productCategory||'', card.dataset.productDesc||'', card.dataset.productBadge||'', card.dataset.productHasSizes==='1', sizes, addons, Number(card.dataset.productPromo||0));
 }
 
 function closeModal() {
   var m = document.getElementById('product-modal') || document.getElementById('modal');
-  if (m) m.style.display = 'none';
+  if (m) {
+    m.style.display = 'none';
+    delete m.dataset.currentProductId;
+  }
   document.body.style.overflow = '';
 }
-function changeQty(delta) { modalQty = Math.max(1, Math.min(10, modalQty + delta)); document.getElementById('modalQtyDisplay').textContent = modalQty; updateModalTotal(); }
+function changeQty(delta) {
+  var inp = document.getElementById('modalQtyInput') || document.getElementById('modalQtyDisplay');
+  var current = parseInt(inp ? (inp.value || inp.textContent) : modalQty) || 1;
+  modalQty = Math.max(1, Math.min(100, current + delta));
+  if (inp) {
+    if (inp.tagName === 'INPUT') inp.value = modalQty;
+    else inp.textContent = modalQty;
+  }
+  updateModalTotal();
+}
+var _qtyToastDebounce = null;
+function triggerQtyWarning(input, msg) {
+  if (input) {
+    input.classList.remove('qty-limit-warning');
+    void input.offsetWidth; // trigger reflow for animation restart
+    input.classList.add('qty-limit-warning');
+    setTimeout(function() { input.classList.remove('qty-limit-warning'); }, 500);
+  }
+  clearTimeout(_qtyToastDebounce);
+  _qtyToastDebounce = setTimeout(function() {
+    showToast(msg || 'Maximum quantity limit is 100 items', 'warning');
+  }, 100);
+}
+
+function onModalQtyInput(input) {
+  var raw = (input.value || '').trim();
+  if (raw === '') return;
+  var val = parseInt(raw, 10);
+  if (val > 100) {
+    triggerQtyWarning(input, 'Maximum quantity limit is 100 items');
+    modalQty = 100;
+  } else if (val >= 1) {
+    input.classList.remove('qty-limit-warning');
+    modalQty = val;
+  }
+  updateModalTotal();
+}
+function onModalQtyChange(input) {
+  var val = parseInt(input.value, 10);
+  if (isNaN(val) || val < 1) {
+    val = 1;
+    input.value = 1;
+    input.classList.remove('qty-limit-warning');
+  } else if (val > 100) {
+    val = 100;
+    input.value = 100;
+    triggerQtyWarning(input, 'Maximum quantity limit is 100 items');
+  } else {
+    input.classList.remove('qty-limit-warning');
+  }
+  modalQty = val;
+  updateModalTotal();
+}
+function onCartQtyInput(index, input) {
+  var raw = (input.value || '').trim();
+  if (raw === '') return;
+  var val = parseInt(raw, 10);
+  if (val > 100) {
+    triggerQtyWarning(input, 'Maximum quantity limit is 100 items');
+  } else if (val >= 1) {
+    input.classList.remove('qty-limit-warning');
+  }
+}
 function updateModalTotal() {
   var net = promoNet(modalUnitPrice, (product.promo || 0));
   document.getElementById('modalTotalDisplay').textContent = '$' + ((net + modalAddonTotal) * modalQty).toFixed(2);
@@ -1598,11 +1766,120 @@ function updateModalTotal() {
 function selectPill(pill) { pill.closest('.pill-group').querySelectorAll('.option-pill').forEach(function(p) { p.classList.remove('active'); }); pill.classList.add('active'); }
 function getPillValue(groupId) { var a = document.querySelector('#' + groupId + ' .option-pill.active'); return a ? a.dataset.value : ''; }
 
+// ── REAL-TIME STOCK STATUS CARD UPDATER ──
+function updateProductCardStockState(card, info) {
+  if (!card || !info) return;
+  var pId = card.dataset.productId;
+  var status = info.status; // 'in_stock' | 'low_stock' | 'out_of_stock'
+  var reason = info.reason || '';
+  var maxServings = info.max_servings;
+
+  card.dataset.stockStatus = status;
+  card.dataset.maxServings = (maxServings !== null && maxServings !== undefined) ? maxServings : '';
+
+  var cardImg = card.querySelector('.card-img');
+  var existingOverlay = card.querySelector('.out-of-stock-overlay');
+  var existingLowBadge = card.querySelector('.low-stock-badge');
+  var quickBtn = card.querySelector('.quick-add-btn');
+
+  if (status === 'out_of_stock') {
+    card.classList.add('disabled', 'out-of-stock-card', 'cursor-not-allowed', 'opacity-60', 'grayscale-[35%]');
+    card.classList.remove('has-low-stock', 'ring-1', 'ring-amber-500/30');
+
+    if (existingLowBadge) existingLowBadge.remove();
+
+    if (!existingOverlay && cardImg) {
+      var overlay = document.createElement('div');
+      overlay.className = 'out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20 transition-opacity duration-300';
+      overlay.innerHTML = '<span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1"><i class="fa-solid fa-circle-xmark"></i> Out of Stock</span><span class="text-[9px] text-rose-200 mt-1 font-semibold line-clamp-1 px-1">' + escH(reason || 'Out of ingredients') + '</span>';
+      cardImg.appendChild(overlay);
+    } else if (existingOverlay) {
+      var reasonSpan = existingOverlay.querySelector('span:nth-child(2)');
+      if (reasonSpan) reasonSpan.textContent = reason || 'Out of ingredients';
+    }
+
+    if (quickBtn) quickBtn.style.display = 'none';
+
+    // If modal is currently open with this product, disable Add button
+    var activeModal = document.getElementById('product-modal') || document.getElementById('modal');
+    var modalAddBtn = document.querySelector('.btn-add-to-cart');
+    if (activeModal && activeModal.style.display !== 'none' && activeModal.dataset.currentProductId == pId) {
+      if (modalAddBtn) {
+        modalAddBtn.disabled = true;
+        modalAddBtn.innerHTML = '<i class="fa-solid fa-ban"></i> Out of Stock';
+      }
+    }
+  } else if (status === 'low_stock') {
+    card.classList.remove('disabled', 'out-of-stock-card', 'cursor-not-allowed', 'opacity-60', 'grayscale-[35%]');
+    card.classList.add('has-low-stock', 'ring-1', 'ring-amber-500/30');
+
+    if (existingOverlay) existingOverlay.remove();
+    if (quickBtn) quickBtn.style.display = '';
+
+    var servingsText = (maxServings !== null && maxServings !== undefined) ? ' (' + maxServings + ' left)' : '';
+
+    if (!existingLowBadge && cardImg) {
+      var lowBadge = document.createElement('span');
+      lowBadge.className = 'product-badge low-stock-badge absolute top-2 left-2 bg-amber-500/95 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-10';
+      lowBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock' + servingsText;
+      cardImg.appendChild(lowBadge);
+    } else if (existingLowBadge) {
+      existingLowBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock' + servingsText;
+    }
+
+    var activeModal = document.getElementById('product-modal') || document.getElementById('modal');
+    var modalAddBtn = document.querySelector('.btn-add-to-cart');
+    if (activeModal && activeModal.style.display !== 'none' && activeModal.dataset.currentProductId == pId) {
+      if (modalAddBtn && modalAddBtn.disabled) {
+        modalAddBtn.disabled = false;
+        modalAddBtn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add to Cart';
+      }
+    }
+  } else {
+    // In Stock
+    card.classList.remove('disabled', 'out-of-stock-card', 'cursor-not-allowed', 'opacity-60', 'grayscale-[35%]', 'has-low-stock', 'ring-1', 'ring-amber-500/30');
+    if (existingOverlay) existingOverlay.remove();
+    if (existingLowBadge) existingLowBadge.remove();
+    if (quickBtn) quickBtn.style.display = '';
+
+    var activeModal = document.getElementById('product-modal') || document.getElementById('modal');
+    var modalAddBtn = document.querySelector('.btn-add-to-cart');
+    if (activeModal && activeModal.style.display !== 'none' && activeModal.dataset.currentProductId == pId) {
+      if (modalAddBtn && modalAddBtn.disabled) {
+        modalAddBtn.disabled = false;
+        modalAddBtn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add to Cart';
+      }
+    }
+  }
+}
+
+function pollProductStockStatuses() {
+  fetch('api_stock_status.php')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || !data.success || !data.statuses) return;
+      var cards = document.querySelectorAll('.product-card[data-product-id]');
+      cards.forEach(function(card) {
+        var pId = card.dataset.productId;
+        if (data.statuses[pId]) {
+          updateProductCardStockState(card, data.statuses[pId]);
+        }
+      });
+    })
+    .catch(function() {});
+}
+window.pollProductStockStatuses = pollProductStockStatuses;
+
+// Background polling every 8 seconds
+setInterval(pollProductStockStatuses, 8000);
+
 // ── ADD TO CART (from modal) ──
 function addToCart() {
   var btn = document.querySelector('.btn-add-to-cart');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+  }
   var params = new URLSearchParams({ id: product.id, qty: modalQty, csrf_token: CSRF });
   var _optSw = document.getElementById('optSweetness');
   if (_optSw && _optSw.style.display !== 'none') params.append('sweetness', getPillValue('sweetnessPills'));
@@ -1612,23 +1889,43 @@ function addToCart() {
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: params.toString() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.success) { showToast(data.message || 'Error', 'error'); return; }
+      if (!data.success) { 
+        showToast(data.message || 'Error', 'error'); 
+        pollProductStockStatuses();
+        return; 
+      }
       showToast('Added to cart!', 'success');
       closeModal();
       loadCartPanel();
+      pollProductStockStatuses();
     })
     .catch(function() { showToast('Error adding to cart', 'error'); })
-    .finally(function() { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add to Cart'; });
+    .finally(function() { 
+      if (btn) {
+        btn.disabled = false; 
+        btn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add to Cart'; 
+      }
+    });
 }
 
 // ── QUICK ADD ──
 function quickAdd(productId, price) {
+  var card = document.querySelector('.product-card[data-product-id="' + productId + '"]');
+  if (card && (card.dataset.stockStatus === 'out_of_stock' || card.classList.contains('disabled'))) {
+    showToast((card.dataset.productName || 'This item') + ' is currently out of stock.', 'warning');
+    return;
+  }
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: new URLSearchParams({ id: productId, qty: 1, csrf_token: CSRF }).toString() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.success) { showToast(data.message || 'Error', 'error'); return; }
+      if (!data.success) { 
+        showToast(data.message || 'Error', 'error'); 
+        pollProductStockStatuses();
+        return; 
+      }
       showToast('Added!', 'success');
       loadCartPanel();
+      pollProductStockStatuses();
     })
     .catch(function() { showToast('Error', 'error'); });
 }
@@ -1716,7 +2013,7 @@ function renderCartPanel(data) {
         '<div style="display:flex; align-items:center; gap:6px;">' +
           '<div class="cp-qty">' +
             '<button onclick="cpChangeQty(' + item.index + ',-1)">−</button>' +
-            '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" max="1000" oninput="if(parseInt(this.value)>1000)this.value=1000;if(parseInt(this.value)<1)this.value=1;" onchange="cpSetQty(' + item.index + ',this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ',this.value);this.blur();}">' +
+            '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" max="100" oninput="onCartQtyInput(' + item.index + ', this)" onchange="cpSetQty(' + item.index + ', this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ', this.value);this.blur();}">' +
             '<button onclick="cpChangeQty(' + item.index + ',1)">+</button>' +
           '</div>' +
           '<button class="cp-remove" onclick="cpRemoveItem(' + item.index + ')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>' +
@@ -1765,7 +2062,7 @@ function renderCartPanel(data) {
 function cpChangeQty(index, delta) {
   var inp = document.getElementById('cp-qty-' + index);
   if (!inp) return;
-  var qty = Math.max(1, Math.min(1000, (parseInt(inp.value) || 1) + delta));
+  var qty = Math.max(1, Math.min(100, (parseInt(inp.value) || 1) + delta));
   inp.value = qty;
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+qty })
     .then(function(r) { return r.json(); })
@@ -1773,10 +2070,19 @@ function cpChangeQty(index, delta) {
 }
 
 function cpSetQty(index, val) {
-  var qty = Math.max(1, Math.min(1000, parseInt(val) || 1));
+  var raw = parseInt(val, 10);
   var inp = document.getElementById('cp-qty-' + index);
-  if (inp) inp.value = qty;
-  fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+qty })
+  if (isNaN(raw) || raw < 1) {
+    raw = 1;
+    if (inp) { inp.value = 1; inp.classList.remove('qty-limit-warning'); }
+  } else if (raw > 100) {
+    triggerQtyWarning(inp, 'Maximum quantity limit is 100 items');
+    raw = 100;
+    if (inp) inp.value = 100;
+  } else {
+    if (inp) { inp.value = raw; inp.classList.remove('qty-limit-warning'); }
+  }
+  fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+raw })
     .then(function(r) { return r.json(); })
     .then(function() { loadCartPanel(); });
 }
@@ -2273,7 +2579,7 @@ function cpOnConfirmOrderClick() {
         '<input type="hidden" name="payment_references[]" value="">';
     }
 
-    if (methodVal === 'cash' || methodVal === 'bakong' || methodVal === 'riel') {
+    if (methodVal === 'cash' || methodVal === 'riel') {
       var popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
       if (popupWin) {
         try { popupWin.focus(); } catch(e) {}
@@ -2641,22 +2947,18 @@ document.addEventListener('DOMContentLoaded', function() {
       if (e.key.toLowerCase() === 'enter') { e.preventDefault(); cpOnConfirmOrderClick(); }
       return;
     }
-    var modalOpen = document.getElementById('cpPayModal').classList.contains('active');
     var key = e.key.toLowerCase();
-    if (['b','c','p','r'].includes(key)) {
+    if (key === 'enter') {
       e.preventDefault();
-      if (!modalOpen) cpOpenPayModal();
-      // Stand gate is up (or opening async) — don't pre-select a method behind it.
-      if (document.getElementById('cpStandGate') || !document.getElementById('cpPayModal').classList.contains('active')) return;
-      var map = { b:'bakong', c:'cash', p:'paylater', r:'riel' };
-      cpClickPayMethod(map[key]);
-    } else if (key === 'enter') {
-      e.preventDefault();
-      if (modalOpen) document.getElementById('cpConfirmPayBtn').click();
-      else cpOpenPayModal();
+      var prodModal = document.getElementById('product-modal') || document.getElementById('modal');
+      if (prodModal && prodModal.style.display !== 'none') {
+        addToCart();
+        return;
+      }
+      cpOnConfirmOrderClick();
     } else if (key === 'escape') {
-      if (document.getElementById('cpPayModal').classList.contains('active')) return;
       closeModal();
+      cpClosePayModal();
     }
   });
 
@@ -2719,9 +3021,14 @@ function cpClickPayMethod(method) {
 function showToast(message, type) {
   type = type || 'success';
   var container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
   var toast = document.createElement('div');
   toast.className = 'toast ' + type;
-  var icon = type === 'success' ? 'fa-check-circle' : 'fa-circle-exclamation';
+  var icon = type === 'success' ? 'fa-check-circle' : (type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-exclamation');
   toast.innerHTML = '<i class="fa-solid ' + icon + '"></i><span>' + message + '</span>';
   container.appendChild(toast);
   requestAnimationFrame(function() { toast.classList.add('show'); });
@@ -2898,13 +3205,13 @@ function cpCheckStand(val) {
 $_print_order_no = '';
 if (isset($_GET['print_order_id'])) {
     $_p_id = (int)$_GET['print_order_id'];
-    $_stmt_p = $conn->prepare("SELECT daily_order_no FROM orders WHERE order_id = ?");
+    $_stmt_p = $conn->prepare("SELECT order_id AS daily_order_no FROM orders WHERE order_id = ?");
     if ($_stmt_p) {
         $_stmt_p->bind_param("i", $_p_id);
         $_stmt_p->execute();
         $_res_p = $_stmt_p->get_result()->fetch_assoc();
         if ($_res_p && !empty($_res_p['daily_order_no'])) {
-            $_print_order_no = sprintf('%03d', (int)$_res_p['daily_order_no']);
+            $_print_order_no = sprintf('%04d', (int)$_res_p['daily_order_no']);
         }
         $_stmt_p->close();
     }

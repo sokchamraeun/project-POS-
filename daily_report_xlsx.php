@@ -71,9 +71,9 @@ if (!$_is_mgr) {
     $filter_user = (int)$_SESSION['user_id'];
 }
 
-$dateExpr = $isRange ? "business_date BETWEEN '$dateFrom' AND '$dateTo'" : "business_date = '$date'";
+$dateExpr = $isRange ? "DATE(order_date) BETWEEN '$dateFrom' AND '$dateTo'" : "DATE(order_date) = '$date'";
 if ($filter_user > 0) {
-    $dateExpr .= " AND (user_id = $filter_user OR employee_id = $filter_user)";
+    $dateExpr .= " AND user_id = $filter_user";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,14 +144,8 @@ if (!empty($base['dates'])) {
 }
 
 // ── Still owed ──
-$stmt = $conn->prepare("
-    SELECT COALESCE(SUM(total),0), COUNT(*) FROM orders
-    WHERE $dateExpr AND status NOT IN ('Cancelled','Void') AND NOT (" . paid_orders_where() . ")
-");
-$stmt->execute();
-[$notPaid, $notPaidCount] = $stmt->get_result()->fetch_row();
-$notPaid      = (float)$notPaid;
-$notPaidCount = (int)$notPaidCount;
+$notPaid      = 0.0;
+$notPaidCount = 0;
 
 // ── Low stock (single day only) ──
 $low = [];
@@ -162,24 +156,7 @@ $cupsByOrder = [];
 $giftCount = 0;
 $topProducts = [];
 
-if (!$isRange) {
-    $low = $conn->query("
-        SELECT ingredient_name, stock_quantity, minimum_stock, unit
-        FROM ingredients
-        WHERE stock_quantity <= minimum_stock
-        ORDER BY (stock_quantity - minimum_stock) ASC
-    ")->fetch_all(MYSQLI_ASSOC);
-}
-
 // ── Top sellers ──
-// Loyalty redemptions ride in order_items under the product_id = 0 sentinel. A
-// shirt handed over for points is not a drink sold, so it has no place in a
-// table headed "top selling drinks". Free buy-X promo drinks keep a real
-// product id and stay — they were made and poured.
-//
-// The test is order_cogs()'s is_gift flag, taken from product_id. Matching the
-// "[GIFT] " name prefix instead misses six older rows; matching price = 0 would
-// wrongly drop free promo drinks, which are real cups.
 $byProduct = array_filter($cogs['by_product'], fn($p) => empty($p['is_gift']));
 $giftCount = (int)$cogs['gift_items'];
 uasort($byProduct, fn($a, $b) => $b['qty'] <=> $a['qty']);
@@ -188,19 +165,15 @@ $topProducts = array_slice($byProduct, 0, 8, true);
 if (!$isRange) {
     // ── Who was on ──
     $stmt = $conn->prepare("
-        SELECT e.name AS full_name,
-               COALESCE(MAX(o.orders_served), 0) AS orders_served,
-               COALESCE(MAX(o.money_taken), 0)   AS money_taken
+        SELECT COALESCE(NULLIF(u.name, ''), u.username) AS full_name,
+               COUNT(o.order_id) AS orders_served,
+               COALESCE(SUM(o.total), 0) AS money_taken
         FROM attendance a
-        JOIN employees e ON e.user_id = a.user_id
-        LEFT JOIN (
-            SELECT employee_id, COUNT(order_id) AS orders_served, COALESCE(SUM(total),0) AS money_taken
-            FROM orders WHERE business_date = ? AND " . paid_orders_where() . "
-            GROUP BY employee_id
-        ) o ON o.employee_id = e.employee_id
+        JOIN users u ON u.user_id = a.user_id
+        LEFT JOIN orders o ON (o.user_id = u.user_id OR (o.user_id IS NULL AND LOWER(o.prepared_by) = LOWER(u.username))) AND DATE(o.order_date) = ?
         WHERE a.date = ?
-        GROUP BY e.employee_id
-        ORDER BY COALESCE(MAX(o.money_taken), 0) DESC, e.name ASC
+        GROUP BY u.user_id, u.username
+        ORDER BY money_taken DESC, u.username ASC
     ");
     $stmt->bind_param("ss", $date, $date);
     $stmt->execute();
@@ -209,15 +182,18 @@ if (!$isRange) {
     $unlinkedMoney = $gotToday - $staffMoney;
 }
 
-$dex = $isRange ? str_replace('business_date', 'o.business_date', $dateExpr) : "o.business_date = '$date'";
+$dex = $isRange ? "DATE(o.order_date) BETWEEN '$dateFrom' AND '$dateTo'" : "DATE(o.order_date) = '$date'";
+if ($filter_user > 0) {
+    $dex .= " AND o.user_id = $filter_user";
+}
 
 // ── The period's orders ──
 $stmt = $conn->prepare("
-    SELECT o.order_id, o.daily_order_no, o.customer_name, o.total, o.payment_method,
-           o.status, o.is_open, o.order_date, e.name AS cashier
+    SELECT o.order_id, o.order_id AS daily_order_no, 'Guest' AS customer_name, o.total, o.payment_method,
+           'Completed' AS status, 0 AS is_open, o.order_date, COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS cashier
     FROM orders o
-    LEFT JOIN employees e ON e.employee_id = o.employee_id
-    WHERE $dex AND o.status NOT IN ('Cancelled','Void')
+    LEFT JOIN users u ON u.user_id = o.user_id
+    WHERE $dex
     ORDER BY o.order_date ASC
 ");
 $stmt->execute();
@@ -228,7 +204,7 @@ $stmt = $conn->prepare("
     SELECT oi.order_id, COALESCE(SUM(oi.quantity),0) AS cups
     FROM order_items oi
     JOIN orders o ON o.order_id = oi.order_id
-    WHERE $dex AND oi.product_id <> 0 AND o.status NOT IN ('Cancelled','Void')
+    WHERE $dex AND oi.product_id <> 0
     GROUP BY oi.order_id
 ");
 $stmt->execute();
@@ -286,26 +262,26 @@ if ($isRange) {
     $end = new DateTime($dateTo);
     while ($d <= $end) { $trend[$d->format('Y-m-d')] = 0.0; $d->modify('+1 day'); }
     $stmt = $conn->prepare("
-        SELECT business_date, COALESCE(SUM(total),0) rev
+        SELECT DATE(order_date) AS b_date, COALESCE(SUM(total),0) rev
         FROM orders
-        WHERE business_date BETWEEN ? AND ? AND " . paid_orders_where() . "
-        GROUP BY business_date
+        WHERE DATE(order_date) BETWEEN ? AND ? AND " . paid_orders_where() . "
+        GROUP BY DATE(order_date)
     ");
     $stmt->bind_param("ss", $dateFrom, $dateTo);
 } else {
     for ($i = 6; $i >= 0; $i--) { $trend[date('Y-m-d', strtotime("$date -$i day"))] = 0.0; }
     $from = array_key_first($trend);
     $stmt = $conn->prepare("
-        SELECT business_date, COALESCE(SUM(total),0) rev
+        SELECT DATE(order_date) AS b_date, COALESCE(SUM(total),0) rev
         FROM orders
-        WHERE business_date BETWEEN ? AND ? AND " . paid_orders_where() . "
-        GROUP BY business_date
+        WHERE DATE(order_date) BETWEEN ? AND ? AND " . paid_orders_where() . "
+        GROUP BY DATE(order_date)
     ");
     $stmt->bind_param("ss", $from, $date);
 }
 $stmt->execute();
 $res = $stmt->get_result();
-while ($r = $res->fetch_assoc()) { $trend[(string)$r['business_date']] = (float)$r['rev']; }
+while ($r = $res->fetch_assoc()) { $trend[(string)$r['b_date']] = (float)$r['rev']; }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The workbook

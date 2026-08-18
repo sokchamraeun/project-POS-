@@ -24,9 +24,11 @@ if ($order_id <= 0) {
 
 // Fetch order details
 $stmt = $conn->prepare("
-    SELECT order_id, daily_order_no, customer_name, total, status, bakong_md5, payment_method
-    FROM orders
-    WHERE order_id = ?
+    SELECT o.order_id, o.order_id AS daily_order_no, 'Guest' AS customer_name, o.total, 'PendingPayment' AS status,
+           op.reference AS bakong_md5, o.payment_method
+    FROM orders o
+    LEFT JOIN order_payments op ON o.order_id = op.order_id AND op.payment_method = 'bakong'
+    WHERE o.order_id = ?
 ");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();
@@ -57,34 +59,28 @@ $khqrResponse = BakongKHQR::generateIndividual($individualInfo);
 if (($khqrResponse->status['code'] ?? 1) !== 0 || empty($khqrResponse->data['qr'])) {
     die('<h2 style="color:#ff6b6b;font-family:Poppins,sans-serif;text-align:center;padding:60px 20px;">
             <i class="fa-solid fa-triangle-exclamation"></i><br>Failed to generate Bakong QR.<br>
-            <a href="<?= htmlspecialchars($return_page) ?>" style="font-size:14px;color:#d1904b;">← Back to orders</a>
+            <a href="' . htmlspecialchars($return_page) . '" style="font-size:14px;color:#d1904b;">← Back to orders</a>
          </h2>');
 }
 
 $qrString = $khqrResponse->data['qr'];
 $qrMd5    = $khqrResponse->data['md5'] ?? '';
 
-// Persist the md5 and wire up payment records so check_payment.php can track this transaction.
-// A fresh KHQR (new md5) is generated on every load, so ALWAYS store it — otherwise an order
-// that already carried an older md5 (e.g. a checkout order shown once at payment.php) would
-// display this new QR while check_payment.php still verified the stale md5, and payment would
-// never be detected.
 if (!empty($qrMd5)) {
     $conn->begin_transaction();
     try {
-        // Persist md5 — required by check_payment.php to verify with Bakong API
-        $stmt_md5 = $conn->prepare("UPDATE orders SET bakong_md5 = ? WHERE order_id = ?");
-        $stmt_md5->bind_param("si", $qrMd5, $order_id);
-        $stmt_md5->execute();
-
-        // Insert a bakong payment record if one doesn't exist yet (paylater orders won't have one)
+        // Insert a bakong payment record if one doesn't exist yet
         $stmt_chk = $conn->prepare("SELECT payment_id FROM order_payments WHERE order_id = ? AND payment_method = 'bakong' LIMIT 1");
         $stmt_chk->bind_param("i", $order_id);
         $stmt_chk->execute();
         if (!$stmt_chk->get_result()->fetch_assoc()) {
-            $stmt_pay = $conn->prepare("INSERT INTO order_payments (order_id, payment_method, amount, reference, payment_status) VALUES (?, 'bakong', ?, '', 'pending')");
-            $stmt_pay->bind_param("id", $order_id, $amount);
+            $stmt_pay = $conn->prepare("INSERT INTO order_payments (order_id, payment_method, amount, reference, payment_status) VALUES (?, 'bakong', ?, ?, 'pending')");
+            $stmt_pay->bind_param("ids", $order_id, $amount, $qrMd5);
             $stmt_pay->execute();
+        } else {
+            $stmt_md5 = $conn->prepare("UPDATE order_payments SET reference = ? WHERE order_id = ? AND payment_method = 'bakong'");
+            $stmt_md5->bind_param("si", $qrMd5, $order_id);
+            $stmt_md5->execute();
         }
 
         // For paylater orders: resolve the original paylater record so that once

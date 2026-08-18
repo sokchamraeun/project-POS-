@@ -21,22 +21,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_staff_orders') {
     $stmt = $conn->prepare("
         SELECT 
             o.order_id,
-            o.daily_order_no,
+            o.order_id AS daily_order_no,
             o.order_date,
             o.total,
-            o.status,
+            'Completed' AS status,
             o.payment_method,
             GROUP_CONCAT(CONCAT(oi.quantity, 'x ', oi.product_name) SEPARATOR ', ') AS items_summary
-        FROM orders o
+        FROM users u
+        JOIN orders o ON (o.user_id = u.user_id OR (o.user_id IS NULL AND LOWER(o.prepared_by) = LOWER(u.username)))
         LEFT JOIN order_items oi ON oi.order_id = o.order_id
-        WHERE (o.user_id = ? OR o.employee_id = ?)
-          AND DATE(o.order_date) BETWEEN ? AND ?
-        GROUP BY o.order_id, o.daily_order_no, o.order_date, o.total, o.status, o.payment_method
+        WHERE u.user_id = ? AND DATE(o.order_date) BETWEEN ? AND ?
+        GROUP BY o.order_id, o.order_date, o.total, o.payment_method
         ORDER BY o.order_date DESC
     ");
     $orders = [];
     if ($stmt) {
-        $stmt->bind_param("iiss", $userId, $userId, $dateFrom, $dateTo);
+        $stmt->bind_param("iss", $userId, $dateFrom, $dateTo);
         $stmt->execute();
         $orders = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
@@ -51,19 +51,16 @@ if (!$_is_mgr) {
 }
 
 $where_cond = ["DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'"];
-if ($filter_user > 0) {
-    $where_cond[] = "(o.user_id = $filter_user OR o.employee_id = $filter_user)";
-}
 $where_str = implode(' AND ', $where_cond);
 
 // Fetch staff users for dropdown
 $user_options = [];
 if ($_is_mgr) {
     $user_options[0] = 'All Staff';
-    $q_users = $conn->query("SELECT u.user_id, u.username, e.name AS emp_name, r.slug AS role FROM users u LEFT JOIN employees e ON e.user_id = u.user_id LEFT JOIN roles r ON r.id = u.role_id ORDER BY COALESCE(NULLIF(e.name, ''), u.username) ASC");
+    $q_users = $conn->query("SELECT u.user_id, COALESCE(NULLIF(u.name, ''), u.username) AS username, u.role FROM users u ORDER BY u.username ASC");
     if ($q_users) {
         while ($ur = $q_users->fetch_assoc()) {
-            $displayName = !empty($ur['emp_name']) ? $ur['emp_name'] : $ur['username'];
+            $displayName = $ur['username'];
             $user_options[$ur['user_id']] = $displayName . ' (' . ucfirst($ur['role'] ?? 'staff') . ')';
         }
     }
@@ -77,20 +74,19 @@ $where_user = $filter_user > 0 ? "WHERE u.user_id = $filter_user" : "";
 
 $sql_staff = "SELECT 
                 u.user_id,
-                u.username,
-                r.slug AS role,
+                COALESCE(NULLIF(u.name, ''), u.username) AS username,
+                u.role,
                 COUNT(o.order_id) AS total_orders,
-                COALESCE(SUM(CASE WHEN o.status NOT IN ('Cancelled','Refunded') THEN o.total ELSE 0 END), 0) AS total_sales,
-                COALESCE(SUM(CASE WHEN o.status = 'Cancelled' THEN 1 ELSE 0 END), 0) AS cancelled_count,
-                COALESCE(SUM(CASE WHEN o.status = 'Paid' THEN o.total ELSE 0 END), 0) AS paid_sales,
-                MIN(o.order_date) as first_order,
-                MAX(o.order_date) as last_order
+                COALESCE(SUM(o.total), 0) AS total_sales,
+                0 AS cancelled_count,
+                COALESCE(SUM(o.total), 0) AS paid_sales,
+                MIN(o.order_date) AS first_order,
+                MAX(o.order_date) AS last_order
               FROM users u
-              LEFT JOIN roles r ON r.id = u.role_id
-              LEFT JOIN orders o ON o.user_id = u.user_id AND $where_str
+              LEFT JOIN orders o ON (o.user_id = u.user_id OR (o.user_id IS NULL AND LOWER(o.prepared_by) = LOWER(u.username))) AND DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'
               $where_user
-              GROUP BY u.user_id, u.username, r.slug
-              ORDER BY total_sales DESC";
+              GROUP BY u.user_id, u.username, u.name, u.role
+              ORDER BY u.username ASC";
 $res_staff = $conn->query($sql_staff);
 $staff_rows = $res_staff ? $res_staff->fetch_all(MYSQLI_ASSOC) : [];
 
@@ -110,6 +106,208 @@ foreach ($staff_rows as $sr) {
 <title>Report User | Bird's Nest Coffee</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.er-btn-icon-view {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(209, 144, 75, 0.12);
+    border: 1px solid rgba(209, 144, 75, 0.25);
+    color: #d1904b;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.er-btn-icon-view:hover {
+    background: #d1904b;
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(209, 144, 75, 0.3);
+}
+[data-theme="light"] .er-btn-icon-view {
+    background: rgba(184, 115, 51, 0.1);
+    border-color: rgba(184, 115, 51, 0.3);
+    color: #b87333;
+}
+[data-theme="light"] .er-btn-icon-view:hover {
+    background: #b87333;
+    color: #fff;
+}
+
+/* ── Staff Orders Modal (Theme Aware) ── */
+.som-dialog {
+    background: var(--bg-card, #16161e);
+    border: 1px solid var(--border, #282836);
+    color: var(--text, #f1f5f9);
+    border-radius: 16px;
+    box-shadow: 0 20px 45px rgba(0,0,0,0.4);
+    max-width: 650px;
+    width: 95%;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.som-header {
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-main, #1c1c26);
+    border-bottom: 1px solid var(--border, #282836);
+}
+.som-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text, #ffffff);
+}
+.som-sub {
+    font-size: 11px;
+    color: var(--text-muted, #94a3b8);
+}
+.som-close-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border, #282836);
+    color: var(--text-muted, #94a3b8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+.som-close-btn:hover {
+    color: var(--text, #fff);
+    background: rgba(209, 144, 75, 0.2);
+    border-color: var(--accent, #d1904b);
+}
+.som-body {
+    padding: 14px 18px;
+    overflow-y: auto;
+    flex: 1;
+}
+.som-stat-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    background: var(--bg-main, #1c1c26);
+    border: 1px solid var(--border, #282836);
+    font-size: 11.5px;
+}
+.som-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+    border: 1px solid var(--border, #282836);
+}
+.som-table {
+    width: 100%;
+    font-size: 11.5px;
+    text-align: left;
+    border-collapse: collapse;
+}
+.som-table th {
+    padding: 8px 10px;
+    background: rgba(209, 144, 75, 0.15);
+    color: var(--accent, #d1904b);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border, #282836);
+}
+.som-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border, #282836);
+    white-space: nowrap;
+}
+.som-table tr:last-child td {
+    border-bottom: none;
+}
+.som-footer {
+    padding: 10px 18px;
+    display: flex;
+    justify-content: flex-end;
+    background: var(--bg-main, #1c1c26);
+    border-top: 1px solid var(--border, #282836);
+}
+.som-btn-close {
+    padding: 6px 16px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border, #282836);
+    color: var(--text, #e2e8f0);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.som-btn-close:hover {
+    background: var(--accent, #d1904b);
+    color: #fff;
+    border-color: var(--accent, #d1904b);
+}
+
+/* Light theme overrides */
+[data-theme="light"] .som-dialog {
+    background: #fdfbf7;
+    border-color: #e0d4c4;
+    color: #1a1410;
+}
+[data-theme="light"] .som-header,
+[data-theme="light"] .som-footer,
+[data-theme="light"] .som-stat-box {
+    background: #f4eee5;
+    border-color: #e0d4c4;
+}
+[data-theme="light"] .som-title {
+    color: #1a1410;
+}
+[data-theme="light"] .som-sub {
+    color: #6b5e51;
+}
+[data-theme="light"] .som-close-btn {
+    background: #ede6dc;
+    border-color: #ddcfbf;
+    color: #6b5e51;
+}
+[data-theme="light"] .som-close-btn:hover {
+    background: rgba(184, 115, 51, 0.15);
+    border-color: #b87333;
+    color: #b87333;
+}
+[data-theme="light"] .som-table-wrap {
+    border-color: #e0d4c4;
+}
+[data-theme="light"] .som-table th {
+    background: #ede3d5;
+    color: #b87333;
+    border-color: #e0d4c4;
+}
+[data-theme="light"] .som-table td {
+    border-color: #ede4d8;
+    color: #1a1410;
+}
+[data-theme="light"] .som-btn-close {
+    background: #ede6dc;
+    border-color: #ddcfbf;
+    color: #3d332a;
+}
+[data-theme="light"] .som-btn-close:hover {
+    background: #b87333;
+    color: #fff;
+    border-color: #b87333;
+}
+</style>
 </head>
 <body>
 <div class="flex h-screen w-screen overflow-hidden app-layout">
@@ -140,19 +338,16 @@ foreach ($staff_rows as $sr) {
             <table class="er-table">
                 <thead>
                     <tr>
-                        <th style="text-align:center">Staff ID</th>
                         <th style="text-align:center">Employee Name</th>
-                        <th style="text-align:center">Role</th>
                         <th style="text-align:center">Total Orders</th>
                         <th style="text-align:center">Billed Revenue</th>
-                        <th style="text-align:center">Status</th>
-                        <th style="text-align:center;width:90px;">Action</th>
+                        <th style="text-align:center;width:60px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($staff_rows)): ?>
                     <tr class="no-data">
-                        <td colspan="7" class="no-data" style="text-align:center">No data</td>
+                        <td colspan="4" class="no-data" style="text-align:center">No data</td>
                     </tr>
                     <?php else: ?>
                     <?php foreach ($staff_rows as $s): ?>
@@ -161,15 +356,12 @@ foreach ($staff_rows as $sr) {
                         $sales_val = (float)$s['total_sales'];
                     ?>
                     <tr>
-                        <td style="text-align:center">#STF-<?= (int)$s['user_id'] ?></td>
                         <td style="text-align:center" class="er-prod-name"><?= htmlspecialchars($s['username']) ?></td>
-                        <td style="text-align:center"><span class="er-badge-cat uppercase"><?= htmlspecialchars($s['role']) ?></span></td>
                         <td style="text-align:center"><?= $ord_cnt ?></td>
                         <td style="text-align:center" class="er-total-rev">$<?= number_format($sales_val, 2) ?></td>
-                        <td style="text-align:center"><span class="er-badge-doc">Active</span></td>
                         <td style="text-align:center;">
-                            <button type="button" class="px-2.5 py-1 rounded-lg text-xs transition-all inline-flex items-center gap-1.5" onclick="viewStaffOrders(<?= (int)$s['user_id'] ?>, '<?= htmlspecialchars($s['username'], ENT_QUOTES) ?>')">
-                                <i class="fa-solid fa-eye"></i> View
+                            <button type="button" class="er-btn-icon-view" onclick="viewStaffOrders(<?= (int)$s['user_id'] ?>, '<?= htmlspecialchars($s['username'], ENT_QUOTES) ?>')" title="View Orders">
+                                <i class="fa-solid fa-eye"></i>
                             </button>
                         </td>
                     </tr>
@@ -202,30 +394,30 @@ foreach ($staff_rows as $sr) {
 </div>
 
 <!-- ── STAFF ORDERS DETAIL MODAL ── -->
-<div id="staffOrdersModal" class="fixed inset-0 z-[9999] hidden flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-    <div class="bg-[#15151a] border border-[#282836] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+<div id="staffOrdersModal" class="fixed inset-0 z-[9999] hidden flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="som-dialog">
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-[#282836] flex items-center justify-between bg-[#1a1a22]">
+        <div class="som-header">
             <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-base">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-center font-bold text-sm">
                     <i class="fa-solid fa-receipt"></i>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold text-white tracking-wide" id="staffModalTitle">Staff Orders</h3>
-                    <p class="text-xs text-slate-400" id="staffModalSub">Orders processed during selected period</p>
+                    <h3 class="som-title" id="staffModalTitle">Staff Orders</h3>
+                    <p class="som-sub" id="staffModalSub">Orders processed during selected period</p>
                 </div>
             </div>
-            <button type="button" class="w-8 h-8 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-all" onclick="closeStaffModal()">
+            <button type="button" class="som-close-btn" onclick="closeStaffModal()" title="Close">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
         <!-- Body -->
-        <div class="p-6 overflow-y-auto flex-1 custom-scrollbar" id="staffModalContent">
+        <div class="som-body" id="staffModalContent">
             <!-- Dynamic Content -->
         </div>
         <!-- Footer -->
-        <div class="px-6 py-3.5 border-t border-[#282836] bg-[#1a1a22] flex justify-end">
-            <button type="button" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold text-xs transition-all" onclick="closeStaffModal()">Close</button>
+        <div class="som-footer">
+            <button type="button" class="som-btn-close" onclick="closeStaffModal()">Close</button>
         </div>
     </div>
 </div>
@@ -240,8 +432,8 @@ function viewStaffOrders(userId, username) {
     title.textContent = `${username}'s Orders`;
     sub.textContent   = `List of orders and total price handled by ${username}`;
     body.innerHTML    = `
-        <div class="text-center py-10 text-slate-400">
-            <i class="fa-solid fa-spinner fa-spin text-amber-400 text-2xl mb-2"></i>
+        <div class="text-center py-10" style="color: var(--text-muted, #94a3b8);">
+            <i class="fa-solid fa-spinner fa-spin text-amber-500 text-2xl mb-2"></i>
             <p class="text-xs">Fetching order details...</p>
         </div>`;
     modal.classList.remove('hidden');
@@ -253,12 +445,12 @@ function viewStaffOrders(userId, username) {
     .then(r => r.json())
     .then(data => {
         if (!data.success) {
-            body.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">Failed to load order history.</div>`;
+            body.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs">Failed to load order history.</div>`;
             return;
         }
         const orders = data.orders || [];
         if (orders.length === 0) {
-            body.innerHTML = `<div class="p-8 text-center text-slate-500 italic bg-[#1a1a22] rounded-xl border border-[#282836]">No orders found for this staff member in the selected date range.</div>`;
+            body.innerHTML = `<div class="p-6 text-center italic rounded-xl border border-dashed" style="color: var(--text-muted, #94a3b8); border-color: var(--border, #282836); font-size: 12px;">No orders found for this staff member in the selected date range.</div>`;
             return;
         }
 
@@ -269,41 +461,37 @@ function viewStaffOrders(userId, username) {
             if (o.status !== 'Cancelled' && o.status !== 'Refunded') {
                 totalRev += amt;
             }
-            const statusCls = o.status === 'Paid' || o.status === 'Completed' 
-                ? 'bg-emerald-500/15 text-emerald-400' 
-                : (o.status === 'Cancelled' ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400');
-
             const orderDisplayNum = o.daily_order_no ? `#${o.daily_order_no}` : `#ORD-${o.order_id}`;
 
             rowsHtml += `
-                <tr class="hover:bg-slate-800/40 border-b border-[#282836]/50">
-                    <td class="p-2.5 text-center text-slate-500 font-semibold">${idx + 1}</td>
-                    <td class="p-2.5 font-bold text-amber-400 font-mono">${escapeHtml(orderDisplayNum)}</td>
-                    <td class="p-2.5 text-slate-300 text-xs">${escapeHtml(o.order_date)}</td>
-                    <td class="p-2.5 text-slate-300 font-medium">${escapeHtml(o.items_summary || '—')}</td>
-                    <td class="p-2.5 text-center text-slate-400 capitalize">${escapeHtml(o.payment_method || 'Cash')}</td>
-                    <td class="p-2.5 text-right font-bold text-white">$${amt.toFixed(2)}</td>
+                <tr>
+                    <td style="text-align:center; font-weight:600; color: var(--text-muted, #94a3b8); width:32px;">${idx + 1}</td>
+                    <td style="font-weight:700; color: var(--accent, #d1904b); font-family: monospace; width:80px;">${escapeHtml(orderDisplayNum)}</td>
+                    <td style="font-size:11px; color: var(--text-muted, #94a3b8); width:115px;">${escapeHtml(o.order_date)}</td>
+                    <td style="font-weight:600;">${escapeHtml(o.items_summary || '—')}</td>
+                    <td style="text-align:center; text-transform:capitalize; width:75px;">${escapeHtml(o.payment_method || 'Cash')}</td>
+                    <td style="text-align:right; font-weight:700; color: var(--accent, #d1904b); width:75px;">$${amt.toFixed(2)}</td>
                 </tr>`;
         });
 
         body.innerHTML = `
-            <div class="mb-4 flex items-center justify-between bg-[#1a1a22] p-3 rounded-xl border border-[#282836]">
-                <span class="text-xs text-slate-400">Total Orders: <strong class="text-white">${orders.length}</strong></span>
-                <span class="text-xs text-slate-400">Total Revenue: <strong class="text-emerald-400">$${totalRev.toFixed(2)}</strong></span>
+            <div class="som-stat-box">
+                <span>Total Orders: <strong style="color: var(--text, #fff); font-size: 12.5px;">${orders.length}</strong></span>
+                <span>Total Revenue: <strong style="color: #10b981; font-size: 13px;">$${totalRev.toFixed(2)}</strong></span>
             </div>
-            <div class="rounded-xl border border-[#282836] overflow-hidden">
-                <table class="w-full text-xs text-left">
-                    <thead class="bg-[#2a2218] text-amber-400 font-bold uppercase text-[10px]">
+            <div class="som-table-wrap">
+                <table class="som-table">
+                    <thead>
                         <tr>
-                            <th class="p-2.5 text-center" style="width:35px;">No.</th>
-                            <th class="p-2.5" style="width:95px;">Order No.</th>
-                            <th class="p-2.5" style="width:130px;">Date & Time</th>
-                            <th class="p-2.5">Items Ordered</th>
-                            <th class="p-2.5 text-center" style="width:80px;">Payment</th>
-                            <th class="p-2.5 text-right" style="width:80px;">Price</th>
+                            <th style="text-align:center;width:32px;">No.</th>
+                            <th style="width:80px;">Order No.</th>
+                            <th style="width:115px;">Date & Time</th>
+                            <th>Items Ordered</th>
+                            <th style="text-align:center;width:75px;">Payment</th>
+                            <th style="text-align:right;width:75px;">Price</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-[#15151a]">
+                    <tbody>
                         ${rowsHtml}
                     </tbody>
                 </table>
@@ -311,7 +499,7 @@ function viewStaffOrders(userId, username) {
     })
     .catch(err => {
         console.error(err);
-        body.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">An error occurred while loading data.</div>`;
+        body.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs">An error occurred while loading data.</div>`;
     });
 }
 
