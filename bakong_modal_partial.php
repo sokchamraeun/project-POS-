@@ -8,7 +8,11 @@ if (!defined('AUTH_OK')) {
 $bakong_order_id = (int)($_GET['bakong_order_id'] ?? $_GET['order_id'] ?? $bakong_order_id ?? 0);
 if ($bakong_order_id <= 0) return;
 
-require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+if (file_exists(__DIR__ . '/bakong-khqr-php-main/autoload.php')) {
+    require_once __DIR__ . '/bakong-khqr-php-main/autoload.php';
+} elseif (file_exists(__DIR__ . '/bakong-khqr-php-main/vendor/autoload.php')) {
+    require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+}
 use KHQR\BakongKHQR;
 use KHQR\Models\IndividualInfo;
 

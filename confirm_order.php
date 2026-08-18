@@ -408,7 +408,11 @@ try {
             $reference = $parts === null ? '' : tender_ref($parts['usd'], $parts['khr']);
         } elseif ($method === 'bakong' && empty($reference)) {
             try {
-                require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+                if (file_exists(__DIR__ . '/bakong-khqr-php-main/autoload.php')) {
+                    require_once __DIR__ . '/bakong-khqr-php-main/autoload.php';
+                } elseif (file_exists(__DIR__ . '/bakong-khqr-php-main/vendor/autoload.php')) {
+                    require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+                }
                 $b_config = require __DIR__ . '/bakong_config.php';
                 $order_ts = !empty($started_at) ? strtotime($started_at) : time();
                 $exp_ts   = strval(($order_ts + 15 * 60) * 1000);

@@ -3,7 +3,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require 'config.php';
-require __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+if (file_exists(__DIR__ . '/bakong-khqr-php-main/autoload.php')) {
+    require_once __DIR__ . '/bakong-khqr-php-main/autoload.php';
+} elseif (file_exists(__DIR__ . '/bakong-khqr-php-main/vendor/autoload.php')) {
+    require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+}
 
 use KHQR\BakongKHQR;
 

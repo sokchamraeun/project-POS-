@@ -3,7 +3,11 @@
 // Usage:  php renew_bakong_token.php your-registered@email.com
 // Then paste the printed token into bakong_config.local.php ('token' => '...').
 
-require __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+if (file_exists(__DIR__ . '/bakong-khqr-php-main/autoload.php')) {
+    require_once __DIR__ . '/bakong-khqr-php-main/autoload.php';
+} elseif (file_exists(__DIR__ . '/bakong-khqr-php-main/vendor/autoload.php')) {
+    require_once __DIR__ . '/bakong-khqr-php-main/vendor/autoload.php';
+}
 
 use KHQR\BakongKHQR;
 
