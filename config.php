@@ -15,6 +15,14 @@ $username   = "root";
 $password   = "";
 $dbname     = "db_coffeeshop_final--";
 
+
+
+// $servername = "localhost";
+// $username   = "dpdc690_pos";
+// $password   = "Coffee@_1234";
+// $dbname     = "dpdc690_pos";
+
+
 if (is_file(__DIR__ . '/db_config.local.php')) {
     require __DIR__ . '/db_config.local.php';
 }
