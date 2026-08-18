@@ -28,14 +28,15 @@ try {
         PDO::ATTR_EMULATE_PREPARES   => false,
     ]);
 
-    // Auto-create settings table if not present on hosting
+    // Auto-create settings table if not present on hosting & ensure column is LONGTEXT
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
             `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
             `setting_key` VARCHAR(100) NOT NULL UNIQUE,
-            `setting_value` TEXT NULL,
+            `setting_value` LONGTEXT NULL,
             `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $pdo->exec("ALTER TABLE `settings` MODIFY COLUMN `setting_value` LONGTEXT NULL");
     } catch (Throwable $t) {}
 } catch (PDOException $e) {
     die("Database Connection Error: " . htmlspecialchars($e->getMessage()));
@@ -609,13 +610,16 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
                 $jsonConfig = json_encode($cleanItems, JSON_UNESCAPED_UNICODE);
 
-                // Auto-create settings table if not present on hosting
-                $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
-                    `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
-                    `setting_key` VARCHAR(100) NOT NULL UNIQUE,
-                    `setting_value` TEXT NULL,
-                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                // Auto-create settings table if not present on hosting & upgrade column to LONGTEXT
+                try {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
+                        `setting_id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+                        `setting_value` LONGTEXT NULL,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                    $pdo->exec("ALTER TABLE `settings` MODIFY COLUMN `setting_value` LONGTEXT NULL");
+                } catch (Throwable $t) {}
 
                 $stmt1 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_cost_per_set', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
                 $stmt1->execute([(string)$totalCost]);
