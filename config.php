@@ -79,6 +79,10 @@ $dbname     = "YOUR_CPANEL_DB_NAME";</pre>
 // ── CRITICAL: Force utf8mb4 so 4-byte emoji are read correctly ──
 $conn->set_charset('utf8mb4');
 
+// ── Hosting compatibility: Align MySQL timezone to Asia/Phnom_Penh (UTC+7) & prevent ONLY_FULL_GROUP_BY crashes ──
+@$conn->query("SET time_zone = '+07:00'");
+@$conn->query("SET SESSION sql_mode = (SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))");
+
 if (session_status() === PHP_SESSION_NONE) {
     @session_start();
 }

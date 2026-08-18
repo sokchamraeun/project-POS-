@@ -1280,19 +1280,18 @@ if (!$_is_mgr) {
 
 $where_conds = ["DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'"];
 if ($filter_payment !== '') {
-    $where_conds[] = "o.payment_method = '" . $conn->real_escape_string($filter_payment) . "'";
+    $where_conds[] = "LOWER(o.payment_method) = '" . $conn->real_escape_string(strtolower($filter_payment)) . "'";
+}
+if ($filter_user > 0) {
+    $where_conds[] = "(o.user_id = $filter_user OR (o.user_id IS NULL AND LOWER(o.prepared_by) = (SELECT LOWER(username) FROM users WHERE user_id = $filter_user LIMIT 1)))";
 }
 $where_str = implode(' AND ', $where_conds);
 
-$sql_table_orders = "SELECT o.order_id, o.order_id AS daily_order_no, o.order_date, 'Guest' AS customer_name, '' AS table_number, 'drink_in' AS order_type, o.total, o.payment_method, COALESCE(op.payment_status, 'paid') AS payment_status,
+$sql_table_orders = "SELECT o.order_id, o.order_id AS daily_order_no, o.order_date, 'Guest' AS customer_name, '' AS table_number, 'drink_in' AS order_type, o.total, o.payment_method, 'Completed' AS status,
                             0 AS discount_amount,
-                            '' as staff_name 
+                            COALESCE(NULLIF(u.name, ''), u.username, 'Staff') as staff_name 
                      FROM orders o 
-                     LEFT JOIN (
-                         SELECT order_id, payment_method, payment_status 
-                         FROM order_payments 
-                         GROUP BY order_id
-                     ) op ON op.order_id = o.order_id
+                     LEFT JOIN users u ON u.user_id = o.user_id 
                      WHERE $where_str 
                      ORDER BY o.order_id DESC";
 $res_table_orders = $conn->query($sql_table_orders);
