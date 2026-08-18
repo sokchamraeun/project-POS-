@@ -2284,6 +2284,7 @@ $categoriesList = [
     <script>
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         const KHR_RATE = <?= defined('KHR_RATE') ? KHR_RATE : 4000 ?>;
+        let stockItemsData = <?= json_encode($stockItems, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?> || [];
 
         const I18N = {
             lang: "<?= current_lang() ?>",
@@ -2448,6 +2449,7 @@ $categoriesList = [
                     return;
                 }
 
+                stockItemsData = data.items || [];
                 updateKpiCards(data.kpis);
                 renderTableRows(data.items);
                 updateDropdownOptions(data.items);
@@ -2767,7 +2769,8 @@ $categoriesList = [
                 if (submitBtn) submitBtn.disabled = false;
                 return false;
             }
-            const match = (stockItemsData || []).find(item => item.item_name && item.item_name.trim().toLowerCase() === val && (item.is_active == 1 || item.is_active === undefined));
+            const items = (typeof stockItemsData !== 'undefined' && Array.isArray(stockItemsData)) ? stockItemsData : [];
+            const match = items.find(item => item.item_name && item.item_name.trim().toLowerCase() === val && (item.is_active == 1 || item.is_active === undefined));
             if (match) {
                 if (alertBox) {
                     alertBox.querySelector('span').textContent = `⚠️ An ingredient named "${match.item_name}" already exists (${match.quantity} ${match.unit} in stock).`;
