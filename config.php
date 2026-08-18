@@ -23,6 +23,9 @@ $dbname     = "db_coffeeshop_final--";
 // $dbname     = "dpdc690_pos";
 
 
+
+// hello?
+
 if (is_file(__DIR__ . '/db_config.local.php')) {
     require __DIR__ . '/db_config.local.php';
 }
