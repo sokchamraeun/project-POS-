@@ -77,18 +77,22 @@ sort($realCategories);
 // but still-empty category still appears. $catCounts (slug => product count) is already
 // built above from the product rows.
 $filterCats = [];
-$activeCatRes = $conn->query("SELECT slug FROM categories WHERE is_active = 1 ORDER BY display_order, category_id");
-while ($cr = $activeCatRes->fetch_assoc()) {
-    $slug = $cr['slug'];
-    $filterCats[] = ['slug' => $slug, 'count' => $catCounts[$slug] ?? 0];
+$catNames   = [];
+$activeCatRes = $conn->query("SELECT slug, name FROM categories WHERE is_active = 1 ORDER BY display_order, category_id");
+if ($activeCatRes) {
+    while ($cr = $activeCatRes->fetch_assoc()) {
+        $slug = $cr['slug'];
+        $name = !empty($cr['name']) ? $cr['name'] : $slug;
+        $catNames[$slug] = $name;
+        $filterCats[] = ['slug' => $slug, 'name' => $name, 'count' => $catCounts[$slug] ?? 0];
+    }
 }
-// Only truly empty-category products bucket into the "Uncategorized" chip. Products whose
-// slug belongs to an inactive (or orphan) category are intentionally NOT counted here:
-// their cards keep their real slug in data-category, so a "Uncategorized" filter click would
-// not surface them — counting them would make the chip's number disagree with what it shows.
-// They remain reachable via the "All" chip. Keeps count == click for every chip.
+// Only truly empty-category products bucket into the "Uncategorized" chip.
 $uncat = $catCounts['Uncategorized'] ?? 0;
-if ($uncat > 0) $filterCats[] = ['slug' => 'Uncategorized', 'count' => $uncat];
+if ($uncat > 0) {
+    $filterCats[] = ['slug' => 'Uncategorized', 'name' => 'Uncategorized', 'count' => $uncat];
+    $catNames['Uncategorized'] = 'Uncategorized';
+}
 
 $availPct = $totalProducts > 0 ? round($availCount / $totalProducts * 100) : 0;
 
@@ -2338,11 +2342,11 @@ body.select-mode .no-recipe-badge {
             </div>
 
             <?php if ($top): ?>
-            <div class="stat-card top-cat" id="statTopCat" data-stat="top-cat" data-cat="<?= htmlspecialchars($top) ?>" role="button" tabindex="0" title="Click to filter by top category (<?= htmlspecialchars($top) ?>)">
+            <div class="stat-card top-cat" id="statTopCat" data-stat="top-cat" data-cat="<?= htmlspecialchars($top) ?>" role="button" tabindex="0" title="Click to filter by top category (<?= htmlspecialchars($catNames[$top] ?? $top) ?>)">
                 <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
                 <div class="stat-body">
                     <div class="stat-label"><?= __('top_category', 'Top Category') ?></div>
-                    <div class="stat-value" style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($top) ?></div>
+                    <div class="stat-value" style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($catNames[$top] ?? $top) ?></div>
                     <div class="stat-sub"><?= $catCounts[$top] ?> <?= __('nav_products', 'products') ?></div>
                 </div>
             </div>
@@ -2368,7 +2372,7 @@ body.select-mode .no-recipe-badge {
                         <option value="all">All Categories (<?= $totalProducts ?>)</option>
                         <?php foreach ($filterCats as $fc): ?>
                         <option value="<?= htmlspecialchars($fc['slug']) ?>">
-                            <?= htmlspecialchars($fc['slug']) ?> (<?= (int)$fc['count'] ?>)
+                            <?= htmlspecialchars($fc['name'] ?? $fc['slug']) ?> (<?= (int)$fc['count'] ?>)
                         </option>
                         <?php endforeach; ?>
                     </select>
@@ -2479,7 +2483,7 @@ body.select-mode .no-recipe-badge {
                             title="Click to preview"
                             onclick="openQV(<?= (int)$row['product_id'] ?>)"><?= htmlspecialchars($row['name']) ?></h3>
                         <div class="top-row">
-                            <span class="category-badge"><?= htmlspecialchars($row['category'] ?: 'Uncategorized') ?></span>
+                            <span class="category-badge"><?= htmlspecialchars($catNames[$row['category']] ?? ($row['category'] ?: 'Uncategorized')) ?></span>
                             <span class="product-id">#<?= $row['product_id'] ?></span>
                         </div>
                         <div class="card-metrics-row">
@@ -2596,6 +2600,7 @@ body.select-mode .no-recipe-badge {
 <div id="toast-container"></div>
 
 <script>
+window.CAT_NAMES = <?= json_encode($catNames, JSON_UNESCAPED_UNICODE) ?>;
 // ── Card data ──
 let allCards    = Array.from(document.querySelectorAll('.product-card'));
 let activeFilter       = 'all';
@@ -3338,7 +3343,7 @@ function openQV(id) {
 
             document.getElementById('qvBody').innerHTML =
                 `<div class="qv-header-row">
-                     <span class="qv-cat">${_qvEscHtml(p.category || 'Uncategorized')}</span>
+                     <span class="qv-cat">${_qvEscHtml((window.CAT_NAMES && window.CAT_NAMES[p.category]) || p.category || 'Uncategorized')}</span>
                      <div class="qv-status ${p.is_available ? 'available' : 'unavailable'}">
                          <i class="fa-solid ${p.is_available ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
                          ${p.is_available ? 'Available' : 'Inactive'}

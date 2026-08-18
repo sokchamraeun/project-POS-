@@ -33,7 +33,17 @@ if (isset($_POST['update_product'])) {
 
     if ($name === '' || $price < 0 || $category === '') {
         $error = "Please fill in all required fields.";
-    } elseif (!empty($_FILES['image']['name'])) {
+    } else {
+        // Check for duplicate product name
+        $chk = $conn->prepare("SELECT product_id FROM products WHERE LOWER(TRIM(name)) = LOWER(?) AND product_id != ? LIMIT 1");
+        $chk->bind_param("si", $name, $id);
+        $chk->execute();
+        if ($chk->get_result()->fetch_assoc()) {
+            $error = "Another product named \"$name\" already exists on the menu.";
+        }
+    }
+
+    if (!$error && !empty($_FILES['image']['name'])) {
         $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
         $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','tif','avif','heic','heif','jfif','pjpeg','pjp','apng','cur','dng'];
         $isImageMime = false;
@@ -137,6 +147,146 @@ if ($stockRes) {
         $allIngredients[] = $si;
     }
 }
+
+if (!function_exists('renderIngredientOptGroups')) {
+    function renderIngredientOptGroups($allIngredients, $selectedId = null) {
+        $rawIngredients = [];
+        $drinkStock = [];
+        foreach ($allIngredients as $item) {
+            if (($item['item_type'] ?? '') === 'direct_drink' || ($item['category'] ?? '') === 'Direct Drinks') {
+                $drinkStock[] = $item;
+            } else {
+                $rawIngredients[] = $item;
+            }
+        }
+
+        $html = '<option value="">Select ingredient / stock drink…</option>';
+
+        if (!empty($rawIngredients)) {
+            $html .= '<optgroup label="🥛 Ingredients / Raw Materials">';
+            foreach ($rawIngredients as $i) {
+                $sel = ((string)$i['ingredient_id'] === (string)$selectedId) ? 'selected' : '';
+                $unit = htmlspecialchars($i['unit'] ?? 'unit');
+                $cpu = (float)($i['cost_per_unit'] ?? 0);
+                $name = htmlspecialchars($i['ingredient_name']);
+                $html .= "<option value=\"{$i['ingredient_id']}\" data-unit=\"{$unit}\" data-type=\"ingredient\" data-cpu=\"{$cpu}\" {$sel}>{$name}</option>";
+            }
+            $html .= '</optgroup>';
+        }
+
+        if (!empty($drinkStock)) {
+            $html .= '<optgroup label="🥫 Drink Stock (Cans & Bottles)">';
+            foreach ($drinkStock as $i) {
+                $sel = ((string)$i['ingredient_id'] === (string)$selectedId) ? 'selected' : '';
+                $unit = htmlspecialchars($i['unit'] ?? 'can');
+                $cpu = (float)($i['cost_per_unit'] ?? 0);
+                $name = htmlspecialchars($i['ingredient_name']);
+                $html .= "<option value=\"{$i['ingredient_id']}\" data-unit=\"{$unit}\" data-type=\"direct_drink\" data-cpu=\"{$cpu}\" {$sel}>{$name}</option>";
+            }
+            $html .= '</optgroup>';
+        }
+
+        return $html;
+    }
+}
+
+if (!function_exists('renderCustomRecipeDropdown')) {
+    function renderCustomRecipeDropdown($allIngredients, $selectedId = null) {
+        $rawIngredients = [];
+        $drinkStock = [];
+        $selectedItem = null;
+
+        foreach ($allIngredients as $item) {
+            $isDrink = (($item['item_type'] ?? '') === 'direct_drink' || ($item['category'] ?? '') === 'Direct Drinks');
+            if ($isDrink) {
+                $drinkStock[] = $item;
+            } else {
+                $rawIngredients[] = $item;
+            }
+            if ((string)$item['ingredient_id'] === (string)$selectedId) {
+                $selectedItem = $item;
+            }
+        }
+
+        $isDrinkSel = $selectedItem ? ((($selectedItem['item_type'] ?? '') === 'direct_drink') || (($selectedItem['category'] ?? '') === 'Direct Drinks')) : false;
+        $defaultCat = $isDrinkSel ? 'direct_drink' : 'ingredient';
+
+        $btnIcon = $selectedItem ? ($isDrinkSel ? '<i class="fa-solid fa-wine-bottle text-amber-400"></i>' : '<i class="fa-solid fa-seedling text-emerald-400"></i>') : '<i class="fa-solid fa-layer-group text-[#888]"></i>';
+        $btnText = $selectedItem ? htmlspecialchars($selectedItem['ingredient_name']) : 'Select ingredient / stock drink…';
+
+        $html = '<div class="crd-wrap">';
+        $html .= '<button type="button" class="crd-btn" onclick="toggleCrd(this, event)">';
+        $html .= '<span class="crd-btn-main"><span class="crd-btn-icon">' . $btnIcon . '</span><span class="crd-btn-text">' . $btnText . '</span></span>';
+        $html .= '<i class="fa-solid fa-chevron-down crd-btn-arrow"></i>';
+        $html .= '</button>';
+
+        $html .= '<div class="crd-popover">';
+        // Left Column: Categories with Hover Switch
+        $html .= '<div class="crd-categories">';
+        
+        $cat1Active = ($defaultCat === 'ingredient') ? 'active' : '';
+        $html .= '<div class="crd-cat-item ' . $cat1Active . '" data-cat="ingredient" onmouseenter="crdSwitchCat(this, \'ingredient\')">';
+        $html .= '<span class="crd-cat-title"><i class="fa-solid fa-seedling text-emerald-400 mr-1.5"></i> Ingredients</span>';
+        $html .= '<span class="crd-cat-count">' . count($rawIngredients) . '</span>';
+        $html .= '<i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>';
+        $html .= '</div>';
+
+        $cat2Active = ($defaultCat === 'direct_drink') ? 'active' : '';
+        $html .= '<div class="crd-cat-item ' . $cat2Active . '" data-cat="direct_drink" onmouseenter="crdSwitchCat(this, \'direct_drink\')">';
+        $html .= '<span class="crd-cat-title"><i class="fa-solid fa-wine-bottle text-amber-400 mr-1.5"></i> Drink Stock</span>';
+        $html .= '<span class="crd-cat-count">' . count($drinkStock) . '</span>';
+        $html .= '<i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>';
+        $html .= '</div>';
+
+        $html .= '</div>'; // end crd-categories
+
+        // Right Column: Panels
+        $html .= '<div class="crd-subpanels">';
+        
+        // Panel 1: Ingredients
+        $p1Active = ($defaultCat === 'ingredient') ? 'active' : '';
+        $html .= '<div class="crd-panel crd-panel-ingredient ' . $p1Active . '">';
+        if (empty($rawIngredients)) {
+            $html .= '<div class="crd-empty-msg">No ingredients found</div>';
+        } else {
+            foreach ($rawIngredients as $ri) {
+                $sel = ((string)$ri['ingredient_id'] === (string)$selectedId) ? 'selected' : '';
+                $cpu = (float)($ri['cost_per_unit'] ?? 0);
+                $cpuStr = ($cpu < 0.01 && $cpu > 0) ? rtrim(rtrim(number_format($cpu, 4), '0'), '.') : number_format($cpu, 2);
+                $html .= '<div class="crd-item-row ' . $sel . '" data-id="' . $ri['ingredient_id'] . '" data-unit="' . htmlspecialchars($ri['unit']) . '" data-cpu="' . $cpu . '" data-type="ingredient" data-name="' . htmlspecialchars($ri['ingredient_name']) . '" onclick="crdSelectItem(this, event)">';
+                $html .= '<span class="crd-item-name">' . htmlspecialchars($ri['ingredient_name']) . '</span>';
+                $html .= '<span class="crd-item-meta">$' . $cpuStr . '/' . htmlspecialchars($ri['unit']) . '</span>';
+                $html .= '</div>';
+            }
+        }
+        $html .= '</div>';
+
+        // Panel 2: Drink Stock
+        $p2Active = ($defaultCat === 'direct_drink') ? 'active' : '';
+        $html .= '<div class="crd-panel crd-panel-direct_drink ' . $p2Active . '">';
+        if (empty($drinkStock)) {
+            $html .= '<div class="crd-empty-msg">No drink stock found</div>';
+        } else {
+            foreach ($drinkStock as $ds) {
+                $sel = ((string)$ds['ingredient_id'] === (string)$selectedId) ? 'selected' : '';
+                $cpu = (float)($ds['cost_per_unit'] ?? 0);
+                $cpuStr = ($cpu < 0.01 && $cpu > 0) ? rtrim(rtrim(number_format($cpu, 4), '0'), '.') : number_format($cpu, 2);
+                $html .= '<div class="crd-item-row ' . $sel . '" data-id="' . $ds['ingredient_id'] . '" data-unit="' . htmlspecialchars($ds['unit']) . '" data-cpu="' . $cpu . '" data-type="direct_drink" data-name="' . htmlspecialchars($ds['ingredient_name']) . '" onclick="crdSelectItem(this, event)">';
+                $html .= '<span class="crd-item-name">' . htmlspecialchars($ds['ingredient_name']) . '</span>';
+                $html .= '<span class="crd-item-meta">$' . $cpuStr . '/' . htmlspecialchars($ds['unit']) . '</span>';
+                $html .= '</div>';
+            }
+        }
+        $html .= '</div>';
+
+        $html .= '</div>'; // end crd-subpanels
+        $html .= '</div>'; // end crd-popover
+        $html .= '</div>'; // end crd-wrap
+
+        return $html;
+    }
+}
+
 
 // ── Load Existing Recipe for this Product ──
 $productIngredients = [];
@@ -384,6 +534,283 @@ html[data-theme="light"] label.flabel {
     color: #8c5820 !important;
 }
 
+/* ══ Styled Category Optgroups & Custom Cascading Hover Dropdown (CRD) ══ */
+.recipe-table-wrap {
+    overflow: visible !important;
+}
+.recipe-table {
+    overflow: visible !important;
+}
+.recipe-tbody, .recipe-row {
+    position: relative;
+    overflow: visible !important;
+}
+.recipe-row:has(.crd-popover.open) {
+    z-index: 99999 !important;
+    position: relative;
+}
+
+.crd-wrap {
+    position: relative;
+    width: 100%;
+    z-index: 20;
+}
+.crd-wrap:has(.crd-popover.open) {
+    z-index: 99999 !important;
+}
+.crd-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #141418;
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+    text-align: left;
+}
+.crd-btn:hover, .crd-btn:focus {
+    border-color: #d1904b;
+    box-shadow: 0 0 0 3px rgba(209, 144, 75, 0.15);
+}
+.crd-btn-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+.crd-btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.crd-btn-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.crd-btn-arrow {
+    font-size: 10px;
+    color: #8e8e9f;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+.crd-popover.open ~ .crd-btn .crd-btn-arrow,
+.crd-wrap:has(.crd-popover.open) .crd-btn-arrow {
+    transform: rotate(180deg);
+}
+
+.crd-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 380px;
+    max-width: 90vw;
+    background: #16161c;
+    border: 1px solid #2e2e3e;
+    border-radius: 12px;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.08);
+    z-index: 999999 !important;
+    flex-direction: row;
+    overflow: hidden;
+    animation: crdFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.crd-popover.open {
+    display: flex;
+}
+@keyframes crdFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.crd-categories {
+    width: 150px;
+    background: #111116;
+    border-right: 1px solid #262634;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.crd-cat-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 8px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #9494a8;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.crd-cat-item:hover, .crd-cat-item.active {
+    background: rgba(209, 144, 75, 0.18);
+    color: #d1904b;
+}
+.crd-cat-title {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.crd-cat-count {
+    background: rgba(255, 255, 255, 0.08);
+    color: #b8b8c8;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: auto;
+}
+.crd-cat-item:hover .crd-cat-count, .crd-cat-item.active .crd-cat-count {
+    background: rgba(209, 144, 75, 0.3);
+    color: #d1904b;
+}
+.crd-cat-arrow {
+    font-size: 9px;
+    color: #66667a;
+    transition: transform 0.15s ease;
+}
+.crd-cat-item:hover .crd-cat-arrow, .crd-cat-item.active .crd-cat-arrow {
+    color: #d1904b;
+    transform: translateX(2px);
+}
+
+.crd-subpanels {
+    flex: 1;
+    min-width: 0;
+    min-height: 340px;
+    max-height: 440px;
+    overflow-y: auto;
+    padding: 8px 6px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.crd-subpanels::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+.crd-panel {
+    display: none;
+    flex-direction: column;
+    gap: 3px;
+}
+.crd-panel.active {
+    display: flex;
+}
+.crd-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8.5px 11px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.crd-item-row:hover {
+    background: #d1904b !important;
+    color: #141418 !important;
+    font-weight: 700 !important;
+}
+.crd-item-row.selected {
+    background: rgba(209, 144, 75, 0.2);
+    color: #d1904b;
+}
+.crd-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.crd-item-meta {
+    font-size: 10.5px;
+    font-weight: 700;
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+.crd-item-row:hover .crd-item-meta {
+    opacity: 1;
+    color: #141418;
+}
+.crd-empty-msg {
+    font-size: 11.5px;
+    color: #7d7d8e;
+    text-align: center;
+    padding: 24px 8px;
+    font-style: italic;
+}
+
+/* Light Mode Overrides for CRD */
+[data-theme="light"] .crd-btn {
+    background: #ffffff !important;
+    border-color: #d0c5b5 !important;
+    color: #1a1410 !important;
+}
+[data-theme="light"] .crd-btn:hover, [data-theme="light"] .crd-btn:focus {
+    border-color: #d1904b !important;
+    background: #fdfaf6 !important;
+}
+[data-theme="light"] .crd-popover {
+    background: #ffffff !important;
+    border-color: #dcd4c8 !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0,0,0,0.05) !important;
+}
+[data-theme="light"] .crd-categories {
+    background: #f6f1ea !important;
+    border-right-color: #e5ddd2 !important;
+}
+[data-theme="light"] .crd-cat-item {
+    color: #635446 !important;
+}
+[data-theme="light"] .crd-cat-item:hover, [data-theme="light"] .crd-cat-item.active {
+    background: rgba(209, 144, 75, 0.2) !important;
+    color: #935610 !important;
+}
+[data-theme="light"] .crd-cat-count {
+    background: rgba(0, 0, 0, 0.06) !important;
+    color: #635446 !important;
+}
+[data-theme="light"] .crd-cat-item:hover .crd-cat-count, [data-theme="light"] .crd-cat-item.active .crd-cat-count {
+    background: rgba(209, 144, 75, 0.28) !important;
+    color: #935610 !important;
+}
+[data-theme="light"] .crd-item-row {
+    color: #1a1410 !important;
+}
+[data-theme="light"] .crd-item-row:hover {
+    background: #d1904b !important;
+    color: #ffffff !important;
+}
+[data-theme="light"] .crd-item-row.selected {
+    background: rgba(209, 144, 75, 0.15) !important;
+    color: #935610 !important;
+}
+[data-theme="light"] .crd-item-row:hover .crd-item-meta {
+    color: #ffffff !important;
+}
+
 /* ══ Unified Identical-Size Quantity & Unit Input Box ══ */
 .qty-unit-group {
     display: inline-flex;
@@ -484,7 +911,7 @@ body {
     background: #18181c;
     border: 1px solid #24242b;
     border-radius: var(--radius);
-    overflow: hidden;
+    overflow: visible !important;
     display: flex;
     flex-direction: column;
 }
@@ -651,10 +1078,10 @@ select.cat-select {
 <!-- EDIT PRODUCT MODAL BACKDROP -->
 <div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
     <!-- MODAL DIALOG CONTAINER (Expanded horizontal width for Recipe BOM) -->
-    <div class="relative w-[96vw] max-w-[1380px] max-h-[94vh] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white my-auto animate-scaleUp">
+    <div class="relative w-[96vw] max-w-[1380px] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col text-white my-auto animate-scaleUp" style="overflow: visible !important;">
         
         <!-- MODAL HEADER -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0 rounded-t-2xl">
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-[#d1904b]/15 border border-[#d1904b]/30 flex items-center justify-center text-[#d1904b]">
                     <i class="fa-solid fa-pen-to-square"></i>
@@ -672,7 +1099,7 @@ select.cat-select {
         </div>
 
         <!-- MODAL BODY -->
-        <div class="flex-1 overflow-y-auto p-5 md:p-6">
+        <div class="p-5 md:p-6" style="overflow: visible !important;">
             <form method="POST" enctype="multipart/form-data" id="editForm">
                 <input type="file" name="image" id="imgInput" accept="image/*" style="display:none">
 
@@ -807,17 +1234,10 @@ select.cat-select {
                                             ?>
                                             <tr class="recipe-row">
                                                 <td class="py-2 px-3">
-                                                    <select name="recipe_ingredient_id[]" class="recipe-select" onchange="updateRecipeRow(this)" required>
-                                                        <option value="">Select ingredient…</option>
-                                                        <?php foreach ($allIngredients as $i): ?>
-                                                        <option value="<?= $i['ingredient_id'] ?>" 
-                                                                data-unit="<?= htmlspecialchars($i['unit']) ?>" 
-                                                                data-cpu="<?= (float)$i['cost_per_unit'] ?>"
-                                                                <?= ($i['ingredient_id'] == $pi['item_id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($i['ingredient_name']) ?>
-                                                        </option>
-                                                        <?php endforeach; ?>
+                                                    <select name="recipe_ingredient_id[]" class="recipe-select" style="display:none;" onchange="updateRecipeRow(this)" required>
+                                                        <?= renderIngredientOptGroups($allIngredients, $pi['item_id']) ?>
                                                     </select>
+                                                    <?= renderCustomRecipeDropdown($allIngredients, $pi['item_id']) ?>
                                                 </td>
                                                 <td class="py-2 px-2 text-center">
                                                     <div class="qty-unit-group mx-auto">
@@ -957,6 +1377,190 @@ if (fPrice) {
 // ── Inline Recipe Rows Engine ──
 const allIngredients = <?= json_encode($allIngredients) ?>;
 
+function buildIngredientOptionsHtml(ingId = '') {
+    let rawIngs = [];
+    let drinkStock = [];
+    allIngredients.forEach(i => {
+        if ((i.item_type === 'direct_drink') || (i.category === 'Direct Drinks')) {
+            drinkStock.push(i);
+        } else {
+            rawIngs.push(i);
+        }
+    });
+
+    let html = '<option value="">Select ingredient / stock drink…</option>';
+
+    if (rawIngs.length > 0) {
+        html += '<optgroup label="🥛 Ingredients / Raw Materials">';
+        rawIngs.forEach(i => {
+            const sel = (i.ingredient_id == ingId) ? 'selected' : '';
+            const cpu = parseFloat(i.cost_per_unit || 0);
+            html += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-type="ingredient" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    if (drinkStock.length > 0) {
+        html += '<optgroup label="🥫 Drink Stock (Cans & Bottles)">';
+        drinkStock.forEach(i => {
+            const sel = (i.ingredient_id == ingId) ? 'selected' : '';
+            const cpu = parseFloat(i.cost_per_unit || 0);
+            html += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-type="direct_drink" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    return html;
+}
+
+function buildCustomRecipeDropdownHtml(ingId = '') {
+    let rawIngs = [];
+    let drinkStock = [];
+    let selectedItem = null;
+
+    allIngredients.forEach(i => {
+        const isDrink = (i.item_type === 'direct_drink' || i.category === 'Direct Drinks');
+        if (isDrink) {
+            drinkStock.push(i);
+        } else {
+            rawIngs.push(i);
+        }
+        if (String(i.ingredient_id) === String(ingId)) {
+            selectedItem = i;
+        }
+    });
+
+    const isDrinkSel = selectedItem ? (selectedItem.item_type === 'direct_drink' || selectedItem.category === 'Direct Drinks') : false;
+    const defaultCat = isDrinkSel ? 'direct_drink' : 'ingredient';
+
+    const btnIcon = selectedItem ? (isDrinkSel ? '<i class="fa-solid fa-wine-bottle text-amber-400"></i>' : '<i class="fa-solid fa-seedling text-emerald-400"></i>') : '<i class="fa-solid fa-layer-group text-[#888]"></i>';
+    const btnText = selectedItem ? escapeHtml(selectedItem.ingredient_name) : 'Select ingredient / stock drink…';
+
+    let html = `<div class="crd-wrap">
+        <button type="button" class="crd-btn" onclick="toggleCrd(this, event)">
+            <span class="crd-btn-main"><span class="crd-btn-icon">${btnIcon}</span><span class="crd-btn-text">${btnText}</span></span>
+            <i class="fa-solid fa-chevron-down crd-btn-arrow"></i>
+        </button>
+        <div class="crd-popover">
+            <div class="crd-categories">
+                <div class="crd-cat-item ${defaultCat === 'ingredient' ? 'active' : ''}" data-cat="ingredient" onmouseenter="crdSwitchCat(this, 'ingredient')">
+                    <span class="crd-cat-title"><i class="fa-solid fa-seedling text-emerald-400 mr-1.5"></i> Ingredients</span>
+                    <span class="crd-cat-count">${rawIngs.length}</span>
+                    <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
+                </div>
+                <div class="crd-cat-item ${defaultCat === 'direct_drink' ? 'active' : ''}" data-cat="direct_drink" onmouseenter="crdSwitchCat(this, 'direct_drink')">
+                    <span class="crd-cat-title"><i class="fa-solid fa-wine-bottle text-amber-400 mr-1.5"></i> Drink Stock</span>
+                    <span class="crd-cat-count">${drinkStock.length}</span>
+                    <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
+                </div>
+            </div>
+            <div class="crd-subpanels">
+                <div class="crd-panel crd-panel-ingredient ${defaultCat === 'ingredient' ? 'active' : ''}">`;
+
+    if (rawIngs.length === 0) {
+        html += `<div class="crd-empty-msg">No ingredients found</div>`;
+    } else {
+        rawIngs.forEach(ri => {
+            const sel = (String(ri.ingredient_id) === String(ingId)) ? 'selected' : '';
+            const cpu = parseFloat(ri.cost_per_unit || 0);
+            const cpuStr = (cpu < 0.01 && cpu > 0) ? cpu.toFixed(4).replace(/0+$/, '') : cpu.toFixed(2);
+            html += `<div class="crd-item-row ${sel}" data-id="${ri.ingredient_id}" data-unit="${escapeHtml(ri.unit)}" data-cpu="${cpu}" data-type="ingredient" data-name="${escapeHtml(ri.ingredient_name)}" onclick="crdSelectItem(this, event)">
+                <span class="crd-item-name">${escapeHtml(ri.ingredient_name)}</span>
+                <span class="crd-item-meta">$${cpuStr}/${escapeHtml(ri.unit)}</span>
+            </div>`;
+        });
+    }
+
+    html += `</div>
+                <div class="crd-panel crd-panel-direct_drink ${defaultCat === 'direct_drink' ? 'active' : ''}">`;
+
+    if (drinkStock.length === 0) {
+        html += `<div class="crd-empty-msg">No drink stock found</div>`;
+    } else {
+        drinkStock.forEach(ds => {
+            const sel = (String(ds.ingredient_id) === String(ingId)) ? 'selected' : '';
+            const cpu = parseFloat(ds.cost_per_unit || 0);
+            const cpuStr = (cpu < 0.01 && cpu > 0) ? cpu.toFixed(4).replace(/0+$/, '') : cpu.toFixed(2);
+            html += `<div class="crd-item-row ${sel}" data-id="${ds.ingredient_id}" data-unit="${escapeHtml(ds.unit)}" data-cpu="${cpu}" data-type="direct_drink" data-name="${escapeHtml(ds.ingredient_name)}" onclick="crdSelectItem(this, event)">
+                <span class="crd-item-name">${escapeHtml(ds.ingredient_name)}</span>
+                <span class="crd-item-meta">$${cpuStr}/${escapeHtml(ds.unit)}</span>
+            </div>`;
+        });
+    }
+
+    html += `</div>
+            </div>
+        </div>
+    </div>`;
+
+    return html;
+}
+
+function toggleCrd(btn, e) {
+    if (e) e.stopPropagation();
+    const wrap = btn.closest('.crd-wrap');
+    const pop = wrap.querySelector('.crd-popover');
+    const isOpen = pop.classList.contains('open');
+
+    // Close all other popovers first
+    document.querySelectorAll('.crd-popover.open').forEach(p => {
+        if (p !== pop) p.classList.remove('open');
+    });
+
+    if (isOpen) {
+        pop.classList.remove('open');
+    } else {
+        pop.classList.add('open');
+    }
+}
+
+function crdSwitchCat(catEl, catName) {
+    const pop = catEl.closest('.crd-popover');
+    pop.querySelectorAll('.crd-cat-item').forEach(c => c.classList.remove('active'));
+    catEl.classList.add('active');
+
+    pop.querySelectorAll('.crd-panel').forEach(p => p.classList.remove('active'));
+    const targetPanel = pop.querySelector('.crd-panel-' + catName);
+    if (targetPanel) targetPanel.classList.add('active');
+}
+
+function crdSelectItem(itemEl, e) {
+    if (e) e.stopPropagation();
+    const wrap = itemEl.closest('.crd-wrap');
+    const row = wrap.closest('.recipe-row');
+    const select = row.querySelector('select[name="recipe_ingredient_id[]"]');
+    const itemId = itemEl.getAttribute('data-id');
+    const itemName = itemEl.getAttribute('data-name');
+    const itemType = itemEl.getAttribute('data-type');
+    const pop = wrap.querySelector('.crd-popover');
+
+    // Update select value
+    select.value = itemId;
+
+    // Update trigger UI
+    const isDrink = (itemType === 'direct_drink');
+    const iconHtml = isDrink ? '<i class="fa-solid fa-wine-bottle text-amber-400"></i>' : '<i class="fa-solid fa-seedling text-emerald-400"></i>';
+    wrap.querySelector('.crd-btn-icon').innerHTML = iconHtml;
+    wrap.querySelector('.crd-btn-text').textContent = itemName;
+
+    // Mark selected in popover
+    pop.querySelectorAll('.crd-item-row').forEach(r => r.classList.remove('selected'));
+    itemEl.classList.add('selected');
+
+    // Close popover
+    pop.classList.remove('open');
+
+    // Trigger change event and calculations
+    updateRecipeRow(select);
+}
+
+// Global click outside listener
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.crd-wrap')) {
+        document.querySelectorAll('.crd-popover.open').forEach(p => p.classList.remove('open'));
+    }
+});
+
 function addRecipeRow(ingId = '', amt = '') {
     const container = document.getElementById('recipeRowsContainer');
     const noMsg = document.getElementById('noRecipeMsg');
@@ -964,13 +1568,12 @@ function addRecipeRow(ingId = '', amt = '') {
 
     let defaultAmt = amt;
     let selectedUnit = '';
-    let options = '<option value="">Select ingredient…</option>';
-    allIngredients.forEach(i => {
-        const sel = (i.ingredient_id == ingId) ? 'selected' : '';
-        const cpu = parseFloat(i.cost_per_unit || 0);
-        if (sel) selectedUnit = (i.unit || '').toLowerCase();
-        options += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)}</option>`;
-    });
+    const selectedItem = allIngredients.find(i => i.ingredient_id == ingId);
+    if (selectedItem) {
+        selectedUnit = (selectedItem.unit || '').toLowerCase();
+    }
+    const options = buildIngredientOptionsHtml(ingId);
+    const crdHtml = buildCustomRecipeDropdownHtml(ingId);
 
     if ((!defaultAmt || defaultAmt === '0' || defaultAmt === 0) && ['can', 'cans', 'bottle', 'bottles', 'pcs', 'piece', 'pieces', 'cup', 'cups', 'pack', 'packs', 'portion', 'item'].includes(selectedUnit)) {
         defaultAmt = 1;
@@ -980,9 +1583,10 @@ function addRecipeRow(ingId = '', amt = '') {
     tr.className = 'recipe-row';
     tr.innerHTML = `
         <td class="py-2 px-3">
-            <select name="recipe_ingredient_id[]" class="recipe-select w-full text-xs rounded-lg p-2 outline-none focus:border-[#d1904b]" onchange="updateRecipeRow(this)" required>
+            <select name="recipe_ingredient_id[]" class="recipe-select" style="display:none;" onchange="updateRecipeRow(this)" required>
                 ${options}
             </select>
+            ${crdHtml}
         </td>
         <td class="py-2 px-2 text-center">
             <div class="qty-unit-group mx-auto">

@@ -234,6 +234,17 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 sendJsonResponse(['success' => false, 'message' => 'Ingredient name is required.'], 422);
             }
 
+            // Duplicate Name Check
+            $chk = $pdo->prepare("SELECT item_id, item_name, quantity, unit FROM stock_items WHERE item_type = 'ingredient' AND LOWER(TRIM(item_name)) = LOWER(?) AND is_active = 1 LIMIT 1");
+            $chk->execute([$name]);
+            $existing = $chk->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                sendJsonResponse([
+                    'success' => false, 
+                    'message' => "An ingredient named '{$name}' already exists in stock (Current Stock: " . ((float)$existing['quantity']) . " {$existing['unit']}). Please use Restock or edit the existing ingredient."
+                ], 422);
+            }
+
             $stmt = $pdo->prepare("INSERT INTO stock_items 
                 (item_name, category, item_type, quantity, unit, alert_level, cost_per_unit, notes, is_active) 
                 VALUES (?, ?, 'ingredient', ?, ?, ?, ?, ?, 1)");
@@ -360,6 +371,16 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
             if ($itemId <= 0 || empty($name)) {
                 sendJsonResponse(['success' => false, 'message' => 'Invalid parameters.'], 422);
+            }
+
+            // Duplicate Name Check on Edit
+            $chk = $pdo->prepare("SELECT item_id FROM stock_items WHERE item_type = 'ingredient' AND LOWER(TRIM(item_name)) = LOWER(?) AND item_id != ? AND is_active = 1 LIMIT 1");
+            $chk->execute([$name, $itemId]);
+            if ($chk->fetch()) {
+                sendJsonResponse([
+                    'success' => false, 
+                    'message' => "Another ingredient named '{$name}' already exists."
+                ], 422);
             }
 
             $stmt = $pdo->prepare("UPDATE stock_items SET 
@@ -1168,9 +1189,15 @@ $categoriesList = [
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_ingredient_details', 'Ingredient Name') ?> <span class="text-rose-400">*</span></label>
                     <input type="text" 
                            name="item_name" 
+                           id="addIngredientName"
                            required 
+                           autocomplete="off"
                            placeholder="e.g. Arabica Whole Beans 1kg, Meiji Whole Milk 2L" 
                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                    <div id="addIngredientDupAlert" class="hidden mt-1.5 text-xs text-rose-500 font-semibold flex items-center gap-1.5">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span></span>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1890,11 +1917,52 @@ $categoriesList = [
         // ── Modal Actions ──
         function openAddStockModal() {
             document.getElementById('addStockForm').reset();
+            const alertBox = document.getElementById('addIngredientDupAlert');
+            if (alertBox) alertBox.classList.add('hidden');
+            const nameInput = document.getElementById('addIngredientName');
+            if (nameInput) nameInput.classList.remove('border-rose-500');
+            const submitBtn = document.getElementById('addStockSubmitBtn');
+            if (submitBtn) submitBtn.disabled = false;
             openModal('addStockModal');
+        }
+
+        function checkAddIngredientDuplicate() {
+            const input = document.getElementById('addIngredientName');
+            if (!input) return false;
+            const val = input.value.trim().toLowerCase();
+            const alertBox = document.getElementById('addIngredientDupAlert');
+            const submitBtn = document.getElementById('addStockSubmitBtn');
+            if (!val) {
+                if (alertBox) alertBox.classList.add('hidden');
+                input.classList.remove('border-rose-500');
+                if (submitBtn) submitBtn.disabled = false;
+                return false;
+            }
+            const match = (stockItemsData || []).find(item => item.item_name && item.item_name.trim().toLowerCase() === val && (item.is_active == 1 || item.is_active === undefined));
+            if (match) {
+                if (alertBox) {
+                    alertBox.querySelector('span').textContent = `⚠️ An ingredient named "${match.item_name}" already exists (${match.quantity} ${match.unit} in stock).`;
+                    alertBox.classList.remove('hidden');
+                }
+                input.classList.add('border-rose-500');
+                return true;
+            } else {
+                if (alertBox) alertBox.classList.add('hidden');
+                input.classList.remove('border-rose-500');
+                if (submitBtn) submitBtn.disabled = false;
+                return false;
+            }
         }
 
         async function handleAddStock(e) {
             e.preventDefault();
+            if (checkAddIngredientDuplicate()) {
+                showToast('An ingredient with this name already exists. Cannot add duplicate.', 'error');
+                const nameInput = document.getElementById('addIngredientName');
+                if (nameInput) nameInput.focus();
+                return;
+            }
+
             const form = e.target;
             const btn = document.getElementById('addStockSubmitBtn');
             btn.disabled = true;
@@ -1917,6 +1985,15 @@ $categoriesList = [
                     loadStockTable();
                 } else {
                     showToast(result.message || 'Failed to create ingredient.', 'error');
+                    if (result.message && result.message.toLowerCase().includes('already exists')) {
+                        const alertBox = document.getElementById('addIngredientDupAlert');
+                        if (alertBox) {
+                            alertBox.querySelector('span').textContent = '⚠️ ' + result.message;
+                            alertBox.classList.remove('hidden');
+                        }
+                        const nameInput = document.getElementById('addIngredientName');
+                        if (nameInput) nameInput.classList.add('border-rose-500');
+                    }
                 }
             } catch (err) {
                 console.error(err);
@@ -2174,6 +2251,13 @@ $categoriesList = [
                 container.innerHTML = `<p class="text-rose-400 text-center py-4">Failed to load audit logs.</p>`;
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const addNameInput = document.getElementById('addIngredientName');
+            if (addNameInput) {
+                addNameInput.addEventListener('input', checkAddIngredientDuplicate);
+            }
+        });
     </script>
 </body>
 </html>

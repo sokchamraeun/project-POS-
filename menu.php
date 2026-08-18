@@ -2987,12 +2987,19 @@ document.addEventListener('DOMContentLoaded', function() {
   catPills.forEach(function(pill) {
     pill.addEventListener('click', function(e) {
       e.preventDefault();
-      var target = document.getElementById(this.dataset.target);
+      var targetId = this.dataset.target;
+      var target = document.getElementById(targetId);
       var scrollEl = document.getElementById('menuScroll');
       if (target && scrollEl) {
-        var offset = 60;
-        var top = target.offsetTop - offset;
-        scrollEl.scrollTo({ top: top, behavior: 'smooth' });
+        var scrollRect = scrollEl.getBoundingClientRect();
+        var targetRect = target.getBoundingClientRect();
+        var targetTop = scrollEl.scrollTop + (targetRect.top - scrollRect.top) - 12;
+        scrollEl.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+
+        catPills.forEach(function(p) { p.classList.toggle('active', p === pill); });
+        pill.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+      } else if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
   });
