@@ -162,6 +162,11 @@ if (isset($_POST['ajax_update'])) {
     $qty = max(1, min(1000, intval($_POST['qty'])));
 
     if (isset($_SESSION['cart'][$i])) {
+        $pId = (int)($_SESSION['cart'][$i]['product_id'] ?? 0);
+        $max_stock = getProductMaxStock($conn, $pId);
+        if ($max_stock !== null && $qty > $max_stock) {
+            $qty = max(1, $max_stock);
+        }
         $_SESSION['cart'][$i]['qty'] = $qty;
     }
 

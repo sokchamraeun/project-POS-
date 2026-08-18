@@ -272,6 +272,33 @@ if (!function_exists('business_date_today')) {
 }
 
 /**
+ * Returns maximum servings/units available for a product based on its recipe and stock_items.
+ * Returns null if the product is not inventory/recipe tracked.
+ */
+if (!function_exists('getProductMaxStock')) {
+    function getProductMaxStock(mysqli $conn, int $productId): ?int {
+        $stmt = $conn->prepare("
+            SELECT 
+                MIN(CASE WHEN s.item_id IS NOT NULL AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
+                COUNT(r.recipe_id) AS recipe_count
+            FROM product_recipes r
+            JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1
+            WHERE r.product_id = ?
+        ");
+        if (!$stmt) return null;
+        $stmt->bind_param("i", $productId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row || (int)$row['recipe_count'] === 0 || $row['max_servings'] === null) {
+            return null;
+        }
+        return max(0, (int)$row['max_servings']);
+    }
+}
+
+/**
  * Cost per unit for every ingredient, keyed by id AND by lowercased name.
  * The name key exists because recipes name their milk by type at order time.
  * cost_per_unit is derived (cost_price / purchase_qty) and is authoritative;

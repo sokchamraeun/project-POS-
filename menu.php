@@ -1004,7 +1004,7 @@ $defaultMilk = 'Fresh Milk';
                 </div>
               </div>
             <?php else: ?>
-              <div class="product-card js-open-product relative <?= $isLow ? 'has-low-stock ring-1 ring-amber-500/30' : '' ?>"
+              <div class="product-card js-open-product relative"
                    data-product-id="<?= (int)$p['product_id'] ?>"
                    data-product-name="<?= e($p['name']) ?>"
                    data-product-price="<?= e($p['price']) ?>"
@@ -1021,11 +1021,6 @@ $defaultMilk = 'Fresh Milk';
                    role="button" tabindex="0">
                 <div class="card-img relative">
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
-                  <?php if ($isLow): ?>
-                    <span class="product-badge low-stock-badge absolute top-2 left-2 bg-amber-500/95 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-10">
-                      <i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock <?= $servingsLeft !== null ? "({$servingsLeft} left)" : '' ?>
-                    </span>
-                  <?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
                   <div class="img-overlay"></div>
                   <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
@@ -1038,9 +1033,6 @@ $defaultMilk = 'Fresh Milk';
                   <div class="card-name"><?= e($p['name']) ?></div>
                   <div class="card-price flex items-center justify-between">
                     <span>$<?= number_format($p['price'], 2) ?></span>
-                    <?php if ($isLow && $servingsLeft !== null): ?>
-                    <span class="text-[10px] text-amber-400 font-semibold"><?= $servingsLeft ?> left</span>
-                    <?php endif; ?>
                   </div>
                 </div>
               </div>
@@ -1096,7 +1088,7 @@ $defaultMilk = 'Fresh Milk';
                 </div>
               </div>
               <?php else: ?>
-              <div class="product-card js-open-product relative <?= $isLow ? 'has-low-stock ring-1 ring-amber-500/30' : '' ?>"
+              <div class="product-card js-open-product relative"
                    data-product-id="<?= (int)$p['product_id'] ?>"
                    data-product-name="<?= e($p['name']) ?>"
                    data-product-price="<?= e($p['price']) ?>"
@@ -1113,11 +1105,6 @@ $defaultMilk = 'Fresh Milk';
                    role="button" tabindex="0">
                 <div class="card-img relative">
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
-                  <?php if ($isLow): ?>
-                    <span class="product-badge low-stock-badge absolute top-2 left-2 bg-amber-500/95 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-10">
-                      <i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock <?= $servingsLeft !== null ? "({$servingsLeft} left)" : '' ?>
-                    </span>
-                  <?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>">
                   <div class="img-overlay"></div>
                   <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
@@ -1130,9 +1117,6 @@ $defaultMilk = 'Fresh Milk';
                   <div class="card-name"><?= e($p['name']) ?></div>
                   <div class="card-price flex items-center justify-between">
                     <span>$<?= number_format($p['price'], 2) ?></span>
-                    <?php if ($isLow && $servingsLeft !== null): ?>
-                    <span class="text-[10px] text-amber-400 font-semibold"><?= $servingsLeft ?> left</span>
-                    <?php endif; ?>
                   </div>
                 </div>
               </div>
@@ -1635,10 +1619,11 @@ function promoNet(gross, promoPct) {
   return Math.round(gross * (1 - promoPct / 100) * 100) / 100;
 }
 
-function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addons, promo) {
+function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addons, promo, maxStock) {
   var p = Number(price) || 0;
   var promoPct = Math.max(0, Math.min(100, parseInt(promo || 0, 10)));
-  product = { id: id, name: name, price: p, cat: cat, promo: promoPct };
+  var limit = (maxStock !== null && maxStock !== undefined && !isNaN(maxStock)) ? parseInt(maxStock, 10) : 100;
+  product = { id: id, name: name, price: p, cat: cat, promo: promoPct, maxStock: limit };
   modalQty = 1; modalUnitPrice = p;
   document.getElementById('modalImg').src = img;
   var mb = document.getElementById('modalBadge');
@@ -1648,8 +1633,13 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
   document.getElementById('modalPrice').textContent = '$' + promoNet(p, promoPct).toFixed(2);
   var _mInp = document.getElementById('modalQtyInput') || document.getElementById('modalQtyDisplay');
   if (_mInp) {
-    if (_mInp.tagName === 'INPUT') _mInp.value = '1';
-    else _mInp.textContent = '1';
+    if (_mInp.tagName === 'INPUT') {
+      _mInp.value = '1';
+      _mInp.max = limit;
+      _mInp.setAttribute('data-max', limit);
+    } else {
+      _mInp.textContent = '1';
+    }
   }
   // Per-category option visibility (configured in Manage Categories); default = show all.
   var co = CATEGORY_OPTS[cat] || { sweet: 1, ice: 1, milk: 1, addons: 1 };
@@ -1683,9 +1673,13 @@ function openModalFromCard(card) {
   try { addons = JSON.parse(card.dataset.productAddons || '[]'); } catch (e) { addons = []; }
   
   var m = document.getElementById('product-modal') || document.getElementById('modal');
-  if (m) m.dataset.currentProductId = card.dataset.productId;
+  if (m) {
+    m.dataset.currentProductId = card.dataset.productId;
+    m.dataset.maxServings = card.dataset.maxServings || '';
+  }
 
-  openModal(card.dataset.productId, card.dataset.productName||'', Number(card.dataset.productPrice||0), card.dataset.productImage||'', card.dataset.productCategory||'', card.dataset.productDesc||'', card.dataset.productBadge||'', card.dataset.productHasSizes==='1', sizes, addons, Number(card.dataset.productPromo||0));
+  var maxStock = (card.dataset.maxServings !== '' && card.dataset.maxServings !== undefined) ? parseInt(card.dataset.maxServings, 10) : null;
+  openModal(card.dataset.productId, card.dataset.productName||'', Number(card.dataset.productPrice||0), card.dataset.productImage||'', card.dataset.productCategory||'', card.dataset.productDesc||'', card.dataset.productBadge||'', card.dataset.productHasSizes==='1', sizes, addons, Number(card.dataset.productPromo||0), maxStock);
 }
 
 function closeModal() {
@@ -1699,7 +1693,12 @@ function closeModal() {
 function changeQty(delta) {
   var inp = document.getElementById('modalQtyInput') || document.getElementById('modalQtyDisplay');
   var current = parseInt(inp ? (inp.value || inp.textContent) : modalQty) || 1;
-  modalQty = Math.max(1, Math.min(100, current + delta));
+  var maxLimit = product.maxStock || 100;
+  if (delta > 0 && current >= maxLimit) {
+    triggerQtyWarning(inp, 'Maximum available stock is ' + maxLimit + ' units');
+    return;
+  }
+  modalQty = Math.max(1, Math.min(maxLimit, current + delta));
   if (inp) {
     if (inp.tagName === 'INPUT') inp.value = modalQty;
     else inp.textContent = modalQty;
@@ -1716,17 +1715,18 @@ function triggerQtyWarning(input, msg) {
   }
   clearTimeout(_qtyToastDebounce);
   _qtyToastDebounce = setTimeout(function() {
-    showToast(msg || 'Maximum quantity limit is 100 items', 'warning');
+    showToast(msg || 'Maximum quantity limit reached', 'warning');
   }, 100);
 }
 
 function onModalQtyInput(input) {
   var raw = (input.value || '').trim();
   if (raw === '') return;
+  var maxLimit = product.maxStock || 100;
   var val = parseInt(raw, 10);
-  if (val > 100) {
-    triggerQtyWarning(input, 'Maximum quantity limit is 100 items');
-    modalQty = 100;
+  if (val > maxLimit) {
+    triggerQtyWarning(input, 'Maximum available stock is ' + maxLimit + ' units');
+    modalQty = maxLimit;
   } else if (val >= 1) {
     input.classList.remove('qty-limit-warning');
     modalQty = val;
@@ -1735,14 +1735,15 @@ function onModalQtyInput(input) {
 }
 function onModalQtyChange(input) {
   var val = parseInt(input.value, 10);
+  var maxLimit = product.maxStock || 100;
   if (isNaN(val) || val < 1) {
     val = 1;
     input.value = 1;
     input.classList.remove('qty-limit-warning');
-  } else if (val > 100) {
-    val = 100;
-    input.value = 100;
-    triggerQtyWarning(input, 'Maximum quantity limit is 100 items');
+  } else if (val > maxLimit) {
+    val = maxLimit;
+    input.value = maxLimit;
+    triggerQtyWarning(input, 'Maximum available stock is ' + maxLimit + ' units');
   } else {
     input.classList.remove('qty-limit-warning');
   }
@@ -1752,9 +1753,10 @@ function onModalQtyChange(input) {
 function onCartQtyInput(index, input) {
   var raw = (input.value || '').trim();
   if (raw === '') return;
+  var maxQty = parseInt(input.dataset.max || input.getAttribute('max') || '100', 10);
   var val = parseInt(raw, 10);
-  if (val > 100) {
-    triggerQtyWarning(input, 'Maximum quantity limit is 100 items');
+  if (val > maxQty) {
+    triggerQtyWarning(input, 'Maximum available stock is ' + maxQty + ' units');
   } else if (val >= 1) {
     input.classList.remove('qty-limit-warning');
   }
@@ -1809,34 +1811,8 @@ function updateProductCardStockState(card, info) {
         modalAddBtn.innerHTML = '<i class="fa-solid fa-ban"></i> Out of Stock';
       }
     }
-  } else if (status === 'low_stock') {
-    card.classList.remove('disabled', 'out-of-stock-card', 'cursor-not-allowed', 'opacity-60', 'grayscale-[35%]');
-    card.classList.add('has-low-stock', 'ring-1', 'ring-amber-500/30');
-
-    if (existingOverlay) existingOverlay.remove();
-    if (quickBtn) quickBtn.style.display = '';
-
-    var servingsText = (maxServings !== null && maxServings !== undefined) ? ' (' + maxServings + ' left)' : '';
-
-    if (!existingLowBadge && cardImg) {
-      var lowBadge = document.createElement('span');
-      lowBadge.className = 'product-badge low-stock-badge absolute top-2 left-2 bg-amber-500/95 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-10';
-      lowBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock' + servingsText;
-      cardImg.appendChild(lowBadge);
-    } else if (existingLowBadge) {
-      existingLowBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[8px]"></i> Low Stock' + servingsText;
-    }
-
-    var activeModal = document.getElementById('product-modal') || document.getElementById('modal');
-    var modalAddBtn = document.querySelector('.btn-add-to-cart');
-    if (activeModal && activeModal.style.display !== 'none' && activeModal.dataset.currentProductId == pId) {
-      if (modalAddBtn && modalAddBtn.disabled) {
-        modalAddBtn.disabled = false;
-        modalAddBtn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add to Cart';
-      }
-    }
   } else {
-    // In Stock
+    // In Stock or Low Stock (clean card UI without warning badges)
     card.classList.remove('disabled', 'out-of-stock-card', 'cursor-not-allowed', 'opacity-60', 'grayscale-[35%]', 'has-low-stock', 'ring-1', 'ring-amber-500/30');
     if (existingOverlay) existingOverlay.remove();
     if (existingLowBadge) existingLowBadge.remove();
@@ -2013,7 +1989,7 @@ function renderCartPanel(data) {
         '<div style="display:flex; align-items:center; gap:6px;">' +
           '<div class="cp-qty">' +
             '<button onclick="cpChangeQty(' + item.index + ',-1)">−</button>' +
-            '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" max="100" oninput="onCartQtyInput(' + item.index + ', this)" onchange="cpSetQty(' + item.index + ', this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ', this.value);this.blur();}">' +
+            '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" max="' + (item.max_stock || 100) + '" data-max="' + (item.max_stock || 100) + '" oninput="onCartQtyInput(' + item.index + ', this)" onchange="cpSetQty(' + item.index + ', this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ', this.value);this.blur();}">' +
             '<button onclick="cpChangeQty(' + item.index + ',1)">+</button>' +
           '</div>' +
           '<button class="cp-remove" onclick="cpRemoveItem(' + item.index + ')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>' +
@@ -2062,7 +2038,14 @@ function renderCartPanel(data) {
 function cpChangeQty(index, delta) {
   var inp = document.getElementById('cp-qty-' + index);
   if (!inp) return;
-  var qty = Math.max(1, Math.min(100, (parseInt(inp.value) || 1) + delta));
+  var maxQty = parseInt(inp.dataset.max || inp.getAttribute('max') || '100', 10);
+  var currentVal = parseInt(inp.value, 10) || 1;
+  var targetVal = currentVal + delta;
+  if (delta > 0 && targetVal > maxQty) {
+    triggerQtyWarning(inp, 'Maximum available stock is ' + maxQty + ' units');
+    targetVal = maxQty;
+  }
+  var qty = Math.max(1, Math.min(maxQty, targetVal));
   inp.value = qty;
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+qty })
     .then(function(r) { return r.json(); })
@@ -2072,13 +2055,14 @@ function cpChangeQty(index, delta) {
 function cpSetQty(index, val) {
   var raw = parseInt(val, 10);
   var inp = document.getElementById('cp-qty-' + index);
+  var maxQty = inp ? parseInt(inp.dataset.max || inp.getAttribute('max') || '100', 10) : 100;
   if (isNaN(raw) || raw < 1) {
     raw = 1;
     if (inp) { inp.value = 1; inp.classList.remove('qty-limit-warning'); }
-  } else if (raw > 100) {
-    triggerQtyWarning(inp, 'Maximum quantity limit is 100 items');
-    raw = 100;
-    if (inp) inp.value = 100;
+  } else if (raw > maxQty) {
+    triggerQtyWarning(inp, 'Maximum available stock is ' + maxQty + ' units');
+    raw = maxQty;
+    if (inp) inp.value = maxQty;
   } else {
     if (inp) { inp.value = raw; inp.classList.remove('qty-limit-warning'); }
   }

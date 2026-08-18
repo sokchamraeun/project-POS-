@@ -55,29 +55,23 @@ $p = $res->fetch_assoc();
 
 // ── Stock Check: Validate inventory ingredients ──
 try {
-    $stockCheck = $conn->prepare("
-        SELECT s.item_name, s.quantity, r.quantity_required, s.unit
-        FROM product_recipes r
-        JOIN stock_items s ON r.item_id = s.item_id
-        WHERE r.product_id = ? AND s.is_active = 1
-    ");
-    if ($stockCheck) {
-        $stockCheck->bind_param("i", $product_id);
-        $stockCheck->execute();
-        $stockRes = $stockCheck->get_result();
-
-        $outOfStock = [];
-        while ($sr = $stockRes->fetch_assoc()) {
-            $needed = (float)$sr['quantity_required'] * (float)$qty;
-            $available = (float)$sr['quantity'];
-            if ($available <= 0 || $available < $needed) {
-                $outOfStock[] = "{$sr['item_name']} (Available: " . (floor($available) == $available ? number_format($available, 0) : number_format($available, 2)) . " {$sr['unit']})";
-            }
+    $current_in_cart = 0;
+    foreach (($_SESSION['cart'] ?? []) as $cItem) {
+        if ((int)($cItem['product_id'] ?? 0) === $product_id) {
+            $current_in_cart += (int)($cItem['qty'] ?? 1);
         }
-        $stockCheck->close();
+    }
 
-        if (!empty($outOfStock)) {
-            json_out(false, "Cannot add '{$p['name']}': Insufficient stock for " . implode(', ', $outOfStock), 0, null, 400);
+    $max_stock = getProductMaxStock($conn, $product_id);
+    if ($max_stock !== null) {
+        $total_requested = $current_in_cart + $qty;
+        if ($total_requested > $max_stock) {
+            $remaining_avail = max(0, $max_stock - $current_in_cart);
+            if ($remaining_avail <= 0) {
+                json_out(false, "Cannot add '{$p['name']}': All available stock ({$max_stock} units) is already in your cart.", 0, null, 400);
+            } else {
+                json_out(false, "Cannot add {$qty}x '{$p['name']}': Only {$remaining_avail} more available in stock ({$max_stock} total in stock, {$current_in_cart} already in cart).", 0, null, 400);
+            }
         }
     }
 } catch (Throwable $e) {

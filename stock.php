@@ -262,17 +262,35 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 sendJsonResponse(['success' => false, 'message' => 'Drink name is required.'], 422);
             }
 
+            // Image Upload Handling
+            $image_path = null;
+            if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
+                $upload_dir = "uploads/";
+                if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+                $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','avif'];
+                if (in_array($ext, $allowedExts)) {
+                    $image_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $target_path = $upload_dir . $image_name;
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target_path)) {
+                        $image_path = $target_path;
+                    }
+                }
+            }
+
+            if (!$image_path) {
+                $pImg = $pdo->prepare("SELECT image FROM products WHERE LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) AND image IS NOT NULL AND image != '' LIMIT 1");
+                $pImg->execute([$name]);
+                $image_path = $pImg->fetchColumn() ?: null;
+            }
+
             $totalBaseUnits = ($boxes * $rate) + $loose;
             $unitCost = ($costBox > 0 && $rate > 0) ? ($costBox / $rate) : 0.0;
-
-            $pImg = $pdo->prepare("SELECT image FROM products WHERE LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) AND image IS NOT NULL AND image != '' LIMIT 1");
-            $pImg->execute([$name]);
-            $foundImg = $pImg->fetchColumn() ?: null;
 
             $stmt = $pdo->prepare("INSERT INTO stock_items 
                 (item_name, image, category, item_type, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, notes, is_active) 
                 VALUES (?, ?, 'Direct Drinks', 'direct_drink', ?, ?, ?, ?, ?, ?, ?, ?, 1)");
-            $stmt->execute([$name, $foundImg, $totalBaseUnits, $unit, $purchaseUnit, $rate, $alertLevel, $unitCost, $costBox, $notes]);
+            $stmt->execute([$name, $image_path, $totalBaseUnits, $unit, $purchaseUnit, $rate, $alertLevel, $unitCost, $costBox, $notes]);
             $newId = (int)$pdo->lastInsertId();
 
             sendJsonResponse([
@@ -360,19 +378,52 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 sendJsonResponse(['success' => false, 'message' => 'Invalid parameters.'], 422);
             }
 
-            $stmt = $pdo->prepare("UPDATE stock_items SET 
-                item_name = ?, 
-                quantity = ?, 
-                unit = ?, 
-                purchase_unit = ?, 
-                conversion_rate = ?, 
-                alert_level = ?, 
-                cost_per_purchase_unit = ?, 
-                cost_per_unit = ?, 
-                notes = ?, 
-                updated_at = NOW() 
-                WHERE item_id = ? AND is_active = 1");
-            $stmt->execute([$name, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $notes, $itemId]);
+            // Optional Image Upload on Edit
+            $new_image_path = null;
+            if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
+                $upload_dir = "uploads/";
+                if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+                $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $allowedExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','avif'];
+                if (in_array($ext, $allowedExts)) {
+                    $image_name = time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $target_path = $upload_dir . $image_name;
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target_path)) {
+                        $new_image_path = $target_path;
+                    }
+                }
+            }
+
+            if ($new_image_path) {
+                $stmt = $pdo->prepare("UPDATE stock_items SET 
+                    item_name = ?, 
+                    image = ?,
+                    quantity = ?, 
+                    unit = ?, 
+                    purchase_unit = ?, 
+                    conversion_rate = ?, 
+                    alert_level = ?, 
+                    cost_per_purchase_unit = ?, 
+                    cost_per_unit = ?, 
+                    notes = ?, 
+                    updated_at = NOW() 
+                    WHERE item_id = ? AND is_active = 1");
+                $stmt->execute([$name, $new_image_path, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $notes, $itemId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE stock_items SET 
+                    item_name = ?, 
+                    quantity = ?, 
+                    unit = ?, 
+                    purchase_unit = ?, 
+                    conversion_rate = ?, 
+                    alert_level = ?, 
+                    cost_per_purchase_unit = ?, 
+                    cost_per_unit = ?, 
+                    notes = ?, 
+                    updated_at = NOW() 
+                    WHERE item_id = ? AND is_active = 1");
+                $stmt->execute([$name, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $notes, $itemId]);
+            }
 
             sendJsonResponse(['success' => true, 'message' => "Drink '{$name}' updated successfully!"]);
         }
@@ -1200,6 +1251,25 @@ $stockItems = $initStmt->fetchAll();
                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
                 </div>
 
+                <div>
+                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
+                    <div class="flex items-center gap-3 p-2.5 rounded-xl bg-[#141418] border border-[#282834]">
+                        <div class="w-12 h-12 rounded-lg bg-[#1e1e24] border border-[#2b2b36] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                            <img id="addStockImagePreview" src="uploads/no-image.png" class="w-full h-full object-cover hidden" alt="Preview">
+                            <i id="addStockImagePlaceholder" class="fa-solid fa-image text-lg text-[#7d7d8e]"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <input type="file" 
+                                   name="image" 
+                                   id="addStockImageInput" 
+                                   accept="image/*" 
+                                   onchange="previewStockImage(this, 'addStockImagePreview', 'addStockImagePlaceholder')" 
+                                   class="w-full text-xs text-[#b4b4c2] file:mr-2.5 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#d1904b]/20 file:text-[#d1904b] hover:file:bg-[#d1904b]/30 file:cursor-pointer">
+                            <p class="text-[10px] text-[#7d7d8e] mt-1">PNG, JPG, WebP (Optional)</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-3 gap-3">
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('single_unit', 'Single Unit') ?> *</label>
@@ -1428,6 +1498,24 @@ $stockItems = $initStmt->fetchAll();
                            name="item_name" 
                            required 
                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                </div>
+
+                <div>
+                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
+                    <div class="flex items-center gap-3 p-2.5 rounded-xl bg-[#141418] border border-[#282834]">
+                        <div class="w-12 h-12 rounded-lg bg-[#1e1e24] border border-[#2b2b36] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                            <img id="editStockImagePreview" src="uploads/no-image.png" class="w-full h-full object-cover" alt="Preview" onerror="this.src='uploads/no-image.png';">
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <input type="file" 
+                                   name="image" 
+                                   id="editStockImageInput" 
+                                   accept="image/*" 
+                                   onchange="previewStockImage(this, 'editStockImagePreview', null)" 
+                                   class="w-full text-xs text-[#b4b4c2] file:mr-2.5 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#d1904b]/20 file:text-[#d1904b] hover:file:bg-[#d1904b]/30 file:cursor-pointer">
+                            <p class="text-[10px] text-[#7d7d8e] mt-1">Select a new image to replace current one</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-3">
@@ -1894,9 +1982,39 @@ $stockItems = $initStmt->fetchAll();
             if (currentRVal) rSelect.value = currentRVal;
         }
 
+        // ── Image Preview Helper ──
+        function previewStockImage(input, previewId, placeholderId) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById(previewId);
+                    if (preview) {
+                        preview.src = e.target.result;
+                        preview.classList.remove('hidden');
+                    }
+                    if (placeholderId) {
+                        const placeholder = document.getElementById(placeholderId);
+                        if (placeholder) placeholder.classList.add('hidden');
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
         // ── Modal Actions ──
         function openAddStockModal() {
             document.getElementById('addStockForm').reset();
+            const preview = document.getElementById('addStockImagePreview');
+            const placeholder = document.getElementById('addStockImagePlaceholder');
+            if (preview) {
+                preview.src = 'uploads/no-image.png';
+                preview.classList.add('hidden');
+            }
+            if (placeholder) {
+                placeholder.classList.remove('hidden');
+            }
+            const fileInput = document.getElementById('addStockImageInput');
+            if (fileInput) fileInput.value = '';
             openModal('addStockModal');
         }
 
@@ -2047,6 +2165,13 @@ $stockItems = $initStmt->fetchAll();
                 document.getElementById('editAlertLevel').value = it.alert_level;
                 document.getElementById('editCostPurchase').value = parseFloat(it.cost_per_purchase_unit || 0).toFixed(2);
                 document.getElementById('editNotes').value = it.notes || '';
+
+                const editPreview = document.getElementById('editStockImagePreview');
+                if (editPreview) {
+                    editPreview.src = it.image ? it.image : 'uploads/no-image.png';
+                }
+                const editFileInput = document.getElementById('editStockImageInput');
+                if (editFileInput) editFileInput.value = '';
 
                 openModal('editStockModal');
             } catch (err) {

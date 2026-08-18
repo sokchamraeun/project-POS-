@@ -12,6 +12,15 @@ $items_out = [];
 foreach ($cart as $i => $item) {
     $q = (int)($item['qty'] ?? 1);
     $p = (float)($item['price'] ?? 0);
+    $pId = (int)($item['product_id'] ?? 0);
+
+    // Stock check: clamp quantity if it exceeds currently available stock
+    $max_stock = getProductMaxStock($conn, $pId);
+    if ($max_stock !== null && $q > $max_stock) {
+        $q = max(1, $max_stock);
+        $_SESSION['cart'][$i]['qty'] = $q;
+    }
+
     $itemLineTotal = $p * $q;
     $subtotal += $itemLineTotal;
     $total_qty += $q;
@@ -37,17 +46,19 @@ foreach ($cart as $i => $item) {
     $item_promos += $itemDisc;
 
     if ($p < $min_price) { $min_price = $p; $cheapest_idx = $i; }
-    if ($_fpid > 0 && (int)($item['product_id'] ?? 0) === $_fpid && $_fidx < 0) {
+    if ($_fpid > 0 && $pId === $_fpid && $_fidx < 0) {
         $_fidx = $i; $_fname = $item['product_name'] ?? ''; $_fprice = $p;
     }
 
     $items_out[] = [
         'index'           => $i,
+        'product_id'      => $pId,
         'product_name'    => $item['product_name'] ?? '',
         'price'           => $p,
         'orig_price'      => (float)($item['orig_price'] ?? $p),
         'promo_percent'   => (int)($item['promo_percent'] ?? 0),
         'qty'             => $q,
+        'max_stock'       => ($max_stock !== null) ? $max_stock : 100,
         'image'           => $item['image'] ?? '',
         'size_code'       => $item['size_code']  ?? '',
         'size_label'      => $item['size_label'] ?? '',
