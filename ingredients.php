@@ -52,7 +52,10 @@ if (!function_exists('getIngredientKPIs')) {
             SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END) as out_of_stock,
             SUM(quantity * cost_per_unit) as total_valuation,
             COUNT(DISTINCT category) as total_categories
-        FROM stock_items WHERE item_type = 'ingredient' AND is_active = 1");
+        FROM stock_items 
+        WHERE item_type = 'ingredient' 
+          AND is_active = 1 
+          AND (item_name NOT LIKE '%Packaging Set%' AND item_name NOT LIKE '%ឈុត%')");
         $kpi = $stmt->fetch() ?: [];
         
         return [
@@ -101,16 +104,39 @@ if (!function_exists('formatCategoryLabel')) {
         $lang = function_exists('current_lang') ? current_lang() : 'en';
         if ($lang === 'km') {
             $map = [
-                'Dairy' => 'ទឹកដោះគោ & ទឹក',
-                'Beans' => 'គ្រាប់កាហ្វេ',
-                'Syrups' => 'ស៊ីរ៉ូ & រសជាតិ',
-                'Packaging' => 'ការវេចខ្ចប់',
-                'Bakery / Toppings' => 'នំ / គ្រឿងបន្ថែម',
-                'General Supplies' => 'សម្ភារៈទូទៅ'
+                'Liquids'           => 'ទឹក',
+                'Dairy'             => 'ទឹក',
+                'Syrups'            => 'ទឹក',
+                'ទឹក'               => 'ទឹក',
+                'Beans'             => 'គ្រាប់',
+                'គ្រាប់'             => 'គ្រាប់',
+                'Packaging'         => 'កែវ & ការវេចខ្ចប់',
+                'កែវ & ការវេចខ្ចប់'   => 'កែវ & ការវេចខ្ចប់',
+                'កែវ &ការវេចខ្ជប់'   => 'កែវ & ការវេចខ្ចប់',
+                'General Supplies'  => 'សម្ភារទូទៅ',
+                'Bakery / Toppings' => 'សម្ភារទូទៅ',
+                'សម្ភារទូទៅ'         => 'សម្ភារទូទៅ',
+                'សម្ភារៈទូទៅ'        => 'សម្ភារទូទៅ'
+            ];
+            return $map[$category] ?? $category;
+        } else {
+            $map = [
+                'Liquids'           => 'Liquids',
+                'Dairy'             => 'Liquids',
+                'Syrups'            => 'Liquids',
+                'ទឹក'               => 'Liquids',
+                'Beans'             => 'Beans',
+                'គ្រាប់'             => 'Beans',
+                'Packaging'         => 'Cups & Packaging',
+                'កែវ & ការវេចខ្ចប់'   => 'Cups & Packaging',
+                'កែវ &ការវេចខ្ជប់'   => 'Cups & Packaging',
+                'General Supplies'  => 'General Supplies',
+                'Bakery / Toppings' => 'General Supplies',
+                'សម្ភារទូទៅ'         => 'General Supplies',
+                'សម្ភារៈទូទៅ'        => 'General Supplies'
             ];
             return $map[$category] ?? $category;
         }
-        return $category;
     }
 }
 
@@ -153,8 +179,18 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             $params = [];
 
             if ($catFilter !== '' && $catFilter !== 'all') {
-                $sql .= " AND category = ?";
-                $params[] = $catFilter;
+                if ($catFilter === 'Liquids' || $catFilter === 'Dairy' || $catFilter === 'Syrups' || $catFilter === 'ទឹក') {
+                    $sql .= " AND (category IN ('Liquids', 'Dairy', 'Syrups', 'ទឹក') OR category LIKE '%ទឹក%')";
+                } elseif ($catFilter === 'Beans' || $catFilter === 'គ្រាប់') {
+                    $sql .= " AND (category IN ('Beans', 'គ្រាប់') OR category LIKE '%គ្រាប់%')";
+                } elseif ($catFilter === 'Packaging' || $catFilter === 'កែវ & ការវេចខ្ចប់' || $catFilter === 'កែវ &ការវេចខ្ចប់' || $catFilter === 'កែវ &ការវេចខ្ជប់') {
+                    $sql .= " AND (category IN ('Packaging', 'កែវ & ការវេចខ្ចប់', 'កែវ &ការវេចខ្ចប់', 'កែវ &ការវេចខ្ជប់') OR category LIKE '%កែវ%' OR category LIKE '%វេចខ្ចប់%')";
+                } elseif ($catFilter === 'General Supplies' || $catFilter === 'Bakery / Toppings' || $catFilter === 'សម្ភារទូទៅ' || $catFilter === 'សម្ភារៈទូទៅ') {
+                    $sql .= " AND (category IN ('General Supplies', 'Bakery / Toppings', 'សម្ភារទូទៅ', 'សម្ភារៈទូទៅ') OR category LIKE '%សម្ភារ%')";
+                } else {
+                    $sql .= " AND category = ?";
+                    $params[] = $catFilter;
+                }
             }
 
             if ($statusFilter === 'low_stock') {
@@ -401,6 +437,15 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         // 7. Soft Delete
         if ($action === 'delete_item') {
             $itemId = (int)($_POST['item_id'] ?? 0);
+
+            // Guard: Prevent deleting auto packaging set
+            $chkPkg = $pdo->prepare("SELECT item_name FROM stock_items WHERE item_id = ?");
+            $chkPkg->execute([$itemId]);
+            $itemRow = $chkPkg->fetch();
+            if ($itemRow && (str_contains(strtolower($itemRow['item_name']), 'packaging set') || str_contains($itemRow['item_name'], 'ឈុត'))) {
+                sendJsonResponse(['success' => false, 'message' => 'This is an automatic Packaging Set. It cannot be deleted.'], 403);
+            }
+
             $stmt = $pdo->prepare("UPDATE stock_items SET is_active = 0, updated_at = NOW() WHERE item_id = ?");
             $stmt->execute([$itemId]);
 
@@ -459,6 +504,95 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             }
             fclose($output);
             exit;
+        }
+
+        // 10. Get Packaging Set Config
+        if ($action === 'get_packaging_set') {
+            $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('packaging_cost_per_set', 'packaging_set_config')");
+            $res = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+            $costPerSet = isset($res['packaging_cost_per_set']) ? (float)$res['packaging_cost_per_set'] : 0.0920;
+            $rawConfig = $res['packaging_set_config'] ?? '';
+            $items = !empty($rawConfig) ? json_decode($rawConfig, true) : null;
+
+            // Default fallback set if none saved yet
+            if (empty($items) || !is_array($items)) {
+                $items = [
+                    ['name' => 'កែវ (Plastic / Paper Cup)', 'cost' => 0.0450, 'qty' => 1],
+                    ['name' => 'គម្របកែវ (Cup Lid)', 'cost' => 0.0180, 'qty' => 1],
+                    ['name' => 'បំពង់បឺត (Straw)', 'cost' => 0.0080, 'qty' => 1],
+                    ['name' => 'ស្រោមដៃកែវ / ថង់យួរ (Sleeve / Carrier)', 'cost' => 0.0150, 'qty' => 1],
+                    ['name' => 'ស្ទីគ័រ / ក្រដាសជូត (Logo Sticker / Napkin)', 'cost' => 0.0060, 'qty' => 1],
+                ];
+            }
+
+            // Available inventory packaging items
+            $pkgStmt = $pdo->query("SELECT item_id, item_name, unit, cost_per_unit FROM stock_items WHERE item_type = 'ingredient' AND (category IN ('Packaging', 'កែវ & ការវេចខ្ចប់', 'កែវ &ការវេចខ្ជប់') OR unit = 'pcs') AND is_active = 1 ORDER BY item_name ASC");
+            $inventoryPkg = $pkgStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            sendJsonResponse([
+                'success' => true,
+                'cost_per_set' => $costPerSet,
+                'items' => $items,
+                'inventory_packaging' => $inventoryPkg
+            ]);
+        }
+
+        // 11. Save Packaging Set Config
+        if ($action === 'save_packaging_set') {
+            $rawItems = $_POST['items'] ?? '';
+            $items = is_array($rawItems) ? $rawItems : json_decode($rawItems, true);
+
+            if (!is_array($items) || empty($items)) {
+                sendJsonResponse(['success' => false, 'message' => 'Please provide at least one packaging item.'], 422);
+            }
+
+            $totalCost = 0.0;
+            $cleanItems = [];
+            foreach ($items as $it) {
+                $name = trim($it['name'] ?? '');
+                $cost = max(0.0, (float)($it['cost'] ?? 0));
+                $qty  = max(0.0, (float)($it['qty'] ?? 1));
+                if (!empty($name)) {
+                    $sub = $cost * $qty;
+                    $totalCost += $sub;
+                    $cleanItems[] = [
+                        'name' => $name,
+                        'cost' => $cost,
+                        'qty'  => $qty,
+                        'subtotal' => $sub
+                    ];
+                }
+            }
+
+            $jsonConfig = json_encode($cleanItems, JSON_UNESCAPED_UNICODE);
+
+            $stmt1 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_cost_per_set', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            $stmt1->execute([(string)$totalCost]);
+
+            $stmt2 = $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('packaging_set_config', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            $stmt2->execute([$jsonConfig]);
+
+            // Sync or insert into stock_items as a Packaging item so recipes can immediately select it!
+            $chkPkg = $pdo->query("SELECT item_id FROM stock_items WHERE (item_name = 'ឈុតកែវ & ការវេចខ្ចប់ (Packaging Set)' OR item_name LIKE '%Packaging Set%') AND is_active = 1 LIMIT 1")->fetch();
+            if ($chkPkg) {
+                $updPkg = $pdo->prepare("UPDATE stock_items SET cost_per_unit = ?, quantity = 0, alert_level = 0, unit = 'pcs', category = 'Packaging' WHERE item_id = ?");
+                $updPkg->execute([$totalCost, $chkPkg['item_id']]);
+            } else {
+                $insPkg = $pdo->prepare("INSERT INTO stock_items (item_name, category, item_type, quantity, unit, alert_level, cost_per_unit, notes, is_active) VALUES ('ឈុតកែវ & ការវេចខ្ចប់ (Packaging Set)', 'Packaging', 'ingredient', 0, 'pcs', 0, ?, 'Default packaging set per drink', 1)");
+                $insPkg->execute([$totalCost]);
+            }
+
+            $khrCost = $totalCost * (defined('KHR_RATE') ? KHR_RATE : 4000);
+            $khrFormatted = $khrCost >= 10 ? number_format(round($khrCost)) : ($khrCost > 0 ? number_format($khrCost, 1) : '0');
+
+            sendJsonResponse([
+                'success' => true,
+                'message' => __('packaging_saved_success', 'Packaging set cost saved successfully!'),
+                'total_cost' => $totalCost,
+                'total_khr' => $khrFormatted,
+                'items' => $cleanItems
+            ]);
         }
 
         sendJsonResponse(['success' => false, 'message' => 'Unknown action requested.'], 400);
@@ -647,6 +781,264 @@ $categoriesList = [
         [data-theme="light"] .tab-inactive:hover {
             color: #111827 !important;
             border-color: #cbd5e1 !important;
+        }
+
+        /* ── Sticky Table Header ── */
+        .ingredient-table-scroll-container {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 350px);
+            min-height: 360px;
+            position: relative;
+        }
+        .ingredient-table-scroll-container table {
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+        .ingredient-table-scroll-container thead {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 25 !important;
+        }
+        .ingredient-table-scroll-container thead tr {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 25 !important;
+        }
+        .ingredient-table-scroll-container thead th {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 25 !important;
+            background-color: #141418 !important;
+            border-bottom: 1px solid #24242b !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+        }
+        [data-theme="light"] .ingredient-table-scroll-container thead th,
+        html[data-theme="light"] .ingredient-table-scroll-container thead th {
+            background-color: #f1f5f9 !important;
+            border-bottom: 1px solid #e2e4ea !important;
+            color: #475569 !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
+        }
+
+        /* ── Pricing Calculator Box ── */
+        .pricing-calc-box {
+            background-color: #141418;
+            border: 1px solid #282834;
+        }
+        .pricing-header-title { color: #d1904b; }
+        .pricing-header-sub { color: #8e8e9f; }
+        .pricing-calc-input {
+            background-color: #18181f;
+            border: 1px solid #282834;
+            color: var(--text-main, #ffffff);
+        }
+        .pricing-calc-input-highlight {
+            border-color: rgba(209, 144, 75, 0.45);
+            color: #ffffff;
+        }
+        .pricing-dollar-icon { color: #d1904b; }
+        .pricing-dollar-icon-muted { color: #8e8e9f; }
+        .pricing-calc-preview {
+            border-top: 1px solid #23232c;
+            color: #8e8e9f;
+        }
+        .pricing-calc-preview strong { color: #34d399; }
+        .pricing-calc-preview .formula-text { color: #727282; }
+
+        /* Light Mode Styling for Pricing Calculator Box */
+        [data-theme="light"] .pricing-calc-box,
+        html[data-theme="light"] .pricing-calc-box {
+            background-color: #fffdf7 !important;
+            border: 1px solid #fed7aa !important;
+            box-shadow: 0 1px 4px rgba(209, 144, 75, 0.08) !important;
+        }
+        [data-theme="light"] .pricing-header-title,
+        html[data-theme="light"] .pricing-header-title {
+            color: #b45309 !important;
+        }
+        [data-theme="light"] .pricing-header-sub,
+        html[data-theme="light"] .pricing-header-sub {
+            color: #78716c !important;
+        }
+        [data-theme="light"] .pricing-calc-box .modal-label,
+        html[data-theme="light"] .pricing-calc-box .modal-label {
+            color: #334155 !important;
+        }
+        [data-theme="light"] .pricing-calc-input,
+        html[data-theme="light"] .pricing-calc-input {
+            background-color: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .pricing-calc-input-highlight,
+        html[data-theme="light"] .pricing-calc-input-highlight {
+            background-color: #ffffff !important;
+            border: 1.5px solid #d1904b !important;
+            color: #0f172a !important;
+            box-shadow: 0 0 0 1px rgba(209, 144, 75, 0.2) !important;
+        }
+        [data-theme="light"] .pricing-dollar-icon,
+        html[data-theme="light"] .pricing-dollar-icon {
+            color: #d1904b !important;
+        }
+        [data-theme="light"] .pricing-dollar-icon-muted,
+        html[data-theme="light"] .pricing-dollar-icon-muted {
+            color: #64748b !important;
+        }
+        [data-theme="light"] .pricing-calc-preview,
+        html[data-theme="light"] .pricing-calc-preview {
+            border-top: 1px solid #ffedd5 !important;
+            color: #475569 !important;
+        }
+        [data-theme="light"] .pricing-calc-preview strong,
+        html[data-theme="light"] .pricing-calc-preview strong {
+            color: #059669 !important;
+        }
+        [data-theme="light"] .pricing-calc-preview .formula-text,
+        html[data-theme="light"] .pricing-calc-preview .formula-text {
+            color: #64748b !important;
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           PACKAGING SET COST MODAL STYLES (LIGHT & DARK THEMES)
+        ══════════════════════════════════════════════════════════════ */
+        .pkg-table-wrap {
+            background-color: #141418;
+            border: 1px solid #282834;
+        }
+        .pkg-thead {
+            background-color: #1b1b22;
+            color: #8e8e9f;
+            border-bottom: 1px solid #282834;
+        }
+        .pkg-row {
+            border-bottom: 1px solid #202028;
+            transition: background-color 0.15s ease;
+        }
+        .pkg-row:last-child {
+            border-bottom: none;
+        }
+        .pkg-row:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+        .pkg-input {
+            background-color: #141418;
+            border: 1px solid #282834;
+            color: var(--text-main, #ffffff);
+            transition: all 0.15s ease;
+        }
+        .pkg-input:focus {
+            border-color: #d1904b !important;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.2);
+        }
+        .pkg-summary-box {
+            background: linear-gradient(135deg, #15151a 0%, #191921 100%);
+            border: 1.5px solid rgba(209, 144, 75, 0.35);
+        }
+        .pkg-kpi-card {
+            background-color: #141418;
+            border: 1px solid #282834;
+        }
+        .btn-pkg-add {
+            background-color: #24242e;
+            border: 1px solid #343444;
+            color: #d1904b;
+        }
+        .btn-pkg-add:hover {
+            background-color: #2e2e3a;
+            color: #e5a15a;
+        }
+        .btn-pkg-cancel {
+            background-color: #202026;
+            border: 1px solid #2f2f3c;
+            color: #e2e8f0;
+        }
+        .btn-pkg-cancel:hover {
+            background-color: #2b2b36;
+        }
+
+        /* Light Mode Styling for Packaging Modal */
+        [data-theme="light"] #packagingCostModal .modal-content,
+        html[data-theme="light"] #packagingCostModal .modal-content {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #111827 !important;
+        }
+        [data-theme="light"] #packagingCostModal .modal-header,
+        html[data-theme="light"] #packagingCostModal .modal-header,
+        [data-theme="light"] #packagingCostModal .modal-footer,
+        html[data-theme="light"] #packagingCostModal .modal-footer {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-table-wrap,
+        html[data-theme="light"] #packagingCostModal .pkg-table-wrap {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-thead,
+        html[data-theme="light"] #packagingCostModal .pkg-thead {
+            background-color: #f8fafc !important;
+            color: #475569 !important;
+            border-bottom-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-row,
+        html[data-theme="light"] #packagingCostModal .pkg-row {
+            border-bottom-color: #f1f5f9 !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-row:hover,
+        html[data-theme="light"] #packagingCostModal .pkg-row:hover {
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-input,
+        html[data-theme="light"] #packagingCostModal .pkg-input {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-input:focus,
+        html[data-theme="light"] #packagingCostModal .pkg-input:focus {
+            border-color: #d1904b !important;
+            box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.2) !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-summary-box,
+        html[data-theme="light"] #packagingCostModal .pkg-summary-box {
+            background: linear-gradient(135deg, #fffbf5 0%, #fff7ed 100%) !important;
+            border: 1.5px solid #fed7aa !important;
+            box-shadow: 0 4px 16px rgba(209, 144, 75, 0.08) !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-kpi-card,
+        html[data-theme="light"] #packagingCostModal .pkg-kpi-card {
+            background-color: #ffffff !important;
+            border: 1px solid #fed7aa !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+        }
+        [data-theme="light"] #packagingCostModal .pkg-kpi-card .card-kpi-val,
+        html[data-theme="light"] #packagingCostModal .pkg-kpi-card .card-kpi-val {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #packagingCostModal .btn-pkg-add,
+        html[data-theme="light"] #packagingCostModal .btn-pkg-add {
+            background-color: #fff7ed !important;
+            border-color: #fed7aa !important;
+            color: #c2410c !important;
+        }
+        [data-theme="light"] #packagingCostModal .btn-pkg-add:hover,
+        html[data-theme="light"] #packagingCostModal .btn-pkg-add:hover {
+            background-color: #ffedd5 !important;
+        }
+        [data-theme="light"] #packagingCostModal .btn-pkg-cancel,
+        html[data-theme="light"] #packagingCostModal .btn-pkg-cancel {
+            background-color: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #475569 !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        }
+        [data-theme="light"] #packagingCostModal .btn-pkg-cancel:hover,
+        html[data-theme="light"] #packagingCostModal .btn-pkg-cancel:hover {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
         }
 
         /* ══ Amber Table Row Hover Effect ══ */
@@ -924,6 +1316,15 @@ $categoriesList = [
 
                 <!-- Action Button Toolbar -->
                 <div class="flex flex-wrap items-center gap-2.5">
+                    <!-- Packaging Set Cost Button -->
+                    <button type="button" 
+                            onclick="openPackagingCostModal()" 
+                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#d1904b] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm"
+                            title="<?= __('packaging_modal_sub', 'Calculate & manage total packaging cost per cup') ?>">
+                        <i class="fa-solid fa-box-open text-[#d1904b]"></i>
+                        <span><?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់សរុប (Cost per Set)') ?></span>
+                    </button>
+
                     <button type="button" 
                             onclick="openAuditLogsModal()" 
                             class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#d1904b] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
@@ -1019,12 +1420,10 @@ $categoriesList = [
                                     onchange="loadStockTable()" 
                                     class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b] cursor-pointer">
                                 <option value="all"><?= __('all_categories', 'All Ingredient Categories') ?></option>
-                                <option value="Dairy"><?= __('cat_dairy', 'Dairy & Milk') ?></option>
-                                <option value="Beans"><?= __('cat_beans', 'Coffee Beans') ?></option>
-                                <option value="Syrups"><?= __('cat_syrups', 'Syrups & Flavors') ?></option>
-                                <option value="Packaging"><?= __('cat_packaging', 'Cups & Packaging') ?></option>
-                                <option value="Bakery / Toppings"><?= __('cat_bakery', 'Bakery / Toppings') ?></option>
-                                <option value="General Supplies"><?= __('cat_general', 'General Supplies') ?></option>
+                                <option value="Liquids"><?= __('cat_liquids', 'ទឹក') ?></option>
+                                <option value="Beans"><?= __('cat_beans', 'គ្រាប់') ?></option>
+                                <option value="Packaging"><?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?></option>
+                                <option value="General Supplies"><?= __('cat_general', 'សម្ភារទូទៅ') ?></option>
                             </select>
                             <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#727282] pointer-events-none"></i>
                         </div>
@@ -1060,26 +1459,29 @@ $categoriesList = [
 
             <!-- ── Data Table Card ── -->
             <div class="glass-card overflow-hidden flex-1 flex flex-col">
-                <div class="overflow-x-auto flex-1">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr class="table-header-cell bg-[#141418] border-b border-[#24242b] text-[#8e8e9f] uppercase tracking-wider font-semibold">
-                                <th class="py-3.5 px-4"><?= __('col_ingredient_details', 'Ingredient Details') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_category', 'Category') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_qty_on_hand', 'Qty on Hand') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_alert_threshold', 'Alert Threshold') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_status', 'Status') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_valuation', 'Valuation') ?></th>
-                                <th class="py-3.5 px-4 text-right"><?= __('col_actions', 'Actions') ?></th>
+                <div class="ingredient-table-scroll-container flex-1">
+                    <table class="w-full text-left border-separate border-spacing-0 text-xs">
+                        <thead class="sticky top-0 z-20 shadow-sm">
+                            <tr class="table-header-cell bg-[#141418] text-[#8e8e9f] uppercase tracking-wider font-semibold">
+                                <th class="sticky top-0 z-20 py-3.5 px-4 bg-[#141418] border-b border-[#24242b]"><?= __('col_ingredient_details', 'Ingredient Details') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_category', 'Category') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_qty_on_hand', 'Qty on Hand') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_alert_threshold', 'Alert Threshold') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_status', 'Status') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_valuation', 'Valuation') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-4 bg-[#141418] border-b border-[#24242b] text-right"><?= __('col_actions', 'Actions') ?></th>
                             </tr>
                         </thead>
                         <tbody id="stockTableBody" class="table-divide divide-y divide-[#1f1f28]">
                             <!-- Initial PHP render -->
                             <?php foreach ($stockItems as $item): 
+                                $isPkgSet = (str_contains(strtolower($item['item_name']), 'packaging set') || str_contains($item['item_name'], 'ឈុត'));
                                 $qty = (float)$item['quantity'];
                                 $alert = (float)$item['alert_level'];
                                 $cost = (float)$item['cost_per_unit'];
                                 $val = $qty * $cost;
+                                $bulkPrice = ($item['unit'] === 'g' || $item['unit'] === 'ml') ? ($cost * 1000) : $cost;
+                                $bulkUnit = ($item['unit'] === 'g') ? 'kg' : (($item['unit'] === 'ml') ? 'L' : 'pcs');
 
                                 $status = 'in_stock';
                                 $statusBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ' . __('status_in_stock', 'In Stock') . '</span>';
@@ -1092,12 +1494,16 @@ $categoriesList = [
                                     $statusBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20"><i class="fa-solid fa-triangle-exclamation text-[10px]"></i> ' . __('status_low_stock', 'Low Stock') . '</span>';
                                 }
 
-                                $catMeta = $categoriesList[$item['category']] ?? ['icon' => 'fa-box', 'color' => 'slate'];
+                                $khrCost = $cost * (defined('KHR_RATE') ? KHR_RATE : 4000);
+                                $khrFormatted = $khrCost >= 10 ? number_format(round($khrCost)) : ($khrCost > 0 ? (floor($khrCost) == $khrCost ? number_format($khrCost, 0) : number_format($khrCost, 1)) : '0');
                             ?>
                             <tr class="row-hover group" data-item-id="<?= $item['item_id'] ?>">
                                 <td class="py-3.5 px-4">
-                                    <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
-                                        <?= htmlspecialchars($item['item_name']) ?>
+                                    <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate flex items-center gap-2">
+                                        <?php if ($isPkgSet): ?>
+                                            <i class="fa-solid fa-box-open text-[#d1904b] text-xs"></i>
+                                        <?php endif; ?>
+                                        <span><?= htmlspecialchars($item['item_name']) ?></span>
                                     </div>
                                 </td>
                                 <td class="py-3.5 px-3">
@@ -1105,47 +1511,77 @@ $categoriesList = [
                                         <?= htmlspecialchars(formatCategoryLabel($item['category'])) ?>
                                     </span>
                                 </td>
-                                <td class="py-3.5 px-3 font-semibold">
-                                    <span class="text-sm font-extrabold <?= ($qty <= 0) ? 'text-rose-400' : (($qty <= $alert) ? 'text-amber-400' : 'text-[var(--text-main)]') ?>">
-                                        <?= formatQty($qty) ?> <span class="text-xs font-normal text-[#8e8e9f]"><?= htmlspecialchars($item['unit']) ?></span>
-                                    </span>
+                                <td class="py-3.5 px-3 font-semibold <?= $isPkgSet ? 'text-center' : '' ?>">
+                                    <?php if ($isPkgSet): ?>
+                                        <span class="text-xs font-medium text-[#8e8e9f]">-</span>
+                                    <?php else: ?>
+                                        <span class="text-sm font-extrabold <?= ($qty <= 0) ? 'text-rose-400' : (($qty <= $alert) ? 'text-amber-400' : 'text-[var(--text-main)]') ?>">
+                                            <?= formatQty($qty) ?> <span class="text-xs font-normal text-[#8e8e9f]"><?= htmlspecialchars($item['unit']) ?></span>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
-                                <td class="py-3.5 px-3 font-medium">
-                                    <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#1e1e24] border border-[#282834] text-xs text-[#8e8e9f]">
-                                        <?= formatQty($alert) ?> <?= htmlspecialchars($item['unit']) ?>
-                                    </span>
+                                <td class="py-3.5 px-3 font-medium <?= $isPkgSet ? 'text-center' : '' ?>">
+                                    <?php if ($isPkgSet): ?>
+                                        <span class="text-xs font-medium text-[#8e8e9f]">-</span>
+                                    <?php else: ?>
+                                        <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#1e1e24] border border-[#282834] text-xs text-[#8e8e9f]">
+                                            <?= formatQty($alert) ?> <?= htmlspecialchars($item['unit']) ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="py-3.5 px-3">
-                                    <?= $statusBadge ?>
+                                    <?php if ($isPkgSet): ?>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#d1904b]/10 text-[#d1904b] border border-[#d1904b]/20">
+                                            <i class="fa-solid fa-calculator text-[10px]"></i> <?= __('auto_calculated_set', 'គិតតាមរូបមន្ត (Auto Set)') ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <?= $statusBadge ?>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="py-3.5 px-3">
-                                    <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$<?= number_format($val, 2) ?></div>
-                                    <div class="text-[11px] text-[#8e8e9f]">$<?= number_format($cost, 4) ?> / <?= htmlspecialchars($item['unit']) ?></div>
+                                    <?php if ($isPkgSet): ?>
+                                        <div class="font-bold text-[#d1904b] text-xs">$<?= number_format($cost, 4) ?> / set</div>
+                                        <div class="text-[10px] text-amber-500 font-semibold mt-0.5">(≈ <?= $khrFormatted ?> ៛)</div>
+                                    <?php else: ?>
+                                        <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$<?= number_format($val, 2) ?></div>
+                                        <div class="text-[11px] font-bold text-[#d1904b] mt-0.5">$<?= number_format($bulkPrice, 2) ?> / <?= $bulkUnit ?></div>
+                                        <div class="text-[10px] text-[#8e8e9f]">$<?= number_format($cost, 4) ?> / <?= htmlspecialchars($item['unit']) ?> <span class="text-amber-500 font-semibold">(≈ <?= $khrFormatted ?> ៛)</span></div>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="py-3.5 px-4 text-right">
-                                    <div class="flex items-center justify-end gap-1.5">
-                                        <!-- Edit -->
+                                    <?php if ($isPkgSet): ?>
                                         <button type="button" 
-                                                onclick="openEditStockModal(<?= $item['item_id'] ?>)" 
-                                                class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
-                                                title="<?= __('btn_edit', 'Edit') ?>">
-                                            <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
+                                                onclick="openPackagingCostModal()" 
+                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d1904b]/15 hover:bg-[#d1904b]/25 text-[#d1904b] border border-[#d1904b]/30 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                                title="<?= __('packaging_modal_sub', 'Calculate & manage total packaging cost per cup') ?>">
+                                            <i class="fa-solid fa-gear text-xs"></i>
+                                            <span><?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់') ?></span>
                                         </button>
-                                        <!-- Quick Restock -->
-                                        <button type="button" 
-                                                onclick="openRestockModal(<?= $item['item_id'] ?>)" 
-                                                class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                                title="<?= __('btn_restock', 'Restock') ?>">
-                                            <i class="fa-solid fa-plus w-4 text-center"></i>
-                                        </button>
-                                        <!-- Delete -->
-                                        <button type="button" 
-                                                onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" 
-                                                class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                                title="<?= __('btn_delete', 'Delete') ?>">
-                                            <i class="fa-solid fa-trash-can w-4 text-center"></i>
-                                        </button>
-                                    </div>
+                                    <?php else: ?>
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <!-- Edit -->
+                                            <button type="button" 
+                                                    onclick="openEditStockModal(<?= $item['item_id'] ?>)" 
+                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
+                                                    title="<?= __('btn_edit', 'Edit') ?>">
+                                                <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
+                                            </button>
+                                            <!-- Quick Restock -->
+                                            <button type="button" 
+                                                    onclick="openRestockModal(<?= $item['item_id'] ?>)" 
+                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                                    title="<?= __('btn_restock', 'Restock') ?>">
+                                                <i class="fa-solid fa-plus w-4 text-center"></i>
+                                            </button>
+                                            <!-- Delete -->
+                                            <button type="button" 
+                                                    onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" 
+                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                                    title="<?= __('btn_delete', 'Delete') ?>">
+                                                <i class="fa-solid fa-trash-can w-4 text-center"></i>
+                                            </button>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -1204,18 +1640,16 @@ $categoriesList = [
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_category', 'Category') ?> <span class="text-rose-400">*</span></label>
                         <select name="category" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="Dairy"><?= __('cat_dairy', 'Dairy & Milk') ?></option>
-                            <option value="Beans" selected><?= __('cat_beans', 'Coffee Beans') ?></option>
-                            <option value="Syrups"><?= __('cat_syrups', 'Syrups & Flavors') ?></option>
-                            <option value="Packaging"><?= __('cat_packaging', 'Cups & Packaging') ?></option>
-                            <option value="Bakery / Toppings"><?= __('cat_bakery', 'Bakery / Toppings') ?></option>
-                            <option value="General Supplies"><?= __('cat_general', 'General Supplies') ?></option>
+                            <option value="Liquids"><?= __('cat_liquids', 'ទឹក') ?></option>
+                            <option value="Beans" selected><?= __('cat_beans', 'គ្រាប់') ?></option>
+                            <option value="Packaging"><?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?></option>
+                            <option value="General Supplies"><?= __('cat_general', 'សម្ភារទូទៅ') ?></option>
                         </select>
                     </div>
 
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_unit', 'Base Measurement Unit') ?> <span class="text-rose-400">*</span></label>
-                        <select name="unit" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                        <select name="unit" id="addUnitSelect" required onchange="handleUnitChange('add')" class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
                             <option value="g" selected>g (Grams)</option>
                             <option value="ml">ml (Milliliters)</option>
                             <option value="pcs">pcs (Pieces)</option>
@@ -1223,7 +1657,7 @@ $categoriesList = [
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_qty_on_hand', 'Initial Qty') ?></label>
                         <input type="number" 
@@ -1242,14 +1676,56 @@ $categoriesList = [
                                value="1000" 
                                class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
                     </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_cost_box_unit', 'Cost Per Base Unit ($)') ?></label>
-                        <input type="number" 
-                               step="0.0001" 
-                               min="0" 
-                               name="cost_per_unit" 
-                               value="0.0000" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                </div>
+
+                <!-- Pricing Section: Price per KG/L + Base Unit Cost -->
+                <div class="pricing-calc-box p-3.5 rounded-xl space-y-2.5">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="pricing-header-title font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-calculator"></i>
+                            <span id="addPricingSectionTitle"><?= __('cost_per_kg_l', 'Price per 1 KG / 1 Liter') ?></span>
+                        </span>
+                        <span class="pricing-header-sub text-[11px]" id="addPricingFormula">1 kg = 1,000 g</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="modal-label block text-[11px] font-semibold text-[#b4b4c2] mb-1">
+                                <span id="addBulkCostLabelText"><?= __('cost_per_1kg', 'Price per 1 KG ($)') ?></span> <span class="text-rose-400">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="pricing-dollar-icon absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold">$</span>
+                                <input type="number" 
+                                       step="any" 
+                                       min="0" 
+                                       id="addBulkCostInput" 
+                                       placeholder="e.g. 12.00" 
+                                       oninput="syncCostInputs('add', 'bulk')" 
+                                       class="pricing-calc-input pricing-calc-input-highlight w-full pl-7 pr-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-[#d1904b] focus:ring-1 focus:ring-[#d1904b]">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="modal-label block text-[11px] font-semibold text-[#b4b4c2] mb-1">
+                                <span id="addBaseCostLabelText"><?= __('cost_per_base_unit', 'Cost per Base Unit ($ / g)') ?></span>
+                            </label>
+                            <div class="relative">
+                                <span class="pricing-dollar-icon-muted absolute left-3 top-1/2 -translate-y-1/2 text-xs">$</span>
+                                <input type="number" 
+                                       step="0.0001" 
+                                       min="0" 
+                                       id="addCostUnit" 
+                                       name="cost_per_unit" 
+                                       value="0.0000" 
+                                       oninput="syncCostInputs('add', 'base')" 
+                                       class="pricing-calc-input w-full pl-7 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#d1904b]">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="addCostPreviewPill" class="pricing-calc-preview text-[11px] flex items-center justify-between pt-1">
+                        <span>Live Unit Cost: <strong class="font-mono" id="addLiveBaseCostDisplay">$0.0000 / g</strong></span>
+                        <span class="formula-text text-[10px]" id="addLiveFormulaText">1 kg @ $0.00</span>
                     </div>
                 </div>
 
@@ -1495,18 +1971,16 @@ $categoriesList = [
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_category', 'Category') ?> <span class="text-rose-400">*</span></label>
                         <select id="editCategory" name="category" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="Dairy"><?= __('cat_dairy', 'Dairy & Milk') ?></option>
-                            <option value="Beans"><?= __('cat_beans', 'Coffee Beans') ?></option>
-                            <option value="Syrups"><?= __('cat_syrups', 'Syrups & Flavors') ?></option>
-                            <option value="Packaging"><?= __('cat_packaging', 'Cups & Packaging') ?></option>
-                            <option value="Bakery / Toppings"><?= __('cat_bakery', 'Bakery / Toppings') ?></option>
-                            <option value="General Supplies"><?= __('cat_general', 'General Supplies') ?></option>
+                            <option value="Liquids"><?= __('cat_liquids', 'ទឹក') ?></option>
+                            <option value="Beans"><?= __('cat_beans', 'គ្រាប់') ?></option>
+                            <option value="Packaging"><?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?></option>
+                            <option value="General Supplies"><?= __('cat_general', 'សម្ភារទូទៅ') ?></option>
                         </select>
                     </div>
 
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_unit', 'Measurement Unit') ?> <span class="text-rose-400">*</span></label>
-                        <select id="editUnit" name="unit" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                        <select id="editUnit" name="unit" required onchange="handleUnitChange('edit')" class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
                             <option value="g">g (Grams)</option>
                             <option value="ml">ml (Milliliters)</option>
                             <option value="pcs">pcs (Pieces)</option>
@@ -1514,7 +1988,7 @@ $categoriesList = [
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_qty_on_hand', 'Quantity on Hand') ?></label>
                         <input type="number" 
@@ -1533,14 +2007,56 @@ $categoriesList = [
                                name="alert_level" 
                                class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
                     </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_cost_box_unit', 'Cost Per Base Unit ($)') ?></label>
-                        <input type="number" 
-                               step="0.0001" 
-                               min="0" 
-                               id="editCostUnit" 
-                               name="cost_per_unit" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                </div>
+
+                <!-- Pricing Section: Price per KG/L + Base Unit Cost -->
+                <div class="pricing-calc-box p-3.5 rounded-xl space-y-2.5">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="pricing-header-title font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-calculator"></i>
+                            <span id="editPricingSectionTitle"><?= __('cost_per_kg_l', 'Price per 1 KG / 1 Liter') ?></span>
+                        </span>
+                        <span class="pricing-header-sub text-[11px]" id="editPricingFormula">1 kg = 1,000 g</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="modal-label block text-[11px] font-semibold text-[#b4b4c2] mb-1">
+                                <span id="editBulkCostLabelText"><?= __('cost_per_1kg', 'Price per 1 KG ($)') ?></span> <span class="text-rose-400">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="pricing-dollar-icon absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold">$</span>
+                                <input type="number" 
+                                       step="any" 
+                                       min="0" 
+                                       id="editBulkCostInput" 
+                                       placeholder="e.g. 12.00" 
+                                       oninput="syncCostInputs('edit', 'bulk')" 
+                                       class="pricing-calc-input pricing-calc-input-highlight w-full pl-7 pr-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-[#d1904b] focus:ring-1 focus:ring-[#d1904b]">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="modal-label block text-[11px] font-semibold text-[#b4b4c2] mb-1">
+                                <span id="editBaseCostLabelText"><?= __('cost_per_base_unit', 'Cost per Base Unit ($ / g)') ?></span>
+                            </label>
+                            <div class="relative">
+                                <span class="pricing-dollar-icon-muted absolute left-3 top-1/2 -translate-y-1/2 text-xs">$</span>
+                                <input type="number" 
+                                       step="0.0001" 
+                                       min="0" 
+                                       id="editCostUnit" 
+                                       name="cost_per_unit" 
+                                       value="0.0000" 
+                                       oninput="syncCostInputs('edit', 'base')" 
+                                       class="pricing-calc-input w-full pl-7 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#d1904b]">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="editCostPreviewPill" class="pricing-calc-preview text-[11px] flex items-center justify-between pt-1">
+                        <span>Live Unit Cost: <strong class="font-mono" id="editLiveBaseCostDisplay">$0.0000 / g</strong></span>
+                        <span class="formula-text text-[10px]" id="editLiveFormulaText">1 kg @ $0.00</span>
                     </div>
                 </div>
 
@@ -1605,12 +2121,112 @@ $categoriesList = [
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL 6: PACKAGING SET COST (ថ្លៃដើមវេចខ្ចប់សរុប)
+    ══════════════════════════════════════════════════════════════ -->
+    <div id="packagingCostModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
+        <div class="modal-content glass-card max-w-2xl w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative flex flex-col max-h-[90vh]">
+            <!-- Modal Header -->
+            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-[#d1904b]/20 text-[#d1904b] border border-[#d1904b]/30 flex items-center justify-center text-base font-bold shadow-sm">
+                        <i class="fa-solid fa-box-open"></i>
+                    </div>
+                    <div>
+                        <h3 class="modal-title text-base font-bold text-[var(--text-main,#ffffff)]"><?= __('packaging_modal_title', 'ថ្លៃដើមវេចខ្ចប់សរុបក្នុង 1 ឈុត (Packaging Cost per Set)') ?></h3>
+                        <p class="text-xs text-[#8e8e9f] card-subtext"><?= __('packaging_modal_sub', 'គណនា និងកំណត់ថ្លៃដើមសម្ភារវេចខ្ចប់សរុបក្នុង 1 កែវ (កែវ គម្រប បំពង់បឺត ថង់ ស្រោមដៃកែវ...)') ?></p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal('packagingCostModal')" class="w-8 h-8 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-[#7d7d8e] hover:text-[var(--text-main,#ffffff)] flex items-center justify-center transition-all cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body / Items List -->
+            <div class="overflow-y-auto flex-1 space-y-4 pr-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider text-[#b4b4c2] flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group text-[#d1904b]"></i> <?= __('packaging_item_name', 'Packaging Materials Breakdown') ?>
+                    </span>
+                    <button type="button" 
+                            onclick="addPackagingRow()" 
+                            class="btn-pkg-add px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-plus text-[11px]"></i> <?= __('packaging_add_item_btn', 'Add Component') ?>
+                    </button>
+                </div>
+
+                <!-- Interactive Item List Table -->
+                <div class="pkg-table-wrap rounded-xl overflow-hidden shadow-sm">
+                    <table class="w-full text-xs text-left">
+                        <thead class="pkg-thead">
+                            <tr>
+                                <th class="py-2.5 px-3 font-semibold"><?= __('packaging_item_name', 'Component') ?></th>
+                                <th class="py-2.5 px-3 font-semibold w-32"><?= __('packaging_cost_unit', 'Price / Pc ($)') ?></th>
+                                <th class="py-2.5 px-3 font-semibold w-24 text-center"><?= __('packaging_qty_per_set', 'Qty/Cup') ?></th>
+                                <th class="py-2.5 px-3 font-semibold w-28 text-right"><?= __('packaging_subtotal', 'Subtotal') ?></th>
+                                <th class="py-2.5 px-2 w-10 text-center"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="packagingRowsBody">
+                            <!-- JS will dynamically render interactive rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Big Dynamic KPI / Total Summary Card -->
+                <div class="pkg-summary-box p-4 rounded-xl space-y-3 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-semibold text-[#8e8e9f] block"><?= __('packaging_total_per_cup', 'Total Packaging Cost per 1 Cup') ?></span>
+                            <div class="flex items-baseline gap-2 mt-0.5">
+                                <span class="text-2xl font-black text-emerald-500 font-mono" id="pkgTotalPerCupUsd">$0.0000</span>
+                                <span class="text-sm font-bold text-amber-500 font-mono" id="pkgTotalPerCupKhr">≈ 0 ៛ (Riel)</span>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center text-lg shadow-sm">
+                            <i class="fa-solid fa-calculator"></i>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--border,#252530)]">
+                        <div class="pkg-kpi-card p-2.5 rounded-lg">
+                            <span class="text-[11px] text-[#8e8e9f] font-medium block"><?= __('packaging_100_cups', 'Cost for 100 Cups') ?></span>
+                            <div class="card-kpi-val text-sm font-bold font-mono mt-0.5" id="pkg100CupsVal">$0.00 <span class="text-[11px] font-normal text-amber-500">(≈ 0 ៛)</span></div>
+                        </div>
+                        <div class="pkg-kpi-card p-2.5 rounded-lg">
+                            <span class="text-[11px] text-[#8e8e9f] font-medium block"><?= __('packaging_1000_cups', 'Cost for 1,000 Cups') ?></span>
+                            <div class="card-kpi-val text-sm font-bold font-mono mt-0.5" id="pkg1000CupsVal">$0.00 <span class="text-[11px] font-normal text-amber-500">(≈ 0 ៛)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer flex items-center justify-between pt-4 border-t border-[#252530] mt-4">
+                <button type="button" 
+                        onclick="closeModal('packagingCostModal')" 
+                        class="btn-pkg-cancel px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                    <?= __('btn_cancel', 'Cancel') ?>
+                </button>
+                <button type="button" 
+                        id="savePackagingSetBtn" 
+                        onclick="savePackagingSet()" 
+                        class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-[#d1904b] to-[#e5a15a] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-md">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span><?= __('packaging_save_btn', 'Save Packaging Set Cost') ?></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ── JavaScript Client Engine ── -->
     <script>
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const KHR_RATE = <?= defined('KHR_RATE') ? KHR_RATE : 4000 ?>;
 
         const I18N = {
             lang: "<?= current_lang() ?>",
+            packagingSetCost: "<?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់') ?>",
             inStock: "<?= __('status_in_stock', 'In Stock') ?>",
             lowStock: "<?= __('status_low_stock', 'Low Stock') ?>",
             outOfStock: "<?= __('status_out_of_stock', 'Out of Stock') ?>",
@@ -1633,22 +2249,38 @@ $categoriesList = [
             supplierNotes: "<?= __('supplier_notes', 'Supplier / Notes') ?>",
             staff: "<?= __('staff_member', 'Staff') ?>",
             categories: {
-                'Dairy': "<?= __('cat_dairy', 'Dairy & Milk') ?>",
-                'Beans': "<?= __('cat_beans', 'Coffee Beans') ?>",
-                'Syrups': "<?= __('cat_syrups', 'Syrups & Flavors') ?>",
-                'Packaging': "<?= __('cat_packaging', 'Cups & Packaging') ?>",
-                'Bakery / Toppings': "<?= __('cat_bakery', 'Bakery / Toppings') ?>",
-                'General Supplies': "<?= __('cat_general', 'General Supplies') ?>"
-            }
+                'Liquids': "<?= __('cat_liquids', 'ទឹក') ?>",
+                'Dairy': "<?= __('cat_liquids', 'ទឹក') ?>",
+                'Syrups': "<?= __('cat_liquids', 'ទឹក') ?>",
+                'ទឹក': "<?= __('cat_liquids', 'ទឹក') ?>",
+                'Beans': "<?= __('cat_beans', 'គ្រាប់') ?>",
+                'គ្រាប់': "<?= __('cat_beans', 'គ្រាប់') ?>",
+                'Packaging': "<?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?>",
+                'កែវ & ការវេចខ្ចប់': "<?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?>",
+                'កែវ &ការវេចខ្ជប់': "<?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?>",
+                'General Supplies': "<?= __('cat_general', 'សម្ភារទូទៅ') ?>",
+                'Bakery / Toppings': "<?= __('cat_general', 'សម្ភារទូទៅ') ?>",
+                'សម្ភារទូទៅ': "<?= __('cat_general', 'សម្ភារទូទៅ') ?>",
+                'សម្ភារៈទូទៅ': "<?= __('cat_general', 'សម្ភារទូទៅ') ?>"
+            },
+            costPer1kg: "<?= __('cost_per_1kg', 'Price per 1 KG ($)') ?>",
+            costPer1l: "<?= __('cost_per_1l', 'Price per 1 Liter ($)') ?>",
+            costPer1pc: "<?= __('cost_per_1pc', 'Price per 1 Piece ($)') ?>",
+            costPerBaseUnit: "<?= __('cost_per_base_unit', 'Cost per Base Unit ($)') ?>"
         };
 
         const CATEGORY_META = {
+            'Liquids': { icon: 'fa-bottle-water', color: 'sky' },
             'Dairy': { icon: 'fa-bottle-water', color: 'sky' },
+            'Syrups': { icon: 'fa-bottle-water', color: 'sky' },
+            'ទឹក': { icon: 'fa-bottle-water', color: 'sky' },
             'Beans': { icon: 'fa-seedling', color: 'amber' },
-            'Syrups': { icon: 'fa-flask', color: 'purple' },
+            'គ្រាប់': { icon: 'fa-seedling', color: 'amber' },
             'Packaging': { icon: 'fa-box-open', color: 'emerald' },
-            'Bakery / Toppings': { icon: 'fa-cookie-bite', color: 'yellow' },
-            'General Supplies': { icon: 'fa-boxes-stacked', color: 'slate' }
+            'កែវ & ការវេចខ្ចប់': { icon: 'fa-box-open', color: 'emerald' },
+            'General Supplies': { icon: 'fa-boxes-stacked', color: 'slate' },
+            'Bakery / Toppings': { icon: 'fa-boxes-stacked', color: 'slate' },
+            'សម្ភារទូទៅ': { icon: 'fa-boxes-stacked', color: 'slate' }
         };
 
         function escapeHtml(str) {
@@ -1815,6 +2447,7 @@ $categoriesList = [
 
             let html = '';
             items.forEach(item => {
+                const isPkgSet = (item.item_name && (item.item_name.toLowerCase().includes('packaging set') || item.item_name.includes('ឈុត')));
                 const qty = parseFloat(item.quantity) || 0;
                 const alert = parseFloat(item.alert_level) || 0;
                 const cost = parseFloat(item.cost_per_unit) || 0;
@@ -1834,60 +2467,107 @@ $categoriesList = [
                 const catMeta = CATEGORY_META[item.category] || { icon: 'fa-box', color: 'slate' };
                 const cap = estimateCapacity(item.category, qty, item.unit);
                 const displayCategory = I18N.categories[item.category] || item.category;
+                const bulkPrice = (item.unit === 'g' || item.unit === 'ml') ? (cost * 1000) : cost;
+                const bulkUnit = (item.unit === 'g') ? 'kg' : ((item.unit === 'ml') ? 'L' : 'pcs');
+                const khrCost = cost * KHR_RATE;
+                const khrCostText = khrCost >= 10 ? Math.round(khrCost).toLocaleString('en-US') : (khrCost > 0 ? (Number.isInteger(khrCost) ? khrCost : khrCost.toFixed(1)) : '0');
 
-                html += `
-                <tr class="row-hover group" data-item-id="${item.item_id}">
-                    <td class="py-3.5 px-4">
-                        <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
-                            ${escapeHtml(item.item_name)}
-                        </div>
-                    </td>
-                    <td class="py-3.5 px-3">
-                        <span class="cat-badge inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#1e1e24] text-[#b4b4c2] border border-[#282834]">
-                            ${escapeHtml(displayCategory)}
-                        </span>
-                    </td>
-                    <td class="py-3.5 px-3 font-semibold">
-                        <span class="text-sm font-extrabold ${qtyColor === 'text-white' ? 'text-[var(--text-main)]' : qtyColor}">
-                            ${formatNumber(qty)} <span class="text-xs font-normal text-[#8e8e9f]">${escapeHtml(item.unit)}</span>
-                        </span>
-                    </td>
-                    <td class="py-3.5 px-3 font-medium">
-                        <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#1e1e24] border border-[#282834] text-xs text-[#8e8e9f]">
-                            ${formatNumber(alert)} ${escapeHtml(item.unit)}
-                        </span>
-                    </td>
-                    <td class="py-3.5 px-3">
-                        ${statusBadge}
-                    </td>
-                    <td class="py-3.5 px-3">
-                        <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                        <div class="text-[11px] text-[#8e8e9f]">$${cost.toFixed(4)} / ${escapeHtml(item.unit)}</div>
-                    </td>
-                    <td class="py-3.5 px-4 text-right">
-                        <div class="flex items-center justify-end gap-1.5">
+                if (isPkgSet) {
+                    html += `
+                    <tr class="row-hover group" data-item-id="${item.item_id}">
+                        <td class="py-3.5 px-4">
+                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate flex items-center gap-2">
+                                <i class="fa-solid fa-box-open text-[#d1904b] text-xs"></i>
+                                <span>${escapeHtml(item.item_name)}</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-3">
+                            <span class="cat-badge inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#1e1e24] text-[#b4b4c2] border border-[#282834]">
+                                ${escapeHtml(displayCategory)}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-3 font-semibold text-center">
+                            <span class="text-xs font-medium text-[#8e8e9f]">-</span>
+                        </td>
+                        <td class="py-3.5 px-3 font-medium text-center">
+                            <span class="text-xs font-medium text-[#8e8e9f]">-</span>
+                        </td>
+                        <td class="py-3.5 px-3">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#d1904b]/10 text-[#d1904b] border border-[#d1904b]/20">
+                                <i class="fa-solid fa-calculator text-[10px]"></i> ${I18N.lang === 'km' ? 'គិតតាមរូបមន្ត (Auto Set)' : 'Auto Set'}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-3">
+                            <div class="font-bold text-[#d1904b] text-xs">$${cost.toFixed(4)} / set</div>
+                            <div class="text-[10px] text-amber-500 font-semibold mt-0.5">(≈ ${khrCostText} ៛)</div>
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
                             <button type="button" 
-                                    onclick="openEditStockModal(${item.item_id})" 
-                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
-                                    title="${escapeHtml(I18N.edit)}">
-                                <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
+                                    onclick="openPackagingCostModal()" 
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d1904b]/15 hover:bg-[#d1904b]/25 text-[#d1904b] border border-[#d1904b]/30 text-xs font-bold transition-all cursor-pointer shadow-sm" 
+                                    title="${escapeHtml(I18N.packagingSetCost)}">
+                                <i class="fa-solid fa-gear text-xs"></i>
+                                <span>${escapeHtml(I18N.packagingSetCost)}</span>
                             </button>
-                            <button type="button" 
-                                    onclick="openRestockModal(${item.item_id})" 
-                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                    title="${escapeHtml(I18N.restock)}">
-                                <i class="fa-solid fa-plus w-4 text-center"></i>
-                            </button>
-                            <button type="button" 
-                                    onclick="confirmDeleteItem(${item.item_id}, '${escapeHtml(item.item_name).replace(/'/g, "\\'")}')" 
-                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                    title="${escapeHtml(I18N.delete)}">
-                                <i class="fa-solid fa-trash-can w-4 text-center"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                `;
+                        </td>
+                    </tr>
+                    `;
+                } else {
+                    html += `
+                    <tr class="row-hover group" data-item-id="${item.item_id}">
+                        <td class="py-3.5 px-4">
+                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
+                                ${escapeHtml(item.item_name)}
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-3">
+                            <span class="cat-badge inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#1e1e24] text-[#b4b4c2] border border-[#282834]">
+                                ${escapeHtml(displayCategory)}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-3 font-semibold">
+                            <span class="text-sm font-extrabold ${qtyColor === 'text-white' ? 'text-[var(--text-main)]' : qtyColor}">
+                                ${formatNumber(qty)} <span class="text-xs font-normal text-[#8e8e9f]">${escapeHtml(item.unit)}</span>
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-3 font-medium">
+                            <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#1e1e24] border border-[#282834] text-xs text-[#8e8e9f]">
+                                ${formatNumber(alert)} ${escapeHtml(item.unit)}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-3">
+                            ${statusBadge}
+                        </td>
+                        <td class="py-3.5 px-3">
+                            <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            <div class="text-[11px] font-bold text-[#d1904b] mt-0.5">$${bulkPrice.toFixed(2)} / ${bulkUnit}</div>
+                            <div class="text-[10px] text-[#8e8e9f]">$${cost.toFixed(4)} / ${escapeHtml(item.unit)} <span class="text-amber-500 font-semibold">(≈ ${khrCostText} ៛)</span></div>
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <button type="button" 
+                                        onclick="openEditStockModal(${item.item_id})" 
+                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
+                                        title="${escapeHtml(I18N.edit)}">
+                                    <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
+                                </button>
+                                <button type="button" 
+                                        onclick="openRestockModal(${item.item_id})" 
+                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                        title="${escapeHtml(I18N.restock)}">
+                                    <i class="fa-solid fa-plus w-4 text-center"></i>
+                                </button>
+                                <button type="button" 
+                                        onclick="confirmDeleteItem(${item.item_id}, '${escapeHtml(item.item_name).replace(/'/g, "\\'")}')" 
+                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                        title="${escapeHtml(I18N.delete)}">
+                                    <i class="fa-solid fa-trash-can w-4 text-center"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    `;
+                }
             });
 
             tbody.innerHTML = html;
@@ -1914,6 +2594,87 @@ $categoriesList = [
             if (currentWVal) wSelect.value = currentWVal;
         }
 
+        // ── Pricing Synchronizer & Calculator ──
+        function handleUnitChange(mode) {
+            const unitSelect = document.getElementById(mode === 'add' ? 'addUnitSelect' : 'editUnit');
+            const unit = unitSelect ? unitSelect.value : 'g';
+            
+            const titleEl = document.getElementById(mode === 'add' ? 'addPricingSectionTitle' : 'editPricingSectionTitle');
+            const formulaEl = document.getElementById(mode === 'add' ? 'addPricingFormula' : 'editPricingFormula');
+            const bulkLabelEl = document.getElementById(mode === 'add' ? 'addBulkCostLabelText' : 'editBulkCostLabelText');
+            const baseLabelEl = document.getElementById(mode === 'add' ? 'addBaseCostLabelText' : 'editBaseCostLabelText');
+            const bulkInput = document.getElementById(mode === 'add' ? 'addBulkCostInput' : 'editBulkCostInput');
+
+            if (unit === 'g') {
+                if (titleEl) titleEl.textContent = (I18N.costPer1kg || 'Price per 1 KG ($)');
+                if (formulaEl) formulaEl.textContent = '1 kg = 1,000 g';
+                if (bulkLabelEl) bulkLabelEl.textContent = (I18N.costPer1kg || 'Price per 1 KG ($)');
+                if (baseLabelEl) baseLabelEl.textContent = (I18N.costPerBaseUnit || 'Cost per Base Unit ($)') + ' (/ g)';
+                if (bulkInput) bulkInput.placeholder = 'e.g. 12.00 ($/kg)';
+            } else if (unit === 'ml') {
+                if (titleEl) titleEl.textContent = (I18N.costPer1l || 'Price per 1 Liter ($)');
+                if (formulaEl) formulaEl.textContent = '1 L = 1,000 ml';
+                if (bulkLabelEl) bulkLabelEl.textContent = (I18N.costPer1l || 'Price per 1 Liter ($)');
+                if (baseLabelEl) baseLabelEl.textContent = (I18N.costPerBaseUnit || 'Cost per Base Unit ($)') + ' (/ ml)';
+                if (bulkInput) bulkInput.placeholder = 'e.g. 1.80 ($/L)';
+            } else {
+                if (titleEl) titleEl.textContent = (I18N.costPer1pc || 'Price per 1 Piece ($)');
+                if (formulaEl) formulaEl.textContent = '1 piece';
+                if (bulkLabelEl) bulkLabelEl.textContent = (I18N.costPer1pc || 'Price per 1 Piece ($)');
+                if (baseLabelEl) baseLabelEl.textContent = (I18N.costPerBaseUnit || 'Cost per Base Unit ($)') + ' (/ pc)';
+                if (bulkInput) bulkInput.placeholder = 'e.g. 0.05 ($/pc)';
+            }
+
+            syncCostInputs(mode, 'bulk');
+        }
+
+        function syncCostInputs(mode, source) {
+            const unitSelect = document.getElementById(mode === 'add' ? 'addUnitSelect' : 'editUnit');
+            const unit = unitSelect ? unitSelect.value : 'g';
+            const multiplier = (unit === 'g' || unit === 'ml') ? 1000 : 1;
+
+            const bulkInput = document.getElementById(mode === 'add' ? 'addBulkCostInput' : 'editBulkCostInput');
+            const baseInput = document.getElementById(mode === 'add' ? 'addCostUnit' : 'editCostUnit');
+            const liveDisplay = document.getElementById(mode === 'add' ? 'addLiveBaseCostDisplay' : 'editLiveBaseCostDisplay');
+            const liveFormula = document.getElementById(mode === 'add' ? 'addLiveFormulaText' : 'editLiveFormulaText');
+
+            if (!bulkInput || !baseInput) return;
+
+            let baseVal = 0;
+            if (source === 'bulk') {
+                const bulkVal = parseFloat(bulkInput.value);
+                if (!isNaN(bulkVal) && bulkVal >= 0) {
+                    baseVal = bulkVal / multiplier;
+                    baseInput.value = baseVal.toFixed(4);
+                } else {
+                    baseInput.value = '0.0000';
+                }
+            } else {
+                const rawBase = parseFloat(baseInput.value);
+                if (!isNaN(rawBase) && rawBase >= 0) {
+                    baseVal = rawBase;
+                    const bulkVal = baseVal * multiplier;
+                    bulkInput.value = (Math.round(bulkVal * 100) / 100).toFixed(2);
+                } else {
+                    bulkInput.value = '';
+                }
+            }
+
+            if (liveDisplay) {
+                liveDisplay.textContent = `$${baseVal.toFixed(4)} / ${unit}`;
+            }
+
+            if (liveFormula) {
+                if (baseVal > 0) {
+                    const khrVal = baseVal * KHR_RATE;
+                    const khrFormatted = khrVal >= 10 ? Math.round(khrVal).toLocaleString('en-US') : (khrVal > 0 ? (Number.isInteger(khrVal) ? khrVal : khrVal.toFixed(1)) : '0');
+                    liveFormula.innerHTML = `<span class="font-bold text-amber-500">≈ ${khrFormatted} ៛ (Riel)</span> <span class="text-[#8e8e9f]">/ ${escapeHtml(unit)}</span>`;
+                } else {
+                    liveFormula.innerHTML = `<span class="text-[#727282]">0 ៛ / ${escapeHtml(unit)}</span>`;
+                }
+            }
+        }
+
         // ── Modal Actions ──
         function openAddStockModal() {
             document.getElementById('addStockForm').reset();
@@ -1923,6 +2684,13 @@ $categoriesList = [
             if (nameInput) nameInput.classList.remove('border-rose-500');
             const submitBtn = document.getElementById('addStockSubmitBtn');
             if (submitBtn) submitBtn.disabled = false;
+            
+            const bulkInput = document.getElementById('addBulkCostInput');
+            if (bulkInput) bulkInput.value = '';
+            const baseInput = document.getElementById('addCostUnit');
+            if (baseInput) baseInput.value = '0.0000';
+            
+            handleUnitChange('add');
             openModal('addStockModal');
         }
 
@@ -2122,8 +2890,11 @@ $categoriesList = [
                 document.getElementById('editUnit').value = item.unit;
                 document.getElementById('editQuantity').value = item.quantity;
                 document.getElementById('editAlertLevel').value = item.alert_level;
-                document.getElementById('editCostUnit').value = item.cost_per_unit;
+                document.getElementById('editCostUnit').value = parseFloat(item.cost_per_unit || 0).toFixed(4);
                 document.getElementById('editNotes').value = item.notes || '';
+
+                handleUnitChange('edit');
+                syncCostInputs('edit', 'base');
 
                 openModal('editStockModal');
             } catch (err) {
@@ -2249,6 +3020,189 @@ $categoriesList = [
             } catch (err) {
                 console.error(err);
                 container.innerHTML = `<p class="text-rose-400 text-center py-4">Failed to load audit logs.</p>`;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ── PACKAGING SET COST CONTROLLER ──
+        // ══════════════════════════════════════════════════════════════
+        let packagingItems = [];
+
+        async function openPackagingCostModal() {
+            openModal('packagingCostModal');
+            const body = document.getElementById('packagingRowsBody');
+            body.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-[#8e8e9f]"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading packaging set...</td></tr>`;
+
+            try {
+                const res = await fetch('ingredients.php?action=get_packaging_set');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.items)) {
+                    packagingItems = data.items;
+                } else {
+                    packagingItems = [
+                        { name: 'កែវ (Plastic / Paper Cup)', cost: 0.0450, qty: 1 },
+                        { name: 'គម្របកែវ (Cup Lid)', cost: 0.0180, qty: 1 },
+                        { name: 'បំពង់បឺត (Straw)', cost: 0.0080, qty: 1 },
+                        { name: 'ស្រោមដៃកែវ / ថង់យួរ (Sleeve / Carrier)', cost: 0.0150, qty: 1 },
+                        { name: 'ស្ទីគ័រ / ក្រដាសជូត (Logo Sticker / Napkin)', cost: 0.0060, qty: 1 }
+                    ];
+                }
+                renderPackagingRows();
+            } catch (err) {
+                console.error(err);
+                renderPackagingRows();
+            }
+        }
+
+        function renderPackagingRows() {
+            const body = document.getElementById('packagingRowsBody');
+            if (!body) return;
+
+            if (!packagingItems || packagingItems.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-[#727282] italic">No packaging components added yet. Click "+ Add Component" above.</td></tr>`;
+                recalculatePackagingTotals();
+                return;
+            }
+
+            let html = '';
+            packagingItems.forEach((item, idx) => {
+                const cost = parseFloat(item.cost) || 0;
+                const qty = parseFloat(item.qty) || 1;
+                const sub = cost * qty;
+                const khr = cost * KHR_RATE;
+                const khrText = khr >= 10 ? Math.round(khr).toLocaleString('en-US') : (khr > 0 ? (Number.isInteger(khr) ? khr : khr.toFixed(1)) : '0');
+
+                html += `
+                <tr class="pkg-row group transition-colors" data-idx="${idx}">
+                    <td class="py-2.5 px-3">
+                        <input type="text" 
+                               value="${escapeHtml(item.name || '')}" 
+                               placeholder="e.g. កែវ Cup" 
+                               oninput="updatePackagingItem(${idx}, 'name', this.value)" 
+                               class="pkg-input w-full px-2.5 py-1.5 rounded-lg text-xs">
+                    </td>
+                    <td class="py-2.5 px-3">
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8e8e9f] font-bold">$</span>
+                            <input type="number" 
+                                   step="0.0001" 
+                                   min="0" 
+                                   value="${cost > 0 ? cost : ''}" 
+                                   placeholder="0.0000" 
+                                   oninput="updatePackagingItem(${idx}, 'cost', this.value)" 
+                                   class="pkg-input w-full pl-6 pr-2 py-1.5 rounded-lg text-xs font-mono">
+                        </div>
+                        <div class="text-[10px] text-amber-500 font-semibold mt-0.5 pl-1">≈ ${khrText} ៛</div>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                        <input type="number" 
+                               step="any" 
+                               min="0.1" 
+                               value="${qty}" 
+                               oninput="updatePackagingItem(${idx}, 'qty', this.value)" 
+                               class="pkg-input w-16 px-2 py-1.5 rounded-lg text-xs text-center font-mono">
+                    </td>
+                    <td class="py-2.5 px-3 text-right font-mono">
+                        <div class="font-bold text-emerald-500 text-xs">$${sub.toFixed(4)}</div>
+                    </td>
+                    <td class="py-2.5 px-2 text-center">
+                        <button type="button" 
+                                onclick="removePackagingRow(${idx})" 
+                                class="p-1.5 rounded-lg text-[#8e8e9f] hover:text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer" 
+                                title="Remove">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </td>
+                </tr>
+                `;
+            });
+
+            body.innerHTML = html;
+            recalculatePackagingTotals();
+        }
+
+        function updatePackagingItem(index, field, value) {
+            if (!packagingItems[index]) return;
+            if (field === 'name') {
+                packagingItems[index].name = value;
+            } else if (field === 'cost') {
+                packagingItems[index].cost = parseFloat(value) || 0;
+            } else if (field === 'qty') {
+                packagingItems[index].qty = parseFloat(value) || 0;
+            }
+            recalculatePackagingTotals();
+        }
+
+        function addPackagingRow() {
+            packagingItems.push({ name: '', cost: 0.0100, qty: 1 });
+            renderPackagingRows();
+        }
+
+        function removePackagingRow(index) {
+            packagingItems.splice(index, 1);
+            renderPackagingRows();
+        }
+
+        function recalculatePackagingTotals() {
+            let totalPerCup = 0;
+            packagingItems.forEach(item => {
+                const cost = parseFloat(item.cost) || 0;
+                const qty = parseFloat(item.qty) || 0;
+                totalPerCup += (cost * qty);
+            });
+
+            const khrTotal = totalPerCup * KHR_RATE;
+            const khrText = khrTotal >= 10 ? Math.round(khrTotal).toLocaleString('en-US') : (khrTotal > 0 ? (Number.isInteger(khrTotal) ? khrTotal : khrTotal.toFixed(1)) : '0');
+
+            const totalUsdEl = document.getElementById('pkgTotalPerCupUsd');
+            const totalKhrEl = document.getElementById('pkgTotalPerCupKhr');
+            if (totalUsdEl) totalUsdEl.textContent = `$${totalPerCup.toFixed(4)}`;
+            if (totalKhrEl) totalKhrEl.textContent = `≈ ${khrText} ៛ (Riel)`;
+
+            const val100 = totalPerCup * 100;
+            const khr100 = Math.round(val100 * KHR_RATE).toLocaleString('en-US');
+            const el100 = document.getElementById('pkg100CupsVal');
+            if (el100) el100.innerHTML = `$${val100.toFixed(2)} <span class="text-[11px] font-normal text-amber-500">(≈ ${khr100} ៛)</span>`;
+
+            const val1000 = totalPerCup * 1000;
+            const khr1000 = Math.round(val1000 * KHR_RATE).toLocaleString('en-US');
+            const el1000 = document.getElementById('pkg1000CupsVal');
+            if (el1000) el1000.innerHTML = `$${val1000.toFixed(2)} <span class="text-[11px] font-normal text-amber-500">(≈ ${khr1000} ៛)</span>`;
+        }
+
+        async function savePackagingSet() {
+            const btn = document.getElementById('savePackagingSetBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...`;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'save_packaging_set');
+                formData.append('csrf_token', CSRF_TOKEN);
+                formData.append('items', JSON.stringify(packagingItems));
+
+                const res = await fetch('ingredients.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast(data.message || 'Packaging set cost saved successfully!', 'success');
+                    closeModal('packagingCostModal');
+                } else {
+                    showToast(data.message || 'Failed to save packaging set.', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Network error while saving packaging set.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> <?= __('packaging_save_btn', 'Save Packaging Set Cost') ?>`;
+                }
             }
         }
 

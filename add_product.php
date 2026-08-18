@@ -110,13 +110,19 @@ if ($stockRes) {
     }
 }
 
+
 if (!function_exists('renderIngredientOptGroups')) {
     function renderIngredientOptGroups($allIngredients, $selectedId = null) {
         $rawIngredients = [];
+        $pkgIngredients = [];
         $drinkStock = [];
         foreach ($allIngredients as $item) {
-            if (($item['item_type'] ?? '') === 'direct_drink' || ($item['category'] ?? '') === 'Direct Drinks') {
+            $isDrink = (($item['item_type'] ?? '') === 'direct_drink' || ($item['category'] ?? '') === 'Direct Drinks');
+            $isPkg = (($item['category'] ?? '') === 'Packaging' || ($item['category'] ?? '') === 'កែវ & ការវេចខ្ចប់' || str_contains(strtolower($item['ingredient_name'] ?? ''), 'packaging') || str_contains($item['ingredient_name'] ?? '', 'ឈុត'));
+            if ($isDrink) {
                 $drinkStock[] = $item;
+            } elseif ($isPkg) {
+                $pkgIngredients[] = $item;
             } else {
                 $rawIngredients[] = $item;
             }
@@ -132,6 +138,18 @@ if (!function_exists('renderIngredientOptGroups')) {
                 $cpu = (float)($i['cost_per_unit'] ?? 0);
                 $name = htmlspecialchars($i['ingredient_name']);
                 $html .= "<option value=\"{$i['ingredient_id']}\" data-unit=\"{$unit}\" data-type=\"ingredient\" data-cpu=\"{$cpu}\" {$sel}>{$name}</option>";
+            }
+            $html .= '</optgroup>';
+        }
+
+        if (!empty($pkgIngredients)) {
+            $html .= '<optgroup label="📦 Packaging / Cups & Sets">';
+            foreach ($pkgIngredients as $i) {
+                $sel = ((string)$i['ingredient_id'] === (string)$selectedId) ? 'selected' : '';
+                $unit = htmlspecialchars($i['unit'] ?? 'pcs');
+                $cpu = (float)($i['cost_per_unit'] ?? 0);
+                $name = htmlspecialchars($i['ingredient_name']);
+                $html .= "<option value=\"{$i['ingredient_id']}\" data-unit=\"{$unit}\" data-type=\"packaging\" data-cpu=\"{$cpu}\" {$sel}>{$name}</option>";
             }
             $html .= '</optgroup>';
         }
@@ -155,13 +173,17 @@ if (!function_exists('renderIngredientOptGroups')) {
 if (!function_exists('renderCustomRecipeDropdown')) {
     function renderCustomRecipeDropdown($allIngredients, $selectedId = null) {
         $rawIngredients = [];
+        $pkgIngredients = [];
         $drinkStock = [];
         $selectedItem = null;
 
         foreach ($allIngredients as $item) {
             $isDrink = (($item['item_type'] ?? '') === 'direct_drink' || ($item['category'] ?? '') === 'Direct Drinks');
+            $isPkg = (($item['category'] ?? '') === 'Packaging' || ($item['category'] ?? '') === 'កែវ & ការវេចខ្ចប់' || str_contains(strtolower($item['ingredient_name'] ?? ''), 'packaging') || str_contains($item['ingredient_name'] ?? '', 'ឈុត'));
             if ($isDrink) {
                 $drinkStock[] = $item;
+            } elseif ($isPkg) {
+                $pkgIngredients[] = $item;
             } else {
                 $rawIngredients[] = $item;
             }
@@ -171,9 +193,15 @@ if (!function_exists('renderCustomRecipeDropdown')) {
         }
 
         $isDrinkSel = $selectedItem ? ((($selectedItem['item_type'] ?? '') === 'direct_drink') || (($selectedItem['category'] ?? '') === 'Direct Drinks')) : false;
-        $defaultCat = $isDrinkSel ? 'direct_drink' : 'ingredient';
+        $isPkgSel = $selectedItem ? ((($selectedItem['category'] ?? '') === 'Packaging') || str_contains(strtolower($selectedItem['ingredient_name'] ?? ''), 'packaging') || str_contains($selectedItem['ingredient_name'] ?? '', 'ឈុត')) : false;
+        $defaultCat = $isDrinkSel ? 'direct_drink' : ($isPkgSel ? 'packaging' : 'ingredient');
 
-        $btnIcon = $selectedItem ? ($isDrinkSel ? '<i class="fa-solid fa-wine-bottle text-amber-400"></i>' : '<i class="fa-solid fa-seedling text-emerald-400"></i>') : '<i class="fa-solid fa-layer-group text-[#888]"></i>';
+        $btnIcon = '<i class="fa-solid fa-layer-group text-[#888]"></i>';
+        if ($selectedItem) {
+            if ($isDrinkSel) $btnIcon = '<i class="fa-solid fa-wine-bottle text-amber-400"></i>';
+            elseif ($isPkgSel) $btnIcon = '<i class="fa-solid fa-box-open text-sky-400"></i>';
+            else $btnIcon = '<i class="fa-solid fa-seedling text-emerald-400"></i>';
+        }
         $btnText = $selectedItem ? htmlspecialchars($selectedItem['ingredient_name']) : 'Select ingredient / stock drink…';
 
         $html = '<div class="crd-wrap">';
@@ -190,6 +218,13 @@ if (!function_exists('renderCustomRecipeDropdown')) {
         $html .= '<div class="crd-cat-item ' . $cat1Active . '" data-cat="ingredient" onmouseenter="crdSwitchCat(this, \'ingredient\')">';
         $html .= '<span class="crd-cat-title"><i class="fa-solid fa-seedling text-emerald-400 mr-1.5"></i> Ingredients</span>';
         $html .= '<span class="crd-cat-count">' . count($rawIngredients) . '</span>';
+        $html .= '<i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>';
+        $html .= '</div>';
+
+        $catPkgActive = ($defaultCat === 'packaging') ? 'active' : '';
+        $html .= '<div class="crd-cat-item ' . $catPkgActive . '" data-cat="packaging" onmouseenter="crdSwitchCat(this, \'packaging\')">';
+        $html .= '<span class="crd-cat-title"><i class="fa-solid fa-box-open text-sky-400 mr-1.5"></i> Packaging</span>';
+        $html .= '<span class="crd-cat-count">' . count($pkgIngredients) . '</span>';
         $html .= '<i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>';
         $html .= '</div>';
 
@@ -218,6 +253,24 @@ if (!function_exists('renderCustomRecipeDropdown')) {
                 $html .= '<div class="crd-item-row ' . $sel . '" data-id="' . $ri['ingredient_id'] . '" data-unit="' . htmlspecialchars($ri['unit']) . '" data-cpu="' . $cpu . '" data-type="ingredient" data-name="' . htmlspecialchars($ri['ingredient_name']) . '" onclick="crdSelectItem(this, event)">';
                 $html .= '<span class="crd-item-name">' . htmlspecialchars($ri['ingredient_name']) . '</span>';
                 $html .= '<span class="crd-item-meta">$' . $cpuStr . '/' . htmlspecialchars($ri['unit']) . '</span>';
+                $html .= '</div>';
+            }
+        }
+        $html .= '</div>';
+
+        // Panel: Packaging
+        $pPkgActive = ($defaultCat === 'packaging') ? 'active' : '';
+        $html .= '<div class="crd-panel crd-panel-packaging ' . $pPkgActive . '">';
+        if (empty($pkgIngredients)) {
+            $html .= '<div class="crd-empty-msg">No packaging items found</div>';
+        } else {
+            foreach ($pkgIngredients as $pi) {
+                $sel = ((string)$pi['ingredient_id'] === (string)$selectedId) ? 'selected' : '';
+                $cpu = (float)($pi['cost_per_unit'] ?? 0);
+                $cpuStr = ($cpu < 0.01 && $cpu > 0) ? rtrim(rtrim(number_format($cpu, 4), '0'), '.') : number_format($cpu, 2);
+                $html .= '<div class="crd-item-row ' . $sel . '" data-id="' . $pi['ingredient_id'] . '" data-unit="' . htmlspecialchars($pi['unit']) . '" data-cpu="' . $cpu . '" data-type="packaging" data-name="' . htmlspecialchars($pi['ingredient_name']) . '" onclick="crdSelectItem(this, event)">';
+                $html .= '<span class="crd-item-name">' . htmlspecialchars($pi['ingredient_name']) . '</span>';
+                $html .= '<span class="crd-item-meta">$' . $cpuStr . '/' . htmlspecialchars($pi['unit']) . '</span>';
                 $html .= '</div>';
             }
         }
@@ -1190,9 +1243,14 @@ select.cat-select option {
                     <div class="section-card flex-1">
                         <div class="section-head">
                             <h3><i class="fa-solid fa-mortar-pestle text-[#d1904b]"></i> Recipe & Ingredients (BOM)</h3>
-                            <button type="button" onclick="addRecipeRow()" class="btn-add-ing">
-                                <i class="fa-solid fa-plus text-xs"></i> Add Ingredient
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="addPackagingSetRow()" class="btn-add-ing border border-[#d1904b]/40 text-[#d1904b] bg-[#d1904b]/10 hover:bg-[#d1904b]/20" title="Add default packaging set (Cup + Lid + Straw + Sleeve)">
+                                    <i class="fa-solid fa-box-open text-xs"></i> + ឈុតវេចខ្ចប់ (Packaging Set)
+                                </button>
+                                <button type="button" onclick="addRecipeRow()" class="btn-add-ing">
+                                    <i class="fa-solid fa-plus text-xs"></i> Add Ingredient
+                                </button>
+                            </div>
                         </div>
                         <div class="section-body flex flex-col gap-4">
                             
@@ -1299,10 +1357,15 @@ const allIngredients = <?= json_encode($allIngredients) ?>;
 
 function buildIngredientOptionsHtml(ingId = '') {
     let rawIngs = [];
+    let pkgIngs = [];
     let drinkStock = [];
     allIngredients.forEach(i => {
-        if ((i.item_type === 'direct_drink') || (i.category === 'Direct Drinks')) {
+        const isDrink = (i.item_type === 'direct_drink' || i.category === 'Direct Drinks');
+        const isPkg = (i.category === 'Packaging' || i.category === 'កែវ & ការវេចខ្ចប់' || (i.ingredient_name && (i.ingredient_name.toLowerCase().includes('packaging') || i.ingredient_name.includes('ឈុត'))));
+        if (isDrink) {
             drinkStock.push(i);
+        } else if (isPkg) {
+            pkgIngs.push(i);
         } else {
             rawIngs.push(i);
         }
@@ -1316,6 +1379,16 @@ function buildIngredientOptionsHtml(ingId = '') {
             const sel = (i.ingredient_id == ingId) ? 'selected' : '';
             const cpu = parseFloat(i.cost_per_unit || 0);
             html += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-type="ingredient" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    if (pkgIngs.length > 0) {
+        html += '<optgroup label="📦 Packaging / Cups & Sets">';
+        pkgIngs.forEach(i => {
+            const sel = (i.ingredient_id == ingId) ? 'selected' : '';
+            const cpu = parseFloat(i.cost_per_unit || 0);
+            html += `<option value="${i.ingredient_id}" data-unit="${escapeHtml(i.unit)}" data-type="packaging" data-cpu="${cpu}" ${sel}>${escapeHtml(i.ingredient_name)}</option>`;
         });
         html += '</optgroup>';
     }
@@ -1335,13 +1408,17 @@ function buildIngredientOptionsHtml(ingId = '') {
 
 function buildCustomRecipeDropdownHtml(ingId = '') {
     let rawIngs = [];
+    let pkgIngs = [];
     let drinkStock = [];
     let selectedItem = null;
 
     allIngredients.forEach(i => {
         const isDrink = (i.item_type === 'direct_drink' || i.category === 'Direct Drinks');
+        const isPkg = (i.category === 'Packaging' || i.category === 'កែវ & ការវេចខ្ចប់' || (i.ingredient_name && (i.ingredient_name.toLowerCase().includes('packaging') || i.ingredient_name.includes('ឈុត'))));
         if (isDrink) {
             drinkStock.push(i);
+        } else if (isPkg) {
+            pkgIngs.push(i);
         } else {
             rawIngs.push(i);
         }
@@ -1351,9 +1428,15 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
     });
 
     const isDrinkSel = selectedItem ? (selectedItem.item_type === 'direct_drink' || selectedItem.category === 'Direct Drinks') : false;
-    const defaultCat = isDrinkSel ? 'direct_drink' : 'ingredient';
+    const isPkgSel = selectedItem ? (selectedItem.category === 'Packaging' || (selectedItem.ingredient_name && (selectedItem.ingredient_name.toLowerCase().includes('packaging') || selectedItem.ingredient_name.includes('ឈុត')))) : false;
+    const defaultCat = isDrinkSel ? 'direct_drink' : (isPkgSel ? 'packaging' : 'ingredient');
 
-    const btnIcon = selectedItem ? (isDrinkSel ? '<i class="fa-solid fa-wine-bottle text-amber-400"></i>' : '<i class="fa-solid fa-seedling text-emerald-400"></i>') : '<i class="fa-solid fa-layer-group text-[#888]"></i>';
+    let btnIcon = '<i class="fa-solid fa-layer-group text-[#888]"></i>';
+    if (selectedItem) {
+        if (isDrinkSel) btnIcon = '<i class="fa-solid fa-wine-bottle text-amber-400"></i>';
+        else if (isPkgSel) btnIcon = '<i class="fa-solid fa-box-open text-sky-400"></i>';
+        else btnIcon = '<i class="fa-solid fa-seedling text-emerald-400"></i>';
+    }
     const btnText = selectedItem ? escapeHtml(selectedItem.ingredient_name) : 'Select ingredient / stock drink…';
 
     let html = `<div class="crd-wrap">
@@ -1366,6 +1449,11 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
                 <div class="crd-cat-item ${defaultCat === 'ingredient' ? 'active' : ''}" data-cat="ingredient" onmouseenter="crdSwitchCat(this, 'ingredient')">
                     <span class="crd-cat-title"><i class="fa-solid fa-seedling text-emerald-400 mr-1.5"></i> Ingredients</span>
                     <span class="crd-cat-count">${rawIngs.length}</span>
+                    <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
+                </div>
+                <div class="crd-cat-item ${defaultCat === 'packaging' ? 'active' : ''}" data-cat="packaging" onmouseenter="crdSwitchCat(this, 'packaging')">
+                    <span class="crd-cat-title"><i class="fa-solid fa-box-open text-sky-400 mr-1.5"></i> Packaging</span>
+                    <span class="crd-cat-count">${pkgIngs.length}</span>
                     <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
                 </div>
                 <div class="crd-cat-item ${defaultCat === 'direct_drink' ? 'active' : ''}" data-cat="direct_drink" onmouseenter="crdSwitchCat(this, 'direct_drink')">
@@ -1387,6 +1475,23 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
             html += `<div class="crd-item-row ${sel}" data-id="${ri.ingredient_id}" data-unit="${escapeHtml(ri.unit)}" data-cpu="${cpu}" data-type="ingredient" data-name="${escapeHtml(ri.ingredient_name)}" onclick="crdSelectItem(this, event)">
                 <span class="crd-item-name">${escapeHtml(ri.ingredient_name)}</span>
                 <span class="crd-item-meta">$${cpuStr}/${escapeHtml(ri.unit)}</span>
+            </div>`;
+        });
+    }
+
+    html += `</div>
+                <div class="crd-panel crd-panel-packaging ${defaultCat === 'packaging' ? 'active' : ''}">`;
+
+    if (pkgIngs.length === 0) {
+        html += `<div class="crd-empty-msg">No packaging items found</div>`;
+    } else {
+        pkgIngs.forEach(pi => {
+            const sel = (String(pi.ingredient_id) === String(ingId)) ? 'selected' : '';
+            const cpu = parseFloat(pi.cost_per_unit || 0);
+            const cpuStr = (cpu < 0.01 && cpu > 0) ? cpu.toFixed(4).replace(/0+$/, '') : cpu.toFixed(2);
+            html += `<div class="crd-item-row ${sel}" data-id="${pi.ingredient_id}" data-unit="${escapeHtml(pi.unit)}" data-cpu="${cpu}" data-type="packaging" data-name="${escapeHtml(pi.ingredient_name)}" onclick="crdSelectItem(this, event)">
+                <span class="crd-item-name">${escapeHtml(pi.ingredient_name)}</span>
+                <span class="crd-item-meta">$${cpuStr}/${escapeHtml(pi.unit)}</span>
             </div>`;
         });
     }
@@ -1414,6 +1519,18 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
     </div>`;
 
     return html;
+}
+
+function addPackagingSetRow() {
+    // Find the packaging set item from allIngredients
+    const pkgItem = allIngredients.find(i => (i.ingredient_name && (i.ingredient_name.includes('Packaging Set') || i.ingredient_name.includes('ឈុត')))) 
+                 || allIngredients.find(i => (i.category === 'Packaging' || (i.category && i.category.includes('វេចខ្ចប់'))));
+    
+    if (pkgItem) {
+        addRecipeRow(pkgItem.ingredient_id, 1);
+    } else {
+        addRecipeRow('', 1);
+    }
 }
 
 function toggleCrd(btn, e) {
@@ -1458,8 +1575,12 @@ function crdSelectItem(itemEl, e) {
     select.value = itemId;
 
     // Update trigger UI
-    const isDrink = (itemType === 'direct_drink');
-    const iconHtml = isDrink ? '<i class="fa-solid fa-wine-bottle text-amber-400"></i>' : '<i class="fa-solid fa-seedling text-emerald-400"></i>';
+    let iconHtml = '<i class="fa-solid fa-seedling text-emerald-400"></i>';
+    if (itemType === 'direct_drink') {
+        iconHtml = '<i class="fa-solid fa-wine-bottle text-amber-400"></i>';
+    } else if (itemType === 'packaging' || (itemName && (itemName.toLowerCase().includes('packaging') || itemName.includes('ឈុត') || itemName.includes('កែវ')))) {
+        iconHtml = '<i class="fa-solid fa-box-open text-sky-400"></i>';
+    }
     wrap.querySelector('.crd-btn-icon').innerHTML = iconHtml;
     wrap.querySelector('.crd-btn-text').textContent = itemName;
 

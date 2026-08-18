@@ -456,6 +456,34 @@ $_translations = [
         'cart_clear_msg' => 'Are you sure you want to remove all items from the cart?',
         'cart_clear_confirm' => 'Yes, Clear All',
         'cart_item_removed' => 'Item removed from cart',
+
+        // Ingredient Pricing
+        'cost_per_kg_l' => 'Price per KG / L ($)',
+        'cost_per_1kg' => 'Price per 1 KG ($)',
+        'cost_per_1l' => 'Price per 1 Liter ($)',
+        'cost_per_1pc' => 'Price per 1 Piece ($)',
+        'cost_per_base_unit' => 'Cost per Base Unit ($)',
+
+        // Ingredient Categories
+        'cat_liquids' => 'Liquids',
+        'cat_beans' => 'Beans',
+        'cat_packaging' => 'Cups & Packaging',
+        'cat_general' => 'General Supplies',
+
+        // Packaging Set Cost
+        'packaging_set_cost' => 'Packaging Cost per Set',
+        'packaging_modal_title' => 'Packaging Cost per Set Calculator',
+        'packaging_modal_sub' => 'Calculate & manage total packaging cost per cup (Cups, Lids, Straws, Sleeves, etc.)',
+        'packaging_item_name' => 'Packaging Material',
+        'packaging_cost_unit' => 'Cost per Piece ($)',
+        'packaging_qty_per_set' => 'Qty / Cup',
+        'packaging_subtotal' => 'Subtotal',
+        'packaging_total_per_cup' => 'Total Packaging Cost per 1 Cup',
+        'packaging_100_cups' => 'Cost for 100 Cups',
+        'packaging_1000_cups' => 'Cost for 1,000 Cups',
+        'packaging_add_item_btn' => 'Add Component',
+        'packaging_save_btn' => 'Save Packaging Set Cost',
+        'packaging_saved_success' => 'Packaging set cost saved successfully!',
     ],
 
     'km' => [
@@ -910,6 +938,34 @@ $_translations = [
         'cart_clear_msg' => 'តើអ្នកពិតជាចង់លុបទំនិញទាំងអស់ចេញពីកន្ត្រកមែនទេ?',
         'cart_clear_confirm' => 'យល់ព្រមសម្អាត',
         'cart_item_removed' => 'បានលុបទំនិញចេញពីកន្ត្រក',
+
+        // Ingredient Pricing
+        'cost_per_kg_l' => 'ថ្លៃដើមក្នុង 1 KG ឬ 1 L ($)',
+        'cost_per_1kg' => 'ថ្លៃដើមក្នុង 1 KG ($)',
+        'cost_per_1l' => 'ថ្លៃដើមក្នុង 1 Liter ($)',
+        'cost_per_1pc' => 'ថ្លៃដើមក្នុង 1 ឯកតា ($)',
+        'cost_per_base_unit' => 'ថ្លៃដើមក្នុងមួយខ្នាតគោល ($)',
+
+        // Ingredient Categories
+        'cat_liquids' => 'ទឹក',
+        'cat_beans' => 'គ្រាប់',
+        'cat_packaging' => 'កែវ & ការវេចខ្ចប់',
+        'cat_general' => 'សម្ភារទូទៅ',
+
+        // Packaging Set Cost
+        'packaging_set_cost' => 'ថ្លៃដើមវេចខ្ចប់សរុប (Cost per Set)',
+        'packaging_modal_title' => 'ថ្លៃដើមវេចខ្ចប់សរុបក្នុង 1 ឈុត (Packaging Cost per Set)',
+        'packaging_modal_sub' => 'គណនា និងកំណត់ថ្លៃដើមសម្ភារវេចខ្ចប់សរុបក្នុង 1 កែវ (កែវ គម្រប បំពង់បឺត ថង់ ស្រោមដៃកែវ...)',
+        'packaging_item_name' => 'ឈ្មោះសម្ភារវេចខ្ចប់',
+        'packaging_cost_unit' => 'តម្លៃក្នុង 1 ឯកតា ($)',
+        'packaging_qty_per_set' => 'ចំនួនប្រើក្នុង 1 កែវ',
+        'packaging_subtotal' => 'សរុប',
+        'packaging_total_per_cup' => 'ថ្លៃដើមវេចខ្ចប់សរុបក្នុង 1 កែវ',
+        'packaging_100_cups' => 'ថ្លៃដើមក្នុង 100 កែវ',
+        'packaging_1000_cups' => 'ថ្លៃដើមក្នុង 1,000 កែវ',
+        'packaging_add_item_btn' => 'បន្ថែមសម្ភារវេចខ្ចប់',
+        'packaging_save_btn' => 'រក្សាទុកថ្លៃដើមវេចខ្ចប់',
+        'packaging_saved_success' => 'បានរក្សាទុកថ្លៃដើមវេចខ្ចប់សរុបដោយជោគជ័យ!',
     ]
 ];
 

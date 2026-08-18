@@ -680,6 +680,45 @@ $stockItems = $initStmt->fetchAll();
             background-color: #f1f5f9 !important;
             border-color: #e2e4ea !important;
         }
+
+        /* ── Sticky Table Header ── */
+        .stock-table-scroll-container {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 350px);
+            min-height: 360px;
+            position: relative;
+        }
+        .stock-table-scroll-container table {
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+        .stock-table-scroll-container thead {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 25 !important;
+        }
+        .stock-table-scroll-container thead tr {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 25 !important;
+        }
+        .stock-table-scroll-container thead th {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 25 !important;
+            background-color: #141418 !important;
+            border-bottom: 1px solid #24242b !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+        }
+        [data-theme="light"] .stock-table-scroll-container thead th,
+        html[data-theme="light"] .stock-table-scroll-container thead th {
+            background-color: #f1f5f9 !important;
+            border-bottom: 1px solid #e2e4ea !important;
+            color: #475569 !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
+        }
+
         /* ── Mini Image Thumbnail for Table ── */
         .item-mini-img {
             width: 38px;
@@ -1206,19 +1245,19 @@ $stockItems = $initStmt->fetchAll();
 
             <!-- ── Data Table Card ── -->
             <div class="glass-card overflow-hidden flex-1 flex flex-col">
-                <div class="overflow-x-auto flex-1">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr class="table-header-cell bg-[#141418] border-b border-[#24242b] text-[#8e8e9f] uppercase tracking-wider font-semibold">
-                                <th class="py-3.5 px-4"><?= __('col_drink_product', 'Drink Product') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_unit', 'Unit') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_conversion_rate', 'Conversion Rate') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_total_qty', 'Total Qty (Units)') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_breakdown', 'Package Breakdown') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_cost_box_unit', 'Cost (Per Box / Unit)') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_status', 'Status') ?></th>
-                                <th class="py-3.5 px-3"><?= __('col_valuation', 'Valuation') ?></th>
-                                <th class="py-3.5 px-4 text-right"><?= __('col_actions', 'Actions') ?></th>
+                <div class="stock-table-scroll-container flex-1">
+                    <table class="w-full text-left border-separate border-spacing-0 text-xs">
+                        <thead class="sticky top-0 z-20 shadow-sm">
+                            <tr class="table-header-cell bg-[#141418] text-[#8e8e9f] uppercase tracking-wider font-semibold">
+                                <th class="sticky top-0 z-20 py-3.5 px-4 bg-[#141418] border-b border-[#24242b]"><?= __('col_drink_product', 'Drink Product') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_unit', 'Unit') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_conversion_rate', 'Conversion Rate') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_total_qty', 'Total Qty (Units)') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_breakdown', 'Package Breakdown') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_cost_box_unit', 'Cost (Per Box / Unit)') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_status', 'Status') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_valuation', 'Valuation') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-4 bg-[#141418] border-b border-[#24242b] text-right"><?= __('col_actions', 'Actions') ?></th>
                             </tr>
                         </thead>
                         <tbody id="stockTableBody" class="table-divide divide-y divide-[#1f1f28]">
