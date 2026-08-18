@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home2/dpdc690/public_html/thebirdnestcafe.online
+    - /bin/cp -R * $DEPLOYPATH
