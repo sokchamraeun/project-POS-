@@ -9,7 +9,18 @@ $_username = $_SESSION['emp_name'] ?? ($_SESSION['username'] ?? 'User');
 $_user_role = ucfirst($_SESSION['role'] ?? 'Staff');
 $_role_color = ($_SESSION['role'] ?? '') === 'admin' ? '#ff6b6b' : (($_SESSION['role'] ?? '') === 'manager' ? '#f0b429' : '#d1904b');
 ?>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <style>
+/* ══ Master Typography for English & Khmer on All Devices ══ */
+body, input, select, textarea, button, .sidebar, .app-main, .modal-content, table {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+:lang(km), [data-lang="km"], html[lang="km"] * {
+    font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
 /* ══ Persistent Master Layout Shell ══ */
 :root {
     --sidebar-w: 256px;
