@@ -429,6 +429,9 @@ try {
                 $b_res = \KHQR\BakongKHQR::generateIndividual($b_info);
                 if (($b_res->status['code'] ?? 1) === 0 && !empty($b_res->data['md5'])) {
                     $reference = $b_res->data['md5'];
+                    if (!empty($b_res->data['qr'])) {
+                        $_SESSION['bakong_qr_' . $order_id] = $b_res->data['qr'];
+                    }
                 }
             } catch (Throwable $e) {
                 error_log("confirm_order.php: Bakong MD5 generation error: " . $e->getMessage());
@@ -493,10 +496,6 @@ try {
         }
     }
 
-
-
-
-
     $conn->commit();
     _stash_stock_warning($stock_warnings);
     if ($has_bakong) {
@@ -528,7 +527,34 @@ try {
         unset($_SESSION['loyalty_card_id']);
     }
 
-    // ── REDIRECT ──
+    // ── REDIRECT / JSON RESPONSE ──
+    $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+        || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+        || (!empty($_POST['is_ajax']));
+
+    if ($is_ajax) {
+        header('Content-Type: application/json');
+        $rate = defined('KHR_RATE') ? (int)KHR_RATE : 4100;
+        $khr_amount = (int)(round($total * $rate / 100) * 100);
+        $qr_data = $_SESSION['bakong_qr_' . $order_id] ?? ($b_res->data['qr'] ?? '');
+        $m_name = $b_config['merchant_name'] ?? 'The Bird\'s Nest Coffee';
+        echo json_encode([
+            'success'         => true,
+            'order_id'        => $order_id,
+            'daily_order_no'  => $order_id,
+            'total'           => $total,
+            'amount'          => $total,
+            'amount_khr'      => $khr_amount,
+            'has_bakong'      => $has_bakong,
+            'has_paylater'    => $has_paylater,
+            'qr'              => $qr_data,
+            'md5'             => $reference ?? '',
+            'currency'        => 'USD',
+            'merchant_name'   => $m_name
+        ]);
+        exit;
+    }
+
     if ($has_bakong) {
         header("Location: menu.php?bakong_order_id=" . $order_id);
     } elseif ($has_paylater) {
@@ -540,6 +566,14 @@ try {
 
 } catch (Exception $e) {
     $conn->rollback();
+    $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+        || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+        || (!empty($_POST['is_ajax']));
+    if ($is_ajax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
     echo "<h1 style='color:red;font-family:sans-serif'>Order Failed</h1>";
     echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
     echo "<p><a href='cart.php'>Back to Cart</a></p>";

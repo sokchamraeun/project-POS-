@@ -223,6 +223,7 @@ $defaultMilk = 'Fresh Milk';
   <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="assets/css/menu.css?v=<?= filemtime(__DIR__.'/assets/css/menu.css') ?>">
   <style>
     /* ── BASE ── */
@@ -706,28 +707,209 @@ $defaultMilk = 'Fresh Milk';
     [data-theme="dark"] .cp-discount-toggle { border-color: #363636; }
     [data-theme="dark"] #cpDiscountForm { background: rgba(209,144,75,.06); border-color: rgba(209,144,75,.25); }
 
-    /* ── Payment modal ── */
-    .cp-paymodal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 99999; align-items: center; justify-content: center; padding: 20px; }
-    .cp-paymodal.active { display: flex; }
-    .cp-paymodal-card { background: var(--bg-card,#fff); border: 1px solid var(--border,#e0d4c4); border-radius: 16px; width: 100%; max-width: 420px; padding: 22px 22px 18px; box-shadow: 0 12px 48px rgba(90,60,20,.18); position: relative; animation: cpPmIn .22s ease both; }
-    @keyframes cpPmIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    .cp-paymodal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .cp-paymodal-head h3 { font-size: 16px; font-weight: 700; color: var(--text,#1a1410); margin: 0; }
-    .cp-paymodal-close { background: none; border: none; font-size: 20px; color: var(--text-muted,#9a8070); cursor: pointer; line-height: 1; }
-    .cp-pm-breakdown { background: var(--bg,#f4efe9); border: 1px solid var(--border,#e0d4c4); border-radius: 10px; padding: 9px 14px; margin-bottom: 12px; }
-    .cp-pm-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-sec,#5a4a3a); padding: 2px 0; font-variant-numeric: tabular-nums; }
-    .cp-pm-hero { display: flex; flex-direction: column; padding: 0 4px; margin-bottom: 16px; }
-    .cp-pm-hero-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted,#9a8070); }
-    .cp-pm-hero-amt { font-size: 40px; font-weight: 800; line-height: 1.04; color: var(--text,#1a1410); font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin-top: 1px; }
-    .cp-pm-hero-khr { font-size: 13px; font-weight: 600; color: #d1904b; margin-top: 3px; font-variant-numeric: tabular-nums; }
-    .cp-pm-confirm { width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 13px; background: linear-gradient(135deg,#d99a55,#c07f37); box-shadow: 0 6px 18px rgba(209,144,75,.28); color: #fff; font-size: 15px; font-weight: 700; font-family: 'Poppins',sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: filter .15s ease, transform .12s ease; }
-    .cp-pm-confirm:hover { filter: brightness(1.07); }
-    .cp-pm-confirm:active { transform: scale(.99); }
-    [data-theme="dark"] .cp-paymodal-card { background: #161616; border-color: #252525; }
-    [data-theme="dark"] .cp-pm-breakdown { background: #1a1a1a; border-color: #252525; }
-    @media (prefers-reduced-motion: reduce) {
-      .cp-paymodal-card { animation: none; }
-      .cp-pay-method, .cp-pm-confirm, .cp-pay-method .cp-pm-ico, .cp-pay-method .cp-pm-check { transition: none; }
+    /* ── Cash Payment Settlement Modal (POS Layout) ── */
+    #cashPaymentModal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 999999;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+    #cashPaymentModal.active {
+        display: flex !important;
+    }
+    .cpm-card {
+        background: #15151a;
+        border: 1px solid #282836;
+        border-radius: 20px;
+        width: 96vw;
+        max-width: 1180px;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+        position: relative;
+        overflow: hidden;
+        animation: cpmFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes cpmFadeIn {
+        from { opacity: 0; transform: translateY(14px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .cpm-pad-btn {
+        background: #14141a;
+        border: 1px solid #282836;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 700;
+        border-radius: 10px;
+        padding: 10px 0;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .cpm-pad-btn:hover {
+        background: #d1904b;
+        color: #000000;
+        border-color: #d1904b;
+        transform: translateY(-1px);
+    }
+    .cpm-pad-btn:active {
+        transform: translateY(1px);
+    }
+
+    #cpmChangeBox {
+        background: #102e1c;
+        border: 2px solid #2ecc71;
+    }
+    #cpmChangeBox.cpm-short {
+        background: #3b1111;
+        border: 2px solid #ef4444;
+    }
+    #cpmChangeBox .cpm-change-lbl {
+        color: #86efac;
+    }
+    #cpmChangeUsd {
+        color: #2ecc71;
+    }
+    #cpmChangeKhr {
+        color: #a7f3d0;
+    }
+    #cpmApplyBtn {
+        background: #10b981 !important;
+        color: #000000 !important;
+        font-weight: 900 !important;
+    }
+    #cpmApplyBtn i {
+        color: #000000 !important;
+    }
+    #cpmApplyBtn.bakong-mode {
+        background: linear-gradient(135deg, #e0454a 0%, #c53030 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 15px rgba(224, 69, 74, 0.35) !important;
+    }
+    #cpmApplyBtn.bakong-mode i {
+        color: #ffffff !important;
+    }
+    #cpmBakongQrCanvas img, #cpmBakongQrCanvas canvas {
+        display: block;
+        margin: 0 auto;
+        border-radius: 8px;
+    }
+
+    [data-theme="light"] #cashPaymentModal .cpm-card {
+        background: #ffffff !important;
+        border-color: #dcd4c8 !important;
+        color: #1a1410 !important;
+        box-shadow: 0 20px 50px rgba(90, 60, 20, 0.15) !important;
+    }
+    [data-theme="light"] #cashPaymentModal .bg-\[\#1a1a22\] {
+        background: #fbf8f4 !important;
+        border-color: #e4dcd2 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .bg-\[\#20202a\] {
+        background: #f2ebe1 !important;
+        border-color: #e4dcd2 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .bg-\[\#141418\],
+    [data-theme="light"] #cashPaymentModal .bg-\[\#121216\] {
+        background: #ffffff !important;
+        border-color: #dcd4c8 !important;
+        color: #1a1410 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-pad-btn {
+        background: #f6efe6 !important;
+        border-color: #dec8b5 !important;
+        color: #1a1410 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-pad-btn:hover {
+        background: #d1904b !important;
+        color: #ffffff !important;
+    }
+    [data-theme="light"] #cashPaymentModal .text-white {
+        color: #1a1410 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .divide-\[\#262634\] > * {
+        border-color: #eae1d6 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-table-head {
+        background: #f4ede4 !important;
+        border-color: #e2d8cc !important;
+        color: #6b5c4d !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-item-row {
+        border-color: #eee7dc !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-item-name {
+        color: #1a1410 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-item-meta {
+        color: #786a5c !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-item-price {
+        color: #554433 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-item-qty {
+        background: #ede6dc !important;
+        color: #1a1410 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .cpm-item-total {
+        color: #b46f25 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmChangeBox {
+        background: #d1fae5 !important;
+        border: 2px solid #10b981 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmChangeBox.cpm-short {
+        background: #fee2e2 !important;
+        border: 2px solid #ef4444 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmChangeBox .cpm-change-lbl,
+    [data-theme="light"] #cashPaymentModal #cpmChangeBox #cpmChangeUsd,
+    [data-theme="light"] #cashPaymentModal #cpmChangeBox #cpmChangeKhr {
+        color: #000000 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmApplyBtn {
+        background: #10b981 !important;
+        color: #000000 !important;
+        font-weight: 900 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmApplyBtn:hover {
+        background: #059669 !important;
+        color: #000000 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmApplyBtn i {
+        color: #000000 !important;
+    }
+    [data-theme="light"] #cashPaymentModal .btn-cpm-cancel {
+        background: #ede8e0 !important;
+        color: #1a1410 !important;
+        border: 1px solid #d0c5b5 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmMethodCash.bg-emerald-500\/20 {
+        background: #d1fae5 !important;
+        border-color: #10b981 !important;
+        color: #065f46 !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmMethodBakong.bg-red-500\/20 {
+        background: #fee2e2 !important;
+        border-color: #ef4444 !important;
+        color: #991b1b !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmMethodCash.bg-\[\#141418\],
+    [data-theme="light"] #cashPaymentModal #cpmMethodBakong.bg-\[\#141418\] {
+        background: #f6efe6 !important;
+        border-color: #dec8b5 !important;
+        color: #7a6a5b !important;
+    }
+    [data-theme="light"] #cashPaymentModal #cpmBakongStatusBadge {
+        background: #fef3c7 !important;
+        border-color: #fde68a !important;
+        color: #92400e !important;
     }
 
     /* ── Chat toggle in header ── */
@@ -1291,26 +1473,13 @@ $defaultMilk = 'Fresh Milk';
         </div>
 
         <?php if (!$add_to_order_mode): ?>
-
-        <!-- Direct Payment Method Selector -->
-        <div class="cp-section" style="margin-top:10px;">
-          <div class="cp-section-label" style="margin-bottom:6px;"><i class="fa-solid fa-credit-card"></i> <?= __('payment_method', 'Payment Method') ?></div>
-          <div class="cp-pay-methods" id="cpDirectPayMethods" style="display:flex;gap:6px;">
-            <div class="cp-pay-method selected" data-method="cash" onclick="cpSelectDirectPayment(this, 'cash')" style="flex:1;padding:8px 4px;font-size:11.5px;text-align:center;border-radius:10px;cursor:pointer;background:rgba(39,174,96,.12);border:1.5px solid #27ae60;">
-              <input type="checkbox" name="payment_methods[]" value="cash" checked style="display:none">
-              <i class="fa-solid fa-money-bill-wave" style="font-size:15px;display:block;margin-bottom:2px;color:#27ae60;"></i>
-              <span style="font-size:11px;font-weight:600;"><?= __('cash', 'Cash') ?></span>
-            </div>
-            <div class="cp-pay-method" data-method="bakong" onclick="cpSelectDirectPayment(this, 'bakong')" style="flex:1;padding:8px 4px;font-size:11.5px;text-align:center;border-radius:10px;cursor:pointer;">
-              <input type="checkbox" name="payment_methods[]" value="bakong" style="display:none">
-              <i class="fa-solid fa-qrcode" style="font-size:15px;display:block;margin-bottom:2px;color:#e0454a;"></i>
-              <span style="font-size:11px;font-weight:600;"><?= __('bakong_khqr', 'Bakong') ?></span>
-            </div>
-          </div>
+        <!-- Hidden default payment selector (payment settled in payment modal) -->
+        <div id="cpDirectPayMethods" style="display:none;">
+          <input type="checkbox" name="payment_methods[]" value="cash" checked>
         </div>
         <?php else: ?>
         <!-- Add-to-order mode: payment already set, just show a note -->
-        <div class="cp-section" style="background:rgba(209,144,75,.08);border:1px solid rgba(209,144,75,.3);border-radius:10px;padding:10px 12px;">
+        <div class="cp-section" style="background:rgba(209,144,75,.08);border:1px solid rgba(209,144,75,.3);border-radius:10px;padding:10px 12px;margin-top:10px;">
           <div style="font-size:12px;font-weight:600;color:#d1904b;margin-bottom:4px;"><i class="fa-solid fa-clock-rotate-left"></i> Adding to Pay Later Order #<?= $add_to_order_mode ?></div>
           <div style="font-size:11px;color:#888;line-height:1.5;">Payment was already set when this order was created. Just select items and confirm to add them.</div>
         </div>
@@ -1416,120 +1585,250 @@ $defaultMilk = 'Fresh Milk';
   </div>
 </div>
 
-<!-- ── PAYMENT MODAL ── -->
-<div id="cpPayModal" class="cp-paymodal">
-  <div class="cp-paymodal-card" id="cpPayModalCard">
-    <div class="cp-paymodal-head">
-      <h3><i class="fa-solid fa-credit-card" style="color:#d1904b;"></i> Payment</h3>
-      <button type="button" class="cp-paymodal-close" id="cpPayModalClose" onclick="cpClosePayModal()"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <div class="cp-pm-breakdown">
-      <div class="cp-pm-row"><span>Subtotal</span><span id="cpPmSubtotal">$0.00</span></div>
-      <div class="cp-pm-row"><span>Tax (<?= (int)TAX_RATE ?>%)</span><span id="cpPmTax">$0.00</span></div>
-      <div class="cp-pm-row" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);font-size:12.5px;color:#a1a1aa;">
-        <span>Exchange Rate</span>
-        <span style="font-weight:700;color:var(--accent, #d1904b);">1$ = <?= number_format(defined('KHR_RATE') ? (int)KHR_RATE : 4100) ?> ៛</span>
-      </div>
-    </div>
-    <div class="cp-pm-hero">
-      <span class="cp-pm-hero-label">Total due</span>
-      <span class="cp-pm-hero-amt" id="cpPmTotal">$0.00</span>
-      <span class="cp-pm-hero-khr" id="cpPmKhr">&#x17DB; 0</span>
-    </div>
-    <div id="cpPayModalBody">
-      <?php if (!$add_to_order_mode): ?>
-      <div class="cp-pm-methods-label" style="display:none;">How is the customer paying?</div>
-      <div class="cp-pay-methods" id="cpPayMethods" style="display:none;">
-        <div class="cp-pay-method selected" data-method="cash" onclick="cpTogglePayment(this)">
-          <input type="checkbox" value="cash" checked>
-          <i class="cp-pm-ico fa-solid fa-money-bill-wave"></i><span class="cp-pm-lbl">Cash</span>
-          <i class="cp-pm-check fa-solid fa-circle-check"></i>
+<!-- ── CASH PAYMENT SETTLEMENT MODAL (POS LAYOUT) ── -->
+<div id="cashPaymentModal" class="modal fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-[99999]" style="display:none;">
+  <div class="cpm-card flex flex-col max-h-[92vh] text-white">
+    
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between px-6 py-3.5 border-b border-[#282834] bg-[#1a1a22] shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-base">
+          <i class="fa-solid fa-money-bill-wave"></i>
+        </div>
+        <div>
+          <h2 class="text-base md:text-lg font-bold text-white leading-tight">Cash Payment Settlement</h2>
+          <p class="text-xs text-[#8e8e9f]">Take order cash & calculate change</p>
         </div>
       </div>
-      <div class="cp-split-inputs" id="cpSplitInputs"><div id="cpSplitRows"></div></div>
+      <button type="button" onclick="closeCashPaymentModal()" class="w-8 h-8 rounded-xl bg-[#22222c] text-[#8e8e9f] hover:text-white flex items-center justify-center transition" title="Close (Esc)">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
 
-      <div class="cp-change-calc" id="cpRielCalc">
-        <label><i class="fa-solid fa-coins" style="color:#e74c3c;margin-right:4px;"></i> Amount in Riel (KHR)</label>
-        <input type="number" id="cpRielReceived" step="1" min="0" placeholder="0" oninput="cpCalcRielChange()" onfocus="this.select()">
-        <div class="cp-change-row">
-          <span class="change-label">USD Equivalent</span>
-          <span class="change-amount" id="cpRielUsdEquiv">$0.00</span>
+    <!-- Modal Body (2-Column POS Layout) -->
+    <div class="p-5 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      
+      <!-- LEFT COLUMN: Current Transaction Summary (6 cols) -->
+      <div class="lg:col-span-6 bg-[#1a1a22] border border-[#282836] rounded-xl flex flex-col overflow-hidden shadow-md h-full">
+        <div class="px-4 py-3 bg-[#20202a] border-b border-[#282836] flex items-center justify-between shrink-0">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-[#d1904b] flex items-center gap-2">
+            <i class="fa-solid fa-file-invoice"></i> Current Transaction Summary
+          </h3>
+          <span class="text-[11px] text-[#8e8e9f]" id="cpmItemCount">0 items</span>
         </div>
-        <div class="cp-change-row" id="cpRielChangeRow" style="display:none;">
-          <span class="change-label">Change (KHR)</span>
-          <span class="change-amount" id="cpRielChangeKhr">&#x17DB;0</span>
+
+        <!-- Table Column Headers: Items, Price, Qty, Total -->
+        <div class="grid grid-cols-12 gap-2 px-3.5 py-2 bg-[#181820] border-b border-[#282836] text-[11px] font-bold text-[#8e8e9f] uppercase tracking-wider shrink-0 cpm-table-head">
+          <div class="col-span-6">Items</div>
+          <div class="col-span-2 text-right">Price</div>
+          <div class="col-span-2 text-center">Qty</div>
+          <div class="col-span-2 text-right">Total</div>
         </div>
-      </div>
 
-      <div class="cp-change-calc" id="cpChangeCalc">
-        <label><i class="fa-solid fa-money-bill-wave" style="color:#55e087;margin-right:4px;"></i> Amount Received</label>
+        <!-- Items Table -->
+        <div class="flex-1 overflow-y-auto min-h-[160px]" id="cpmItemsList">
+          <!-- Dynamic Items Populated here -->
+        </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
-          <!-- USD Input -->
-          <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px 12px;">
-            <span style="font-size:14px;font-weight:700;color:#55e087;">$</span>
-            <input type="number" id="cpCashReceived" step="0.01" min="0" placeholder="0.00" style="width:100%;background:transparent;border:none;color:#fff;font-size:15px;font-weight:700;outline:none;"
-                   oninput="this.dataset.touched='1'; cpCalcChange(); cpMarkActiveTender(this.value)"
-                   onfocus="this.select()">
+        <!-- Running Subtotal, Tax, Discount & Total Due (Pinned to Bottom) -->
+        <div class="p-4 bg-[#141418] border-t border-[#282836] space-y-2 mt-auto shrink-0">
+          <div class="flex justify-between text-xs text-[#9e9eb0]">
+            <span>Running Subtotal</span>
+            <span class="font-semibold text-white" id="cpmSubtotal">$0.00</span>
+          </div>
+          <div class="flex justify-between text-xs text-[#9e9eb0]" id="cpmDiscountRow" style="display:none;">
+            <span class="text-emerald-400">Discount</span>
+            <span class="font-semibold text-emerald-400" id="cpmDiscount">-$0.00</span>
+          </div>
+          <div class="flex justify-between text-xs text-[#9e9eb0]" id="cpmTaxRow" style="display:none;">
+            <span>Tax</span>
+            <span class="font-semibold text-white" id="cpmTax">$0.00</span>
           </div>
 
-          <!-- Riel Input -->
-          <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px 12px;">
-            <span style="font-size:14px;font-weight:700;color:#55e087;">&#x17DB;</span>
-            <input type="number" id="cpRielCash" step="100" min="0" placeholder="0" style="width:100%;background:transparent;border:none;color:#fff;font-size:15px;font-weight:700;outline:none;"
-                   oninput="cpOnRielInput(); cpCalcChange()" onfocus="this.select()">
-            <span id="cpRielCashUsd" style="display:none;">&asymp; $0.00</span>
+          <div class="pt-3 mt-2 border-t border-[#262634] flex items-baseline justify-between">
+            <div>
+              <div class="text-[11px] font-bold uppercase tracking-wider text-[#d1904b]">Total Amount Due</div>
+              <div class="text-xs text-[#8e8e9f]" id="cpmTotalKhr">៛ 0</div>
+            </div>
+            <div class="text-2xl md:text-3xl font-extrabold text-white" id="cpmTotalUsd">$0.00</div>
           </div>
         </div>
-        <div class="cp-tender-quick" id="cpTenderQuick" style="display:none;"></div>
-        <div class="cp-tender-quick" id="cpRielQuick" style="display:none;"></div>
+      </div>
 
-        <div class="cp-change-row" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 18px;background:rgba(85,224,135,0.06);border:1px solid rgba(85,224,135,0.25);border-radius:14px;margin-top:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:12px;font-weight:700;color:var(--text-sec,#a1a1aa);text-transform:uppercase;letter-spacing:0.5px;">Change to give back</span>
-            <div style="display:flex;gap:4px;background:rgba(0,0,0,0.3);padding:3px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);" id="cpChangeCurrencySelect">
-              <button type="button" class="cp-change-btn active" data-curr="mixed" onclick="cpSelectChangeCurrency('mixed')" style="padding:3px 8px;border-radius:6px;border:none;background:#55e087;color:#000;font-size:11px;font-weight:800;cursor:pointer;transition:all 0.2s;">
-                $ + &#x17DB; Mixed
-              </button>
-              <button type="button" class="cp-change-btn" data-curr="usd" onclick="cpSelectChangeCurrency('usd')" style="padding:3px 8px;border-radius:6px;border:none;background:transparent;color:#aaa;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">
-                $ Dollar
-              </button>
-              <button type="button" class="cp-change-btn" data-curr="khr" onclick="cpSelectChangeCurrency('khr')" style="padding:3px 8px;border-radius:6px;border:none;background:transparent;color:#aaa;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;">
-                &#x17DB; Riel
-              </button>
+      <!-- RIGHT COLUMN: Payment Details & Change Calculated (6 cols) -->
+      <div class="lg:col-span-6 flex flex-col gap-4">
+        
+        <!-- Top Box: Payment Details -->
+        <div class="bg-[#1a1a22] border border-[#282836] rounded-xl p-4 shadow-md flex flex-col gap-3" id="cpmPaymentDetailsBox">
+          <div class="flex items-center justify-between border-b border-[#282836] pb-2.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2" id="cpmBoxTitle">
+              <i class="fa-solid fa-dollar-sign"></i> Payment Details
+            </h3>
+            
+            <!-- Currency selector -->
+            <div class="flex items-center gap-1 bg-[#121216] p-1 rounded-lg border border-[#282836] text-xs font-bold" id="cpmCurrSelector">
+              <button type="button" id="cpmCurrUsd" class="px-2.5 py-1 rounded bg-[#d1904b] text-black font-extrabold transition" onclick="cpmSetCurrency('USD')">$ USD</button>
+              <button type="button" id="cpmCurrKhr" class="px-2.5 py-1 rounded text-[#8e8e9f] hover:text-white transition" onclick="cpmSetCurrency('KHR')">៛ KHR</button>
             </div>
           </div>
+
+          <!-- Cash Payment / Keypad View -->
+          <div id="cpmCashView" class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+            
+            <!-- Left sub-col: Input Display & Quick Presets (7 cols) -->
+            <div class="md:col-span-7 flex flex-col gap-2.5">
+              <div>
+                <label class="text-[11px] font-semibold text-[#8e8e9f] mb-1 block">Amount Received</label>
+                <div class="relative flex items-center">
+                  <span class="absolute left-3.5 text-base font-bold text-[#d1904b]" id="cpmPrefix">$</span>
+                  <input type="text" id="cpmReceivedInput" 
+                         class="w-full pl-8 pr-3 py-2.5 rounded-xl bg-[#121216] border-2 border-[#d1904b]/60 text-xl font-extrabold text-white text-right focus:outline-none focus:border-[#d1904b] transition shadow-inner"
+                         placeholder="0.00" oninput="cpmOnManualInput(this.value)">
+                </div>
+                <div class="text-right text-[11px] text-[#8e8e9f] mt-1" id="cpmReceivedAlt">≈ ៛ 0</div>
+              </div>
+
+              <!-- Quick Cash Buttons -->
+              <div>
+                <div class="text-[10px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1.5">Quick Cash</div>
+                <div class="grid grid-cols-3 gap-1.5" id="cpmQuickCashWrap">
+                  <!-- Dynamic quick cash buttons -->
+                </div>
+              </div>
+
+              <!-- Payment Method Selector -->
+              <div class="pt-2 border-t border-[#262634]">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1.5">Payment Method</div>
+                <div class="grid grid-cols-2 gap-2" id="cpmMethodPills">
+                  <button type="button" id="cpmMethodCash" onclick="cpmSetMethod('cash')" class="py-2.5 px-3 rounded-xl bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer">
+                    <i class="fa-solid fa-money-bill-wave"></i> Cash
+                  </button>
+                  <button type="button" id="cpmMethodBakong" onclick="cpmSetMethod('bakong')" class="py-2.5 px-3 rounded-xl bg-[#141418] border border-[#282836] text-[#8e8e9f] hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
+                    <i class="fa-solid fa-qrcode text-red-400"></i> Bakong QR
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right sub-col: On-Screen Numeric Keypad (5 cols) -->
+            <div class="md:col-span-5 flex flex-col">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1.5">Keypad</div>
+              <div class="grid grid-cols-3 gap-1.5 flex-1">
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('1')">1</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('2')">2</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('3')">3</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('4')">4</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('5')">5</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('6')">6</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('7')">7</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('8')">8</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('9')">9</button>
+                <button type="button" class="cpm-pad-btn font-extrabold" onclick="cpmPadKey('.')">.</button>
+                <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('0')">0</button>
+                <button type="button" class="cpm-pad-btn text-rose-400 font-bold" onclick="cpmPadKey('backspace')"><i class="fa-solid fa-delete-left"></i></button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bakong QR View (Rendered in this exact Payment Details box after applying) -->
+          <div id="cpmBakongQrView" style="display:none;" class="flex flex-col items-center justify-center p-2 text-center">
+            
+            <!-- KHQR Code Container Card -->
+            <div class="w-full max-w-[270px] bg-white rounded-2xl p-3.5 text-black shadow-2xl border-2 border-[#e0454a] relative overflow-hidden flex flex-col items-center">
+              
+              <!-- Red KHQR Badge -->
+              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e0454a] text-white font-extrabold text-[11px] uppercase tracking-wider shadow-sm mb-2.5">
+                <i class="fa-solid fa-qrcode"></i> KHQR SCAN TO PAY
+              </div>
+
+              <!-- QR Code Canvas -->
+              <div id="cpmBakongQrCanvas" class="flex items-center justify-center min-h-[175px] min-w-[175px] my-1 bg-white p-1 rounded-xl">
+                <!-- QR rendered dynamically by QRCode.js or img -->
+              </div>
+
+              <!-- Total in USD and KHR -->
+              <div class="mt-2 pt-2 border-t border-dashed border-red-200 w-full flex items-baseline justify-center gap-2">
+                <span class="text-xl font-extrabold text-gray-900" id="cpmBakongDispUsd">$0.00</span>
+                <span class="text-xs font-bold text-red-600" id="cpmBakongDispKhr">(៛ 0)</span>
+              </div>
+              <div class="text-[10px] text-gray-500 mt-0.5" id="cpmBakongMerchant">The Bird's Nest Coffee</div>
+            </div>
+
+            <!-- Polling Status Badge -->
+            <div id="cpmBakongStatusBadge" class="mt-3 px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-2">
+              <i class="fa-solid fa-spinner fa-spin text-amber-400" id="cpmBakongSpinner"></i>
+              <span id="cpmBakongStatusText">Waiting for Bakong payment...</span>
+            </div>
+
+          </div>
+
+          <!-- Bakong Payment Success Celebration -->
+          <div id="cpmBakongSuccessView" style="display:none;" class="flex flex-col items-center justify-center p-6 text-center">
+            <div class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-3xl mb-3 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+              <i class="fa-solid fa-check"></i>
+            </div>
+            <h3 class="text-xl font-bold text-emerald-400 mb-1">Payment Received!</h3>
+            <p class="text-xs text-[#a1a1b0] mb-3" id="cpmSuccessOrderInfo">Order has been settled via Bakong KHQR.</p>
+            <div class="text-xs text-[#8e8e9f] flex items-center gap-1.5">
+              <i class="fa-regular fa-clock"></i> Auto-completing in <b class="text-white" id="cpmSuccessCountdown">2</b>s...
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Box: Change Calculated & Actions -->
+        <div class="bg-[#1a1a22] border border-[#282836] rounded-xl p-4 shadow-md flex flex-col gap-3" id="cpmBottomBox">
           
-          <!-- Mixed Change View (Default) -->
-          <div id="cpChangeBoxMixed" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
-            <span style="font-size:14px;font-weight:600;color:var(--text,#e4e4e7);">Mixed =</span>
-            <span id="cpChangeMixed" style="font-size:22px;font-weight:800;color:#55e087;font-family:'Poppins',sans-serif;">$0.00</span>
+          <div id="cpmChangeInfoWrap" class="flex flex-col gap-3">
+            <div class="flex items-center justify-between border-b border-[#282836] pb-2">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-[#d1904b] flex items-center gap-2">
+                <i class="fa-solid fa-coins"></i> Change Calculated
+              </h3>
+              <span class="text-xs text-[#8e8e9f]">Return Method: <b class="text-white" id="cpmReturnMethod">Cash</b></span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs text-[#8e8e9f]">
+              <div>Amount Received: <b class="text-white" id="cpmDispReceived">$0.00</b></div>
+              <div class="text-right">Amount Due: <b class="text-white" id="cpmDispDue">$0.00</b></div>
+            </div>
+
+            <!-- Highlight Change to Return Box (Big Green Alert Display) -->
+            <div class="rounded-xl p-3.5 flex items-center justify-between transition" id="cpmChangeBox">
+              <div>
+                <span class="text-xs font-black uppercase tracking-wider cpm-change-lbl">Change to Return:</span>
+                <div class="text-xs font-bold" id="cpmChangeKhr">៛ 0</div>
+              </div>
+              <div class="text-2xl md:text-3xl font-black" id="cpmChangeUsd">$0.00</div>
+            </div>
           </div>
 
-          <!-- Dollar Change View -->
-          <div id="cpChangeBoxUsd" style="display:none;justify-content:space-between;align-items:center;padding:4px 0;">
-            <span style="font-size:14px;font-weight:600;color:var(--text,#e4e4e7);">Dollar =</span>
-            <span id="cpChangeDollar" style="font-size:22px;font-weight:800;color:#55e087;font-family:'Poppins',sans-serif;">$0.00</span>
+          <!-- Action Buttons for Cash Mode -->
+          <div class="flex items-center gap-2.5 pt-1" id="cpmNormalActions">
+            <button type="button" onclick="closeCashPaymentModal()" class="btn-cpm-cancel py-3 px-4 rounded-xl bg-[#22222c] hover:bg-[#2a2a36] text-[#8e8e9f] hover:text-white font-bold text-xs transition flex-shrink-0">
+              Cancel
+            </button>
+            <button type="button" onclick="cpmConfirmPayment()" id="cpmApplyBtn" class="flex-1 py-3.5 px-5 rounded-xl text-black font-black text-sm shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+              <i class="fa-solid fa-circle-check text-base"></i> Apply Payment & Print Receipt
+            </button>
           </div>
 
-          <!-- Riel Change View -->
-          <div id="cpChangeBoxKhr" style="display:none;justify-content:space-between;align-items:center;padding:4px 0;">
-            <span style="font-size:14px;font-weight:600;color:var(--text,#e4e4e7);">Riel =</span>
-            <span id="cpChangeRiel" style="font-size:22px;font-weight:800;color:#55e087;font-family:'Poppins',sans-serif;">&#x17DB;0</span>
+          <!-- Action Buttons for Active Bakong QR Mode -->
+          <div class="flex items-center gap-2.5 pt-1" id="cpmBakongActions" style="display:none;">
+            <button type="button" onclick="cpmCancelActiveBakongOrder()" class="py-3 px-4 rounded-xl bg-[#22222c] hover:bg-rose-900/30 hover:border-rose-500/40 border border-[#333342] text-rose-400 hover:text-rose-300 font-bold text-xs transition flex-shrink-0 flex items-center gap-1.5">
+              <i class="fa-solid fa-xmark"></i> Cancel Order
+            </button>
+            <button type="button" id="cpmBtnManualConfirm" onclick="cpmManualConfirmBakong()" class="flex-1 py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs md:text-sm shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+              <i class="fa-solid fa-circle-check text-base"></i> Confirm Payment Received
+            </button>
           </div>
 
-          <span class="change-amount" id="cpChangeAmount" style="display:none;">$0.00</span>
         </div>
-        <div id="cpShortWarn" style="display:none;margin-top:6px;font-size:11px;color:#e0a955;">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          This is less than the total. The order will still be settled in full.
-        </div>
+
       </div>
-      <?php endif; ?>
+
     </div>
-    <button type="button" class="cp-pm-confirm" id="cpConfirmPayBtn">
-      <i class="fa-solid fa-check" id="cpConfirmPayIcon"></i> <span id="cpConfirmPayText">Confirm Payment</span>
-    </button>
+
   </div>
 </div>
 
@@ -2469,52 +2768,668 @@ function cpRequireStand(onOk) {
   if (typeof onOk === 'function') onOk();
 }
 
-// Gate before the payment step — catches both the Confirm button and the
-// B/C/P/R shortcuts, which call this directly. cpRequireStand is async when it
-// has to look up occupancy, so the real modal body lives in cpOpenPayModalNow.
-function cpOpenPayModal() {
-  if (!cpHasCartItems()) return; // empty cart guard
-  if (document.getElementById('cpStandGate')) return; // gate already up
-  cpRequireStand(cpOpenPayModalNow);
-}
+// ══════════════════════════════════════════════════════════════════════════════
+// ── CASH PAYMENT SETTLEMENT MODAL CONTROLLER (POS LAYOUT) ──
+// ══════════════════════════════════════════════════════════════════════════════
+var cpmState = {
+  currency: 'USD',
+  inputStr: '',
+  owedUsd: 0,
+  owedKhr: 0,
+  receivedUsd: 0,
+  receivedKhr: 0,
+  method: 'cash',
+  activeBakongOrderId: null,
+  pollTimer: null,
+  countdownTimer: null,
+  qrString: ''
+};
 
-function cpOpenPayModalNow() {
-  if (!cpHasCartItems()) return; // empty cart guard
-  var total = cpGetCartTotal();
-  var sub = total / (1 + CP_TAX_RATE / 100);
-  var tax = total - sub;
-  document.getElementById('cpPmSubtotal').textContent = '$' + sub.toFixed(2);
-  document.getElementById('cpPmTax').textContent = '$' + tax.toFixed(2);
-  document.getElementById('cpPmTotal').textContent = '$' + total.toFixed(2);
-  var khr = Math.round(total * CP_KHR_RATE / 100) * 100;
-  var khrEl = document.getElementById('cpPmKhr');
-  if (khrEl) khrEl.textContent = '៛ ' + khr.toLocaleString();
+function openCashPaymentModal() {
+  if (!cpHasCartItems()) {
+    alert('Your cart is empty!');
+    return;
+  }
 
-  // Ensure cash is checked and change calculator is active
-  var cashCb = document.querySelector('#cpPayMethods input[value="cash"]');
-  if (cashCb) cashCb.checked = true;
-  cpUpdateConfirmBtn(['cash']);
+  var modal = document.getElementById('cashPaymentModal');
+  if (!modal) return;
 
-  document.getElementById('cpPayModal').classList.add('active');
-}
-function cpClosePayModal() {
-  document.getElementById('cpPayModal').classList.remove('active');
-  // Abandoning the modal clears payment selection so the next order starts
-  // clean (no stale method carried over). Submitting navigates away instead,
-  // so this only runs on Esc / backdrop / X.
-  document.querySelectorAll('.cp-pay-method input[type="checkbox"]').forEach(function(c) {
-    c.checked = false;
-    c.closest('.cp-pay-method').classList.remove('selected');
+  // Stop any active polling from previous modal open
+  cpmStopBakongPolling();
+  cpmState.activeBakongOrderId = null;
+  cpmState.qrString = '';
+
+  var totalUsd = cpGetCartTotal();
+  var rate = window.CP_KHR_RATE || 4100;
+  var totalKhr = Math.round(totalUsd * rate / 100) * 100;
+
+  cpmState.owedUsd = totalUsd;
+  cpmState.owedKhr = totalKhr;
+  cpmState.currency = 'USD';
+  cpmState.inputStr = totalUsd.toFixed(2);
+
+  // Reset UI Views
+  var cashView = document.getElementById('cpmCashView');
+  var qrView = document.getElementById('cpmBakongQrView');
+  var successView = document.getElementById('cpmBakongSuccessView');
+  var currSelector = document.getElementById('cpmCurrSelector');
+  var changeInfoWrap = document.getElementById('cpmChangeInfoWrap');
+  var normalActions = document.getElementById('cpmNormalActions');
+  var bakongActions = document.getElementById('cpmBakongActions');
+  var boxTitle = document.getElementById('cpmBoxTitle');
+
+  if (cashView) cashView.style.display = 'grid';
+  if (qrView) qrView.style.display = 'none';
+  if (successView) successView.style.display = 'none';
+  if (currSelector) currSelector.style.display = 'flex';
+  if (changeInfoWrap) changeInfoWrap.style.display = 'flex';
+  if (normalActions) normalActions.style.display = 'flex';
+  if (bakongActions) bakongActions.style.display = 'none';
+  if (boxTitle) boxTitle.innerHTML = '<i class="fa-solid fa-dollar-sign"></i> Payment Details';
+
+  // Populate Items list from cart DOM
+  var itemsContainer = document.getElementById('cpmItemsList');
+  var cartItemEls = document.querySelectorAll('#cpItems .cp-item');
+  var itemsHtml = '';
+  var totalItemsCount = 0;
+
+  cartItemEls.forEach(function(itemEl) {
+    var name = (itemEl.querySelector('.cp-item-name') || {}).textContent || 'Item';
+    var meta = (itemEl.querySelector('.cp-item-meta') || {}).textContent || '';
+    var priceEl = itemEl.querySelector('.cp-item-price span');
+    var price = priceEl ? (priceEl.textContent || '0.00') : '0.00';
+    var qtyInput = itemEl.querySelector('.cp-qty input');
+    var qty = qtyInput ? (parseInt(qtyInput.value) || 1) : 1;
+    totalItemsCount += qty;
+
+    var numPrice = parseFloat(price) || 0;
+    var lineTotal = (numPrice * qty).toFixed(2);
+
+    itemsHtml += '<div class="grid grid-cols-12 gap-2 py-2.5 px-3.5 items-center text-xs border-b border-[#242430] cpm-item-row">' +
+      '<div class="col-span-6 min-w-0 pr-1">' +
+        '<div class="font-bold text-white leading-snug break-words cpm-item-name">' + name + '</div>' +
+        (meta ? '<div class="text-[11px] text-[#8e8e9f] leading-snug break-words mt-0.5 cpm-item-meta">' + meta + '</div>' : '') +
+      '</div>' +
+      '<div class="col-span-2 text-right font-semibold text-[#a1a1b0] cpm-item-price">$' + numPrice.toFixed(2) + '</div>' +
+      '<div class="col-span-2 text-center">' +
+        '<span class="inline-block px-2 py-0.5 rounded-md bg-white/10 text-white font-extrabold text-[11px] cpm-item-qty">' + qty + '</span>' +
+      '</div>' +
+      '<div class="col-span-2 text-right font-extrabold text-[#d1904b] cpm-item-total">$' + lineTotal + '</div>' +
+    '</div>';
   });
-  var cr = document.getElementById('cpCashReceived');
-  if (cr) { cr.value = ''; delete cr.dataset.touched; }   // next open prefills again
-  var ri = document.getElementById('cpRielCash');
-  if (ri) ri.value = '';
-  var eq = document.getElementById('cpRielCashUsd');
-  if (eq) eq.textContent = '≈ $0.00';
-  cpUpdateConfirmBtn([]);
-  cpUpdateSplitInputs();
+
+  if (itemsContainer) itemsContainer.innerHTML = itemsHtml || '<div class="text-center py-4 text-xs text-gray-400 italic">No items in cart</div>';
+  var countEl = document.getElementById('cpmItemCount');
+  if (countEl) countEl.textContent = totalItemsCount + ' item' + (totalItemsCount === 1 ? '' : 's');
+
+  // Subtotal, Discount, Tax
+  var subtotal = (document.getElementById('cpSubtotal') || {}).textContent || ('$' + totalUsd.toFixed(2));
+  var subEl = document.getElementById('cpmSubtotal');
+  if (subEl) subEl.textContent = subtotal;
+
+  var discEl = document.getElementById('cpManualAmt') || document.getElementById('cpItemPromoAmt');
+  var discRow = document.getElementById('cpmDiscountRow');
+  if (discEl && discEl.offsetParent !== null && discRow) {
+    discRow.style.display = 'flex';
+    document.getElementById('cpmDiscount').textContent = discEl.textContent;
+  } else if (discRow) {
+    discRow.style.display = 'none';
+  }
+
+  var taxEl = document.getElementById('cpTax');
+  var taxRow = document.getElementById('cpmTaxRow');
+  if (taxEl && taxEl.offsetParent !== null && taxRow) {
+    taxRow.style.display = 'flex';
+    document.getElementById('cpmTax').textContent = taxEl.textContent;
+  } else if (taxRow) {
+    taxRow.style.display = 'none';
+  }
+
+  var totUsdEl = document.getElementById('cpmTotalUsd');
+  if (totUsdEl) totUsdEl.textContent = '$' + totalUsd.toFixed(2);
+  var totKhrEl = document.getElementById('cpmTotalKhr');
+  if (totKhrEl) totKhrEl.textContent = '៛ ' + totalKhr.toLocaleString();
+  var dispDueEl = document.getElementById('cpmDispDue');
+  if (dispDueEl) dispDueEl.textContent = '$' + totalUsd.toFixed(2);
+
+  // Render Quick Cash
+  cpmRenderQuickCash();
+
+  // Set Initial Method to Cash
+  cpmSetMethod('cash');
+
+  // Set Initial Input to Exact
+  cpmUpdateInputDisplay();
+
+  // Show Modal
+  modal.style.display = 'flex';
+
+  setTimeout(function() {
+    var inField = document.getElementById('cpmReceivedInput');
+    if (inField) { inField.focus(); inField.select(); }
+  }, 50);
 }
+
+function closeCashPaymentModal() {
+  var modal = document.getElementById('cashPaymentModal');
+  if (!modal) return;
+
+  if (cpmState.activeBakongOrderId) {
+    if (confirm('You have an active Bakong QR order #' + cpmState.activeBakongOrderId + '. Do you want to cancel this order and return to cart?')) {
+      cpmCancelActiveBakongOrder();
+      modal.style.display = 'none';
+    }
+    return;
+  }
+
+  cpmStopBakongPolling();
+  modal.style.display = 'none';
+}
+
+function cpmSetCurrency(curr) {
+  cpmState.currency = curr;
+  var btnUsd = document.getElementById('cpmCurrUsd');
+  var btnKhr = document.getElementById('cpmCurrKhr');
+  if (btnUsd) btnUsd.className = (curr === 'USD') ? 'px-2.5 py-1 rounded bg-[#d1904b] text-black font-extrabold transition' : 'px-2.5 py-1 rounded text-[#8e8e9f] hover:text-white transition';
+  if (btnKhr) btnKhr.className = (curr === 'KHR') ? 'px-2.5 py-1 rounded bg-[#d1904b] text-black font-extrabold transition' : 'px-2.5 py-1 rounded text-[#8e8e9f] hover:text-white transition';
+  var prefixEl = document.getElementById('cpmPrefix');
+  if (prefixEl) prefixEl.textContent = (curr === 'USD') ? '$' : '៛';
+  
+  if (curr === 'USD') {
+    cpmState.inputStr = cpmState.owedUsd.toFixed(2);
+  } else {
+    cpmState.inputStr = String(cpmState.owedKhr);
+  }
+  cpmRenderQuickCash();
+  cpmUpdateInputDisplay();
+}
+
+function cpmRenderQuickCash() {
+  var wrap = document.getElementById('cpmQuickCashWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  var rate = window.CP_KHR_RATE || 4100;
+
+  if (cpmState.currency === 'USD') {
+    var presets = ['Exact', 5, 10, 20, 50, 100];
+    presets.forEach(function(p) {
+      var val = (p === 'Exact') ? cpmState.owedUsd : p;
+      var label = (p === 'Exact') ? 'Exact' : '$' + p;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'py-1.5 px-2 rounded-lg bg-[#141418] border border-[#282836] text-xs font-bold text-[#b4b4c2] hover:text-white hover:border-[#d1904b] hover:bg-[#d1904b]/10 transition';
+      btn.textContent = label;
+      btn.onclick = function() {
+        cpmState.inputStr = Number(val).toFixed(2);
+        cpmUpdateInputDisplay();
+      };
+      wrap.appendChild(btn);
+    });
+  } else {
+    var presets = ['Exact ៛', 10000, 20000, 50000, 100000, 200000];
+    presets.forEach(function(p) {
+      var val = (p === 'Exact ៛') ? cpmState.owedKhr : p;
+      var label = (p === 'Exact ៛') ? 'Exact ៛' : '៛ ' + (p/1000) + 'k';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'py-1.5 px-2 rounded-lg bg-[#141418] border border-[#282836] text-xs font-bold text-[#b4b4c2] hover:text-white hover:border-[#d1904b] hover:bg-[#d1904b]/10 transition';
+      btn.textContent = label;
+      btn.onclick = function() {
+        cpmState.inputStr = String(val);
+        cpmUpdateInputDisplay();
+      };
+      wrap.appendChild(btn);
+    });
+  }
+}
+
+function cpmPadKey(key) {
+  if (key === 'backspace') {
+    cpmState.inputStr = cpmState.inputStr.slice(0, -1);
+  } else if (key === '.') {
+    if (!cpmState.inputStr.includes('.')) {
+      cpmState.inputStr = (cpmState.inputStr === '' ? '0' : cpmState.inputStr) + '.';
+    }
+  } else {
+    if (cpmState.inputStr === '0' || cpmState.inputStr === '0.00') cpmState.inputStr = '';
+    cpmState.inputStr += key;
+  }
+  cpmUpdateInputDisplay();
+}
+
+function cpmOnManualInput(val) {
+  cpmState.inputStr = val.replace(/[^0-9.]/g, '');
+  cpmUpdateInputDisplay(false);
+}
+
+function cpmUpdateInputDisplay(updateInputField) {
+  if (typeof updateInputField === 'undefined') updateInputField = true;
+  var inputEl = document.getElementById('cpmReceivedInput');
+  if (updateInputField && inputEl) {
+    inputEl.value = cpmState.inputStr;
+  }
+
+  var numVal = parseFloat(cpmState.inputStr) || 0;
+  var rate = window.CP_KHR_RATE || 4100;
+
+  var recUsd = 0;
+  var recKhr = 0;
+
+  if (cpmState.currency === 'USD') {
+    recUsd = numVal;
+    recKhr = Math.round(recUsd * rate / 100) * 100;
+    var altEl = document.getElementById('cpmReceivedAlt');
+    if (altEl) altEl.textContent = '≈ ៛ ' + recKhr.toLocaleString();
+    var dispRecEl = document.getElementById('cpmDispReceived');
+    if (dispRecEl) dispRecEl.textContent = '$' + recUsd.toFixed(2);
+  } else {
+    recKhr = numVal;
+    recUsd = recKhr / rate;
+    var altEl = document.getElementById('cpmReceivedAlt');
+    if (altEl) altEl.textContent = '≈ $' + recUsd.toFixed(2);
+    var dispRecEl = document.getElementById('cpmDispReceived');
+    if (dispRecEl) dispRecEl.textContent = '៛ ' + recKhr.toLocaleString() + ' ($' + recUsd.toFixed(2) + ')';
+  }
+
+  cpmState.receivedUsd = recUsd;
+  cpmState.receivedKhr = recKhr;
+
+  // Calculate Change
+  var changeUsd = recUsd - cpmState.owedUsd;
+  var changeKhr = Math.round(changeUsd * rate / 100) * 100;
+  var changeBox = document.getElementById('cpmChangeBox');
+  var changeUsdEl = document.getElementById('cpmChangeUsd');
+  var changeKhrEl = document.getElementById('cpmChangeKhr');
+
+  if (changeUsd < -0.005) {
+    // Short
+    var shortAmt = Math.abs(changeUsd);
+    if (changeUsdEl) {
+      changeUsdEl.textContent = '-$' + shortAmt.toFixed(2);
+    }
+    if (changeKhrEl) changeKhrEl.textContent = 'Short: ៛ ' + Math.abs(changeKhr).toLocaleString();
+    if (changeBox) {
+      changeBox.classList.add('cpm-short');
+    }
+  } else {
+    var cleanChangeUsd = Math.max(0, changeUsd);
+    var cleanChangeKhr = Math.max(0, changeKhr);
+    if (changeUsdEl) {
+      changeUsdEl.textContent = '$' + cleanChangeUsd.toFixed(2);
+    }
+    if (changeKhrEl) changeKhrEl.textContent = '៛ ' + cleanChangeKhr.toLocaleString();
+    if (changeBox) {
+      changeBox.classList.remove('cpm-short');
+    }
+  }
+}
+
+function cpmSetMethod(method) {
+  cpmState.method = method;
+  var cashBtn = document.getElementById('cpmMethodCash');
+  var bkgBtn = document.getElementById('cpmMethodBakong');
+  var applyBtn = document.getElementById('cpmApplyBtn');
+  var returnMethodEl = document.getElementById('cpmReturnMethod');
+
+  if (method === 'bakong') {
+    if (cashBtn) {
+      cashBtn.className = 'py-2.5 px-3 rounded-xl bg-[#141418] border border-[#282836] text-[#8e8e9f] hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer';
+    }
+    if (bkgBtn) {
+      bkgBtn.className = 'py-2.5 px-3 rounded-xl bg-red-500/20 border-2 border-red-500 text-red-400 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer';
+    }
+    if (applyBtn) {
+      applyBtn.classList.add('bakong-mode');
+      applyBtn.innerHTML = '<i class="fa-solid fa-qrcode text-base"></i> Apply Payment & Show QR';
+    }
+    if (returnMethodEl) returnMethodEl.textContent = 'Bakong KHQR';
+    
+    // Set to exact total
+    if (cpmState.currency === 'USD') {
+      cpmState.inputStr = cpmState.owedUsd.toFixed(2);
+    } else {
+      cpmState.inputStr = String(cpmState.owedKhr);
+    }
+    cpmUpdateInputDisplay();
+  } else {
+    if (cashBtn) {
+      cashBtn.className = 'py-2.5 px-3 rounded-xl bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer';
+    }
+    if (bkgBtn) {
+      bkgBtn.className = 'py-2.5 px-3 rounded-xl bg-[#141418] border border-[#282836] text-[#8e8e9f] hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer';
+    }
+    if (applyBtn) {
+      applyBtn.classList.remove('bakong-mode');
+      applyBtn.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i> Apply Payment & Print Receipt';
+    }
+    if (returnMethodEl) returnMethodEl.textContent = 'Cash';
+    cpmUpdateInputDisplay();
+  }
+}
+
+function cpmConfirmPayment() {
+  var form = document.getElementById('cpCheckoutForm');
+  if (!form) return;
+
+  var totalVal = cpGetCartTotal();
+
+  if (cpmState.method === 'bakong') {
+    cpmApplyBakongPayment();
+    return;
+  }
+
+  var recUsd = cpmState.receivedUsd;
+  var recKhr = cpmState.receivedKhr;
+
+  if (recUsd < totalVal - 0.005) {
+    if (!confirm('Amount received ($' + recUsd.toFixed(2) + ') is less than total due ($' + totalVal.toFixed(2) + '). Do you want to proceed?')) {
+      return;
+    }
+  }
+
+  var refStr = (cpmState.currency === 'USD') ? recUsd.toFixed(2) : (recUsd.toFixed(2) + '|' + recKhr);
+
+  var inputsContainer = document.getElementById('cpPaymentInputs');
+  if (inputsContainer) {
+    inputsContainer.innerHTML =
+      '<input type="hidden" name="payment_methods[]" value="cash">' +
+      '<input type="hidden" name="payment_amounts[]" value="' + totalVal + '">' +
+      '<input type="hidden" name="payment_references[]" value="' + refStr + '">' +
+      '<input type="hidden" name="cash_received" value="' + recUsd.toFixed(2) + '">' +
+      '<input type="hidden" name="cash_received_khr" value="' + recKhr + '">';
+  }
+
+  closeCashPaymentModal();
+
+  var popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+  if (popupWin) {
+    try { popupWin.focus(); } catch(e) {}
+    form.target = 'receipt_win';
+  } else {
+    form.target = '_self';
+  }
+  form.submit();
+  setTimeout(function() {
+    form.target = '_self';
+    cpSilentClearCart();
+  }, 300);
+}
+
+// ── In-Modal Bakong KHQR Execution ──
+function cpmApplyBakongPayment() {
+  var form = document.getElementById('cpCheckoutForm');
+  if (!form) return;
+
+  var totalVal = cpGetCartTotal();
+  var applyBtn = document.getElementById('cpmApplyBtn');
+  if (applyBtn) {
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-base"></i> Generating KHQR...';
+  }
+
+  var formData = new FormData(form);
+  formData.append('payment_methods[]', 'bakong');
+  formData.append('payment_amounts[]', totalVal);
+  formData.append('payment_references[]', '');
+  formData.append('is_ajax', '1');
+
+  fetch('confirm_order.php', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (applyBtn) {
+      applyBtn.disabled = false;
+      applyBtn.innerHTML = '<i class="fa-solid fa-qrcode text-base"></i> Apply Payment & Show QR';
+    }
+
+    if (!res || !res.success) {
+      alert(res && res.error ? res.error : 'Failed to generate Bakong KHQR. Please check network/inventory.');
+      return;
+    }
+
+    cpmState.activeBakongOrderId = res.order_id;
+    cpmState.qrString = res.qr || '';
+
+    // Switch Right Column from Cash/Keypad View to Bakong QR View
+    var cashView = document.getElementById('cpmCashView');
+    var qrView = document.getElementById('cpmBakongQrView');
+    var successView = document.getElementById('cpmBakongSuccessView');
+    var currSelector = document.getElementById('cpmCurrSelector');
+    var normalActions = document.getElementById('cpmNormalActions');
+    var bakongActions = document.getElementById('cpmBakongActions');
+    var boxTitle = document.getElementById('cpmBoxTitle');
+
+    if (cashView) cashView.style.display = 'none';
+    if (currSelector) currSelector.style.display = 'none';
+    if (successView) successView.style.display = 'none';
+    if (qrView) qrView.style.display = 'flex';
+    if (normalActions) normalActions.style.display = 'none';
+    if (bakongActions) bakongActions.style.display = 'flex';
+    if (boxTitle) boxTitle.innerHTML = '<i class="fa-solid fa-qrcode text-red-400"></i> Bakong KHQR Payment';
+
+    // Update labels and amounts
+    var dispUsd = document.getElementById('cpmBakongDispUsd');
+    var dispKhr = document.getElementById('cpmBakongDispKhr');
+    var merchantEl = document.getElementById('cpmBakongMerchant');
+    var statusText = document.getElementById('cpmBakongStatusText');
+    var spinner = document.getElementById('cpmBakongSpinner');
+
+    var numTotal = parseFloat(res.amount || res.total || totalVal) || 0;
+    var rate = window.CP_KHR_RATE || 4100;
+    var numKhr = res.amount_khr || Math.round(numTotal * rate / 100) * 100;
+
+    if (dispUsd) dispUsd.textContent = '$' + numTotal.toFixed(2);
+    if (dispKhr) dispKhr.textContent = '(៛ ' + numKhr.toLocaleString() + ')';
+    if (merchantEl) merchantEl.textContent = res.merchant_name || "The Bird's Nest Coffee";
+    if (statusText) statusText.textContent = 'Waiting for Bakong payment...';
+    if (spinner) spinner.className = 'fa-solid fa-spinner fa-spin text-amber-400';
+
+    // Render QR
+    cpmRenderBakongQR(res.qr);
+
+    // Start background polling
+    cpmStartBakongPolling(res.order_id);
+  })
+  .catch(function(err) {
+    if (applyBtn) {
+      applyBtn.disabled = false;
+      applyBtn.innerHTML = '<i class="fa-solid fa-qrcode text-base"></i> Apply Payment & Show QR';
+    }
+    console.error('Bakong checkout error:', err);
+    alert('Network error while generating Bakong QR. Please try again.');
+  });
+}
+
+function cpmRenderBakongQR(qrString) {
+  var container = document.getElementById('cpmBakongQrCanvas');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (qrString && typeof QRCode !== 'undefined') {
+    try {
+      new QRCode(container, {
+        text: qrString,
+        width: 175,
+        height: 175,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      return;
+    } catch(e) {
+      console.warn('QRCode JS render error:', e);
+    }
+  }
+
+  // Fallback to QR server API image if QRCode.js isn't ready
+  if (qrString) {
+    var img = document.createElement('img');
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' + encodeURIComponent(qrString);
+    img.alt = 'Bakong KHQR';
+    img.className = 'w-[175px] h-[175px] rounded-lg object-contain';
+    container.appendChild(img);
+  } else {
+    container.innerHTML = '<div class="text-xs text-rose-500 font-bold p-4"><i class="fa-solid fa-triangle-exclamation text-xl mb-1"></i><br>QR not generated</div>';
+  }
+}
+
+function cpmStartBakongPolling(orderId) {
+  cpmStopBakongPolling();
+  if (!orderId) return;
+
+  cpmState.pollTimer = setInterval(function() {
+    fetch('check_payment.php?order_id=' + orderId)
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res && res.paid) {
+          cpmStopBakongPolling();
+          cpmHandleBakongPaymentSuccess(orderId);
+        } else if (res && res.error === 'rate_limited') {
+          cpmStopBakongPolling();
+          var st = document.getElementById('cpmBakongStatusText');
+          var sp = document.getElementById('cpmBakongSpinner');
+          if (sp) sp.className = 'fa-solid fa-triangle-exclamation text-amber-400';
+          if (st) st.textContent = 'Bakong daily limit reached. Click Confirm Payment below.';
+        }
+      })
+      .catch(function() {});
+  }, 2500);
+}
+
+function cpmStopBakongPolling() {
+  if (cpmState.pollTimer) {
+    clearInterval(cpmState.pollTimer);
+    cpmState.pollTimer = null;
+  }
+  if (cpmState.countdownTimer) {
+    clearInterval(cpmState.countdownTimer);
+    cpmState.countdownTimer = null;
+  }
+}
+
+function cpmManualConfirmBakong() {
+  var orderId = cpmState.activeBakongOrderId;
+  if (!orderId) return;
+
+  var btn = document.getElementById('cpmBtnManualConfirm');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+  }
+
+  var formData = new FormData();
+  formData.append('order_id', orderId);
+  formData.append('action', 'manual_confirm');
+
+  fetch('check_payment.php', { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.paid) {
+        cpmHandleBakongPaymentSuccess(orderId);
+      } else {
+        alert(res && res.error ? res.error : 'Payment confirmation failed');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i> Confirm Payment Received';
+        }
+      }
+    })
+    .catch(function() {
+      alert('Network error while confirming payment.');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i> Confirm Payment Received';
+      }
+    });
+}
+
+function cpmHandleBakongPaymentSuccess(orderId) {
+  cpmStopBakongPolling();
+
+  var qrView = document.getElementById('cpmBakongQrView');
+  var bakongActions = document.getElementById('cpmBakongActions');
+  var successView = document.getElementById('cpmBakongSuccessView');
+  var successInfo = document.getElementById('cpmSuccessOrderInfo');
+
+  if (qrView) qrView.style.display = 'none';
+  if (bakongActions) bakongActions.style.display = 'none';
+  if (successView) successView.style.display = 'flex';
+  if (successInfo) {
+    successInfo.textContent = 'Order #' + String(orderId).padStart(4, '0') + ' ($' + cpmState.owedUsd.toFixed(2) + ') has been settled via Bakong KHQR.';
+  }
+
+  // Attempt to auto-open receipt in popup window
+  try {
+    var receiptUrl = 'receipt_print.php?order_id=' + orderId;
+    var printWin = window.open(receiptUrl, '_blank', 'width=460,height=720,top=80,left=100,scrollbars=yes');
+    if (printWin) {
+      try { printWin.focus(); } catch(e) {}
+    }
+  } catch(e) {
+    console.log('Popup auto-open blocked by browser.');
+  }
+
+  // Countdown timer to finish & refresh menu
+  var count = 2;
+  var countSpan = document.getElementById('cpmSuccessCountdown');
+  cpmState.countdownTimer = setInterval(function() {
+    count--;
+    if (countSpan) countSpan.textContent = count;
+    if (count <= 0) {
+      clearInterval(cpmState.countdownTimer);
+      window.location.href = 'menu.php?msg=Order+' + orderId + '+Paid';
+    }
+  }, 1000);
+}
+
+function cpmCancelActiveBakongOrder() {
+  var orderId = cpmState.activeBakongOrderId;
+  if (!orderId) return;
+
+  if (!confirm('Do you want to cancel this Bakong payment and return items to cart?')) {
+    return;
+  }
+
+  cpmStopBakongPolling();
+
+  fetch('cancel_bakong_order.php?order_id=' + orderId, {
+    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() {
+    cpmState.activeBakongOrderId = null;
+    cpmState.qrString = '';
+
+    // Restore Cash/Payment Details view
+    var cashView = document.getElementById('cpmCashView');
+    var qrView = document.getElementById('cpmBakongQrView');
+    var successView = document.getElementById('cpmBakongSuccessView');
+    var currSelector = document.getElementById('cpmCurrSelector');
+    var normalActions = document.getElementById('cpmNormalActions');
+    var bakongActions = document.getElementById('cpmBakongActions');
+    var boxTitle = document.getElementById('cpmBoxTitle');
+
+    if (cashView) cashView.style.display = 'grid';
+    if (qrView) qrView.style.display = 'none';
+    if (successView) successView.style.display = 'none';
+    if (currSelector) currSelector.style.display = 'flex';
+    if (normalActions) normalActions.style.display = 'flex';
+    if (bakongActions) bakongActions.style.display = 'none';
+    if (boxTitle) boxTitle.innerHTML = '<i class="fa-solid fa-dollar-sign"></i> Payment Details';
+
+    cpmSetMethod('cash');
+  })
+  .catch(function() {
+    window.location.href = 'cancel_bakong_order.php?order_id=' + orderId;
+  });
+}
+
 function cpSelectDirectPayment(el, method) {
   var container = document.getElementById('cpDirectPayMethods');
   if (container) {
@@ -2555,12 +3470,17 @@ function cpOnConfirmOrderClick() {
   }
   if (!confirmOrderSubmit()) return;
 
+  var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
+  var methodVal = selectedCb ? selectedCb.value : 'cash';
+
+  if (methodVal === 'cash' || methodVal === 'riel') {
+    openCashPaymentModal();
+    return;
+  }
+
   var form = document.getElementById('cpCheckoutForm');
   if (form) {
-    var selectedCb = document.querySelector('#cpDirectPayMethods input[name="payment_methods[]"]:checked');
-    var methodVal = selectedCb ? selectedCb.value : 'cash';
     var totalVal = cpGetCartTotal();
-
     var inputsContainer = document.getElementById('cpPaymentInputs');
     if (inputsContainer) {
       inputsContainer.innerHTML =
@@ -2568,24 +3488,8 @@ function cpOnConfirmOrderClick() {
         '<input type="hidden" name="payment_amounts[]" value="' + totalVal + '">' +
         '<input type="hidden" name="payment_references[]" value="">';
     }
-
-    if (methodVal === 'cash' || methodVal === 'riel') {
-      var popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
-      if (popupWin) {
-        try { popupWin.focus(); } catch(e) {}
-        form.target = 'receipt_win';
-      } else {
-        form.target = '_self';
-      }
-      form.submit();
-      setTimeout(function() {
-        form.target = '_self';
-        cpSilentClearCart();
-      }, 300);
-    } else {
-      form.target = '_self';
-      form.submit();
-    }
+    form.target = '_self';
+    form.submit();
   }
 }
 
@@ -2916,21 +3820,31 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Payment modal: backdrop + Esc close
-  var payModal = document.getElementById('cpPayModal');
-  if (payModal) {
-    payModal.addEventListener('click', function(e) {
-      if (e.target === this) cpClosePayModal();
+  // Cash Payment Modal: backdrop + Esc close + Enter confirm
+  var cpmModal = document.getElementById('cashPaymentModal');
+  if (cpmModal) {
+    cpmModal.addEventListener('click', function(e) {
+      if (e.target === this) closeCashPaymentModal();
     });
   }
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && document.getElementById('cpPayModal').classList.contains('active')) {
-      cpClosePayModal();
+    var cpm = document.getElementById('cashPaymentModal');
+    if (cpm && cpm.style.display !== 'none' && cpm.style.display !== '') {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeCashPaymentModal();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        cpmConfirmPayment();
+      }
     }
   });
 
   // Keyboard shortcuts
   document.addEventListener('keydown', function(e) {
+    var cpm = document.getElementById('cashPaymentModal');
+    if (cpm && cpm.style.display !== 'none' && cpm.style.display !== '') return;
+
     var tag = document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (typeof ADD_TO_ORDER_MODE !== 'undefined' && ADD_TO_ORDER_MODE) {
@@ -2948,7 +3862,7 @@ document.addEventListener('DOMContentLoaded', function() {
       cpOnConfirmOrderClick();
     } else if (key === 'escape') {
       closeModal();
-      cpClosePayModal();
+      closeCashPaymentModal();
     }
   });
 

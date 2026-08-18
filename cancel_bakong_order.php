@@ -57,5 +57,15 @@ if ($order_id > 0) {
     }
 }
 
+$is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+    || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+    || (!empty($_REQUEST['is_ajax']));
+
+if ($is_ajax) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'order_id' => $order_id]);
+    exit;
+}
+
 header("Location: menu.php");
 exit;
