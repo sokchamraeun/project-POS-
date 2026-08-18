@@ -1954,31 +1954,31 @@ $defaultMilk = 'Fresh Milk';
 </div>
 
 <!-- ── CASH PAYMENT SETTLEMENT MODAL (POS LAYOUT) ── -->
-<div id="cashPaymentModal" class="modal fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-[99999]" style="display:none;">
-  <div class="cpm-card flex flex-col max-h-[92vh] text-white">
+<div id="cashPaymentModal" class="modal fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-2 md:p-3 z-[99999]" style="display:none;">
+  <div class="cpm-card flex flex-col max-h-[96vh] text-white w-full max-w-5xl shadow-2xl rounded-2xl overflow-hidden border border-[#2d2d3e]">
     
     <!-- Modal Header -->
-    <div class="flex items-center justify-between px-6 py-3.5 border-b border-[#282834] bg-[#1a1a22] shrink-0">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-base">
+    <div class="flex items-center justify-between px-5 py-2.5 border-b border-[#282834] bg-[#1a1a22] shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm">
           <i class="fa-solid fa-money-bill-wave"></i>
         </div>
         <div>
-          <h2 class="text-base md:text-lg font-bold text-white leading-tight"><?= __('cpm_modal_title', 'Cash Payment Settlement') ?></h2>
-          <p class="text-xs text-[#8e8e9f]"><?= __('cpm_modal_subtitle', 'Take order cash & calculate change') ?></p>
+          <h2 class="text-sm md:text-base font-bold text-white leading-tight"><?= __('cpm_modal_title', 'Cash Payment Settlement') ?></h2>
+          <p class="text-[11px] text-[#8e8e9f]"><?= __('cpm_modal_subtitle', 'Take order cash & calculate change') ?></p>
         </div>
       </div>
-      <button type="button" onclick="closeCashPaymentModal()" class="w-8 h-8 rounded-xl bg-[#22222c] text-[#8e8e9f] hover:text-white flex items-center justify-center transition" title="Close (Esc)">
-        <i class="fa-solid fa-xmark"></i>
+      <button type="button" onclick="closeCashPaymentModal()" class="w-7 h-7 rounded-xl bg-[#22222c] text-[#8e8e9f] hover:text-white flex items-center justify-center transition" title="Close (Esc)">
+        <i class="fa-solid fa-xmark text-sm"></i>
       </button>
     </div>
 
     <!-- Modal Body (2-Column POS Layout) -->
-    <div class="p-5 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+    <div class="p-3 md:p-4 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
       
       <!-- LEFT COLUMN: Current Transaction Summary (6 cols) -->
       <div class="lg:col-span-6 bg-[#1a1a22] border border-[#282836] rounded-xl flex flex-col overflow-hidden shadow-md h-full">
-        <div class="px-4 py-3 bg-[#20202a] border-b border-[#282836] flex items-center justify-between shrink-0">
+        <div class="px-3.5 py-2 bg-[#20202a] border-b border-[#282836] flex items-center justify-between shrink-0">
           <h3 class="text-xs font-bold uppercase tracking-wider text-[#d1904b] flex items-center gap-2">
             <i class="fa-solid fa-file-invoice"></i> <?= __('cpm_summary_title', 'Current Transaction Summary') ?>
           </h3>
@@ -1986,7 +1986,7 @@ $defaultMilk = 'Fresh Milk';
         </div>
 
         <!-- Table Column Headers: Items, Price, Qty, Total -->
-        <div class="grid grid-cols-12 gap-2 px-3.5 py-2 bg-[#181820] border-b border-[#282836] text-[11px] font-bold text-[#8e8e9f] uppercase tracking-wider shrink-0 cpm-table-head">
+        <div class="grid grid-cols-12 gap-2 px-3 py-1.5 bg-[#181820] border-b border-[#282836] text-[10.5px] font-bold text-[#8e8e9f] uppercase tracking-wider shrink-0 cpm-table-head">
           <div class="col-span-6"><?= __('cpm_col_items', 'Items') ?></div>
           <div class="col-span-2 text-right"><?= __('cpm_col_price', 'Price') ?></div>
           <div class="col-span-2 text-center"><?= __('cpm_col_qty', 'Qty') ?></div>
@@ -1994,12 +1994,12 @@ $defaultMilk = 'Fresh Milk';
         </div>
 
         <!-- Items Table -->
-        <div class="flex-1 overflow-y-auto min-h-[160px]" id="cpmItemsList">
+        <div class="flex-1 overflow-y-auto min-h-[120px] max-h-[220px]" id="cpmItemsList">
           <!-- Dynamic Items Populated here -->
         </div>
 
         <!-- Running Subtotal, Tax, Discount & Total Due (Pinned to Bottom) -->
-        <div class="p-4 bg-[#141418] border-t border-[#282836] space-y-2 mt-auto shrink-0">
+        <div class="p-3 bg-[#141418] border-t border-[#282836] space-y-1.5 mt-auto shrink-0">
           <div class="flex justify-between text-xs text-[#9e9eb0]">
             <span><?= __('cpm_subtotal', 'Running Subtotal') ?></span>
             <span class="font-semibold text-white" id="cpmSubtotal">$0.00</span>
@@ -2013,73 +2013,73 @@ $defaultMilk = 'Fresh Milk';
             <span class="font-semibold text-white" id="cpmTax">$0.00</span>
           </div>
 
-          <div class="pt-3 mt-2 border-t border-[#262634] flex items-baseline justify-between">
+          <div class="pt-2 mt-1.5 border-t border-[#262634] flex items-baseline justify-between">
             <div>
-              <div class="text-[11px] font-bold uppercase tracking-wider text-[#d1904b]"><?= __('cpm_total_due', 'Total Amount Due') ?></div>
-              <div class="text-xs text-[#8e8e9f]" id="cpmTotalKhr">៛ 0</div>
+              <div class="text-[10.5px] font-bold uppercase tracking-wider text-[#d1904b]"><?= __('cpm_total_due', 'Total Amount Due') ?></div>
+              <div class="text-[11px] text-[#8e8e9f]" id="cpmTotalKhr">៛ 0</div>
             </div>
-            <div class="text-2xl md:text-3xl font-extrabold text-white" id="cpmTotalUsd">$0.00</div>
+            <div class="text-xl md:text-2xl font-extrabold text-white" id="cpmTotalUsd">$0.00</div>
           </div>
         </div>
       </div>
 
       <!-- RIGHT COLUMN: Payment Details & Change Calculated (6 cols) -->
-      <div class="lg:col-span-6 flex flex-col gap-4">
+      <div class="lg:col-span-6 flex flex-col gap-3">
         
         <!-- Top Box: Payment Details -->
-        <div class="bg-[#1a1a22] border border-[#282836] rounded-xl p-4 shadow-md flex flex-col gap-3" id="cpmPaymentDetailsBox">
-          <div class="flex items-center justify-between border-b border-[#282836] pb-2.5">
+        <div class="bg-[#1a1a22] border border-[#282836] rounded-xl p-3 shadow-md flex flex-col gap-2.5" id="cpmPaymentDetailsBox">
+          <div class="flex items-center justify-between border-b border-[#282836] pb-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2" id="cpmBoxTitle">
               <i class="fa-solid fa-dollar-sign"></i> <?= __('cpm_payment_details', 'Payment Details') ?>
             </h3>
             
             <!-- Exchange rate badge & Currency selector -->
             <div class="flex items-center gap-2">
-              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#121216] border border-[#282836] text-[11px] font-semibold text-[#8e8e9f]" id="cpmRateBadge" title="Current Exchange Rate">
-                <i class="fa-solid fa-arrow-right-arrow-left text-[#d1904b] text-[10px]"></i>
+              <div class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#121216] border border-[#282836] text-[10.5px] font-semibold text-[#8e8e9f]" id="cpmRateBadge" title="Current Exchange Rate">
+                <i class="fa-solid fa-arrow-right-arrow-left text-[#d1904b] text-[9px]"></i>
                 <span>1$ = <b class="text-[#d1904b]" id="cpmRateDisplay">៛<?= number_format(defined('KHR_RATE') ? (int)KHR_RATE : 4100) ?></b></span>
               </div>
 
               <!-- Currency selector -->
-              <div class="flex items-center gap-1 bg-[#121216] p-1 rounded-xl border border-[#282836] text-xs font-bold" id="cpmCurrSelector">
-                <button type="button" id="cpmCurrUsd" class="px-3 py-1.5 rounded-lg text-xs font-extrabold transition" onclick="cpmSetCurrency('USD')">$ USD</button>
-                <button type="button" id="cpmCurrKhr" class="px-3 py-1.5 rounded-lg text-xs font-bold transition" onclick="cpmSetCurrency('KHR')">៛ KHR</button>
+              <div class="flex items-center gap-1 bg-[#121216] p-0.5 rounded-xl border border-[#282836] text-xs font-bold" id="cpmCurrSelector">
+                <button type="button" id="cpmCurrUsd" class="px-2.5 py-1 rounded-lg text-xs font-extrabold transition" onclick="cpmSetCurrency('USD')">$ USD</button>
+                <button type="button" id="cpmCurrKhr" class="px-2.5 py-1 rounded-lg text-xs font-bold transition" onclick="cpmSetCurrency('KHR')">៛ KHR</button>
               </div>
             </div>
           </div>
 
           <!-- Cash Payment / Keypad View -->
-          <div id="cpmCashView" class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+          <div id="cpmCashView" class="grid grid-cols-1 md:grid-cols-12 gap-3">
             
             <!-- Left sub-col: Input Display & Quick Presets (7 cols) -->
-            <div class="md:col-span-7 flex flex-col gap-2.5">
+            <div class="md:col-span-7 flex flex-col gap-2">
               <div>
-                <label class="text-[11px] font-semibold text-[#8e8e9f] mb-1 block"><?= __('cpm_amount_received', 'Amount Received') ?></label>
+                <label class="text-[10.5px] font-semibold text-[#8e8e9f] mb-0.5 block"><?= __('cpm_amount_received', 'Amount Received') ?></label>
                 <div class="relative flex items-center">
-                  <span class="absolute left-3.5 text-base font-bold text-[#d1904b]" id="cpmPrefix">$</span>
+                  <span class="absolute left-3 text-sm font-bold text-[#d1904b]" id="cpmPrefix">$</span>
                   <input type="text" id="cpmReceivedInput" 
-                         class="w-full pl-8 pr-3 py-2.5 rounded-xl bg-[#121216] border-2 border-[#d1904b]/60 text-xl font-extrabold text-white text-right focus:outline-none focus:border-[#d1904b] transition shadow-inner"
+                         class="w-full pl-7 pr-2.5 py-2 rounded-xl bg-[#121216] border-2 border-[#d1904b]/60 text-lg font-extrabold text-white text-right focus:outline-none focus:border-[#d1904b] transition shadow-inner"
                          placeholder="0.00" oninput="cpmOnManualInput(this.value)">
                 </div>
-                <div class="text-right text-[11px] text-[#8e8e9f] mt-1" id="cpmReceivedAlt">≈ ៛ 0</div>
+                <div class="text-right text-[10.5px] text-[#8e8e9f] mt-0.5" id="cpmReceivedAlt">≈ ៛ 0</div>
               </div>
 
               <!-- Quick Cash Buttons -->
               <div>
-                <div class="text-[10px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1.5"><?= __('cpm_quick_cash', 'Quick Cash') ?></div>
-                <div class="grid grid-cols-3 gap-1.5" id="cpmQuickCashWrap">
+                <div class="text-[9.5px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1"><?= __('cpm_quick_cash', 'Quick Cash') ?></div>
+                <div class="grid grid-cols-3 gap-1" id="cpmQuickCashWrap">
                   <!-- Dynamic quick cash buttons -->
                 </div>
               </div>
 
               <!-- Payment Method Selector -->
-              <div class="pt-2 border-t border-[#262634]">
-                <div class="text-[10px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1.5"><?= __('cpm_payment_method', 'Payment Method') ?></div>
-                <div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl" id="cpmMethodPills">
-                  <button type="button" id="cpmMethodCash" onclick="cpmSetMethod('cash')" class="py-2.5 px-3 rounded-lg cpm-method-active font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
+              <div class="pt-1.5 border-t border-[#262634]">
+                <div class="text-[9.5px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1"><?= __('cpm_payment_method', 'Payment Method') ?></div>
+                <div class="grid grid-cols-2 gap-1 p-0.5 rounded-xl" id="cpmMethodPills">
+                  <button type="button" id="cpmMethodCash" onclick="cpmSetMethod('cash')" class="py-2 px-2.5 rounded-lg cpm-method-active font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
                     <i class="fa-solid fa-money-bill-wave"></i> <?= __('cpm_method_cash', 'Cash') ?>
                   </button>
-                  <button type="button" id="cpmMethodBakong" onclick="cpmSetMethod('bakong')" class="py-2.5 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
+                  <button type="button" id="cpmMethodBakong" onclick="cpmSetMethod('bakong')" class="py-2 px-2.5 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
                     <i class="fa-solid fa-qrcode"></i> <?= __('cpm_method_bakong', 'Bakong QR') ?>
                   </button>
                 </div>
@@ -2088,8 +2088,8 @@ $defaultMilk = 'Fresh Milk';
 
             <!-- Right sub-col: On-Screen Numeric Keypad (5 cols) -->
             <div class="md:col-span-5 flex flex-col">
-              <div class="text-[10px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1.5"><?= __('cpm_keypad', 'Keypad') ?></div>
-              <div class="grid grid-cols-3 gap-1.5 flex-1">
+              <div class="text-[9.5px] font-bold uppercase tracking-wider text-[#7d7d8e] mb-1"><?= __('cpm_keypad', 'Keypad') ?></div>
+              <div class="grid grid-cols-3 gap-1 flex-1">
                 <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('1')">1</button>
                 <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('2')">2</button>
                 <button type="button" class="cpm-pad-btn" onclick="cpmPadKey('3')">3</button>
@@ -2108,45 +2108,45 @@ $defaultMilk = 'Fresh Milk';
           </div>
 
           <!-- Bakong QR View (Rendered in this exact Payment Details box after applying) -->
-          <div id="cpmBakongQrView" style="display:none;" class="flex flex-col items-center justify-center p-2 text-center">
+          <div id="cpmBakongQrView" style="display:none;" class="flex flex-col items-center justify-center p-1 text-center">
             
             <!-- KHQR Code Container Card -->
-            <div class="w-full max-w-[270px] bg-white rounded-2xl p-3.5 text-black shadow-2xl border-2 border-[#e0454a] relative overflow-hidden flex flex-col items-center">
+            <div class="w-full max-w-[240px] bg-white rounded-2xl p-2.5 text-black shadow-2xl border-2 border-[#e0454a] relative overflow-hidden flex flex-col items-center">
               
               <!-- Red KHQR Badge -->
-              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#e0454a] text-white font-extrabold text-[11px] uppercase tracking-wider shadow-sm mb-2.5">
+              <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#e0454a] text-white font-extrabold text-[10.5px] uppercase tracking-wider shadow-sm mb-1.5">
                 <i class="fa-solid fa-qrcode"></i> <?= __('cpm_khqr_scan_pay', 'KHQR SCAN TO PAY') ?>
               </div>
 
               <!-- QR Code Canvas -->
-              <div id="cpmBakongQrCanvas" class="flex items-center justify-center min-h-[175px] min-w-[175px] my-1 bg-white p-1 rounded-xl">
+              <div id="cpmBakongQrCanvas" class="flex items-center justify-center min-h-[145px] min-w-[145px] my-0.5 bg-white p-0.5 rounded-xl">
                 <!-- QR rendered dynamically by QRCode.js or img -->
               </div>
 
               <!-- Total in USD and KHR -->
-              <div class="mt-2 pt-2 border-t border-dashed border-red-200 w-full flex items-baseline justify-center gap-2">
-                <span class="text-xl font-extrabold text-gray-900" id="cpmBakongDispUsd">$0.00</span>
+              <div class="mt-1.5 pt-1.5 border-t border-dashed border-red-200 w-full flex items-baseline justify-center gap-2">
+                <span class="text-lg font-extrabold text-gray-900" id="cpmBakongDispUsd">$0.00</span>
                 <span class="text-xs font-bold text-red-600" id="cpmBakongDispKhr">(៛ 0)</span>
               </div>
-              <div class="text-[10px] text-gray-500 mt-0.5" id="cpmBakongMerchant">The Bird's Nest Coffee</div>
+              <div class="text-[9.5px] text-gray-500 mt-0.5" id="cpmBakongMerchant">The Bird's Nest Coffee</div>
             </div>
 
             <!-- Polling Status Badge -->
-            <div id="cpmBakongStatusBadge" class="mt-3 px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-2">
-              <i class="fa-solid fa-spinner fa-spin text-amber-400" id="cpmBakongSpinner"></i>
+            <div id="cpmBakongStatusBadge" class="mt-2 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-spinner fa-spin text-amber-400 text-xs" id="cpmBakongSpinner"></i>
               <span id="cpmBakongStatusText"><?= __('cpm_waiting_bakong', 'Waiting for Bakong payment...') ?></span>
             </div>
 
           </div>
 
           <!-- Bakong Payment Success Celebration -->
-          <div id="cpmBakongSuccessView" style="display:none;" class="flex flex-col items-center justify-center p-6 text-center">
-            <div class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-3xl mb-3 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+          <div id="cpmBakongSuccessView" style="display:none;" class="flex flex-col items-center justify-center p-4 text-center">
+            <div class="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-2xl mb-2.5 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
               <i class="fa-solid fa-check"></i>
             </div>
-            <h3 class="text-xl font-bold text-emerald-400 mb-1"><?= __('cpm_payment_received', 'Payment Received!') ?></h3>
-            <p class="text-xs text-[#a1a1b0] mb-3" id="cpmSuccessOrderInfo"><?= __('cpm_order_settled_bakong', 'Order has been settled via Bakong KHQR.') ?></p>
-            <div class="text-xs text-[#8e8e9f] flex items-center gap-1.5">
+            <h3 class="text-lg font-bold text-emerald-400 mb-1"><?= __('cpm_payment_received', 'Payment Received!') ?></h3>
+            <p class="text-xs text-[#a1a1b0] mb-2" id="cpmSuccessOrderInfo"><?= __('cpm_order_settled_bakong', 'Order has been settled via Bakong KHQR.') ?></p>
+            <div class="text-[11px] text-[#8e8e9f] flex items-center gap-1.5">
               <i class="fa-regular fa-clock"></i> <?= __('cpm_auto_completing', 'Auto-completing in') ?> <b class="text-white" id="cpmSuccessCountdown">2</b>s...
             </div>
           </div>
@@ -2154,34 +2154,34 @@ $defaultMilk = 'Fresh Milk';
         </div>
 
         <!-- Bottom Box: Change Calculated & Actions -->
-        <div class="bg-[#1a1a22] border border-[#282836] rounded-xl p-4 shadow-md flex flex-col gap-3" id="cpmBottomBox">
+        <div class="bg-[#1a1a22] border border-[#282836] rounded-xl p-3 shadow-md flex flex-col gap-2.5" id="cpmBottomBox">
           
-          <div id="cpmChangeInfoWrap" class="flex flex-col gap-3">
-            <div class="flex items-center justify-between border-b border-[#282836] pb-2">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-[#d1904b] flex items-center gap-2" id="cpmBottomHeader">
+          <div id="cpmChangeInfoWrap" class="flex flex-col gap-2.5">
+            <div class="flex items-center justify-between border-b border-[#282836] pb-1.5">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-[#d1904b] flex items-center gap-1.5" id="cpmBottomHeader">
                 <i class="fa-solid fa-coins" id="cpmBottomHeaderIcon"></i> <span id="cpmBottomHeaderTitle"><?= __('cpm_change_calc', 'Change Calculated') ?></span>
               </h3>
-              <span class="text-xs text-[#8e8e9f]"><?= __('cpm_return_method', 'Return Method') ?>: <b class="text-white" id="cpmReturnMethod"><?= __('cpm_method_cash', 'Cash') ?></b></span>
+              <span class="text-[11px] text-[#8e8e9f]"><?= __('cpm_return_method', 'Return Method') ?>: <b class="text-white" id="cpmReturnMethod"><?= __('cpm_method_cash', 'Cash') ?></b></span>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 text-xs text-[#8e8e9f]">
+            <div class="grid grid-cols-2 gap-2 text-[11px] text-[#8e8e9f]">
               <div><?= __('cpm_amount_received', 'Amount Received') ?>: <b class="text-white" id="cpmDispReceived">$0.00</b></div>
               <div class="text-right"><?= __('amount_due', 'Amount Due') ?>: <b class="text-white" id="cpmDispDue">$0.00</b></div>
             </div>
 
             <!-- Return Change Currency Options: Dollar + Riel, Riel (Cash Mode) -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-0.5" id="cpmReturnOptionsRow">
-              <span class="text-[11px] font-bold text-[#8e8e9f] uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
+              <span class="text-[10.5px] font-bold text-[#8e8e9f] uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
                 <i class="fa-solid fa-hand-holding-dollar text-[#d1904b]"></i> <?= __('cpm_return_change_in', 'Return Change In') ?>:
               </span>
-              <div class="inline-flex p-1 rounded-xl bg-[#121216] border border-[#282836] gap-1 self-stretch sm:self-auto" id="cpmChangeModeWrap">
+              <div class="inline-flex p-0.5 rounded-xl bg-[#121216] border border-[#282836] gap-1 self-stretch sm:self-auto" id="cpmChangeModeWrap">
                 <button type="button" id="cpmModeMixed" onclick="cpmSetChangeMode('mixed')"
-                        class="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-extrabold transition cpm-mode-active"
+                        class="flex-1 sm:flex-initial px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition cpm-mode-active"
                         title="Whole dollars in USD, cents in Riel">
                   <?= __('cpm_mode_mixed', 'Dollar + Riel') ?>
                 </button>
                 <button type="button" id="cpmModeKhr" onclick="cpmSetChangeMode('khr')"
-                        class="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold text-[#8e8e9f] hover:text-white transition"
+                        class="flex-1 sm:flex-initial px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#8e8e9f] hover:text-white transition"
                         title="All change in Cambodian Riel">
                   <?= __('cpm_mode_khr', 'Riel') ?>
                 </button>
@@ -2190,40 +2190,40 @@ $defaultMilk = 'Fresh Milk';
 
             <!-- Digital KHQR Info Row (Bakong QR Mode, keeps identical height) -->
             <div class="items-center justify-between gap-1.5 pt-0.5" id="cpmBakongDigitalNoticeRow" style="display:none;">
-              <span class="text-[11px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
+              <span class="text-[10.5px] font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
                 <i class="fa-solid fa-qrcode"></i> <?= __('cpm_bakong_no_change_label', 'KHQR Transfer') ?>:
               </span>
-              <span class="text-xs font-bold text-gray-300 py-1.5 px-3 rounded-lg bg-[#141418] border border-[#282836]" id="cpmBakongExactNotice">
+              <span class="text-[11px] font-bold text-gray-300 py-1 px-2.5 rounded-lg bg-[#141418] border border-[#282836]" id="cpmBakongExactNotice">
                 <?= __('cpm_exact_no_change', 'Exact Amount • No Change Needed') ?>
               </span>
             </div>
 
             <!-- Highlight Change to Return Box (Big Green Alert Display - Identical size in Cash and Bakong) -->
-            <div class="rounded-xl p-3.5 flex items-center justify-between transition min-h-[72px]" id="cpmChangeBox">
+            <div class="rounded-xl p-2.5 flex items-center justify-between transition min-h-[58px]" id="cpmChangeBox">
               <div class="flex-1 pr-2 min-w-0">
-                <span class="text-xs font-black uppercase tracking-wider cpm-change-lbl" id="cpmChangeTitle"><?= __('cpm_change_to_return', 'Change to Return') ?>:</span>
-                <div class="text-xs font-bold truncate mt-0.5" id="cpmChangeKhr">៛ 0</div>
+                <span class="text-[11px] font-black uppercase tracking-wider cpm-change-lbl" id="cpmChangeTitle"><?= __('cpm_change_to_return', 'Change to Return') ?>:</span>
+                <div class="text-[11px] font-bold truncate mt-0.5" id="cpmChangeKhr">៛ 0</div>
               </div>
-              <div class="text-2xl md:text-3xl font-black text-right tracking-tight whitespace-nowrap" id="cpmChangeUsd">$0.00</div>
+              <div class="text-xl md:text-2xl font-black text-right tracking-tight whitespace-nowrap" id="cpmChangeUsd">$0.00</div>
             </div>
           </div>
 
           <!-- Action Buttons for Cash Mode -->
-          <div class="flex items-center gap-2.5 pt-1" id="cpmNormalActions">
-            <button type="button" onclick="closeCashPaymentModal()" class="btn-cpm-cancel py-3 px-4 rounded-xl bg-[#22222c] hover:bg-[#2a2a36] text-[#8e8e9f] hover:text-white font-bold text-xs transition flex-shrink-0">
+          <div class="flex items-center gap-2 pt-0.5" id="cpmNormalActions">
+            <button type="button" onclick="closeCashPaymentModal()" class="btn-cpm-cancel py-2.5 px-3.5 rounded-xl bg-[#22222c] hover:bg-[#2a2a36] text-[#8e8e9f] hover:text-white font-bold text-xs transition flex-shrink-0">
               <?= __('cpm_cancel', 'Cancel') ?>
             </button>
-            <button type="button" onclick="cpmConfirmPayment()" id="cpmApplyBtn" class="flex-1 py-3.5 px-5 rounded-xl text-black font-black text-sm shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+            <button type="button" onclick="cpmConfirmPayment()" id="cpmApplyBtn" class="flex-1 py-2.5 px-4 rounded-xl text-black font-black text-xs md:text-sm shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
               <i class="fa-solid fa-circle-check text-base"></i> <?= __('cpm_apply_payment', 'Apply Payment & Print Receipt') ?>
             </button>
           </div>
 
           <!-- Action Buttons for Active Bakong QR Mode -->
-          <div class="flex items-center gap-2.5 pt-1" id="cpmBakongActions" style="display:none;">
-            <button type="button" onclick="cpmCancelActiveBakongOrder()" class="py-3 px-4 rounded-xl bg-[#22222c] hover:bg-rose-900/30 hover:border-rose-500/40 border border-[#333342] text-rose-400 hover:text-rose-300 font-bold text-xs transition flex-shrink-0 flex items-center gap-1.5">
+          <div class="flex items-center gap-2 pt-0.5" id="cpmBakongActions" style="display:none;">
+            <button type="button" onclick="cpmCancelActiveBakongOrder()" class="py-2.5 px-3.5 rounded-xl bg-[#22222c] hover:bg-rose-900/30 hover:border-rose-500/40 border border-[#333342] text-rose-400 hover:text-rose-300 font-bold text-xs transition flex-shrink-0 flex items-center gap-1.5">
               <i class="fa-solid fa-xmark"></i> <?= __('cpm_cancel_order', 'Cancel Order') ?>
             </button>
-            <button type="button" id="cpmBtnManualConfirm" onclick="cpmManualConfirmBakong()" class="flex-1 py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs md:text-sm shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+            <button type="button" id="cpmBtnManualConfirm" onclick="cpmManualConfirmBakong()" class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs md:text-sm shadow-lg flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
               <i class="fa-solid fa-circle-check text-base"></i> <?= __('cpm_confirm_received', 'Confirm Payment Received') ?>
             </button>
           </div>
@@ -3996,8 +3996,8 @@ function cpmRenderBakongQR(qrString) {
     try {
       new QRCode(container, {
         text: qrString,
-        width: 175,
-        height: 175,
+        width: 145,
+        height: 145,
         colorDark: '#000000',
         colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M
@@ -4011,9 +4011,9 @@ function cpmRenderBakongQR(qrString) {
   // Fallback to QR server API image if QRCode.js isn't ready
   if (qrString) {
     var img = document.createElement('img');
-    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' + encodeURIComponent(qrString);
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=290x290&data=' + encodeURIComponent(qrString);
     img.alt = 'Bakong KHQR';
-    img.className = 'w-[175px] h-[175px] rounded-lg object-contain';
+    img.className = 'w-[145px] h-[145px] rounded-lg object-contain';
     container.appendChild(img);
   } else {
     container.innerHTML = '<div class="text-xs text-rose-500 font-bold p-4"><i class="fa-solid fa-triangle-exclamation text-xl mb-1"></i><br>QR not generated</div>';
