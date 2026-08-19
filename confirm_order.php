@@ -57,6 +57,10 @@ foreach (($_SESSION['cart'] ?? []) as $cItem) {
         $stmtBOM->execute();
         $resBOM = $stmtBOM->get_result();
         while ($bRow = $resBOM->fetch_assoc()) {
+            $iName = $bRow['item_name'] ?? '';
+            if (str_contains(strtolower($iName), 'packaging set') || str_contains($iName, 'ឈុត')) {
+                continue;
+            }
             $iId = (int)$bRow['item_id'];
             $req = (float)$bRow['quantity_required'] * (float)$q * $sFactor;
             if (!isset($requiredStock[$iId])) {

@@ -3568,6 +3568,49 @@ window.addEventListener('message', function(e) {
                         if (badgeEl) badgeEl.remove();
                     }
                 }
+
+                if (p.has_recipe !== undefined || p.recipe_count !== undefined) {
+                    const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0);
+                    card.setAttribute('data-has-recipe', hasRec ? '1' : '0');
+                    
+                    // 1. Grid View Badge (.no-recipe-badge in .image-wrapper)
+                    const imgWrapper = card.querySelector('.image-wrapper');
+                    let noRecBadge = card.querySelector('.image-wrapper .no-recipe-badge');
+                    if (!hasRec) {
+                        if (!noRecBadge && imgWrapper) {
+                            noRecBadge = document.createElement('div');
+                            noRecBadge.className = 'no-recipe-badge';
+                            noRecBadge.title = 'No Recipe Linked';
+                            noRecBadge.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
+                            imgWrapper.appendChild(noRecBadge);
+                        }
+                    } else {
+                        if (noRecBadge) noRecBadge.remove();
+                    }
+
+                    // 2. List View Badge (.no-recipe-inline-badge in .name-wrap)
+                    const nameWrap = card.querySelector('.content .name-wrap');
+                    let noRecInline = card.querySelector('.no-recipe-inline-badge');
+                    if (!hasRec) {
+                        if (!noRecInline && nameWrap) {
+                            noRecInline = document.createElement('span');
+                            noRecInline.className = 'no-recipe-inline-badge';
+                            noRecInline.title = 'No Recipe Linked';
+                            noRecInline.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
+                            nameWrap.appendChild(noRecInline);
+                        }
+                    } else {
+                        if (noRecInline) noRecInline.remove();
+                    }
+
+                    // 3. Refresh counters & filter
+                    if (typeof updateStatCounts === 'function') {
+                        updateStatCounts();
+                    }
+                    if (typeof filterProducts === 'function') {
+                        filterProducts();
+                    }
+                }
                 
                 // Highlight updated card with a brief glow
                 card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';

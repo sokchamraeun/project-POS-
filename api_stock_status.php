@@ -24,11 +24,11 @@ try {
         p.price,
         p.is_available,
         COUNT(r.recipe_id) AS recipe_count,
-        MIN(CASE WHEN s.item_id IS NOT NULL AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
-        SUM(CASE WHEN s.item_id IS NOT NULL AND s.quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock_ingredients,
-        SUM(CASE WHEN s.item_id IS NOT NULL AND s.quantity > 0 AND s.quantity <= s.alert_level THEN 1 ELSE 0 END) AS low_stock_ingredients,
-        GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND s.quantity <= 0 THEN s.item_name ELSE NULL END SEPARATOR ', ') AS missing_ingredients,
-        GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND s.quantity > 0 AND s.quantity <= s.alert_level THEN s.item_name ELSE NULL END SEPARATOR ', ') AS low_ingredients
+        MIN(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
+        SUM(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock_ingredients,
+        SUM(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity > 0 AND s.quantity <= s.alert_level THEN 1 ELSE 0 END) AS low_stock_ingredients,
+        GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity <= 0 THEN s.item_name ELSE NULL END SEPARATOR ', ') AS missing_ingredients,
+        GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity > 0 AND s.quantity <= s.alert_level THEN s.item_name ELSE NULL END SEPARATOR ', ') AS low_ingredients
     FROM products p
     LEFT JOIN product_recipes r ON p.product_id = r.product_id
     LEFT JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1

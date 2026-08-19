@@ -121,6 +121,12 @@ if (isset($_POST['update_product']) || isset($_POST['ajax'])) {
         $product['badge_text']   = $badge_text ?: null;
         $product['promo_percent'] = $promo_percent;
 
+        $recCountStmt = $conn->prepare("SELECT COUNT(*) AS rc FROM product_recipes WHERE product_id = ?");
+        $recCountStmt->bind_param("i", $id);
+        $recCountStmt->execute();
+        $recipeCount = (int)($recCountStmt->get_result()->fetch_assoc()['rc'] ?? 0);
+        $recCountStmt->close();
+
         if ($isAjax) {
             header('Content-Type: application/json');
             echo json_encode([
@@ -133,6 +139,8 @@ if (isset($_POST['update_product']) || isset($_POST['ajax'])) {
                     'category' => $category,
                     'is_available' => $is_avail,
                     'badge_text' => $badge_text,
+                    'recipe_count' => $recipeCount,
+                    'has_recipe' => ($recipeCount > 0 ? 1 : 0),
                     'image' => !empty($product['image']) ? get_image_url($product['image']) : ''
                 ]
             ]);

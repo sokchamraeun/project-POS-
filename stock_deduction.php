@@ -174,6 +174,12 @@ function deductStockForOrder(int $order_id, PDO $pdo, bool $strict_mode = false,
         $recipes = $recipeStmt->fetchAll();
 
         foreach ($recipes as $r) {
+            // Skip Auto Packaging Sets from physical stock deduction
+            $rName = $r['item_name'] ?? '';
+            if (str_contains(strtolower($rName), 'packaging set') || str_contains($rName, 'ឈុត')) {
+                continue;
+            }
+
             $itemId = (int)$r['item_id'];
             $reqPerDrink = (float)$r['quantity_required'];
             $totalReq = $reqPerDrink * $orderedQty;
