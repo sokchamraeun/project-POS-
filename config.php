@@ -298,11 +298,11 @@ if (!function_exists('business_date_today')) {
  */
 if (!function_exists('getProductMaxStock')) {
     function getProductMaxStock(mysqli $conn, int $productId): ?int {
-        // 1. Check product_recipes (Bill of Materials)
+        // 1. Check product_recipes (Bill of Materials) - Exclude Auto Packaging Sets from stock limiting
         $stmt = $conn->prepare("
             SELECT 
-                MIN(CASE WHEN s.item_id IS NOT NULL AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
-                COUNT(r.recipe_id) AS recipe_count
+                MIN(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
+                SUM(CASE WHEN (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') THEN 1 ELSE 0 END) AS physical_recipe_count
             FROM product_recipes r
             JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1
             WHERE r.product_id = ?
@@ -313,7 +313,7 @@ if (!function_exists('getProductMaxStock')) {
             $row = $stmt->get_result()->fetch_assoc();
             $stmt->close();
 
-            if ($row && (int)$row['recipe_count'] > 0 && $row['max_servings'] !== null) {
+            if ($row && (int)($row['physical_recipe_count'] ?? 0) > 0 && $row['max_servings'] !== null) {
                 return max(0, (int)$row['max_servings']);
             }
         }
