@@ -1,4 +1,5 @@
 <?php
+header('X-Frame-Options: SAMEORIGIN');
 require 'admin_only.php';
 require 'config.php';
 
@@ -17,7 +18,11 @@ $hasSizes = false;
 $error   = '';
 $success = false;
 
-if (isset($_POST['update_product'])) {
+if (isset($_POST['update_product']) || isset($_POST['ajax'])) {
+    $isAjax = !empty($_POST['ajax']) 
+        || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') 
+        || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'));
+
     $name        = trim($_POST['name']        ?? '');
     $description = trim($_POST['description'] ?? '');
     $price       = round((float)($_POST['price'] ?? 0), 2);
@@ -57,7 +62,7 @@ if (isset($_POST['update_product'])) {
         } else {
             $error = $uploadRes['error'];
         }
-    } else {
+    } else if (!$error) {
         $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
         $stmt->bind_param("ssddsiisii", $name, $description, $price, $cost_price, $category, $category_id, $is_avail, $badge_text, $promo_percent, $id);
         if ($stmt->execute()) $success = true;
@@ -116,8 +121,35 @@ if (isset($_POST['update_product'])) {
         $product['badge_text']   = $badge_text ?: null;
         $product['promo_percent'] = $promo_percent;
 
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'ok' => true,
+                'message' => 'Product & recipe updated successfully!',
+                'product' => [
+                    'name' => $name,
+                    'price' => $price,
+                    'cost_price' => $cost_price,
+                    'category' => $category,
+                    'is_available' => $is_avail,
+                    'badge_text' => $badge_text,
+                    'image' => !empty($product['image']) ? get_image_url($product['image']) : ''
+                ]
+            ]);
+            exit;
+        }
+
         header("Location: products.php");
         exit;
+    } else {
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'ok' => false,
+                'error' => $error ?: 'Database error while updating product.'
+            ]);
+            exit;
+        }
     }
 }
 
@@ -1131,13 +1163,15 @@ select.cat-select {
 }
 </style>
 </head>
-<body>
+<body class="<?= !empty($_GET['modal']) ? 'bg-transparent overflow-hidden' : '' ?>">
+<?php if (empty($_GET['modal'])): ?>
 <div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
 <main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
+<?php endif; ?>
 
 <!-- EDIT PRODUCT MODAL BACKDROP -->
-<div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
+<div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto" onclick="if(event.target === this) closeEditModal(event)">
     <!-- MODAL DIALOG CONTAINER (Expanded horizontal width for Recipe BOM) -->
     <div class="relative w-[96vw] max-w-[1380px] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col text-white my-auto animate-scaleUp" style="overflow: visible !important;">
         
@@ -1154,7 +1188,7 @@ select.cat-select {
                 </div>
             </div>
             
-            <a href="products.php" class="w-9 h-9 rounded-xl bg-[#22222a] text-[#888] hover:text-white hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Close Modal (Esc)">
+            <a href="products.php" onclick="closeEditModal(event)" class="w-9 h-9 rounded-xl bg-[#22222a] text-[#888] hover:text-white hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Close Modal (Esc)">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </a>
         </div>
@@ -1368,8 +1402,10 @@ select.cat-select {
         </div><!-- /.modal-body -->
     </div><!-- /.modal-dialog -->
 </div><!-- /.modal-backdrop -->
+<?php if (empty($_GET['modal'])): ?>
 </main>
 </div>
+<?php endif; ?>
 
 <!-- TOAST -->
 <div class="toast" id="toast">
@@ -1999,22 +2035,122 @@ document.addEventListener('DOMContentLoaded', () => {
 calculateTotalRecipeCost();
 refreshCrdDisabledStates();
 
+// ── AJAX Form Submission (No page refresh / no scroll reset) ──
+const editForm = document.getElementById('editForm');
+if (editForm) {
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const saveBtn = editForm.querySelector('.btn-save');
+        const origContent = saveBtn ? saveBtn.innerHTML : '';
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving changes...';
+            saveBtn.style.opacity = '0.85';
+        }
+
+        try {
+            const formData = new FormData(editForm);
+            formData.append('ajax', '1');
+            formData.append('update_product', '1');
+
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.ok) {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'PRODUCT_SAVED',
+                        productId: <?= (int)$id ?>,
+                        product: data.product,
+                        message: data.message
+                    }, '*');
+                    return;
+                }
+
+                showToast(data.message || 'Product & recipe updated successfully!', 'success');
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved successfully!';
+                    saveBtn.style.background = 'linear-gradient(135deg, #3ecf70, #2eb35a)';
+                    saveBtn.style.color = '#fff';
+                    saveBtn.style.opacity = '1';
+                    setTimeout(() => {
+                        saveBtn.innerHTML = origContent;
+                        saveBtn.style.background = '';
+                        saveBtn.style.color = '';
+                        saveBtn.disabled = false;
+                    }, 2000);
+                }
+
+                // Update product title on header if changed
+                const navName = document.getElementById('nav-name');
+                if (navName && data.product?.name) {
+                    navName.textContent = data.product.name;
+                }
+                // Update image preview if returned
+                if (data.product?.image) {
+                    const imgPreview = document.getElementById('imgPreview');
+                    if (imgPreview) {
+                        imgPreview.src = data.product.image;
+                        imgPreview.style.display = 'block';
+                    }
+                }
+            } else {
+                showToast(data.error || 'Failed to save changes.', 'error');
+                if (saveBtn) {
+                    saveBtn.innerHTML = origContent;
+                    saveBtn.style.opacity = '1';
+                    saveBtn.disabled = false;
+                }
+            }
+        } catch (err) {
+            console.error('Save error:', err);
+            showToast('Network error while saving product.', 'error');
+            if (saveBtn) {
+                saveBtn.innerHTML = origContent;
+                saveBtn.style.opacity = '1';
+                saveBtn.disabled = false;
+            }
+        }
+    });
+}
+
+// ── Close Modal Helper ──
+function closeEditModal(e) {
+    if (e) e.preventDefault();
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'CLOSE_EDIT_MODAL' }, '*');
+        return;
+    }
+    if (window.history.length > 1 && document.referrer && document.referrer.includes('products.php')) {
+        window.history.back();
+    } else {
+        window.location.href = 'products.php';
+    }
+}
+
 // ── Shortcuts: Escape to exit modal, Ctrl+Enter to save ──
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') window.location.href = 'products.php';
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') document.getElementById('editForm').submit();
-});
-
-// ── Toast ──
-<?php if ($success): ?>
-setTimeout(() => {
-    const t = document.getElementById('toast');
-    if (t) {
-        t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 3500);
+    if (e.key === 'Escape') closeEditModal();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const form = document.getElementById('editForm');
+        if (form) {
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+        }
     }
-}, 100);
-<?php endif; ?>
+});
 </script>
 </body>
 </html>

@@ -346,6 +346,32 @@ $defaultMilk = 'Fresh Milk';
       flex-shrink: 0;
       position: sticky; top: 0; z-index: 50;
     }
+    .cat-pill img, .cat-pill-img {
+      width: 22px; height: 22px;
+      border-radius: 6px;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid rgba(209, 144, 75, 0.3);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .cat-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 42px;
+      border-radius: 10px !important;
+      background: linear-gradient(135deg, rgba(209, 144, 75, 0.15), rgba(209, 144, 75, 0.25));
+      border: 1px solid rgba(209, 144, 75, 0.3);
+      color: #d1904b;
+      font-size: 18px;
+      flex-shrink: 0;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .cat-icon img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 9px;
+      display: block;
+    }
     .menu-panel .menu-scroll {
       flex: 1;
       height: 100%;
@@ -1491,7 +1517,7 @@ $defaultMilk = 'Fresh Milk';
       ?>
       <a href="#<?= $anchor ?>" class="cat-pill" data-target="<?= $anchor ?>">
         <?php if (str_contains($icon, '/')): ?>
-        <img src="<?= e($icon) ?>" alt="" style="width:18px;height:18px;border-radius:50%;object-fit:cover;">
+        <img src="<?= e($icon) ?>" alt="" class="cat-pill-img">
         <?php else: ?>
         <i class="fa-solid <?= $icon ?>"></i>
         <?php endif; ?>
@@ -1591,9 +1617,9 @@ $defaultMilk = 'Fresh Milk';
           ?>
           <section class="cat-section" id="<?= e($anchor) ?>">
             <div class="cat-header">
-              <div class="cat-icon" style="overflow:hidden;">
+              <div class="cat-icon">
                 <?php if (str_contains($icon, '/')): ?>
-                <img src="<?= e($icon) ?>" alt="" style="width:100%;height:100%;object-fit:cover;">
+                <img src="<?= e($icon) ?>" alt="" class="cat-header-img">
                 <?php else: ?>
                 <i class="fa-solid <?= $icon ?>"></i>
                 <?php endif; ?>

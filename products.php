@@ -1,4 +1,5 @@
 <?php
+header('X-Frame-Options: SAMEORIGIN');
 require 'auth.php';
 require 'config.php';
 require_once __DIR__ . '/lang.php';
@@ -1312,10 +1313,67 @@ select.cat-filter-select option {
     flex: 1; display: flex; align-items: center; gap: 14px;
     padding: 8px 0 8px 14px; flex-wrap: nowrap;
 }
-.product-grid.list-view .product-card .content h3 {
+.product-grid.list-view .image-wrapper .no-recipe-badge,
+.product-grid.list-view .image-wrapper .sold-out-badge,
+.product-grid.list-view .image-wrapper .product-badge {
+    display: none !important;
+}
+.no-recipe-inline-badge,
+.sold-out-inline-badge {
+    display: none;
+}
+.product-grid.list-view .product-card .content .name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     flex: 2;
     min-width: 180px;
+    flex-wrap: wrap;
+}
+.product-grid.list-view .product-card .content .name-wrap h3 {
+    flex: none;
+    min-width: 0;
     margin-bottom: 0;
+}
+.product-grid.list-view .no-recipe-inline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+.product-grid.list-view .no-recipe-inline-badge i {
+    font-size: 9px;
+}
+[data-theme="light"] .product-grid.list-view .no-recipe-inline-badge {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #dc2626;
+}
+.product-grid.list-view .sold-out-inline-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+[data-theme="light"] .product-grid.list-view .sold-out-inline-badge {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #d97706;
 }
 .product-grid.list-view .product-card .content .top-row {
     margin: 0;
@@ -2474,9 +2532,17 @@ body.select-mode .no-recipe-badge {
                     </div>
 
                     <div class="content">
-                        <h3 class="qv-trigger"
-                            title="Click to preview"
-                            onclick="openQV(<?= (int)$row['product_id'] ?>)"><?= htmlspecialchars($row['name']) ?></h3>
+                        <div class="name-wrap">
+                            <h3 class="qv-trigger"
+                                title="Click to preview"
+                                onclick="openQV(<?= (int)$row['product_id'] ?>)"><?= htmlspecialchars($row['name']) ?></h3>
+                            <?php if ((int)($row['recipe_count'] ?? 0) === 0): ?>
+                            <span class="no-recipe-inline-badge" title="No Recipe Linked"><i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></span>
+                            <?php endif; ?>
+                            <?php if (!$available): ?>
+                            <span class="sold-out-inline-badge">Inactive</span>
+                            <?php endif; ?>
+                        </div>
                         <div class="top-row">
                             <span class="category-badge"><?= htmlspecialchars($catNames[$row['category']] ?? ($row['category'] ?: 'Uncategorized')) ?></span>
                             <span class="product-id">#<?= $row['product_id'] ?></span>
@@ -2488,7 +2554,7 @@ body.select-mode .no-recipe-badge {
 
                             <?php if ($_can_manage_products): ?>
                             <div class="actions">
-                                <a href="edit_product.php?id=<?= $row['product_id'] ?>" class="btn-action edit" title="Edit Product">
+                                <a href="edit_product.php?id=<?= $row['product_id'] ?>" onclick="openEditProductModal(<?= (int)$row['product_id'] ?>, event)" class="btn-action edit" title="Edit Product">
                                     <i class="fa-solid fa-pen-to-square"></i> <span>Edit</span>
                                 </a>
                                 <button type="button" class="btn-action <?= $available ? 'avail-on' : 'avail-off' ?>"
@@ -2557,6 +2623,11 @@ body.select-mode .no-recipe-badge {
             <i class="fa-solid fa-xmark"></i> Cancel
         </button>
     </div>
+</div>
+
+<!-- ========== EDIT PRODUCT MODAL (SEAMLESS IN-PAGE MODAL) ========== -->
+<div id="productEditModalBackdrop" style="position: fixed; inset: 0; z-index: 99999; display: none; opacity: 0; transition: opacity 0.2s ease; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);">
+    <iframe id="productEditFrame" src="" style="width: 100%; height: 100%; border: none; background: transparent;" allowtransparency="true"></iframe>
 </div>
 
 <!-- ========== DELETE MODAL ========== -->
@@ -3089,8 +3160,8 @@ function duplicateProduct(id, name) {
     .then(r => r.json())
     .then(data => {
         if (!data.ok) { showToast('Duplicate failed', 'error'); return; }
-        showToast('Duplicated! Redirecting to edit…');
-        setTimeout(() => { window.location.href = 'edit_product.php?id=' + data.new_id; }, 900);
+        showToast('Duplicated! Opening editor…');
+        setTimeout(() => { openEditProductModal(data.new_id); }, 900);
     })
     .catch(() => showToast('Request failed', 'error'));
 }
@@ -3322,7 +3393,7 @@ function openQV(id) {
             }
 
             const editBtn = canManageProducts
-                ? `<a href="edit_product.php?id=${p.id}" class="qv-btn edit"><i class="fa-solid fa-pen-to-square"></i> Edit Product</a>`
+                ? `<a href="edit_product.php?id=${p.id}" onclick="closeQV(); openEditProductModal(${p.id}, event);" class="qv-btn edit"><i class="fa-solid fa-pen-to-square"></i> Edit Product</a>`
                 : '';
             const descBlock = p.description
                 ? `<div class="qv-section-label"><i class="fa-solid fa-align-left"></i> About</div>
@@ -3382,6 +3453,134 @@ function _qvEscHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 }
+
+// ─────────────────────────────────────────────
+// SEAMLESS IN-PAGE EDIT MODAL (NO REFRESH / NO SCROLL)
+// ─────────────────────────────────────────────
+function openEditProductModal(id, e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const backdrop = document.getElementById('productEditModalBackdrop');
+    const frame = document.getElementById('productEditFrame');
+    if (!backdrop || !frame) {
+        window.location.href = 'edit_product.php?id=' + id;
+        return;
+    }
+    frame.src = 'edit_product.php?id=' + id + '&modal=1';
+    backdrop.style.display = 'flex';
+    requestAnimationFrame(() => {
+        backdrop.style.opacity = '1';
+    });
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEditProductModal() {
+    const backdrop = document.getElementById('productEditModalBackdrop');
+    const frame = document.getElementById('productEditFrame');
+    if (!backdrop) return;
+    backdrop.style.opacity = '0';
+    setTimeout(() => {
+        backdrop.style.display = 'none';
+        if (frame) frame.src = 'about:blank';
+        document.body.style.overflow = '';
+    }, 200);
+}
+
+// Listen for messages from edit_product iframe
+window.addEventListener('message', function(e) {
+    if (!e.data || typeof e.data !== 'object') return;
+    
+    if (e.data.type === 'CLOSE_EDIT_MODAL') {
+        closeEditProductModal();
+    } else if (e.data.type === 'PRODUCT_SAVED') {
+        closeEditProductModal();
+        if (typeof showToast === 'function') {
+            showToast(e.data.message || 'Product & recipe updated successfully!', 'success');
+        }
+        
+        // Update product card in DOM without reloading or scrolling
+        const p = e.data.product;
+        const pid = e.data.productId;
+        if (p && pid) {
+            const card = document.querySelector(`.product-card[data-id="${pid}"]`);
+            if (card) {
+                if (p.name) {
+                    card.setAttribute('data-name', p.name.toLowerCase());
+                    const nameEl = card.querySelector('.qv-trigger');
+                    if (nameEl) nameEl.textContent = p.name;
+                }
+                if (p.price !== undefined) {
+                    const priceNum = parseFloat(p.price);
+                    card.setAttribute('data-price', priceNum);
+                    const priceEl = card.querySelector('.price');
+                    if (priceEl) priceEl.textContent = '$' + priceNum.toFixed(2);
+                }
+                if (p.category) {
+                    card.setAttribute('data-category', p.category);
+                    const catBadge = card.querySelector('.category-badge');
+                    if (catBadge) {
+                        const catDisplay = (window.CAT_NAMES && window.CAT_NAMES[p.category]) || p.category;
+                        catBadge.textContent = catDisplay;
+                    }
+                }
+                if (p.image) {
+                    const img = card.querySelector('.image-wrapper img');
+                    if (img) img.src = p.image;
+                }
+                if (p.is_available !== undefined) {
+                    const isAvail = parseInt(p.is_available, 10) === 1;
+                    card.setAttribute('data-avail', isAvail ? '1' : '0');
+                    if (isAvail) {
+                        card.classList.remove('unavailable');
+                        const soldBadge = card.querySelector('.sold-out-badge');
+                        if (soldBadge) soldBadge.remove();
+                    } else {
+                        card.classList.add('unavailable');
+                        let soldBadge = card.querySelector('.sold-out-badge');
+                        if (!soldBadge) {
+                            soldBadge = document.createElement('div');
+                            soldBadge.className = 'sold-out-badge';
+                            soldBadge.textContent = 'Inactive';
+                            card.querySelector('.image-wrapper')?.appendChild(soldBadge);
+                        }
+                    }
+                    const availBtn = card.querySelector('.actions .avail-on, .actions .avail-off');
+                    if (availBtn) {
+                        availBtn.className = `btn-action ${isAvail ? 'avail-on' : 'avail-off'}`;
+                        availBtn.title = isAvail ? 'Mark as inactive' : 'Mark as available';
+                        availBtn.innerHTML = `<i class="fa-solid ${isAvail ? 'fa-eye' : 'fa-eye-slash'}"></i> <span>${isAvail ? 'On' : 'Off'}</span>`;
+                    }
+                }
+                if (p.badge_text !== undefined) {
+                    let badgeEl = card.querySelector('.product-badge');
+                    if (p.badge_text) {
+                        card.setAttribute('data-badge', '1');
+                        if (!badgeEl) {
+                            badgeEl = document.createElement('span');
+                            badgeEl.className = 'product-badge';
+                            card.querySelector('.image-wrapper')?.appendChild(badgeEl);
+                        }
+                        badgeEl.textContent = p.badge_text;
+                    } else {
+                        card.setAttribute('data-badge', '0');
+                        if (badgeEl) badgeEl.remove();
+                    }
+                }
+                
+                // Highlight updated card with a brief glow
+                card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+                card.style.borderColor = '#d1904b';
+                card.style.boxShadow = '0 0 20px rgba(209,144,75,0.4)';
+                setTimeout(() => {
+                    card.style.borderColor = '';
+                    card.style.boxShadow = '';
+                }, 2000);
+            }
+        }
+    }
+});
 
 // ─────────────────────────────────────────────
 // TOAST
