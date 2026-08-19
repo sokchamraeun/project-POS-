@@ -2519,7 +2519,7 @@ body.select-mode .no-recipe-badge {
                         <img src="<?= htmlspecialchars($src) ?>"
                              alt="<?= htmlspecialchars($row['name']) ?>"
                              loading="lazy"
-                             onerror="this.src='uploads/no-image.png'">
+                             onerror="this.onerror=null; this.src='uploads/no-image.png'">
                         <?php if (!$available): ?>
                         <div class="sold-out-badge">Inactive</div>
                         <?php endif; ?>
@@ -3383,7 +3383,7 @@ function openQV(id) {
 
             img.src = p.image || 'uploads/no-image.png';
             img.alt = p.name;
-            img.onerror = () => { img.src = 'uploads/no-image.png'; };
+            img.onerror = () => { img.onerror = null; img.src = 'uploads/no-image.png'; };
 
             soldBadge.style.display = p.is_available ? 'none' : 'block';
 

@@ -17,8 +17,16 @@ $_role_color = ($_SESSION['role'] ?? '') === 'admin' ? '#ff6b6b' : (($_SESSION['
 body, input, select, textarea, button, .sidebar, .app-main, .modal-content, table {
     font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-:lang(km), [data-lang="km"], html[lang="km"] * {
-    font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+:lang(km), [data-lang="km"], html[lang="km"] *:not(.fa):not([class*="fa-"]):not(i) {
+    font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ══ Safeguard Font Awesome Icon Fonts ══ */
+.fa, .fa-solid, .fa-regular, .fa-brands, .fa-duotone, .fa-light, .fa-thin, .fas, .far, .fab, .fad, [class*="fa-"], i.fa, i[class*="fa-"], i {
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+}
+.fa-brands, .fab, [class*="fa-brands"] {
+    font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
 }
 
 /* ══ Persistent Master Layout Shell ══ */

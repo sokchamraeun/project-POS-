@@ -7,6 +7,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lang.php';
+require_once __DIR__ . '/cloudinary_config.php';
 
 // Role check: Only Admin, Manager, and authorized staff can access stock management
 $_user_role = $_SESSION['role'] ?? 'staff';
@@ -1658,7 +1659,7 @@ $stockItems = $initStmt->fetchAll();
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
                     <div class="stock-img-upload-box">
                         <div class="stock-img-thumb">
-                            <img id="editStockImagePreview" src="uploads/no-image.png" alt="Preview" onerror="this.src='uploads/no-image.png';">
+                            <img id="editStockImagePreview" src="uploads/no-image.png" alt="Preview" onerror="this.onerror=null; this.src='uploads/no-image.png';">
                         </div>
                         <div class="flex-1 min-w-0">
                             <input type="file" 
@@ -1795,6 +1796,7 @@ $stockItems = $initStmt->fetchAll();
     <!-- ── JavaScript Client Engine ── -->
     <script>
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        let stockItemsData = <?= json_encode($stockItems ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
         
         const I18N = {
             lang: "<?= current_lang() ?>",
@@ -1921,6 +1923,7 @@ $stockItems = $initStmt->fetchAll();
                     return;
                 }
 
+                stockItemsData = Array.isArray(data.items) ? data.items : [];
                 updateKpiCards(data.kpis);
                 renderTableRows(data.items);
                 updateDropdownOptions(data.items);
@@ -2190,7 +2193,8 @@ $stockItems = $initStmt->fetchAll();
                 if (submitBtn) submitBtn.disabled = false;
                 return false;
             }
-            const match = (stockItemsData || []).find(item => item.item_name && item.item_name.trim().toLowerCase() === val && (item.is_active == 1 || item.is_active === undefined));
+            const items = (typeof stockItemsData !== 'undefined' && Array.isArray(stockItemsData)) ? stockItemsData : [];
+            const match = items.find(item => item && item.item_name && item.item_name.trim().toLowerCase() === val && (item.is_active == 1 || item.is_active === undefined));
             if (match) {
                 if (alertBox) {
                     alertBox.querySelector('span').textContent = `⚠️ A stock drink named "${match.item_name}" already exists (${match.quantity} ${match.unit} in stock).`;
@@ -2219,8 +2223,11 @@ $stockItems = $initStmt->fetchAll();
 
             const form = e.target;
             const btn = document.getElementById('addStockSubmitBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+            const origContent = btn ? btn.innerHTML : 'Save Direct Drink';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+            }
 
             const formData = new FormData(form);
 
@@ -2252,8 +2259,10 @@ $stockItems = $initStmt->fetchAll();
                 console.error(err);
                 showToast('Server connection error.', 'error');
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Save Direct Drink';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origContent;
+                }
             }
         }
 
@@ -2322,8 +2331,11 @@ $stockItems = $initStmt->fetchAll();
             e.preventDefault();
             const form = e.target;
             const btn = document.getElementById('restockSubmitBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+            const origContent = btn ? btn.innerHTML : 'Complete Restock';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+            }
 
             const formData = new FormData(form);
 
@@ -2346,8 +2358,10 @@ $stockItems = $initStmt->fetchAll();
                 console.error(err);
                 showToast('Server connection error.', 'error');
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Complete Restock';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origContent;
+                }
             }
         }
 
@@ -2390,8 +2404,11 @@ $stockItems = $initStmt->fetchAll();
             e.preventDefault();
             const form = e.target;
             const btn = document.getElementById('editStockSubmitBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+            const origContent = btn ? btn.innerHTML : 'Update';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+            }
 
             const formData = new FormData(form);
 
@@ -2414,8 +2431,10 @@ $stockItems = $initStmt->fetchAll();
                 console.error(err);
                 showToast('Server connection error.', 'error');
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Update Drink';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origContent;
+                }
             }
         }
 

@@ -157,6 +157,13 @@ body {
   font-size: 14px;
 }
 
+i, .fa, .fa-solid, .fa-regular, .fa-brands, [class*="fa-"] {
+  font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+}
+.fa-brands {
+  font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
+}
+
 .wrapper {
   max-width: 860px;
   margin: 0 auto;
