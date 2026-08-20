@@ -150,6 +150,47 @@ if (isset($_POST['ajax_clear_item_discount'])) {
 }
 
 /* ======================
+   AJAX EDIT CART ITEM (CUSTOMIZATION / OPTIONS / QTY)
+====================== */
+if (isset($_POST['ajax_edit_item'])) {
+    $i = intval($_POST['index'] ?? -1);
+    if (isset($_SESSION['cart'][$i])) {
+        $qty = max(1, min(100, intval($_POST['qty'] ?? $_SESSION['cart'][$i]['qty'] ?? 1)));
+        $pId = (int)($_SESSION['cart'][$i]['product_id'] ?? 0);
+        $max_stock = function_exists('getProductMaxStock') ? getProductMaxStock($conn, $pId) : null;
+        if ($max_stock !== null && $qty > $max_stock) {
+            $qty = max(1, $max_stock);
+        }
+        $_SESSION['cart'][$i]['qty'] = $qty;
+
+        if (isset($_POST['sweetness'])) {
+            $sw = trim((string)$_POST['sweetness']);
+            $valid_sweetness = ['0%', '25%', '50%', '75%', '100%', ''];
+            if (in_array($sw, $valid_sweetness, true)) {
+                $_SESSION['cart'][$i]['sweetness'] = $sw;
+            }
+        }
+        if (isset($_POST['ice'])) {
+            $ice = trim((string)$_POST['ice']);
+            $valid_ice = ['No Ice', 'Less Ice', 'Normal Ice', 'More Ice', ''];
+            if (in_array($ice, $valid_ice, true)) {
+                $_SESSION['cart'][$i]['ice'] = $ice;
+            }
+        }
+    }
+
+    $cart_payload = function_exists('get_cart_payload') ? get_cart_payload($conn) : null;
+    session_write_close();
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => true,
+        'message' => 'Cart item updated!',
+        'cart'    => $cart_payload
+    ]);
+    exit;
+}
+
+/* ======================
    AJAX CLEAR MANUAL DISCOUNT
 ====================== */
 if (isset($_POST['ajax_clear_discount'])) {

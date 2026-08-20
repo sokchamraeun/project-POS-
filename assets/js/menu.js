@@ -248,16 +248,14 @@ function _bindProductCards() {
             }
         }
 
-        // Open Product modal check for cart items or grid drink cards
+        // Open Product modal check for cart items
         const cartItem = e.target.closest('.cp-item, .js-cart-item-open');
         if (cartItem && !e.target.closest('button, a, input, select, .cp-qty, .cp-remove')) {
-            const pid = cartItem.dataset.productId || cartItem.closest('[data-product-id]')?.dataset.productId;
-            if (pid) {
-                const matchingCard = document.querySelector('.product-card[data-product-id="' + pid + '"], .seller-card[data-product-id="' + pid + '"], [data-product-id="' + pid + '"]');
-                if (matchingCard && typeof openModalFromCard === 'function') {
-                    openModalFromCard(matchingCard);
-                    return;
-                }
+            const idx = cartItem.dataset.cartIndex !== undefined ? parseInt(cartItem.dataset.cartIndex, 10) : parseInt((cartItem.id || '').replace('cp-item-', ''), 10);
+            if (!isNaN(idx) && typeof openCartItemEditModal === 'function') {
+                e.stopPropagation();
+                openCartItemEditModal(idx);
+                return;
             }
         }
 

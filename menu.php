@@ -138,12 +138,12 @@ if ($bs && $r = mysqli_fetch_assoc($bs)) $bestSellerName = $r['product_name'];
 
 /* ── TOP SELLERS ── */
 $top_sellers = [];
-$ts_result = mysqli_query($conn, "SELECT p.*, COALESCE(SUM(oi.quantity),0) AS total_sold FROM products p LEFT JOIN order_items oi ON p.product_id = oi.product_id WHERE p.is_available = 1 GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 6");
+$ts_result = mysqli_query($conn, "SELECT p.*, COALESCE(SUM(oi.quantity),0) AS total_sold FROM products p JOIN product_recipes r ON p.product_id = r.product_id LEFT JOIN order_items oi ON p.product_id = oi.product_id WHERE p.is_available = 1 GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 6");
 while ($ts_row = mysqli_fetch_assoc($ts_result)) {
     if ((int)$ts_row['total_sold'] > 0) $top_sellers[] = $ts_row;
 }
 
-/* ── FETCH ALL PRODUCTS ── */
+/* ── FETCH ALL PRODUCTS (ONLY PRODUCTS WITH LINKED RECIPES) ── */
 $search_term   = isset($_GET['search']) ? trim($_GET['search']) : '';
 $sort          = $_GET['sort'] ?? 'default';
 $is_price_sort = ($sort === 'price_low' || $sort === 'price_high');
@@ -157,7 +157,7 @@ $stock_sql_base = "SELECT
     GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity <= 0 THEN s.item_name ELSE NULL END SEPARATOR ', ') AS missing_ingredients,
     GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity > 0 AND s.quantity <= s.alert_level THEN s.item_name ELSE NULL END SEPARATOR ', ') AS low_ingredients
 FROM products p
-LEFT JOIN product_recipes r ON p.product_id = r.product_id
+JOIN product_recipes r ON p.product_id = r.product_id
 LEFT JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1
 WHERE p.is_available = 1";
 
@@ -1766,9 +1766,9 @@ $defaultMilk = 'Fresh Milk';
             !empty($item['milk'])       ? 'Milk: '.$item['milk']        : '',
           ]);
         ?>
-        <div class="cp-item" id="cp-item-<?= $i ?>">
-          <img src="<?= e($item['image'] ?? '') ?>" alt="<?= e($item['product_name'] ?? '') ?>" onerror="this.onerror=null; this.src='images/logo.png';">
-          <div class="cp-item-info">
+        <div class="cp-item" id="cp-item-<?= $i ?>" data-product-id="<?= (int)($item['product_id'] ?? 0) ?>" data-cart-index="<?= $i ?>">
+          <img src="<?= e($item['image'] ?? '') ?>" alt="<?= e($item['product_name'] ?? '') ?>" class="js-cart-item-open" onclick="openCartItemEditModal(<?= $i ?>)" style="cursor:pointer;" title="<?= __('click_to_customize', 'Click to customize') ?>" onerror="this.onerror=null; this.src='images/logo.png';">
+          <div class="cp-item-info js-cart-item-open" onclick="openCartItemEditModal(<?= $i ?>)" style="cursor:pointer;" title="<?= __('click_to_customize', 'Click to customize') ?>">
             <div class="cp-item-name"><?= e($item['product_name'] ?? '') ?></div>
             <?php if ($meta): ?><div class="cp-item-meta"><?= e(implode(' • ', $meta)) ?></div><?php endif; ?>
             <?php if (!empty($item['addons'])): ?><div class="cp-item-meta"><?= e(implode(', ', array_map(fn($a) => $a['name'], $item['addons']))) ?></div><?php endif; ?>
@@ -1810,6 +1810,7 @@ $defaultMilk = 'Fresh Milk';
         </div>
         <?php endforeach; ?>
       </div><!-- /cpItems -->
+      <script>window.currentCartItems = <?= json_encode(array_values(function_exists('get_cart_payload') ? (get_cart_payload($conn)['items'] ?? []) : [])) ?>;</script>
       <?php endif; ?>
     </div><!-- /cp-body -->
 
@@ -2362,6 +2363,7 @@ function escH(str) {
 
 // ── PRODUCT MODAL ──
 var product = {}, modalQty = 1, modalUnitPrice = 0, modalAddonTotal = 0;
+var editingCartIndex = null;
 
 // Net drink price after a per-product promo (rounded per unit, mirrors the server).
 function promoNet(gross, promoPct) {
@@ -2369,7 +2371,119 @@ function promoNet(gross, promoPct) {
   return Math.round(gross * (1 - promoPct / 100) * 100) / 100;
 }
 
+function setModalEditMode(isEdit) {
+  var modalAddBtn = document.querySelector('.btn-add-to-cart');
+  if (!modalAddBtn) return;
+  var isKm = window.CPM_IS_KM;
+  if (isEdit) {
+    modalAddBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> ' + (isKm ? 'កែប្រែកន្ត្រក' : 'Update Cart');
+    modalAddBtn.classList.add('btn-edit-mode');
+  } else {
+    modalAddBtn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> ' + (isKm ? 'បញ្ចូលកន្ត្រក' : 'Add to Cart');
+    modalAddBtn.classList.remove('btn-edit-mode');
+  }
+}
+
+function openCartItemEditModal(cartIndex) {
+  var item = null;
+  if (window.currentCartItems && window.currentCartItems[cartIndex]) {
+    item = window.currentCartItems[cartIndex];
+  }
+  if (!item && window.currentCartItems && Array.isArray(window.currentCartItems)) {
+    item = window.currentCartItems.find(function(it) { return Number(it.index) === Number(cartIndex); });
+  }
+  if (!item) {
+    var row = document.getElementById('cp-item-' + cartIndex);
+    if (row && row.dataset.productId) {
+      var matchingCard = document.querySelector('.product-card[data-product-id="' + row.dataset.productId + '"], .seller-card[data-product-id="' + row.dataset.productId + '"]');
+      if (matchingCard) {
+        openModalFromCard(matchingCard);
+        editingCartIndex = Number(cartIndex);
+        setModalEditMode(true);
+        return;
+      }
+    }
+    return;
+  }
+
+  editingCartIndex = Number(cartIndex);
+
+  var pId = item.product_id;
+  var name = item.product_name || '';
+  var price = Number(item.orig_price || item.price || 0);
+  var img = item.image || 'images/logo.png';
+  var promoPct = parseInt(item.promo_percent || 0, 10);
+  var maxStock = item.max_stock || 100;
+  var cat = item.category || '';
+
+  var matchingCard = document.querySelector('.product-card[data-product-id="' + pId + '"], .seller-card[data-product-id="' + pId + '"]');
+  if (matchingCard) {
+    if (!cat) cat = matchingCard.dataset.productCategory || '';
+    if (matchingCard.dataset.maxServings) maxStock = parseInt(matchingCard.dataset.maxServings, 10);
+  }
+
+  product = { id: pId, name: name, price: price, cat: cat, promo: promoPct, maxStock: maxStock };
+  modalQty = parseInt(item.qty, 10) || 1;
+  modalUnitPrice = price;
+
+  var modalImg = document.getElementById('modalImg');
+  if (modalImg) modalImg.src = img;
+
+  var mb = document.getElementById('modalBadge');
+  if (mb) mb.style.display = 'none';
+
+  var modalName = document.getElementById('modalName');
+  if (modalName) modalName.textContent = name;
+
+  var modalDesc = document.getElementById('modalDesc');
+  if (modalDesc) modalDesc.style.display = 'none';
+
+  var modalPrice = document.getElementById('modalPrice');
+  if (modalPrice) modalPrice.textContent = '$' + promoNet(price, promoPct).toFixed(2);
+
+  var _mInp = document.getElementById('modalQtyInput') || document.getElementById('modalQtyDisplay');
+  if (_mInp) {
+    if (_mInp.tagName === 'INPUT') {
+      _mInp.value = modalQty;
+      _mInp.max = maxStock;
+      _mInp.setAttribute('data-max', maxStock);
+    } else {
+      _mInp.textContent = modalQty;
+    }
+  }
+
+  var co = (typeof CATEGORY_OPTS !== 'undefined' && CATEGORY_OPTS[cat]) ? CATEGORY_OPTS[cat] : { sweet: 1, ice: 1, milk: 1, addons: 1 };
+  var _optSw = document.getElementById('optSweetness');
+  if (_optSw) _optSw.style.display = co.sweet ? 'block' : 'none';
+  var _optIce = document.getElementById('optIce');
+  if (_optIce) _optIce.style.display = co.ice ? 'block' : 'none';
+
+  var curSweet = item.sweetness || '50%';
+  var _swPills = document.querySelectorAll('#sweetnessPills .option-pill');
+  if (_swPills) _swPills.forEach(function(pill) { pill.classList.toggle('active', pill.dataset.value === curSweet); });
+
+  var curIce = item.ice || 'Normal Ice';
+  var _icePills = document.querySelectorAll('#icePills .option-pill');
+  if (_icePills) _icePills.forEach(function(pill) { pill.classList.toggle('active', pill.dataset.value === curIce); });
+
+  modalAddonTotal = 0;
+  updateModalTotal();
+
+  setModalEditMode(true);
+
+  var m = document.getElementById('product-modal') || document.getElementById('modal');
+  if (m) {
+    m.dataset.currentProductId = pId;
+    m.style.display = 'flex';
+  }
+  document.body.style.overflow = 'hidden';
+}
+window.openCartItemEditModal = openCartItemEditModal;
+
 function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addons, promo, maxStock) {
+  editingCartIndex = null;
+  setModalEditMode(false);
+
   var p = Number(price) || 0;
   var promoPct = Math.max(0, Math.min(100, parseInt(promo || 0, 10)));
   var limit = (maxStock !== null && maxStock !== undefined && !isNaN(maxStock)) ? parseInt(maxStock, 10) : 100;
@@ -2451,6 +2565,8 @@ function openModalFromCard(card) {
 }
 
 function closeModal() {
+  editingCartIndex = null;
+  setModalEditMode(false);
   var m = document.getElementById('product-modal') || document.getElementById('modal');
   if (m) {
     m.style.display = 'none';
@@ -2617,18 +2733,67 @@ window.pollProductStockStatuses = pollProductStockStatuses;
 // Background polling every 8 seconds
 setInterval(pollProductStockStatuses, 8000);
 
-// ── ADD TO CART (from modal) ──
+// ── ADD / UPDATE CART (from modal) ──
 function addToCart() {
   var btn = document.querySelector('.btn-add-to-cart');
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + (editingCartIndex !== null ? 'Updating...' : 'Adding...');
   }
-  var params = new URLSearchParams({ id: product.id, qty: modalQty, csrf_token: CSRF });
+
   var _optSw = document.getElementById('optSweetness');
-  if (_optSw && _optSw.style.display !== 'none') params.append('sweetness', getPillValue('sweetnessPills'));
+  var swVal = (_optSw && _optSw.style.display !== 'none') ? getPillValue('sweetnessPills') : '';
   var _optIce = document.getElementById('optIce');
-  if (_optIce && _optIce.style.display !== 'none') params.append('ice', getPillValue('icePills'));
+  var iceVal = (_optIce && _optIce.style.display !== 'none') ? getPillValue('icePills') : '';
+
+  if (editingCartIndex !== null) {
+    // ── EDIT EXISTING CART ITEM ──
+    var editParams = new URLSearchParams({
+      ajax_edit_item: '1',
+      index: editingCartIndex,
+      qty: modalQty,
+      sweetness: swVal,
+      ice: iceVal,
+      csrf_token: CSRF
+    });
+
+    fetch('cart.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: editParams.toString()
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || !data.success) {
+          showToast(data.message || 'Error updating cart item', 'error');
+          return;
+        }
+        var isKm = window.CPM_IS_KM;
+        showToast(isKm ? 'បានកែប្រែទំនិញក្នុងកន្ត្រកជោគជ័យ!' : 'Cart item updated!', 'success');
+        closeModal();
+        if (data.cart) {
+          renderCartPanel(data.cart);
+        } else {
+          loadCartPanel();
+        }
+        pollProductStockStatuses();
+      })
+      .catch(function(err) {
+        console.error('Edit cart item error:', err);
+        showToast('Error updating cart item', 'error');
+      })
+      .finally(function() {
+        if (btn) {
+          btn.disabled = false;
+          setModalEditMode(false);
+        }
+      });
+    return;
+  }
+
+  var params = new URLSearchParams({ id: product.id, qty: modalQty, csrf_token: CSRF });
+  if (swVal) params.append('sweetness', swVal);
+  if (iceVal) params.append('ice', iceVal);
 
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: params.toString() })
     .then(function(r) { return r.json(); })
@@ -2650,7 +2815,7 @@ function addToCart() {
     .finally(function() { 
       if (btn) {
         btn.disabled = false; 
-        btn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add to Cart'; 
+        setModalEditMode(false);
       }
     });
 }
@@ -2696,6 +2861,8 @@ function loadCartPanel() {
 window.loadCartPanel = loadCartPanel;
 
 function renderCartPanel(data) {
+  window.currentCartItems = (data && data.items) ? data.items : [];
+
   // Update header count & badge
   var countEl = document.getElementById('cpCount');
   if (countEl) countEl.textContent = data.count + ' item' + (data.count != 1 ? 's' : '');
@@ -2756,9 +2923,9 @@ function renderCartPanel(data) {
         (item.promo_percent > 0 ? '<span style="color:#e74c3c;font-size:9px;font-weight:700;margin-left:4px;">' + item.promo_percent + '% OFF</span>' : '');
     }
 
-    itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '">' +
-      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" style="cursor:pointer;" title="Click to customize" onerror="this.onerror=null; this.src=\'images/logo.png\';">' +
-      '<div class="cp-item-info js-cart-item-open" style="cursor:pointer;" title="Click to customize">' +
+    itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '" data-cart-index="' + item.index + '">' +
+      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" onclick="openCartItemEditModal(' + item.index + ')" style="cursor:pointer;" title="Click to customize" onerror="this.onerror=null; this.src=\'images/logo.png\';">' +
+      '<div class="cp-item-info js-cart-item-open" onclick="openCartItemEditModal(' + item.index + ')" style="cursor:pointer;" title="Click to customize">' +
         '<div class="cp-item-name">' + escH(item.product_name) + '</div>' +
         (meta ? '<div class="cp-item-meta">' + escH(meta) + '</div>' : '') +
         (item.addons && item.addons.length

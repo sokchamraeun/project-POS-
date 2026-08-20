@@ -3966,7 +3966,6 @@ function openOrderDetailModal(orderId) {
         const unitPrice = parseFloat(i.price || 0);
         const qty = parseInt(i.quantity, 10) || 1;
         const lineTotal = unitPrice * qty;
-        const promoPct = parseInt(i.promo_percent || 0, 10);
 
         const sub = [i.size, i.sweetness, i.ice, i.milk].concat(i.addons || []).filter(Boolean).join(', ');
         const noteText = i.note ? `(${i.note})` : '';
@@ -3981,7 +3980,6 @@ function openOrderDetailModal(orderId) {
                 </td>
                 <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;font-size:11px;">${qty}</td>
                 <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-size:11px;">$${unitPrice.toFixed(2)}</td>
-                <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-size:11px;">${promoPct > 0 ? promoPct + '%' : '0%'}</td>
                 <td style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;font-size:11px;">$${lineTotal.toFixed(2)}</td>
             </tr>
         `;
@@ -4029,11 +4027,10 @@ function openOrderDetailModal(orderId) {
                 <thead>
                     <tr style="background:#f3f4f6;border-bottom:1px solid #000000;color:#000000;">
                         <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:8%;">ល.រ</th>
-                        <th style="border:1px solid #000000;padding:5px 4px;text-align:left;font-weight:700;width:40%;">បរិយាយ</th>
-                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:12%;">ចំនួន</th>
-                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:13%;">តម្លៃ</th>
-                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:13%;">បញ្ចុះ</th>
-                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:14%;">សរុប</th>
+                        <th style="border:1px solid #000000;padding:5px 4px;text-align:left;font-weight:700;width:48%;">បរិយាយ</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:14%;">ចំនួន</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:15%;">តម្លៃ</th>
+                        <th style="border:1px solid #000000;padding:5px 3px;text-align:center;font-weight:700;width:15%;">សរុប</th>
                     </tr>
                 </thead>
                 <tbody>
