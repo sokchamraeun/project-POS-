@@ -519,14 +519,14 @@ body {
 /* ========== STATS BAR (ORDER PAGE STYLE) ========== */
 .stats-bar {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
     margin-bottom: 12px;
     width: 100%;
 }
 @media (max-width: 1024px) {
     .stats-bar { 
-        grid-template-columns: repeat(2, 1fr) !important; 
+        grid-template-columns: repeat(3, 1fr) !important; 
         gap: 10px !important;
     }
 }
@@ -2396,17 +2396,6 @@ body.select-mode .no-recipe-badge {
                     <div class="stat-sub"><?= $unavailCount ?> <?= __('off_menu', 'items off menu') ?></div>
                 </div>
             </div>
-
-            <?php if ($top): ?>
-            <div class="stat-card top-cat" id="statTopCat" data-stat="top-cat" data-cat="<?= htmlspecialchars($top) ?>" role="button" tabindex="0" title="Click to filter by top category (<?= htmlspecialchars($catNames[$top] ?? $top) ?>)">
-                <div class="stat-icon"><i class="fa-solid fa-trophy"></i></div>
-                <div class="stat-body">
-                    <div class="stat-label"><?= __('top_category', 'Top Category') ?></div>
-                    <div class="stat-value" style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($catNames[$top] ?? $top) ?></div>
-                    <div class="stat-sub"><?= $catCounts[$top] ?> <?= __('nav_products', 'products') ?></div>
-                </div>
-            </div>
-            <?php endif; ?>
         </div>
 
         <!-- ── Controls & Filter Bar ── -->
@@ -2734,15 +2723,10 @@ function updateStatCardsUI() {
     const statTotal   = document.getElementById('statTotal');
     const statAvail   = document.getElementById('statAvail');
     const statUnavail = document.getElementById('statUnavail');
-    const statTopCat  = document.getElementById('statTopCat');
 
     if (statTotal)   statTotal.classList.toggle('active', activeAvail === 'all' && activeFilter === 'all');
     if (statAvail)   statAvail.classList.toggle('active', activeAvail === '1');
     if (statUnavail) statUnavail.classList.toggle('active', activeAvail === '0');
-    if (statTopCat) {
-        const topCat = statTopCat.dataset.cat;
-        statTopCat.classList.toggle('active', activeFilter === topCat);
-    }
 }
 
 function updateStatCounts() {

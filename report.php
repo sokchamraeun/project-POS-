@@ -170,7 +170,8 @@ if (count($orderIds) > 0) {
             oi.price,
             COALESCE(oi.orig_price, oi.price) AS orig_price,
             COALESCE(oi.promo_percent, 0) AS promo_percent,
-            COALESCE(NULLIF(p.category, ''), 'Uncategorized') AS category
+            COALESCE(NULLIF(p.category, ''), 'Uncategorized') AS category,
+            COALESCE(p.cost_price, 0) AS cost_price
         FROM order_items oi
         LEFT JOIN products p ON p.product_id = oi.product_id
         WHERE oi.order_id IN ($inOrder)
@@ -233,6 +234,11 @@ if (count($orderIds) > 0) {
             }
         }
 
+        $p_unit_cost = (float)($it['cost_price'] ?? 0);
+        if ($itemCost <= 0 && $p_unit_cost > 0) {
+            $itemCost = $p_unit_cost * $qty;
+        }
+
         $totalCOGS     += $itemCost;
         $totalItemsSold += $qty;
 
@@ -250,13 +256,24 @@ if (count($orderIds) > 0) {
         $itemTotalDisc = $itemDiscUnit * $qty;
 
         if (!isset($topProducts[$pname])) {
-            $topProducts[$pname] = ["qty" => 0, "cogs" => 0, "revenue" => 0, "discount" => 0, "category" => $category];
+            $topProducts[$pname] = [
+                "qty" => 0, 
+                "cogs" => 0, 
+                "revenue" => 0, 
+                "discount" => 0, 
+                "category" => $category,
+                "unit_cost" => $p_unit_cost,
+                "unit_price" => (float)($it['price'] ?? 0)
+            ];
         }
 
         $topProducts[$pname]["qty"]      += $qty;
         $topProducts[$pname]["cogs"]     += $itemCost;
         $topProducts[$pname]["revenue"]  += $itemRevenue;
         $topProducts[$pname]["discount"] += $itemTotalDisc;
+        if ($p_unit_cost > 0) {
+            $topProducts[$pname]["unit_cost"] = $p_unit_cost;
+        }
 
         if (!isset($categorySales[$category])) {
             $categorySales[$category] = [
@@ -465,25 +482,23 @@ $refundChartData = [];
         ]
     ];
     $isKm = (current_lang() === 'km');
-    $lbl_doc_type     = $isKm ? 'ប្រភេទឯកសារ' : 'Doc. Type';
-    $lbl_product_name = $isKm ? 'ឈ្មោះទំនិញ' : 'Product Name';
-    $lbl_category     = $isKm ? 'ប្រភេទ' : 'Category';
-    $lbl_qty_sold     = $isKm ? 'ចំនួនលក់' : 'Qty Sold';
-    $lbl_price_cup    = $isKm ? 'តម្លៃ/កែវ' : 'Price Per Cup';
-    $lbl_disc         = $isKm ? 'បញ្ចុះតម្លៃ' : 'Disc';
-    $lbl_total_rev    = $isKm ? 'ចំណូលសរុប' : 'Total Revenue';
-    $lbl_total_cogs   = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
-    $lbl_gross_profit = $isKm ? 'ប្រាក់ចំណេញ' : 'Gross Profit';
-    $lbl_margin       = $isKm ? 'កម្រិតចំណេញ %' : 'Margin %';
+    $lbl_table_title  = $isKm ? 'ការវិភាគចំណូល & ប្រាក់ចំណេញតាមមុខទំនិញ' : 'Revenue & Profit Analysis by Product';
+    $lbl_search_ph    = $isKm ? 'ស្វែងរកទំនិញ...' : 'Search product...';
+    $lbl_col_product  = $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'Product (PRODUCT)';
+    $lbl_col_cat      = $isKm ? 'ប្រភេទ' : 'Category';
+    $lbl_col_qty      = $isKm ? 'ចំនួនលក់' : 'Qty Sold';
+    $lbl_col_cost_cup = $isKm ? 'ថ្លៃដើម/កែវ' : 'Cost/Cup';
+    $lbl_col_pr_cup   = $isKm ? 'តម្លៃលក់/កែវ' : 'Price/Cup';
+    $lbl_col_rev      = $isKm ? 'ចំណូលសរុប (REV)' : 'Total Rev (REV)';
+    $lbl_col_cost     = $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'Total Cost (COST)';
+    $lbl_col_profit   = $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'Profit (PROFIT)';
 
     $lbl_date_from    = $isKm ? 'ចាប់ពីថ្ងៃ :' : 'Date From :';
     $lbl_date_to      = $isKm ? 'ដល់ថ្ងៃ :' : 'Date To :';
-    $lbl_doc_count    = $isKm ? 'ចំនួន Order :' : 'Doc.Count :';
-
-    $lbl_stat_rev     = $isKm ? 'ចំណូលសរុប' : 'Total Product Revenue';
-    $lbl_stat_cogs    = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
-    $lbl_stat_profit  = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Gross Profit';
-    $lbl_doc_item     = $isKm ? 'ទំនិញ' : 'Product Item';
+    $lbl_doc_count    = $isKm ? 'ចំនួនមុខទំនិញ :' : 'Products Count :';
+    $lbl_stat_rev     = $isKm ? 'ចំណូលសរុប' : 'Total Revenue';
+    $lbl_stat_cogs    = $isKm ? 'ថ្លៃដើមសរុប' : 'Total Cost';
+    $lbl_stat_profit  = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit';
     $lbl_no_data      = $isKm ? 'គ្មានទិន្នន័យ' : 'No data';
 
     $export_excel_url = "daily_report_xlsx.php?mode=products&from_date=" . urlencode($date_from) . "&to_date=" . urlencode($date_to) . "&user_id=" . urlencode($filter_user) . "&category=" . urlencode($selected_cat);
@@ -491,17 +506,178 @@ $refundChartData = [];
     require __DIR__ . '/report_header.php';
     ?>
 
-    <!-- Data Table -->
-    <div class="er-table-card">
+    <style>
+    .prod-summary-card {
+        background: #111114 !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 14px !important;
+        padding: 1.25rem !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+        margin-bottom: 1.25rem !important;
+    }
+    .prod-summary-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .prod-summary-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #f3f4f6;
+        margin: 0;
+        letter-spacing: 0.01em;
+    }
+    .prod-search-wrapper {
+        position: relative;
+        width: 240px;
+        max-width: 100%;
+    }
+    .prod-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6b7280;
+        font-size: 0.8rem;
+        pointer-events: none;
+    }
+    .prod-search-input {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 7px 12px 7px 32px;
+        color: #f3f4f6;
+        font-size: 0.85rem;
+        outline: none;
+        transition: all 0.2s ease;
+    }
+    .prod-search-input:focus {
+        border-color: rgba(245, 158, 11, 0.5);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+    }
+    .prod-search-input::placeholder {
+        color: #6b7280;
+    }
+
+    .prod-analysis-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    .prod-analysis-table thead th {
+        background: transparent !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        color: #9ca3af !important;
+        font-weight: 600 !important;
+        font-size: 0.75rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        padding: 0.85rem 0.9rem !important;
+        border-right: none !important;
+    }
+    .prod-analysis-table tbody td {
+        padding: 0.95rem 0.9rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+        border-right: none !important;
+        vertical-align: middle;
+    }
+    .prod-analysis-table tbody tr.product-data-row:hover {
+        background: rgba(255, 255, 255, 0.02) !important;
+    }
+
+    .prod-amber-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #f59e0b;
+        margin-right: 8px;
+        vertical-align: middle;
+        box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+    }
+    .prod-cat-pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #9ca3af;
+        font-size: 0.72rem;
+        font-weight: 500;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        text-transform: capitalize;
+    }
+    .prod-total-row {
+        border-top: 2px solid rgba(245, 158, 11, 0.4) !important;
+        border-bottom: none !important;
+        background: rgba(245, 158, 11, 0.02) !important;
+    }
+    .prod-total-label {
+        display: inline-flex;
+        align-items: center;
+        color: #f59e0b;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        font-size: 0.85rem;
+    }
+
+    [data-theme="light"] .prod-summary-card {
+        background: #ffffff !important;
+        border: 1px solid rgba(0, 0, 0, 0.08) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+    }
+    [data-theme="light"] .prod-summary-title {
+        color: #1f2937 !important;
+    }
+    [data-theme="light"] .prod-search-input {
+        background: #f9fafb !important;
+        border: 1px solid #e5e7eb !important;
+        color: #1f2937 !important;
+    }
+    [data-theme="light"] .prod-analysis-table thead th {
+        border-bottom: 1px solid #e5e7eb !important;
+        color: #6b7280 !important;
+    }
+    [data-theme="light"] .prod-analysis-table tbody td {
+        border-bottom: 1px solid #f3f4f6 !important;
+        color: #374151 !important;
+    }
+    [data-theme="light"] .prod-analysis-table tbody tr.product-data-row:hover {
+        background: #f9fafb !important;
+    }
+    [data-theme="light"] .prod-cat-pill {
+        background: #f3f4f6 !important;
+        color: #4b5563 !important;
+        border: 1px solid #e5e7eb !important;
+    }
+    </style>
+
+    <!-- Data Table Card -->
+    <div class="er-table-card prod-summary-card">
+        <div class="prod-summary-header">
+            <h3 class="prod-summary-title"><?= htmlspecialchars($lbl_table_title) ?></h3>
+            <div class="prod-search-wrapper">
+                <i class="fa-solid fa-magnifying-glass prod-search-icon"></i>
+                <input type="text" id="prodSearchInput" class="prod-search-input" placeholder="<?= htmlspecialchars($lbl_search_ph) ?>" oninput="filterProductTable()">
+            </div>
+        </div>
+
         <div class="er-table-wrap">
-            <table class="er-table">
+            <table class="er-table prod-analysis-table">
                 <thead>
                     <tr>
-                        <th style="text-align:center"><?= $lbl_product_name ?></th>
-                        <th class="col-category" style="text-align:center"><?= $lbl_category ?></th>
-                        <th style="text-align:center"><?= $lbl_qty_sold ?></th>
-                        <th style="text-align:center"><?= $lbl_price_cup ?></th>
-                        <th style="text-align:center"><?= $lbl_total_rev ?></th>
+                        <th style="text-align:left; padding-left:1.25rem;"><?= htmlspecialchars($lbl_col_product) ?></th>
+                        <th style="text-align:center;"><?= htmlspecialchars($lbl_col_cat) ?></th>
+                        <th style="text-align:center;"><?= htmlspecialchars($lbl_col_qty) ?></th>
+                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_cost_cup) ?></th>
+                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_pr_cup) ?></th>
+                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_rev) ?></th>
+                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_cost) ?></th>
+                        <th style="text-align:right; padding-right:1.25rem; color:#22c55e;"><?= htmlspecialchars($lbl_col_profit) ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -526,45 +702,65 @@ $refundChartData = [];
                     ?>
                     <?php if (empty($filtered_products)): ?>
                     <tr class="no-data">
-                        <td colspan="5" class="no-data" style="text-align:center"><?= $lbl_no_data ?></td>
+                        <td colspan="8" class="no-data" style="text-align:center; padding:3rem 1rem; color:#777788;"><?= $lbl_no_data ?></td>
                     </tr>
                     <?php else: ?>
-                    <?php foreach ($filtered_products as $pname => $pdata): ?>
-                    <?php
+                    <?php 
+                    $tot_qty = 0; $tot_rev = 0; $tot_cogs = 0;
+                    foreach ($filtered_products as $pname => $pdata): 
                         $p_qty   = (int)$pdata['qty'];
                         $p_rev   = (float)$pdata['revenue'];
-                        $p_disc  = (float)($pdata['discount'] ?? 0);
-                        $avg_pr  = $p_qty > 0 ? $p_rev / $p_qty : 0;
+                        $p_cogs  = (float)($pdata['cogs'] ?? 0);
+                        $p_profit = $p_rev - $p_cogs;
+                        $avg_pr  = $p_qty > 0 ? ($p_rev / $p_qty) : (float)($pdata['unit_price'] ?? 0);
+                        $avg_cost = $p_qty > 0 ? ($p_cogs / $p_qty) : (float)($pdata['unit_cost'] ?? 0);
                         $raw_cat = !empty($pdata['category']) ? $pdata['category'] : 'Uncategorized';
                         $cat_name = $cat_slug_to_name[$raw_cat] ?? $raw_cat;
+
+                        $tot_qty  += $p_qty;
+                        $tot_rev  += $p_rev;
+                        $tot_cogs += $p_cogs;
                     ?>
-                    <tr>
-                        <td style="text-align:center" class="er-prod-name"><?= htmlspecialchars($pname) ?></td>
-                        <td class="col-category" style="text-align:center"><span class="er-badge-cat"><?= htmlspecialchars($cat_name) ?></span></td>
-                        <td style="text-align:center"><?= $p_qty ?></td>
-                        <td style="text-align:center">$<?= number_format($avg_pr, 2) ?></td>
-                        <td style="text-align:center" class="er-total-rev">$<?= number_format($p_rev, 2) ?></td>
+                    <tr class="product-data-row" data-name="<?= htmlspecialchars(strtolower($pname)) ?>" data-cat="<?= htmlspecialchars(strtolower($cat_name)) ?>" data-qty="<?= $p_qty ?>" data-rev="<?= $p_rev ?>" data-cost="<?= $p_cogs ?>" data-profit="<?= $p_profit ?>">
+                        <td style="text-align:left; padding-left:1.25rem; font-weight:600; color:#f9fafb;">
+                            <span class="prod-amber-dot"></span>
+                            <span><?= htmlspecialchars($pname) ?></span>
+                        </td>
+                        <td style="text-align:center;">
+                            <span class="prod-cat-pill"><?= htmlspecialchars($cat_name) ?></span>
+                        </td>
+                        <td style="text-align:center; font-weight:600; color:#f3f4f6;"><?= $p_qty ?></td>
+                        <td style="text-align:right; color:#9ca3af;">$<?= number_format($avg_cost, 2) ?></td>
+                        <td style="text-align:right; color:#d1d5db;">$<?= number_format($avg_pr, 2) ?></td>
+                        <td style="text-align:right; font-weight:600; color:#f3f4f6;">$<?= number_format($p_rev, 2) ?></td>
+                        <td style="text-align:right; color:#9ca3af;">$<?= number_format($p_cogs, 2) ?></td>
+                        <td style="text-align:right; padding-right:1.25rem; font-weight:700; color:<?= $p_profit >= 0 ? '#22c55e' : '#ef4444' ?>;">
+                            <?= ($p_profit >= 0 ? '+' : '-') ?>$<?= number_format(abs($p_profit), 2) ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
-                    <?php
-                        $tot_qty = 0; $tot_rev = 0;
-                        foreach ($filtered_products as $fpd) {
-                            $tot_qty  += (int)($fpd['qty'] ?? 0);
-                            $tot_rev  += (float)($fpd['revenue'] ?? 0);
-                        }
-                    ?>
-                    <tr class="total-summary-row">
-                        <td style="text-align:center; padding: 0.85rem 1rem;">
-                            <span class="er-badge-total">
-                                <i class="fa-solid fa-calculator" style="font-size:0.75rem;"></i> Total
+                    <?php $tot_profit = $tot_rev - $tot_cogs; ?>
+                    <tr id="noMatchRow" style="display:none;">
+                        <td colspan="8" style="text-align:center; padding:2.5rem 1rem; color:#888;">
+                            <i class="fa-solid fa-magnifying-glass" style="font-size:1.5rem; opacity:0.3; margin-bottom:8px; display:block;"></i>
+                            <?= $isKm ? 'រកមិនឃើញទំនិញដែលត្រូវនឹងការស្វែងរកទេ' : 'No matching products found' ?>
+                        </td>
+                    </tr>
+                    <tr class="total-summary-row prod-total-row">
+                        <td style="text-align:left; padding-left:1.25rem;">
+                            <span class="prod-total-label">
+                                <i class="fa-regular fa-file-lines" style="margin-right:6px;"></i> TOTAL
                             </span>
                         </td>
-                        <td class="col-category"></td>
-                        <td style="text-align:center; padding: 0.85rem 1rem;">
-                            <span class="er-qty-pill"><?= $tot_qty ?></span>
-                        </td>
                         <td></td>
-                        <td style="text-align:center;" class="er-total-rev">$<?= number_format($tot_rev, 2) ?></td>
+                        <td style="text-align:center; font-weight:700; color:#f3f4f6;" id="totalQtyVal"><?= $tot_qty ?></td>
+                        <td></td>
+                        <td></td>
+                        <td style="text-align:right; font-weight:700; color:#f59e0b;" id="totalRevVal">$<?= number_format($tot_rev, 2) ?></td>
+                        <td style="text-align:right; font-weight:600; color:#d1d5db;" id="totalCostVal">$<?= number_format($tot_cogs, 2) ?></td>
+                        <td style="text-align:right; padding-right:1.25rem; font-weight:700; color:<?= $tot_profit >= 0 ? '#22c55e' : '#ef4444' ?>;" id="totalProfitVal">
+                            <?= ($tot_profit >= 0 ? '+' : '-') ?>$<?= number_format(abs($tot_profit), 2) ?>
+                        </td>
                     </tr>
                     <?php endif; ?>
                 </tbody>
@@ -572,12 +768,71 @@ $refundChartData = [];
         </div>
     </div>
 
+    <script>
+    function filterProductTable() {
+        const query = (document.getElementById('prodSearchInput')?.value || '').toLowerCase().trim();
+        const rows = document.querySelectorAll('.product-data-row');
+        let visQty = 0, visRev = 0, visCost = 0, visProfit = 0;
+        let matchCount = 0;
+
+        rows.forEach(r => {
+            const name = (r.dataset.name || '').toLowerCase();
+            const cat = (r.dataset.cat || '').toLowerCase();
+            const match = query === '' || name.includes(query) || cat.includes(query);
+            r.style.display = match ? '' : 'none';
+            if (match) {
+                matchCount++;
+                visQty += parseInt(r.dataset.qty || 0, 10);
+                visRev += parseFloat(r.dataset.rev || 0);
+                visCost += parseFloat(r.dataset.cost || 0);
+                visProfit += parseFloat(r.dataset.profit || 0);
+            }
+        });
+
+        const noDataRow = document.getElementById('noMatchRow');
+        if (noDataRow) {
+            noDataRow.style.display = (matchCount === 0 && rows.length > 0) ? '' : 'none';
+        }
+
+        const elQty = document.getElementById('totalQtyVal');
+        if (elQty) elQty.textContent = visQty;
+
+        const elRev = document.getElementById('totalRevVal');
+        if (elRev) elRev.textContent = '$' + visRev.toFixed(2);
+
+        const elCost = document.getElementById('totalCostVal');
+        if (elCost) elCost.textContent = '$' + visCost.toFixed(2);
+
+        const elProfit = document.getElementById('totalProfitVal');
+        if (elProfit) {
+            const sign = visProfit >= 0 ? '+' : '-';
+            elProfit.textContent = sign + '$' + Math.abs(visProfit).toFixed(2);
+            elProfit.style.color = visProfit >= 0 ? '#22c55e' : '#ef4444';
+        }
+
+        const elSummaryProfit = document.getElementById('summaryCardProfitVal');
+        if (elSummaryProfit) {
+            const sign = visProfit >= 0 ? '+' : '-';
+            elSummaryProfit.textContent = sign + '$' + Math.abs(visProfit).toFixed(2);
+            elSummaryProfit.style.color = visProfit >= 0 ? '#22c55e' : '#ef4444';
+        }
+
+        const elSummaryRev = document.getElementById('summaryCardRevVal');
+        if (elSummaryRev) {
+            elSummaryRev.textContent = '$' + visRev.toFixed(2);
+        }
+    }
+    </script>
+
     <!-- Summary Card -->
     <?php
     $filtered_sales = 0;
+    $filtered_cogs  = 0;
     foreach ($filtered_products as $fpdata) {
         $filtered_sales += (float)($fpdata['revenue'] ?? 0);
+        $filtered_cogs  += (float)($fpdata['cogs'] ?? 0);
     }
+    $filtered_profit = $filtered_sales - $filtered_cogs;
     ?>
     <div class="er-summary-card">
         <div class="er-summary-info">
@@ -587,8 +842,12 @@ $refundChartData = [];
         </div>
         <div class="er-summary-stats">
             <div class="er-summary-stat-item">
+                <span class="stat-label"><?= $lbl_stat_profit ?></span>
+                <span class="stat-val" id="summaryCardProfitVal" style="color: #22c55e;"><?= ($filtered_profit >= 0 ? '+' : '-') ?>$<?= number_format(abs($filtered_profit), 2) ?></span>
+            </div>
+            <div class="er-summary-stat-item">
                 <span class="stat-label"><?= $lbl_stat_rev ?></span>
-                <span class="stat-val">$<?= number_format($filtered_sales, 2) ?></span>
+                <span class="stat-val" id="summaryCardRevVal">$<?= number_format($filtered_sales, 2) ?></span>
             </div>
         </div>
     </div>

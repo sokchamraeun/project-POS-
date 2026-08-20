@@ -97,7 +97,8 @@ if (!empty($orderIds)) {
         SELECT oi.product_id, oi.product_name, oi.milk, oi.quantity, oi.price,
                COALESCE(oi.orig_price, oi.price) AS orig_price,
                COALESCE(oi.promo_percent, 0) AS promo_percent,
-               COALESCE(NULLIF(p.category,''),'Uncategorized') AS category
+               COALESCE(NULLIF(p.category,''),'Uncategorized') AS category,
+               COALESCE(p.cost_price, 0) AS cost_price
         FROM order_items oi
         LEFT JOIN products p ON p.product_id = oi.product_id
         WHERE oi.order_id IN ($inOrder) $cat_where
@@ -135,6 +136,11 @@ if (!empty($orderIds)) {
                     $itemCost += $amount * (float)($cost_map_ref[$iid]['unit_cost'] ?? 0);
                 }
             }
+        }
+
+        $p_unit_cost = (float)($it['cost_price'] ?? 0);
+        if ($itemCost <= 0 && $p_unit_cost > 0) {
+            $itemCost = $p_unit_cost * $qty;
         }
 
         $origPrice = (float)($it['orig_price'] > 0 ? $it['orig_price'] : $it['price']);
