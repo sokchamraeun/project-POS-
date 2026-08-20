@@ -46,9 +46,40 @@ foreach (($_SESSION['cart'] ?? []) as $cItem) {
     $pId = (int)($cItem['product_id'] ?? 0);
     $q = max(1, (int)($cItem['qty'] ?? 1));
     $sFactor = (float)($cItem['size_factor'] ?? 1.0);
+    $sweet = (string)($cItem['sweetness'] ?? '');
+    $ice = (string)($cItem['ice'] ?? '');
+    $milk = (string)($cItem['milk'] ?? '');
     if ($pId <= 0) continue;
 
-    $stmtBOM = $conn->prepare("SELECT r.item_id, r.quantity_required, s.item_name, s.quantity, s.unit 
+    // Sweetness factor
+    $sweetnessFactor = 1.0;
+    $swNorm = str_replace(' ', '', strtolower(trim($sweet)));
+    if ($swNorm === '0%' || $swNorm === '0' || $swNorm === 'nosugar' || $swNorm === 'គ្មានស្ករ') {
+        $sweetnessFactor = 0.0;
+    } elseif ($swNorm === '25%' || $swNorm === '25') {
+        $sweetnessFactor = 0.25;
+    } elseif ($swNorm === '50%' || $swNorm === '50') {
+        $sweetnessFactor = 0.50;
+    } elseif ($swNorm === '75%' || $swNorm === '75') {
+        $sweetnessFactor = 0.75;
+    } elseif ($swNorm === '100%' || $swNorm === '100') {
+        $sweetnessFactor = 1.0;
+    }
+
+    // Ice factor
+    $iceFactor = 1.0;
+    $iceNorm = strtolower(trim($ice));
+    if (str_contains($iceNorm, 'no ice') || str_contains($iceNorm, 'គ្មានទឹកកក') || $iceNorm === 'no') {
+        $iceFactor = 0.0;
+    } elseif (str_contains($iceNorm, 'less ice') || str_contains($iceNorm, 'ទឹកកកតិច')) {
+        $iceFactor = 0.5;
+    } elseif (str_contains($iceNorm, 'more ice') || str_contains($iceNorm, 'extra ice') || str_contains($iceNorm, 'ទឹកកកច្រើន')) {
+        $iceFactor = 1.3;
+    } elseif (str_contains($iceNorm, 'normal') || str_contains($iceNorm, 'ធម្មតា')) {
+        $iceFactor = 1.0;
+    }
+
+    $stmtBOM = $conn->prepare("SELECT r.item_id, r.quantity_required, s.item_name, s.category, s.quantity, s.unit 
                                FROM product_recipes r 
                                JOIN stock_items s ON r.item_id = s.item_id 
                                WHERE r.product_id = ? AND s.is_active = 1");
@@ -57,17 +88,48 @@ foreach (($_SESSION['cart'] ?? []) as $cItem) {
         $stmtBOM->execute();
         $resBOM = $stmtBOM->get_result();
         while ($bRow = $resBOM->fetch_assoc()) {
-            $iName = $bRow['item_name'] ?? '';
-            if (str_contains(strtolower($iName), 'packaging set') || str_contains($iName, 'ឈុត')) {
+            $iName = strtolower($bRow['item_name'] ?? '');
+            $cat = $bRow['category'] ?? '';
+            if (str_contains($iName, 'packaging set') || str_contains($bRow['item_name'], 'ឈុត')) {
                 continue;
             }
+
             $iId = (int)$bRow['item_id'];
-            $req = (float)$bRow['quantity_required'] * (float)$q * $sFactor;
+            $iDispName = $bRow['item_name'];
+            $iAvail = (float)$bRow['quantity'];
+            $iUnit = $bRow['unit'];
+
+            // Milk substitution precheck
+            $milkNorm = strtolower(trim($milk));
+            if (!empty($milkNorm) && (str_contains($iName, 'milk') || str_contains($iName, 'ទឹកដោះគោ')) && !str_contains($iName, 'oat') && str_contains($milkNorm, 'oat')) {
+                $subStmt = $conn->prepare("SELECT item_id, item_name, quantity, unit FROM stock_items WHERE LOWER(item_name) LIKE '%oat milk%' AND is_active = 1 LIMIT 1");
+                if ($subStmt) {
+                    $subStmt->execute();
+                    if ($subRow = $subStmt->get_result()->fetch_assoc()) {
+                        $iId = (int)$subRow['item_id'];
+                        $iDispName = $subRow['item_name'];
+                        $iAvail = (float)$subRow['quantity'];
+                        $iUnit = $subRow['unit'];
+                    }
+                    $subStmt->close();
+                }
+            }
+
+            $customMult = 1.0;
+            if (str_contains($iName, 'sugar') || str_contains($iName, 'syrup') || str_contains($bRow['item_name'], 'ស្ករ') || str_contains($bRow['item_name'], 'ទឹកស្ករ') || $cat === 'Syrups') {
+                $customMult = $sweetnessFactor;
+            } elseif (str_contains($iName, 'ice') || str_contains($bRow['item_name'], 'ទឹកកក') || $cat === 'Ice') {
+                $customMult = $iceFactor;
+            }
+
+            $req = (float)$bRow['quantity_required'] * (float)$q * $sFactor * $customMult;
+            if ($req <= 0) continue;
+
             if (!isset($requiredStock[$iId])) {
                 $requiredStock[$iId] = [
-                    'name'      => $bRow['item_name'],
-                    'available' => (float)$bRow['quantity'],
-                    'unit'      => $bRow['unit'],
+                    'name'      => $iDispName,
+                    'available' => $iAvail,
+                    'unit'      => $iUnit,
                     'needed'    => 0.0
                 ];
             }
@@ -237,9 +299,9 @@ if ($existing_order_id > 0) {
                 $stmt_item->execute();
             }
 
-            // ── STOCK: deduct at order creation time ──
+            // ── STOCK: deduct at order creation time with customized sweetness & ice ──
             if ($product_id > 0) {
-                $stock_warnings = array_merge($stock_warnings, _deduct_stock($conn, $product_id, $qty, $milk, $existing_order_id, $sfactor));
+                $stock_warnings = array_merge($stock_warnings, _deduct_stock($conn, $product_id, $qty, $milk, $existing_order_id, $sfactor, null, $sweet, $ice));
             }
         }
 
@@ -500,7 +562,7 @@ try {
         $stmt_item->execute();
 
         if ($product_id > 0) {
-            $stock_warnings = array_merge($stock_warnings, _deduct_stock($conn, $product_id, $qty, $milk, $order_id, $sfactor));
+            $stock_warnings = array_merge($stock_warnings, _deduct_stock($conn, $product_id, $qty, $milk, $order_id, $sfactor, null, $sweet, $ice));
         }
     }
 

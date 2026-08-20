@@ -480,10 +480,22 @@ $_translations = [
         'packaging_subtotal' => 'Subtotal',
         'packaging_total_per_cup' => 'Total Packaging Cost per 1 Cup',
         'packaging_100_cups' => 'Cost for 100 Cups',
-        'packaging_1000_cups' => 'Cost for 1,000 Cups',
         'packaging_add_item_btn' => 'Add Component',
         'packaging_save_btn' => 'Save Packaging Set Cost',
         'packaging_saved_success' => 'Packaging set cost saved successfully!',
+
+        // Ingredient History
+        'ingredient_history_title' => 'Deduction & Usage History',
+        'ingredient_history_sub' => 'View all sales deductions, orders, and recipes using this ingredient.',
+        'btn_history' => 'Deduction History',
+        'current_stock_label' => 'Current Stock',
+        'total_deducted_sales' => 'Total Sales Deducted',
+        'total_orders_used' => 'Total Orders Used',
+        'filter_all_logs' => 'All Movements',
+        'log_sale_deduct' => 'Sales Deduct',
+        'log_restock' => 'Restock',
+        'stock_flow' => 'Stock Flow',
+        'no_history_logs' => 'No deduction history logged for this ingredient yet.',
     ],
 
     'km' => [
@@ -966,6 +978,19 @@ $_translations = [
         'packaging_add_item_btn' => 'បន្ថែមសម្ភារវេចខ្ចប់',
         'packaging_save_btn' => 'រក្សាទុកថ្លៃដើមវេចខ្ចប់',
         'packaging_saved_success' => 'បានរក្សាទុកថ្លៃដើមវេចខ្ចប់សរុបដោយជោគជ័យ!',
+
+        // Ingredient History
+        'ingredient_history_title' => 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក',
+        'ingredient_history_sub' => 'ពិនិត្យមើលរាល់ការកាត់ស្តុកតាម Order នីមួយៗ និងមុខភេសជ្ជៈដែលបានប្រើប្រាស់',
+        'btn_history' => 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក',
+        'current_stock_label' => 'ស្តុកបច្ចុប្បន្ន',
+        'total_deducted_sales' => 'កាត់តាមការលក់សរុប',
+        'total_orders_used' => 'ចំនួន Order ប្រើប្រាស់',
+        'filter_all_logs' => 'ទាំងអស់',
+        'log_sale_deduct' => 'កាត់តាមការលក់',
+        'log_restock' => 'ថែមស្តុក',
+        'stock_flow' => 'ស្តុកដើម → ស្តុកនៅសល់',
+        'no_history_logs' => 'មិនទាន់មានប្រវត្តិកាត់ស្តុកសម្រាប់គ្រឿងផ្សំនេះនៅឡើយទេ',
     ]
 ];
 

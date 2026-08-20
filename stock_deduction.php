@@ -145,7 +145,7 @@ function deductStockForOrder(int $order_id, PDO $pdo, bool $strict_mode = false,
     initRecipeAndStockLogSchema($pdo);
 
     // 1. Fetch all items in the order
-    $orderStmt = $pdo->prepare("SELECT item_id, product_id, product_name, quantity, milk, size_code 
+    $orderStmt = $pdo->prepare("SELECT item_id, product_id, product_name, quantity, sweetness, ice, milk, size_code 
                                 FROM order_items 
                                 WHERE order_id = ?");
     $orderStmt->execute([$order_id]);
@@ -158,7 +158,7 @@ function deductStockForOrder(int $order_id, PDO $pdo, bool $strict_mode = false,
     // 2. Aggregate all ingredients needed across the whole order
     // Key: item_id => [item_id, item_name, unit, total_qty_needed, cost_per_unit, product_ids => [...]]
     $aggregatedIngredients = [];
-    $recipeStmt = $pdo->prepare("SELECT r.item_id, r.quantity_required, r.unit, s.item_name, s.quantity AS current_stock, s.cost_per_unit, s.alert_level 
+    $recipeStmt = $pdo->prepare("SELECT r.item_id, r.quantity_required, r.unit, s.item_name, s.category, s.quantity AS current_stock, s.cost_per_unit, s.alert_level 
                                  FROM product_recipes r 
                                  JOIN stock_items s ON r.item_id = s.item_id 
                                  WHERE r.product_id = ? AND s.is_active = 1");
@@ -167,50 +167,97 @@ function deductStockForOrder(int $order_id, PDO $pdo, bool $strict_mode = false,
         $productId = (int)$oi['product_id'];
         $orderedQty = max(1, (int)$oi['quantity']);
         $milkChoice = strtolower(trim((string)($oi['milk'] ?? '')));
+        $sweet = (string)($oi['sweetness'] ?? '');
+        $ice = (string)($oi['ice'] ?? '');
 
         if ($productId <= 0) continue;
+
+        // Sweetness Factor
+        $sweetnessFactor = 1.0;
+        $swNorm = str_replace(' ', '', strtolower(trim($sweet)));
+        if ($swNorm === '0%' || $swNorm === '0' || $swNorm === 'nosugar' || $swNorm === 'គ្មានស្ករ') {
+            $sweetnessFactor = 0.0;
+        } elseif ($swNorm === '25%' || $swNorm === '25') {
+            $sweetnessFactor = 0.25;
+        } elseif ($swNorm === '50%' || $swNorm === '50') {
+            $sweetnessFactor = 0.50;
+        } elseif ($swNorm === '75%' || $swNorm === '75') {
+            $sweetnessFactor = 0.75;
+        } elseif ($swNorm === '100%' || $swNorm === '100') {
+            $sweetnessFactor = 1.0;
+        }
+
+        // Ice Factor
+        $iceFactor = 1.0;
+        $iceNorm = strtolower(trim($ice));
+        if (str_contains($iceNorm, 'no ice') || str_contains($iceNorm, 'គ្មានទឹកកក') || $iceNorm === 'no') {
+            $iceFactor = 0.0;
+        } elseif (str_contains($iceNorm, 'less ice') || str_contains($iceNorm, 'ទឹកកកតិច')) {
+            $iceFactor = 0.5;
+        } elseif (str_contains($iceNorm, 'more ice') || str_contains($iceNorm, 'extra ice') || str_contains($iceNorm, 'ទឹកកកច្រើន')) {
+            $iceFactor = 1.3;
+        } elseif (str_contains($iceNorm, 'normal') || str_contains($iceNorm, 'ធម្មតា')) {
+            $iceFactor = 1.0;
+        }
 
         $recipeStmt->execute([$productId]);
         $recipes = $recipeStmt->fetchAll();
 
         foreach ($recipes as $r) {
+            $rName = strtolower($r['item_name'] ?? '');
+            $rCat = $r['category'] ?? '';
+
             // Skip Auto Packaging Sets from physical stock deduction
-            $rName = $r['item_name'] ?? '';
-            if (str_contains(strtolower($rName), 'packaging set') || str_contains($rName, 'ឈុត')) {
+            if (str_contains($rName, 'packaging set') || str_contains($r['item_name'], 'ឈុត')) {
                 continue;
             }
 
             $itemId = (int)$r['item_id'];
             $reqPerDrink = (float)$r['quantity_required'];
-            $totalReq = $reqPerDrink * $orderedQty;
+            $itemName = $r['item_name'];
+            $costPerUnit = (float)$r['cost_per_unit'];
+            $alertLevel = (float)$r['alert_level'];
+            $currentStock = (float)$r['current_stock'];
+            $unit = $r['unit'];
 
             // Handle customized milk substitution (e.g. Oat Milk substitution if specified)
-            if (!empty($milkChoice) && stripos($r['item_name'], 'milk') !== false) {
-                if (stripos($milkChoice, 'oat') !== false && stripos($r['item_name'], 'oat') === false) {
-                    // Try to redirect deduction to Oat Milk
-                    $subStmt = $pdo->prepare("SELECT item_id, item_name, quantity AS current_stock, cost_per_unit, alert_level 
-                                              FROM stock_items 
-                                              WHERE LOWER(item_name) LIKE '%oat milk%' AND is_active = 1 LIMIT 1");
-                    $subStmt->execute();
-                    $subItem = $subStmt->fetch();
-                    if ($subItem) {
-                        $itemId = (int)$subItem['item_id'];
-                        $r['item_name'] = $subItem['item_name'];
-                        $r['cost_per_unit'] = $subItem['cost_per_unit'];
-                        $r['current_stock'] = $subItem['current_stock'];
-                        $r['alert_level'] = $subItem['alert_level'];
-                    }
+            if (!empty($milkChoice) && (str_contains($rName, 'milk') || str_contains($rName, 'ទឹកដោះគោ')) && !str_contains($rName, 'oat') && str_contains($milkChoice, 'oat')) {
+                $subStmt = $pdo->prepare("SELECT item_id, item_name, quantity AS current_stock, cost_per_unit, alert_level, unit 
+                                          FROM stock_items 
+                                          WHERE LOWER(item_name) LIKE '%oat milk%' AND is_active = 1 LIMIT 1");
+                $subStmt->execute();
+                $subItem = $subStmt->fetch();
+                if ($subItem) {
+                    $itemId = (int)$subItem['item_id'];
+                    $itemName = $subItem['item_name'];
+                    $costPerUnit = (float)$subItem['cost_per_unit'];
+                    $currentStock = (float)$subItem['current_stock'];
+                    $alertLevel = (float)$subItem['alert_level'];
+                    $unit = $subItem['unit'];
                 }
+            }
+
+            // Customization Multiplier
+            $customMultiplier = 1.0;
+            if (str_contains($rName, 'sugar') || str_contains($rName, 'syrup') || str_contains($r['item_name'], 'ស្ករ') || str_contains($r['item_name'], 'ទឹកស្ករ') || $rCat === 'Syrups') {
+                $customMultiplier = $sweetnessFactor;
+            } elseif (str_contains($rName, 'ice') || str_contains($r['item_name'], 'ទឹកកក') || $rCat === 'Ice') {
+                $customMultiplier = $iceFactor;
+            }
+
+            $totalReq = $reqPerDrink * $orderedQty * $customMultiplier;
+            if ($totalReq <= 0) {
+                continue; // 0% sweetness or No Ice
             }
 
             if (!isset($aggregatedIngredients[$itemId])) {
                 $aggregatedIngredients[$itemId] = [
                     'item_id'          => $itemId,
-                    'item_name'        => $r['item_name'],
-                    'unit'             => $r['unit'],
-                    'cost_per_unit'    => (float)$r['cost_per_unit'],
-                    'alert_level'      => (float)$r['alert_level'],
-                    'current_stock'    => (float)$r['current_stock'],
+                    'item_name'        => $itemName,
+                    'unit'             => $unit,
+                    'cost_per_unit'    => $costPerUnit,
+                    'alert_level'      => $alertLevel,
+                    'current_stock'    => $currentStock,
                     'total_qty_needed' => 0.0,
                     'products'         => []
                 ];

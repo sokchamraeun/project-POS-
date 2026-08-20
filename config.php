@@ -599,12 +599,52 @@ if (!function_exists('loyalty_sync')) {
 if (!function_exists('_deduct_stock')) {
     function _deduct_stock(mysqli $conn, int $product_id, int $qty, string $milk_choice,
                            int $order_id = 0, float $size_factor = 1.0,
-                           ?string $reference = null): array {
+                           ?string $reference = null, string $sweetness = '', string $ice = ''): array {
         if ($product_id <= 0 || $qty <= 0) return [];
         $warnings = [];
         try {
-            // 1. Deduct using product_recipes BOM if recipe exists
-            $stmt = $conn->prepare("SELECT r.item_id, r.quantity_required, s.item_name, s.quantity AS current_stock, s.alert_level, s.cost_per_unit, s.unit 
+            // 1. Resolve Sweetness Factor
+            $sweetnessFactor = 1.0;
+            $swNorm = str_replace(' ', '', strtolower(trim((string)$sweetness)));
+            if ($swNorm === '0%' || $swNorm === '0' || $swNorm === 'nosugar' || $swNorm === 'គ្មានស្ករ') {
+                $sweetnessFactor = 0.0;
+            } elseif ($swNorm === '25%' || $swNorm === '25') {
+                $sweetnessFactor = 0.25;
+            } elseif ($swNorm === '50%' || $swNorm === '50') {
+                $sweetnessFactor = 0.50;
+            } elseif ($swNorm === '75%' || $swNorm === '75') {
+                $sweetnessFactor = 0.75;
+            } elseif ($swNorm === '100%' || $swNorm === '100') {
+                $sweetnessFactor = 1.0;
+            }
+
+            // 2. Resolve Ice Factor
+            $iceFactor = 1.0;
+            $iceNorm = strtolower(trim((string)$ice));
+            if (str_contains($iceNorm, 'no ice') || str_contains($iceNorm, 'គ្មានទឹកកក') || $iceNorm === 'no') {
+                $iceFactor = 0.0;
+            } elseif (str_contains($iceNorm, 'less ice') || str_contains($iceNorm, 'ទឹកកកតិច')) {
+                $iceFactor = 0.5;
+            } elseif (str_contains($iceNorm, 'more ice') || str_contains($iceNorm, 'extra ice') || str_contains($iceNorm, 'ទឹកកកច្រើន')) {
+                $iceFactor = 1.3;
+            } elseif (str_contains($iceNorm, 'normal') || str_contains($iceNorm, 'ធម្មតា')) {
+                $iceFactor = 1.0;
+            }
+
+            // Fetch product name for human-readable audit ledger notes
+            $productName = "Product #{$product_id}";
+            $pnStmt = $conn->prepare("SELECT name FROM products WHERE product_id = ? LIMIT 1");
+            if ($pnStmt) {
+                $pnStmt->bind_param("i", $product_id);
+                $pnStmt->execute();
+                if ($pnRow = $pnStmt->get_result()->fetch_assoc()) {
+                    $productName = $pnRow['name'];
+                }
+                $pnStmt->close();
+            }
+
+            // 3. Deduct using product_recipes BOM if recipe exists
+            $stmt = $conn->prepare("SELECT r.item_id, r.quantity_required, s.item_name, s.category, s.quantity AS current_stock, s.alert_level, s.cost_per_unit, s.unit 
                                     FROM product_recipes r 
                                     JOIN stock_items s ON r.item_id = s.item_id 
                                     WHERE r.product_id = ? AND s.is_active = 1");
@@ -617,31 +657,144 @@ if (!function_exists('_deduct_stock')) {
                 $perf = $_SESSION['username'] ?? 'POS';
 
                 $hasBOM = false;
+                $hasSugarInRecipe = false;
+                $hasIceInRecipe = false;
+
                 while ($row = $res->fetch_assoc()) {
                     $hasBOM = true;
                     $itemId = (int)$row['item_id'];
-                    $req = (float)$row['quantity_required'] * (float)$qty * (float)$size_factor;
-                    $cur = (float)$row['current_stock'];
-                    $after = max(0.0, $cur - $req);
+                    $iName = strtolower($row['item_name'] ?? '');
+                    $cat = $row['category'] ?? '';
+
+                    // Skip Auto Packaging Sets from physical stock deduction
+                    if (str_contains($iName, 'packaging set') || str_contains($row['item_name'], 'ឈុត')) {
+                        continue;
+                    }
+
+                    $baseQty = (float)$row['quantity_required'];
+                    $currentStock = (float)$row['current_stock'];
+                    $alertLevel = (float)$row['alert_level'];
                     $cost = (float)$row['cost_per_unit'];
+                    $itemName = $row['item_name'];
+                    $unit = $row['unit'];
+
+                    // Milk Substitution (e.g. Oat Milk)
+                    $milkNorm = strtolower(trim($milk_choice));
+                    if (!empty($milkNorm) && (str_contains($iName, 'milk') || str_contains($iName, 'ទឹកដោះគោ')) && !str_contains($iName, 'oat') && str_contains($milkNorm, 'oat')) {
+                        $subStmt = $conn->prepare("SELECT item_id, item_name, quantity, alert_level, cost_per_unit, unit FROM stock_items WHERE LOWER(item_name) LIKE '%oat milk%' AND is_active = 1 LIMIT 1");
+                        if ($subStmt) {
+                            $subStmt->execute();
+                            if ($subRow = $subStmt->get_result()->fetch_assoc()) {
+                                $itemId = (int)$subRow['item_id'];
+                                $itemName = $subRow['item_name'];
+                                $currentStock = (float)$subRow['quantity'];
+                                $alertLevel = (float)$subRow['alert_level'];
+                                $cost = (float)$subRow['cost_per_unit'];
+                                $unit = $subRow['unit'];
+                            }
+                            $subStmt->close();
+                        }
+                    }
+
+                    // Sugar / Sweetness customization multiplier
+                    $customMultiplier = 1.0;
+                    if (str_contains($iName, 'sugar') || str_contains($iName, 'syrup') || str_contains($row['item_name'], 'ស្ករ') || str_contains($row['item_name'], 'ទឹកស្ករ') || $cat === 'Syrups') {
+                        $hasSugarInRecipe = true;
+                        $customMultiplier = $sweetnessFactor;
+                    } elseif (str_contains($iName, 'ice') || str_contains($row['item_name'], 'ទឹកកក') || $cat === 'Ice') {
+                        $hasIceInRecipe = true;
+                        $customMultiplier = $iceFactor;
+                    }
+
+                    $req = $baseQty * (float)$qty * (float)$size_factor * $customMultiplier;
+
+                    // If 0% sugar or No Ice, requirement is 0
+                    if ($req <= 0) {
+                        continue;
+                    }
+
+                    $after = max(0.0, $currentStock - $req);
 
                     $upd->bind_param("di", $req, $itemId);
                     $upd->execute();
 
                     $chg = -$req;
-                    $notes = "Order #{$order_id}: Used for Product #{$product_id} (x{$qty})";
+                    $notes = "Order #{$order_id}: Used for {$productName} (x{$qty})";
                     if (!empty($reference)) $notes .= " [{$reference}]";
+                    if ($customMultiplier !== 1.0) {
+                        $notes .= " (Custom: factor {$customMultiplier})";
+                    }
 
-                    $log->bind_param("iiidddsss", $itemId, $order_id, $product_id, $chg, $cur, $after, $cost, $notes, $perf);
+                    $log->bind_param("iiidddsss", $itemId, $order_id, $product_id, $chg, $currentStock, $after, $cost, $notes, $perf);
                     $log->execute();
 
-                    if ($after <= (float)$row['alert_level']) {
-                        $warnings[] = "Low stock on {$row['item_name']}: only {$after} {$row['unit']} left.";
+                    if ($after <= $alertLevel) {
+                        $warnings[] = "Low stock on {$itemName}: only {$after} {$unit} left.";
                     }
                 }
                 $stmt->close();
 
-                // 2. Direct Drink Fallback: If no recipe exists, check direct drink stock match by name
+                // Dynamic Fallback: Deduct Sugar Syrup if sweetness was selected and not in recipe
+                if (!$hasSugarInRecipe && $sweetness !== '' && $sweetnessFactor > 0) {
+                    $sugStmt = $conn->prepare("SELECT item_id, item_name, quantity, alert_level, cost_per_unit, unit FROM stock_items WHERE (item_name LIKE '%sugar%' OR item_name LIKE '%syrup%' OR item_name LIKE '%ទឹកស្ករ%' OR category = 'Syrups') AND is_active = 1 LIMIT 1");
+                    if ($sugStmt) {
+                        $sugStmt->execute();
+                        if ($sugRow = $sugStmt->get_result()->fetch_assoc()) {
+                            $sugId = (int)$sugRow['item_id'];
+                            $reqSug = 20.0 * $sweetnessFactor * (float)$qty * (float)$size_factor; // Base 20ml
+                            $curSug = (float)$sugRow['quantity'];
+                            $afterSug = max(0.0, $curSug - $reqSug);
+                            $costSug = (float)$sugRow['cost_per_unit'];
+
+                            $upd->bind_param("di", $reqSug, $sugId);
+                            $upd->execute();
+
+                            $chgSug = -$reqSug;
+                            $notesSug = "Order #{$order_id}: Custom Sugar ({$sweetness}) for {$productName} (x{$qty})";
+                            if (!empty($reference)) $notesSug .= " [{$reference}]";
+
+                            $log->bind_param("iiidddsss", $sugId, $order_id, $product_id, $chgSug, $curSug, $afterSug, $costSug, $notesSug, $perf);
+                            $log->execute();
+
+                            if ($afterSug <= (float)$sugRow['alert_level']) {
+                                $warnings[] = "Low stock on {$sugRow['item_name']}: only {$afterSug} {$sugRow['unit']} left.";
+                            }
+                        }
+                        $sugStmt->close();
+                    }
+                }
+
+                // Dynamic Fallback: Deduct Ice if ice was selected and not in recipe
+                if (!$hasIceInRecipe && $ice !== '' && $iceFactor > 0) {
+                    $iceStmt = $conn->prepare("SELECT item_id, item_name, quantity, alert_level, cost_per_unit, unit FROM stock_items WHERE (item_name LIKE '%ice%' OR item_name LIKE '%ទឹកកក%') AND is_active = 1 LIMIT 1");
+                    if ($iceStmt) {
+                        $iceStmt->execute();
+                        if ($iceRow = $iceStmt->get_result()->fetch_assoc()) {
+                            $iceId = (int)$iceRow['item_id'];
+                            $reqIce = 150.0 * $iceFactor * (float)$qty * (float)$size_factor; // Base 150g
+                            $curIce = (float)$iceRow['quantity'];
+                            $afterIce = max(0.0, $curIce - $reqIce);
+                            $costIce = (float)$iceRow['cost_per_unit'];
+
+                            $upd->bind_param("di", $reqIce, $iceId);
+                            $upd->execute();
+
+                            $chgIce = -$reqIce;
+                            $notesIce = "Order #{$order_id}: Custom Ice ({$ice}) for {$productName} (x{$qty})";
+                            if (!empty($reference)) $notesIce .= " [{$reference}]";
+
+                            $log->bind_param("iiidddsss", $iceId, $order_id, $product_id, $chgIce, $curIce, $afterIce, $costIce, $notesIce, $perf);
+                            $log->execute();
+
+                            if ($afterIce <= (float)$iceRow['alert_level']) {
+                                $warnings[] = "Low stock on {$iceRow['item_name']}: only {$afterIce} {$iceRow['unit']} left.";
+                            }
+                        }
+                        $iceStmt->close();
+                    }
+                }
+
+                // 4. Direct Drink Fallback: If no recipe exists, check direct drink stock match by name
                 if (!$hasBOM) {
                     $pStmt = $conn->prepare("SELECT name FROM products WHERE product_id = ?");
                     if ($pStmt) {

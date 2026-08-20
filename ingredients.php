@@ -9,8 +9,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lang.php';
 
 // Role check: Only Admin, Manager, and authorized staff can access stock management
-$_user_role = $_SESSION['role'] ?? 'staff';
-if (!in_array($_user_role, ['admin', 'manager', 'staff'], true)) {
+$_user_role = strtolower(trim($_SESSION['role'] ?? 'staff'));
+if (!in_array($_user_role, ['admin', 'manager', 'staff', 'cashier'], true)) {
     header("Location: dashboard.php?denied=1");
     exit;
 }
@@ -481,6 +481,96 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 'success'  => true,
                 'restocks' => $restocks,
                 'waste'    => $waste
+            ]);
+        }
+
+        // 8b. Fetch Detailed Ingredient Deduction & Movement History
+        if ($action === 'get_ingredient_history') {
+            $itemId = (int)($_GET['item_id'] ?? 0);
+            if ($itemId <= 0) {
+                sendJsonResponse(['success' => false, 'message' => 'Invalid ingredient ID.'], 400);
+            }
+
+            // Ensure stock_logs table exists
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS `stock_logs` (
+                    `log_id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `item_id` INT NOT NULL,
+                    `order_id` INT DEFAULT NULL,
+                    `product_id` INT DEFAULT NULL,
+                    `change_type` VARCHAR(50) NOT NULL DEFAULT 'sale_deduct',
+                    `quantity_changed` DECIMAL(12,4) NOT NULL,
+                    `stock_before` DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
+                    `stock_after` DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
+                    `cost_at_time` DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+                    `notes` TEXT DEFAULT NULL,
+                    `created_by` VARCHAR(100) DEFAULT NULL,
+                    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`item_id`),
+                    INDEX (`order_id`),
+                    INDEX (`product_id`),
+                    INDEX (`change_type`),
+                    INDEX (`created_at`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            } catch (Throwable $t) {}
+
+            $ingStmt = $pdo->prepare("SELECT * FROM stock_items WHERE item_id = ? AND is_active = 1 LIMIT 1");
+            $ingStmt->execute([$itemId]);
+            $ing = $ingStmt->fetch();
+
+            if (!$ing) {
+                sendJsonResponse(['success' => false, 'message' => 'Ingredient not found.'], 404);
+            }
+
+            $logStmt = $pdo->prepare("
+                SELECT 
+                    l.log_id,
+                    l.item_id,
+                    l.order_id,
+                    l.product_id,
+                    l.change_type,
+                    l.quantity_changed,
+                    l.stock_before,
+                    l.stock_after,
+                    l.cost_at_time,
+                    l.notes,
+                    l.created_by,
+                    l.created_at,
+                    p.name AS product_name,
+                    p.image AS product_image,
+                    o.total AS order_total,
+                    o.order_date
+                FROM stock_logs l
+                LEFT JOIN products p ON l.product_id = p.product_id
+                LEFT JOIN orders o ON l.order_id = o.order_id
+                WHERE l.item_id = ?
+                ORDER BY l.created_at DESC, l.log_id DESC
+                LIMIT 150
+            ");
+            $logStmt->execute([$itemId]);
+            $logs = $logStmt->fetchAll();
+
+            $totalDeducted = 0.0;
+            $totalRestocked = 0.0;
+            $orderCount = 0;
+
+            foreach ($logs as $lg) {
+                $chg = (float)$lg['quantity_changed'];
+                if ($chg < 0) {
+                    $totalDeducted += abs($chg);
+                    if (!empty($lg['order_id'])) $orderCount++;
+                } else {
+                    $totalRestocked += $chg;
+                }
+            }
+
+            sendJsonResponse([
+                'success'         => true,
+                'ingredient'      => $ing,
+                'logs'            => $logs,
+                'total_deducted'  => $totalDeducted,
+                'total_restocked' => $totalRestocked,
+                'total_orders'    => $orderCount
             ]);
         }
 
@@ -1766,6 +1856,241 @@ $categoriesList = [
         }
         .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
 
+        .hist-filter-tab {
+            background: #141418;
+            color: #8e8e9f;
+            border: 1px solid #252530;
+        }
+        .hist-filter-tab:hover {
+            background: #1f1f26;
+            color: #ffffff;
+        }
+        .hist-filter-tab.active {
+            background: rgba(209, 144, 75, 0.15);
+            color: #d1904b;
+            border-color: rgba(209, 144, 75, 0.35);
+        }
+        [data-theme="light"] .hist-filter-tab {
+            background: #f3f4f6;
+            color: #4b5563;
+            border-color: #e5e7eb;
+        }
+        [data-theme="light"] .hist-filter-tab:hover {
+            background: #e5e7eb;
+            color: #111827;
+        }
+        [data-theme="light"] .hist-filter-tab.active {
+            background: rgba(209, 144, 75, 0.12);
+            color: #b46d23;
+            border-color: rgba(209, 144, 75, 0.4);
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           INGREDIENT DEDUCTION HISTORY MODAL (LIGHT & DARK THEMES)
+        ══════════════════════════════════════════════════════════════ */
+        .hist-modal-content {
+            background-color: #18181c;
+            border: 1px solid #2b2b36;
+            color: #ffffff;
+        }
+        .hist-kpi-card {
+            background-color: #141418;
+            border: 1px solid #252530;
+        }
+        .hist-kpi-label {
+            color: #8e8e9f;
+        }
+        .hist-kpi-val {
+            color: #ffffff;
+        }
+        .hist-search-box {
+            background-color: #141418;
+            border: 1px solid #252530;
+            color: #ffffff;
+        }
+        .hist-search-box:focus {
+            border-color: #d1904b;
+        }
+        .hist-table-wrap {
+            background-color: #141418;
+            border: 1px solid #252530;
+        }
+        .hist-thead {
+            background-color: #141418;
+            color: #8e8e9f;
+            border-bottom: 1px solid #252530;
+        }
+        .hist-tbody {
+            background-color: #16161b;
+        }
+        .hist-row {
+            border-bottom: 1px solid #202028;
+            color: #d4d4d8;
+            transition: background-color 0.15s ease;
+        }
+        .hist-row:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+        .hist-row-date {
+            color: #ffffff;
+        }
+        .hist-row-time {
+            color: #7d7d8e;
+        }
+        .hist-row-prod {
+            color: #ffffff;
+        }
+        .hist-row-notes {
+            color: #b4b4c2;
+        }
+        .hist-row-staff {
+            color: #8e8e9f;
+        }
+        .hist-flow-pill {
+            background-color: #141418;
+            border: 1px solid #252530;
+            color: #ffffff;
+        }
+        .hist-btn-close {
+            background-color: #202026;
+            color: #ffffff;
+            border: 1px solid #2b2b36;
+        }
+        .hist-btn-close:hover {
+            background-color: #282832;
+        }
+
+        /* Light Mode Styling for Ingredient History Modal */
+        [data-theme="light"] #ingredientHistoryModal .hist-modal-content,
+        html[data-theme="light"] #ingredientHistoryModal .hist-modal-content {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .modal-header,
+        html[data-theme="light"] #ingredientHistoryModal .modal-header,
+        [data-theme="light"] #ingredientHistoryModal .modal-footer,
+        html[data-theme="light"] #ingredientHistoryModal .modal-footer {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .modal-title,
+        html[data-theme="light"] #ingredientHistoryModal .modal-title {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal #historyIngUnitBadge,
+        html[data-theme="light"] #ingredientHistoryModal #historyIngUnitBadge {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #475569 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-kpi-card,
+        html[data-theme="light"] #ingredientHistoryModal .hist-kpi-card {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-kpi-label,
+        html[data-theme="light"] #ingredientHistoryModal .hist-kpi-label {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal #historyKpiCurrentStock,
+        html[data-theme="light"] #ingredientHistoryModal #historyKpiCurrentStock {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal #historyKpiTotalDeducted,
+        html[data-theme="light"] #ingredientHistoryModal #historyKpiTotalDeducted {
+            color: #e11d48 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal #historyKpiTotalOrders,
+        html[data-theme="light"] #ingredientHistoryModal #historyKpiTotalOrders {
+            color: #d97706 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-search-box,
+        html[data-theme="light"] #ingredientHistoryModal .hist-search-box {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-search-box:focus,
+        html[data-theme="light"] #ingredientHistoryModal .hist-search-box:focus {
+            border-color: #d1904b !important;
+            background-color: #ffffff !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-table-wrap,
+        html[data-theme="light"] #ingredientHistoryModal .hist-table-wrap {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-thead,
+        html[data-theme="light"] #ingredientHistoryModal .hist-thead {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border-bottom-color: #e2e8f0 !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-tbody,
+        html[data-theme="light"] #ingredientHistoryModal .hist-tbody {
+            background-color: #ffffff !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row {
+            border-bottom-color: #f1f5f9 !important;
+            color: #1e293b !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row:hover,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row:hover {
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row-date,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row-date {
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row-time,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row-time {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row-prod,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row-prod {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row-notes,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row-notes {
+            color: #334155 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-row-staff,
+        html[data-theme="light"] #ingredientHistoryModal .hist-row-staff {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-flow-pill,
+        html[data-theme="light"] #ingredientHistoryModal .hist-flow-pill {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-flow-pill span:first-child,
+        html[data-theme="light"] #ingredientHistoryModal .hist-flow-pill span:first-child {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-flow-pill span:last-child,
+        html[data-theme="light"] #ingredientHistoryModal .hist-flow-pill span:last-child {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-btn-close,
+        html[data-theme="light"] #ingredientHistoryModal .hist-btn-close {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }
+        [data-theme="light"] #ingredientHistoryModal .hist-btn-close:hover,
+        html[data-theme="light"] #ingredientHistoryModal .hist-btn-close:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
         #toastContainer {
             position: fixed; top: 24px; right: 24px; z-index: 999999;
             display: flex; flex-direction: column; gap: 10px; pointer-events: none;
@@ -2042,6 +2367,13 @@ $categoriesList = [
                                         </button>
                                     <?php else: ?>
                                         <div class="flex items-center justify-end gap-1.5">
+                                            <!-- Deduction History -->
+                                            <button type="button" 
+                                                    onclick="openIngredientHistoryModal(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" 
+                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-sky-400 hover:bg-sky-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                                    title="<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក (Deduction History)') ?>">
+                                                <i class="fa-solid fa-clock-rotate-left w-4 text-center"></i>
+                                            </button>
                                             <!-- Edit -->
                                             <button type="button" 
                                                     onclick="openEditStockModal(<?= $item['item_id'] ?>)" 
@@ -2876,6 +3208,68 @@ $categoriesList = [
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL 7: INGREDIENT DEDUCTION & USAGE HISTORY
+    ══════════════════════════════════════════════════════════════ -->
+    <div id="ingredientHistoryModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
+        <div class="modal-content hist-modal-content max-w-3xl w-full p-5 sm:p-6 rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh]">
+            <!-- Header -->
+            <div class="modal-header flex items-center justify-between pb-3.5 mb-3.5 border-b border-[#252530]">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/30 flex items-center justify-center text-base font-bold shadow-sm">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 class="modal-title text-base font-bold flex items-center gap-2">
+                                <span><?= __('ingredient_history_title', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក') ?>:</span>
+                                <span id="historyIngTitleName" class="text-[#d1904b]">--</span>
+                            </h3>
+                            <span id="historyIngUnitBadge" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#202028] text-[#8e8e9f] border border-[#2b2b36]">--</span>
+                        </div>
+                        <p class="text-xs text-[#8e8e9f] card-subtext"><?= __('ingredient_history_sub', 'ពិនិត្យមើលរាល់ការកាត់ស្តុកតាម Order នីមួយៗ និងមុខភេសជ្ជៈដែលបានប្រើប្រាស់') ?></p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal('ingredientHistoryModal')" class="w-8 h-8 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-[#7d7d8e] hover:text-[var(--text-main,#ffffff)] flex items-center justify-center transition-all cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Instant Search Toolbar -->
+            <div class="pb-2.5 border-b border-[#252530]">
+                <div class="relative w-full">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8e8e9f]"></i>
+                    <input type="text" 
+                           id="historySearchInput" 
+                           placeholder="<?= __('search_orders_or_products', 'ស្វែងរកតាមលេខ Order ឬ ឈ្មោះភេសជ្ជៈ...') ?>" 
+                           oninput="handleHistorySearch(this.value)" 
+                           class="hist-search-box w-full pl-8 pr-3 py-2 rounded-xl text-xs focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Content Area (Scrollable Table) -->
+            <div class="overflow-y-auto flex-1 pr-1 mt-2.5 custom-modal-scroll" id="historyModalBody">
+                <div class="text-center py-10 text-[#8e8e9f]">
+                    <i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i>
+                    <p class="text-xs">Loading deduction history...</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer flex items-center justify-between pt-3 border-t border-[#252530] mt-3">
+                <div class="text-[11px] text-[#727282] flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-sky-400"></i>
+                    <span id="historyLogCountText">Showing recent movements</span>
+                </div>
+                <button type="button" 
+                        onclick="closeModal('ingredientHistoryModal')" 
+                        class="hist-btn-close px-5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer">
+                    <?= __('btn_close', 'Close') ?>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ── JavaScript Client Engine ── -->
     <script>
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -2891,6 +3285,17 @@ $categoriesList = [
             restock: "<?= __('btn_restock', 'Restock') ?>",
             edit: "<?= __('btn_edit', 'Edit') ?>",
             delete: "<?= __('btn_delete', 'Delete') ?>",
+            history: "<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក') ?>",
+            allLogs: "<?= __('filter_all_logs', 'ទាំងអស់') ?>",
+            saleDeduct: "<?= __('log_sale_deduct', 'កាត់តាមការលក់') ?>",
+            restockLog: "<?= __('log_restock', 'ថែមស្តុក') ?>",
+            wasteLog: "<?= __('log_waste', 'ខូចខាត') ?>",
+            orderNo: "<?= __('order_no', 'Order #') ?>",
+            product: "<?= __('product', 'ភេសជ្ជៈ / ទំនិញ') ?>",
+            qtyChange: "<?= __('qty_change', 'បរិមាណកាត់') ?>",
+            stockFlow: "<?= __('stock_flow', 'ស្តុកដើម → ស្តុកនៅសល់') ?>",
+            recordedBy: "<?= __('recorded_by', 'អ្នកកត់ត្រា') ?>",
+            noHistoryLogs: "<?= __('no_history_logs', 'មិនទាន់មានប្រវត្តិកាត់ស្តុកសម្រាប់គ្រឿងផ្សំនេះនៅឡើយទេ') ?>",
             logWaste: "<?= __('log_waste', 'Log Waste') ?>",
             addRawIngredient: "<?= __('add_raw_ingredient', 'Add Raw Ingredient') ?>",
             showingIngredients: "<?= __('showing_ingredients_count', 'Showing raw ingredients') ?>",
@@ -3204,6 +3609,12 @@ $categoriesList = [
                         </td>
                         <td class="py-3.5 px-4 text-right">
                             <div class="flex items-center justify-end gap-1.5">
+                                <button type="button" 
+                                        onclick="openIngredientHistoryModal(${item.item_id}, '${escapeHtml(item.item_name).replace(/'/g, "\\'")}')" 
+                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-sky-400 hover:bg-sky-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                        title="${escapeHtml(I18N.history || 'Deduction History')}">
+                                    <i class="fa-solid fa-clock-rotate-left w-4 text-center"></i>
+                                </button>
                                 <button type="button" 
                                         onclick="openEditStockModal(${item.item_id})" 
                                         class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
@@ -4378,6 +4789,175 @@ $categoriesList = [
                     btn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> <?= __('packaging_save_btn', 'Save Packaging Set Cost') ?>`;
                 }
             }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // ── INGREDIENT DEDUCTION & USAGE HISTORY CONTROLLER ──
+        // ══════════════════════════════════════════════════════════════
+        let currentHistoryData = {
+            ingredient: null,
+            logs: [],
+            total_deducted: 0,
+            total_restocked: 0,
+            total_orders: 0
+        };
+        let currentHistorySearch = '';
+
+        async function openIngredientHistoryModal(itemId, itemName) {
+            openModal('ingredientHistoryModal');
+            
+            // Set initial titles
+            const titleEl = document.getElementById('historyIngTitleName');
+            if (titleEl) titleEl.textContent = itemName || '--';
+            const badgeEl = document.getElementById('historyIngUnitBadge');
+            if (badgeEl) badgeEl.textContent = '...';
+            
+            // Reset search
+            currentHistorySearch = '';
+            const searchInput = document.getElementById('historySearchInput');
+            if (searchInput) searchInput.value = '';
+
+            const body = document.getElementById('historyModalBody');
+            if (body) {
+                body.innerHTML = `
+                    <div class="text-center py-12 text-[#8e8e9f]">
+                        <i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i>
+                        <p class="text-xs">Loading deduction logs for ${escapeHtml(itemName)}...</p>
+                    </div>
+                `;
+            }
+
+            try {
+                const res = await fetch(`ingredients.php?action=get_ingredient_history&item_id=${itemId}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    if (body) body.innerHTML = `<div class="text-center py-12 text-rose-400 text-xs"><i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i><p>${escapeHtml(data.message || 'Failed to load history.')}</p></div>`;
+                    return;
+                }
+
+                currentHistoryData = data;
+                const ing = data.ingredient || {};
+                const unit = ing.unit || '';
+
+                // Populate Header
+                if (titleEl) titleEl.textContent = ing.item_name || itemName;
+                if (badgeEl) badgeEl.textContent = unit ? `Unit: ${unit}` : '--';
+
+                renderIngredientHistoryLogs();
+            } catch (err) {
+                console.error(err);
+                if (body) body.innerHTML = `<div class="text-center py-12 text-rose-400 text-xs"><i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i><p>Server connection error.</p></div>`;
+            }
+        }
+
+        function handleHistorySearch(val) {
+            currentHistorySearch = (val || '').toLowerCase().trim();
+            renderIngredientHistoryLogs();
+        }
+
+        function renderIngredientHistoryLogs() {
+            const body = document.getElementById('historyModalBody');
+            const countText = document.getElementById('historyLogCountText');
+            if (!body) return;
+
+            const allLogs = currentHistoryData.logs || [];
+            const ing = currentHistoryData.ingredient || {};
+            const unit = ing.unit || '';
+
+            // Filter by Search Query
+            let filtered = allLogs;
+            if (currentHistorySearch) {
+                filtered = filtered.filter(l => {
+                    const orderStr = (l.order_id ? `order #${l.order_id}` : '').toLowerCase();
+                    const prodStr = (l.product_name || '').toLowerCase();
+                    const notesStr = (l.notes || '').toLowerCase();
+                    return orderStr.includes(currentHistorySearch) || 
+                           prodStr.includes(currentHistorySearch) || 
+                           notesStr.includes(currentHistorySearch);
+                });
+            }
+
+            if (countText) {
+                countText.textContent = `Showing ${filtered.length} of ${allLogs.length} logged entries`;
+            }
+
+            if (filtered.length === 0) {
+                body.innerHTML = `
+                    <div class="text-center py-12 text-[#7d7d8e]">
+                        <div class="w-12 h-12 rounded-2xl bg-[#1f1f26] text-[#7d7d8e] flex items-center justify-center text-xl mx-auto mb-3">
+                            <i class="fa-solid fa-receipt"></i>
+                        </div>
+                        <p class="text-xs font-semibold text-[#b4b4c2]">${escapeHtml(I18N.noHistoryLogs || 'No logs found')}</p>
+                        <p class="text-[11px] text-[#6e6e7e] mt-1">No matching log entries found for this filter.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="hist-table-wrap overflow-x-auto rounded-xl shadow-sm">
+                    <table class="w-full text-xs text-left">
+                        <thead class="hist-thead uppercase text-[10px] tracking-wider">
+                            <tr>
+                                <th class="py-3 px-4 w-40">${escapeHtml(I18N.date || 'Date & Time')}</th>
+                                <th class="py-3 px-4 w-32">#Order</th>
+                                <th class="py-3 px-4 font-semibold">${escapeHtml(I18N.product || 'Product Name')}</th>
+                                <th class="py-3 px-4 text-right w-36 font-semibold">${escapeHtml(I18N.qtyChange || 'Qty Deduct')}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="hist-tbody divide-y divide-inherit">
+            `;
+
+            filtered.forEach(log => {
+                const chg = parseFloat(log.quantity_changed) || 0;
+                const notes = log.notes || '';
+                const dateStr = log.created_at || '';
+                const prodName = log.product_name || (notes.match(/Used for (.*?)(?: \[|\(|$)/)?.[1] || (notes.match(/Direct Drink Sale for (.*?)(?: \(|$)/)?.[1] || 'Product'));
+
+                html += `
+                    <tr class="hist-row">
+                        <!-- 1. Date & Time -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <div class="hist-row-date text-xs font-bold">${escapeHtml(dateStr.split(' ')[0])}</div>
+                            <div class="hist-row-time text-[11px]">${escapeHtml(dateStr.split(' ')[1] || '')}</div>
+                        </td>
+
+                        <!-- 2. #Order -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            ${log.order_id ? `
+                                <a href="view_order.php?order_id=${log.order_id}" target="_blank" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-500 hover:bg-sky-500/20 font-bold font-mono text-xs transition-colors">
+                                    <span>Order #${log.order_id}</span>
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                                </a>
+                            ` : `<span class="text-[#8e8e9f] text-xs font-mono">--</span>`}
+                        </td>
+
+                        <!-- 3. Product Name -->
+                        <td class="py-3 px-4">
+                            <div class="hist-row-prod font-bold text-xs flex items-center gap-2">
+                                <i class="fa-solid fa-mug-hot text-[#d1904b] text-xs"></i>
+                                <span>${escapeHtml(prodName)}</span>
+                            </div>
+                        </td>
+
+                        <!-- 4. Qty Deduct -->
+                        <td class="py-3 px-4 text-right whitespace-nowrap">
+                            <span class="font-black font-mono text-xs ${chg < 0 ? 'text-rose-500' : 'text-emerald-500'}">
+                                ${chg < 0 ? '-' : '+'}${formatNumber(Math.abs(chg))} ${escapeHtml(unit)}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            body.innerHTML = html;
         }
 
         document.addEventListener('DOMContentLoaded', function() {
