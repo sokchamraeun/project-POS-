@@ -2881,6 +2881,10 @@ function showClockToast(msg, isErr) {
     </div>
 </div>
 
+<?php
+$_init_range = is_string($_GET['range'] ?? null) ? trim($_GET['range']) : 'all';
+if (!in_array($_init_range, ['all', 'today', 'week', 'month', 'year'], true)) { $_init_range = 'all'; }
+?>
 <!-- Search & Filter Controls (2 Column Grid on Mobile) -->
 <div class="search-bar vo-filter-controls">
     <div class="vo-filter-search-box">
@@ -2892,11 +2896,11 @@ function showClockToast(msg, isErr) {
         <!-- Date Dropdown (Mobile Select / Desktop Secondary) -->
         <div class="vo-date-select-mobile">
             <select id="voMobileDateSelect" class="vo-mobile-select" onchange="filterDateRange(this.value, null)">
-                <option value="all"><?= __('range_all', 'All Time') ?></option>
-                <option value="today"><?= __('range_today', 'Today') ?></option>
-                <option value="week"><?= __('range_this_week', 'This Week') ?></option>
-                <option value="month"><?= __('range_this_month', 'This Month') ?></option>
-                <option value="year"><?= __('range_this_year', 'This Year') ?></option>
+                <option value="all" <?= $_init_range === 'all' ? 'selected' : '' ?>><?= __('range_all', 'All Time') ?></option>
+                <option value="today" <?= $_init_range === 'today' ? 'selected' : '' ?>><?= __('range_today', 'Today') ?></option>
+                <option value="week" <?= $_init_range === 'week' ? 'selected' : '' ?>><?= __('range_this_week', 'This Week') ?></option>
+                <option value="month" <?= $_init_range === 'month' ? 'selected' : '' ?>><?= __('range_this_month', 'This Month') ?></option>
+                <option value="year" <?= $_init_range === 'year' ? 'selected' : '' ?>><?= __('range_this_year', 'This Year') ?></option>
             </select>
         </div>
 
@@ -2909,19 +2913,19 @@ function showClockToast(msg, isErr) {
 
 <!-- Desktop Quick Date Filter Pills (Hidden on Mobile) -->
 <div class="vo-date-pills-desktop" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
-    <button type="button" class="vo-date-pill active" onclick="filterDateRange('all', this)">
+    <button type="button" class="vo-date-pill <?= $_init_range === 'all' ? 'active' : '' ?>" onclick="filterDateRange('all', this)">
         <i class="fa-solid fa-layer-group"></i> <?= __('range_all', 'All Time') ?>
     </button>
-    <button type="button" class="vo-date-pill" onclick="filterDateRange('today', this)">
+    <button type="button" class="vo-date-pill <?= $_init_range === 'today' ? 'active' : '' ?>" onclick="filterDateRange('today', this)">
         <i class="fa-solid fa-calendar-day"></i> <?= __('range_today', 'Today') ?>
     </button>
-    <button type="button" class="vo-date-pill" onclick="filterDateRange('week', this)">
+    <button type="button" class="vo-date-pill <?= $_init_range === 'week' ? 'active' : '' ?>" onclick="filterDateRange('week', this)">
         <i class="fa-solid fa-calendar-week"></i> <?= __('range_this_week', 'This Week') ?>
     </button>
-    <button type="button" class="vo-date-pill" onclick="filterDateRange('month', this)">
+    <button type="button" class="vo-date-pill <?= $_init_range === 'month' ? 'active' : '' ?>" onclick="filterDateRange('month', this)">
         <i class="fa-solid fa-calendar-days"></i> <?= __('range_this_month', 'This Month') ?>
     </button>
-    <button type="button" class="vo-date-pill" onclick="filterDateRange('year', this)">
+    <button type="button" class="vo-date-pill <?= $_init_range === 'year' ? 'active' : '' ?>" onclick="filterDateRange('year', this)">
         <i class="fa-regular fa-calendar-check"></i> <?= __('range_this_year', 'This Year') ?>
     </button>
 </div>
@@ -3666,7 +3670,7 @@ function formatDateTime(dtStr) {
 }
 
 // ── Quick Date Range Filtering Logic ──
-let currentDateRange = 'all';
+let currentDateRange = <?= json_encode($_init_range ?? 'all') ?>;
 
 function isOrderInDateRange(o, range) {
     if (!range || range === 'all') return true;
@@ -3685,14 +3689,17 @@ function isOrderInDateRange(o, range) {
     const nowDate = now.getDate();
 
     if (range === 'today') {
-        return orderYear === nowYear && orderMonth === nowMonth && orderDate === nowDate;
+        const oDateStr = String(o.order_date).substring(0, 10);
+        const pad = n => String(n).padStart(2, '0');
+        const todayStr = `${nowYear}-${pad(nowMonth + 1)}-${pad(nowDate)}`;
+        return oDateStr === todayStr || (orderYear === nowYear && orderMonth === nowMonth && orderDate === nowDate);
     }
 
     if (range === 'week') {
-        const startOfWeek = new Date(nowYear, nowMonth, nowDate);
         const day = now.getDay();
-        const diffToMon = nowDate - day + (day === 0 ? -6 : 1);
-        startOfWeek.setDate(diffToMon);
+        const diffToMon = (day === 0 ? -6 : 1 - day);
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() + diffToMon);
         startOfWeek.setHours(0, 0, 0, 0);
 
         const endOfWeek = new Date(startOfWeek);
@@ -3732,15 +3739,26 @@ function updateCounts(orders) {
 }
 
 function filterDateRange(range, btn) {
-    currentDateRange = range;
+    currentDateRange = range || 'all';
 
+    // Sync mobile select
+    const mobSelect = document.getElementById('voMobileDateSelect');
+    if (mobSelect && mobSelect.value !== currentDateRange) {
+        mobSelect.value = currentDateRange;
+    }
+
+    // Sync desktop pills
     document.querySelectorAll('.vo-date-pill').forEach(b => b.classList.remove('active'));
     if (btn) {
         btn.classList.add('active');
+    } else {
+        const matchingBtn = Array.from(document.querySelectorAll('.vo-date-pill')).find(b => b.getAttribute('onclick')?.includes(`'${currentDateRange}'`));
+        if (matchingBtn) matchingBtn.classList.add('active');
     }
 
     renderTableView();
     applyFilters();
+    loadOrders();
 }
 
 // ── Teal Table View Renderer ──
@@ -4250,7 +4268,7 @@ function updateHeaderStats(data) { updateCounts(data); }
 // ── Load Orders ──
 async function loadOrders() {
     try {
-        const r = await fetch("view_order.php?action=fetch", { cache: "no-store" });
+        const r = await fetch("view_order.php?action=fetch&range=" + encodeURIComponent(currentDateRange), { cache: "no-store" });
         const raw = await r.json();
 
         // Support both old array format and new {orders, announcements} format
@@ -4261,13 +4279,16 @@ async function loadOrders() {
         const currentIds = new Set();
 
         if (data.length === 0) {
-            if (tbody.children.length === 0) {
+            if (currentViewMode === 'table' || currentViewMode === 'list') {
+                renderTableView();
+            } else if (tbody.children.length === 0) {
                 const empty = document.createElement("div");
                 empty.id = "ordersEmptyState";
                 empty.style.cssText = 'grid-column:1/-1;text-align:center;padding:70px 20px;color:var(--text-muted);';
                 empty.innerHTML = ordersEmptyHtml();
                 tbody.appendChild(empty);
             }
+            updateCounts([]);
             return;
         }
 
@@ -4278,34 +4299,36 @@ async function loadOrders() {
         // Update counts
         updateCounts(data);
 
-        data.forEach(o => {
-            const id = String(o.order_id);
-            currentIds.add(id);
+        if (currentViewMode === 'table' || currentViewMode === 'list') {
+            renderTableView();
+        } else {
+            data.forEach(o => {
+                const id = String(o.order_id);
+                currentIds.add(id);
 
-            if (known.has(id)) {
-                updateExistingRow(o);
-            } else {
-                known.add(id);
-                addRow(o);
-            }
-        });
-
-        // Remove rows that no longer exist
-        Array.from(known).forEach(id => {
-            if (!currentIds.has(id)) {
-                const row = document.getElementById("row-" + id);
-                if (row) {
-                    row.classList.add("fade-out");
-                    setTimeout(() => {
-                        row.remove();
-                        known.delete(id);
-                    }, 400);
+                if (known.has(id)) {
+                    updateExistingRow(o);
+                } else {
+                    known.add(id);
+                    addRow(o);
                 }
-            }
-        });
-        
-        // Apply filters after loading
-        applyFilters();
+            });
+
+            // Remove rows that no longer exist
+            Array.from(known).forEach(id => {
+                if (!currentIds.has(id)) {
+                    const row = document.getElementById("row-" + id);
+                    if (row) {
+                        row.classList.add("fade-out");
+                        setTimeout(() => {
+                            row.remove();
+                            known.delete(id);
+                        }, 400);
+                    }
+                }
+            });
+            applyFilters();
+        }
         updateBaristaStats();
     } catch (err) {
         console.error("Fetch failed:", err);

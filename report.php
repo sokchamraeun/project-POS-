@@ -43,8 +43,10 @@ if (!function_exists('deltaStr')) {
 ========================= */
 $mode = $_GET['mode'] ?? 'daily';
 $filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+$quickRange = trim($_GET['quick_range'] ?? '');
+$selectMonth = trim($_GET['select_month'] ?? '');
 
-if (isset($_GET['from_date']) || isset($_GET['to_date']) || isset($_GET['date_from']) || isset($_GET['date_to'])) {
+if (isset($_GET['from_date']) || isset($_GET['to_date']) || isset($_GET['date_from']) || isset($_GET['date_to']) || in_array($quickRange, ['week','this_week','month','this_month','year','this_year']) || !empty($selectMonth)) {
     $mode = 'range';
 }
 
@@ -62,8 +64,29 @@ if ($mode === 'monthly') {
     $label = $start->format("F Y");
 
 } elseif ($mode === 'range') {
-    $fromDate = $_GET['from_date'] ?? $_GET['date_from'] ?? business_date_today();
-    $toDate   = $_GET['to_date']   ?? $_GET['date_to']   ?? business_date_today();
+    $fromDate = $_GET['from_date'] ?? $_GET['date_from'] ?? null;
+    $toDate   = $_GET['to_date']   ?? $_GET['date_to']   ?? null;
+
+    if ($fromDate === null || $toDate === null) {
+        if ($quickRange === 'week' || $quickRange === 'this_week') {
+            $fromDate = date('Y-m-d', strtotime('monday this week'));
+            $toDate   = date('Y-m-d', strtotime('sunday this week'));
+        } elseif ($quickRange === 'month' || $quickRange === 'this_month') {
+            $fromDate = date('Y-m-01');
+            $toDate   = date('Y-m-t');
+        } elseif ($quickRange === 'year' || $quickRange === 'this_year') {
+            $fromDate = date('Y-01-01');
+            $toDate   = date('Y-12-31');
+        } elseif (!empty($selectMonth) && (int)$selectMonth >= 1 && (int)$selectMonth <= 12) {
+            $m_num    = sprintf('%02d', (int)$selectMonth);
+            $curr_yr  = date('Y');
+            $fromDate = "$curr_yr-$m_num-01";
+            $toDate   = date('Y-m-t', strtotime($fromDate));
+        } else {
+            $fromDate = business_date_today();
+            $toDate   = business_date_today();
+        }
+    }
     if ($fromDate > $toDate) [$fromDate, $toDate] = [$toDate, $fromDate];
 
     $start = new DateTime($fromDate . " 06:00:00");

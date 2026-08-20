@@ -217,6 +217,28 @@ foreach ($hour_slots as $slot) {
     $chart_hourly_sales[]  = $slot['sales'];
 }
 
+// ── BUILD REPORT LINKS ──
+$report_params = [];
+if ($_quick_range === 'today' && empty($_select_month)) {
+    $report_params = ['date' => $business_date];
+} else {
+    $report_params = [
+        'from_date'   => $date_start,
+        'to_date'     => $date_end,
+        'quick_range' => in_array($_quick_range, ['this_week', 'week'], true) ? 'week' : (in_array($_quick_range, ['this_month', 'month'], true) ? 'month' : (in_array($_quick_range, ['this_year', 'year'], true) ? 'year' : $_quick_range))
+    ];
+    if (!empty($_select_month)) {
+        $report_params['select_month'] = $_select_month;
+    }
+}
+if ($filter_user > 0) {
+    $report_params['user_id'] = $filter_user;
+}
+$daily_report_link   = 'daily_report.php?' . http_build_query($report_params);
+$product_report_link = 'report.php?' . http_build_query($report_params);
+$orders_range = in_array($_quick_range, ['this_week', 'week'], true) ? 'week' : (in_array($_quick_range, ['this_month', 'month'], true) ? 'month' : (in_array($_quick_range, ['this_year', 'year'], true) ? 'year' : ($_quick_range === 'today' ? 'today' : 'all')));
+$view_orders_link    = 'view_order.php?tab=all&range=' . urlencode($orders_range) . ($filter_user > 0 ? '&staff=mine' : '');
+
 // ── RETURN JSON ──
 header('Content-Type: application/json');
 echo json_encode([
@@ -227,6 +249,9 @@ echo json_encode([
     'cogs_today' => number_format($cogs_today, 2),
     'total_orders' => $total_orders,
     'items_sold' => $items_sold,
+    'daily_report_link' => $daily_report_link,
+    'product_report_link' => $product_report_link,
+    'view_orders_link' => $view_orders_link,
     'unpaid_count' => $unpaid_count,
     'low_stock' => $low_stock,
     'total_refunds' => number_format($total_refunds, 2),

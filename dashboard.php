@@ -1506,14 +1506,37 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         </div>
     </div>
 
-    <?php $user_param = $filter_user > 0 ? '&user_id=' . $filter_user : ''; ?>
+    <?php
+    $user_param = $filter_user > 0 ? '&user_id=' . $filter_user : '';
+
+    $report_params = [];
+    if ($_quick_range === 'today' && empty($_select_month)) {
+        $report_params = ['date' => $business_date];
+    } else {
+        $report_params = [
+            'from_date'   => $date_start,
+            'to_date'     => $date_end,
+            'quick_range' => in_array($_quick_range, ['this_week', 'week'], true) ? 'week' : (in_array($_quick_range, ['this_month', 'month'], true) ? 'month' : (in_array($_quick_range, ['this_year', 'year'], true) ? 'year' : $_quick_range))
+        ];
+        if (!empty($_select_month)) {
+            $report_params['select_month'] = $_select_month;
+        }
+    }
+    if ($filter_user > 0) {
+        $report_params['user_id'] = $filter_user;
+    }
+    $daily_report_link   = 'daily_report.php?' . http_build_query($report_params);
+    $product_report_link = 'report.php?' . http_build_query($report_params);
+    $orders_range = in_array($_quick_range, ['this_week', 'week'], true) ? 'week' : (in_array($_quick_range, ['this_month', 'month'], true) ? 'month' : (in_array($_quick_range, ['this_year', 'year'], true) ? 'year' : ($_quick_range === 'today' ? 'today' : 'all')));
+    $view_orders_link    = 'view_order.php?tab=all&range=' . urlencode($orders_range) . ($filter_user > 0 ? '&staff=mine' : '');
+    ?>
 
     <?php if ($_is_mgr): ?>
     <!-- KPI ROW -->
     <div class="kpi-row fu" style="animation-delay:.1s">
 
         <!-- Revenue Today -->
-        <a href="daily_report.php?date=<?= urlencode($business_date) ?><?= $user_param ?>" class="kpi-card c-amber" title="Open today's sales report">
+        <a id="kpiRevenueLink" href="<?= htmlspecialchars($daily_report_link) ?>" class="kpi-card c-amber" title="<?= __('view_report', 'View report') ?>">
             <i class="kpi-watermark fa-solid fa-dollar-sign"></i>
             <span class="kpi-drill"><?= __('view_report', 'View report') ?> <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label"><?= __('revenue_today', 'Revenue Today') ?></div>
@@ -1521,7 +1544,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         </a>
 
         <!-- Orders Today -->
-        <a href="view_order.php?tab=all" class="kpi-card c-blue" title="Open the order board">
+        <a id="kpiOrdersLink" href="<?= htmlspecialchars($view_orders_link) ?>" class="kpi-card c-blue" title="<?= __('view_orders', 'View orders') ?>">
             <i class="kpi-watermark fa-solid fa-receipt"></i>
             <span class="kpi-drill"><?= __('view_orders', 'View orders') ?> <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label"><?= __('orders_today', 'Orders Today') ?></div>
@@ -1533,7 +1556,7 @@ if (($_SESSION['role'] ?? '') === 'inventory_clerk') { $_bodyClasses[] = 'inv-mo
         </a>
 
         <!-- Items Sold -->
-        <a href="report.php?date=<?= urlencode($business_date) ?><?= $user_param ?>" class="kpi-card c-purple" title="Open the item breakdown">
+        <a id="kpiItemsLink" href="<?= htmlspecialchars($product_report_link) ?>" class="kpi-card c-purple" title="<?= __('view_items', 'View items') ?>">
             <i class="kpi-watermark fa-solid fa-mug-hot"></i>
             <span class="kpi-drill"><?= __('view_items', 'View items') ?> <i class="fa-solid fa-arrow-right"></i></span>
             <div class="kpi-label"><?= __('items_sold', 'Items Sold') ?></div>
@@ -2341,6 +2364,19 @@ function fetchDashboardData(){
             if(ord) ord.textContent=d.total_orders;
             if(itm && d.items_sold!==undefined) itm.textContent=d.items_sold;
             if(mgn && d.margin_today!==undefined) mgn.textContent=d.margin_today;
+
+            if (d.daily_report_link) {
+                const rLink = document.getElementById('kpiRevenueLink');
+                if (rLink) rLink.href = d.daily_report_link;
+            }
+            if (d.product_report_link) {
+                const iLink = document.getElementById('kpiItemsLink');
+                if (iLink) iLink.href = d.product_report_link;
+            }
+            if (d.view_orders_link) {
+                const oLink = document.getElementById('kpiOrdersLink');
+                if (oLink) oLink.href = d.view_orders_link;
+            }
 
             if (d.period_badge_label) {
                 document.querySelectorAll('.period-badge').forEach(el => {

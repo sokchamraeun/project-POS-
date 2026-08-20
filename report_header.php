@@ -862,8 +862,9 @@ html, body {
                 <select id="erQuickPeriodSelect" name="quick_range" class="er-select" onchange="applyQuickPreset(this.value)">
                     <option value=""><?= $_isKm_hdr ? '-- ជ្រើសរើស --' : '-- Quick Range --' ?></option>
                     <option value="today" <?= $_quick_range_val === 'today' ? 'selected' : '' ?>><?= $_isKm_hdr ? 'ថ្ងៃនេះ (Today)' : 'Today' ?></option>
-                    <option value="month" <?= $_quick_range_val === 'month' ? 'selected' : '' ?>><?= $_isKm_hdr ? 'ខែនេះ (This Month)' : 'This Month' ?></option>
-                    <option value="year" <?= $_quick_range_val === 'year' ? 'selected' : '' ?>><?= $_isKm_hdr ? 'ឆ្នាំនេះ (This Year)' : 'This Year' ?></option>
+                    <option value="week" <?= ($_quick_range_val === 'week' || $_quick_range_val === 'this_week') ? 'selected' : '' ?>><?= $_isKm_hdr ? 'សប្ដាហ៍នេះ (This Week)' : 'This Week' ?></option>
+                    <option value="month" <?= ($_quick_range_val === 'month' || $_quick_range_val === 'this_month') ? 'selected' : '' ?>><?= $_isKm_hdr ? 'ខែនេះ (This Month)' : 'This Month' ?></option>
+                    <option value="year" <?= ($_quick_range_val === 'year' || $_quick_range_val === 'this_year') ? 'selected' : '' ?>><?= $_isKm_hdr ? 'ឆ្នាំនេះ (This Year)' : 'This Year' ?></option>
                 </select>
             </div>
 
@@ -1042,10 +1043,21 @@ function applyQuickPreset(period) {
     if (period === 'today') {
         fromStr = todayStr;
         toStr = todayStr;
-    } else if (period === 'month') {
+    } else if (period === 'week' || period === 'this_week') {
+        const day = today.getDay();
+        const diffToMon = (day === 0 ? -6 : 1 - day);
+        const monDate = new Date(today);
+        monDate.setDate(today.getDate() + diffToMon);
+        const sunDate = new Date(monDate);
+        sunDate.setDate(monDate.getDate() + 6);
+
+        const pad = (n) => String(n).padStart(2, '0');
+        fromStr = `${monDate.getFullYear()}-${pad(monDate.getMonth() + 1)}-${pad(monDate.getDate())}`;
+        toStr = `${sunDate.getFullYear()}-${pad(sunDate.getMonth() + 1)}-${pad(sunDate.getDate())}`;
+    } else if (period === 'month' || period === 'this_month') {
         fromStr = `${yyyy}-${mm}-01`;
         toStr = todayStr;
-    } else if (period === 'year') {
+    } else if (period === 'year' || period === 'this_year') {
         fromStr = `${yyyy}-01-01`;
         toStr = todayStr;
     }
@@ -1091,8 +1103,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (quickSelect && !quickSelect.value) {
+                const day = today.getDay();
+                const diffToMon = (day === 0 ? -6 : 1 - day);
+                const monDate = new Date(today);
+                monDate.setDate(today.getDate() + diffToMon);
+                const sunDate = new Date(monDate);
+                sunDate.setDate(monDate.getDate() + 6);
+                const pad = (n) => String(n).padStart(2, '0');
+                const monStr = `${monDate.getFullYear()}-${pad(monDate.getMonth() + 1)}-${pad(monDate.getDate())}`;
+                const sunStr = `${sunDate.getFullYear()}-${pad(sunDate.getMonth() + 1)}-${pad(sunDate.getDate())}`;
+
                 if (fVal === todayStr && (tVal === todayStr || !tVal)) {
                     quickSelect.value = 'today';
+                } else if (fVal === monStr && (tVal === sunStr || tVal === todayStr)) {
+                    quickSelect.value = 'week';
                 } else if (fVal === `${yyyy}-${mm}-01`) {
                     quickSelect.value = 'month';
                 } else if (fVal === `${yyyy}-01-01`) {

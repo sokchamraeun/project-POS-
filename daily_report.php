@@ -14,6 +14,31 @@ if (!$dateOk || $date > $today) { $date = $today; }
 
 $dateFrom = is_string($_GET['from_date'] ?? $_GET['date_from'] ?? null) ? trim($_GET['from_date'] ?? $_GET['date_from']) : '';
 $dateTo   = is_string($_GET['to_date']   ?? $_GET['date_to']   ?? null) ? trim($_GET['to_date']   ?? $_GET['date_to'])   : '';
+$quickRangeParam = is_string($_GET['quick_range'] ?? null) ? trim($_GET['quick_range']) : '';
+$selectMonthParam = is_string($_GET['select_month'] ?? null) ? trim($_GET['select_month']) : '';
+
+if ($dateFrom === '' || $dateTo === '') {
+    if ($quickRangeParam === 'this_week' || $quickRangeParam === 'week') {
+        $dateFrom = date('Y-m-d', strtotime('monday this week'));
+        $dateTo   = date('Y-m-d', strtotime('sunday this week'));
+    } elseif ($quickRangeParam === 'this_month' || $quickRangeParam === 'month') {
+        $dateFrom = date('Y-m-01');
+        $dateTo   = date('Y-m-t');
+    } elseif ($quickRangeParam === 'this_year' || $quickRangeParam === 'year') {
+        $dateFrom = date('Y-01-01');
+        $dateTo   = date('Y-12-31');
+    } elseif ($quickRangeParam === 'today') {
+        $dateFrom = $today;
+        $dateTo   = $today;
+        $date     = $today;
+    } elseif (!empty($selectMonthParam) && (int)$selectMonthParam >= 1 && (int)$selectMonthParam <= 12) {
+        $m_num    = sprintf('%02d', (int)$selectMonthParam);
+        $curr_yr  = date('Y');
+        $dateFrom = "$curr_yr-$m_num-01";
+        $dateTo   = date('Y-m-t', strtotime($dateFrom));
+    }
+}
+
 $_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 $filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
 if (!$_is_mgr) {
