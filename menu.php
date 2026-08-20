@@ -152,12 +152,12 @@ $stock_sql_base = "SELECT
     p.*,
     COUNT(r.recipe_id) AS recipe_count,
     MIN(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND r.quantity_required > 0 THEN FLOOR(s.quantity / r.quantity_required) ELSE NULL END) AS max_servings,
-    SUM(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock_ingredients,
-    SUM(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity > 0 AND s.quantity <= s.alert_level THEN 1 ELSE 0 END) AS low_stock_ingredients,
-    GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity <= 0 THEN s.item_name ELSE NULL END SEPARATOR ', ') AS missing_ingredients,
-    GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity > 0 AND s.quantity <= s.alert_level THEN s.item_name ELSE NULL END SEPARATOR ', ') AS low_ingredients
+    SUM(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND (s.quantity < r.quantity_required OR s.quantity <= 0) THEN 1 ELSE 0 END) AS out_of_stock_ingredients,
+    SUM(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity >= r.quantity_required AND s.quantity <= s.alert_level THEN 1 ELSE 0 END) AS low_stock_ingredients,
+    GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND (s.quantity < r.quantity_required OR s.quantity <= 0) THEN s.item_name ELSE NULL END SEPARATOR ', ') AS missing_ingredients,
+    GROUP_CONCAT(CASE WHEN s.item_id IS NOT NULL AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging') AND s.quantity >= r.quantity_required AND s.quantity <= s.alert_level THEN s.item_name ELSE NULL END SEPARATOR ', ') AS low_ingredients
 FROM products p
-JOIN product_recipes r ON p.product_id = r.product_id
+LEFT JOIN product_recipes r ON p.product_id = r.product_id
 LEFT JOIN stock_items s ON r.item_id = s.item_id AND s.is_active = 1
 WHERE p.is_available = 1";
 
@@ -182,11 +182,26 @@ while ($_cat_row = $_cat_res->fetch_assoc()) {
     $catIcons[$_cat_row['slug']]   = $_cat_row['icon'];
 }
 
-$products = []; $flat_products = [];
+$products = []; $flat_products = []; $productsById = [];
+$live_stock_statuses = evaluate_products_stock($conn, $_SESSION['cart'] ?? []);
 
 while ($row = mysqli_fetch_assoc($result)) {
+    $pId = (int)$row['product_id'];
+    if (isset($live_stock_statuses[$pId])) {
+        $st = $live_stock_statuses[$pId];
+        $row['live_status'] = $st['status'];
+        $row['live_reason'] = $st['reason'];
+        $row['live_max_servings'] = $st['max_servings'];
+        $row['is_out'] = ($st['status'] === 'out_of_stock');
+    } else {
+        $row['is_out'] = ((int)($row['is_available'] ?? 1) === 0);
+        $row['live_reason'] = '';
+        $row['live_status'] = $row['is_out'] ? 'out_of_stock' : 'in_stock';
+        $row['live_max_servings'] = null;
+    }
     $products[$row['category']][] = $row;
     $flat_products[] = $row;
+    $productsById[$pId] = $row;
 }
 
 /* ── SIZES PER PRODUCT (removed) ── */
@@ -1542,24 +1557,27 @@ $defaultMilk = 'Fresh Milk';
           </div>
           <div class="product-grid">
             <?php foreach ($flat_products as $p): 
-              $isOut = ((int)($p['is_available'] ?? 1) === 0) || ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0);
-              $isLow = !$isOut && ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['low_stock_ingredients'] ?? 0) > 0);
-              $outReason = !empty($p['missing_ingredients']) ? 'Out of ' . $p['missing_ingredients'] : 'Out of Stock';
-              $servingsLeft = isset($p['max_servings']) && $p['max_servings'] !== null ? (int)$p['max_servings'] : null;
+              $isOut = !empty($p['is_out']) || ($p['live_status'] ?? '') === 'out_of_stock';
+              $isLow = !$isOut && (($p['live_status'] ?? '') === 'low_stock');
+              $outReason = !empty($p['live_reason']) ? $p['live_reason'] : (!empty($p['missing_ingredients']) ? 'Out of ' . $p['missing_ingredients'] : 'Out of Stock');
+              $servingsLeft = isset($p['live_max_servings']) ? $p['live_max_servings'] : (isset($p['max_servings']) ? (int)$p['max_servings'] : null);
             ?>
             <?php if ($isOut): ?>
               <div class="product-card disabled out-of-stock-card relative cursor-not-allowed opacity-60 grayscale-[35%]"
                    data-product-id="<?= (int)$p['product_id'] ?>"
+                   data-product-name="<?= e($p['name']) ?>"
                    data-stock-status="out_of_stock"
-                   onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is currently out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
+                   onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
                    title="<?= e($outReason) ?>">
                 <div class="card-img relative">
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
-                  <div class="out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20">
-                    <span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1">
-                      <i class="fa-solid fa-circle-xmark"></i> Out of Stock
+                  <div class="out-of-stock-overlay absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl z-20">
+                    <span class="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10.5px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1.5">
+                      <i class="fa-solid fa-circle-xmark text-xs"></i> <?= $isKm ? 'អស់ស្តុក' : 'Out of Stock' ?>
                     </span>
-                    <span class="text-[9px] text-rose-200 mt-1 font-semibold line-clamp-1 px-1"><?= e($outReason) ?></span>
+                    <span class="text-[10px] text-rose-200 mt-2 font-medium px-1.5 py-0.5 rounded bg-black/40 border border-rose-500/30 line-clamp-2 max-w-full leading-tight">
+                      <i class="fa-solid fa-triangle-exclamation text-[9px] text-rose-400 mr-1"></i><?= e($outReason) ?>
+                    </span>
                   </div>
                 </div>
                 <div class="card-info">
@@ -1593,11 +1611,7 @@ $defaultMilk = 'Fresh Milk';
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="img-overlay"></div>
-                  <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
-                  <button class="quick-add-btn" onclick="event.stopPropagation(); openModalFromCard(this.closest('.product-card'));" title="Choose size"><i class="fa-solid fa-plus"></i></button>
-                  <?php else: ?>
-                  <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Quick add"><i class="fa-solid fa-plus"></i></button>
-                  <?php endif; ?>
+                  <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Add to cart"><i class="fa-solid fa-plus"></i></button>
                 </div>
                 <div class="card-info">
                   <div class="card-name"><?= e($p['name']) ?></div>
@@ -1626,30 +1640,33 @@ $defaultMilk = 'Fresh Milk';
               </div>
               <div class="cat-title-text">
                 <h2><?= e($label) ?></h2>
-                <?php $_in_stock = count(array_filter($products[$key], fn($p) => ((int)($p['is_available'] ?? 1) === 1) && !((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0))); ?>
+                <?php $_in_stock = count(array_filter($products[$key], fn($p) => empty($p['is_out']) && (($p['live_status'] ?? '') !== 'out_of_stock'))); ?>
                 <span><?= $_in_stock ?> <?= $_in_stock !== 1 ? __('item_plural', 'items') : __('item_single', 'item') ?></span>
               </div>
             </div>
             <div class="product-grid">
             <?php foreach ($products[$key] as $p): 
-              $isOut = ((int)($p['is_available'] ?? 1) === 0) || ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0);
-              $isLow = !$isOut && ((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['low_stock_ingredients'] ?? 0) > 0);
-              $outReason = !empty($p['missing_ingredients']) ? 'Out of ' . $p['missing_ingredients'] : 'Out of Stock';
-              $servingsLeft = isset($p['max_servings']) && $p['max_servings'] !== null ? (int)$p['max_servings'] : null;
+              $isOut = !empty($p['is_out']) || ($p['live_status'] ?? '') === 'out_of_stock';
+              $isLow = !$isOut && (($p['live_status'] ?? '') === 'low_stock');
+              $outReason = !empty($p['live_reason']) ? $p['live_reason'] : (!empty($p['missing_ingredients']) ? 'Out of ' . $p['missing_ingredients'] : 'Out of Stock');
+              $servingsLeft = isset($p['live_max_servings']) ? $p['live_max_servings'] : (isset($p['max_servings']) ? (int)$p['max_servings'] : null);
             ?>
               <?php if ($isOut): ?>
               <div class="product-card disabled out-of-stock-card relative cursor-not-allowed opacity-60 grayscale-[35%]"
                    data-product-id="<?= (int)$p['product_id'] ?>"
+                   data-product-name="<?= e($p['name']) ?>"
                    data-stock-status="out_of_stock"
-                   onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is currently out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
+                   onclick="event.stopPropagation(); showToast('<?= addslashes(htmlspecialchars($p['name'])) ?> is out of stock (<?= addslashes(htmlspecialchars($outReason)) ?>)', 'warning');"
                    title="<?= e($outReason) ?>">
                 <div class="card-img relative">
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
-                  <div class="out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20">
-                    <span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1">
-                      <i class="fa-solid fa-circle-xmark"></i> Out of Stock
+                  <div class="out-of-stock-overlay absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl z-20">
+                    <span class="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10.5px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1.5">
+                      <i class="fa-solid fa-circle-xmark text-xs"></i> <?= $isKm ? 'អស់ស្តុក' : 'Out of Stock' ?>
                     </span>
-                    <span class="text-[9px] text-rose-200 mt-1 font-semibold line-clamp-1 px-1"><?= e($outReason) ?></span>
+                    <span class="text-[10px] text-rose-200 mt-2 font-medium px-1.5 py-0.5 rounded bg-black/40 border border-rose-500/30 line-clamp-2 max-w-full leading-tight">
+                      <i class="fa-solid fa-triangle-exclamation text-[9px] text-rose-400 mr-1"></i><?= e($outReason) ?>
+                    </span>
                   </div>
                 </div>
                 <div class="card-info">
@@ -1683,11 +1700,7 @@ $defaultMilk = 'Fresh Milk';
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="img-overlay"></div>
-                  <?php if ((int)($p['has_sizes'] ?? 0) === 1): ?>
-                  <button class="quick-add-btn" onclick="event.stopPropagation(); openModalFromCard(this.closest('.product-card'));" title="Choose size"><i class="fa-solid fa-plus"></i></button>
-                  <?php else: ?>
-                  <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Quick add"><i class="fa-solid fa-plus"></i></button>
-                  <?php endif; ?>
+                  <button class="quick-add-btn" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Add to cart"><i class="fa-solid fa-plus"></i></button>
                 </div>
                 <div class="card-info">
                   <div class="card-name"><?= e($p['name']) ?></div>
@@ -1759,6 +1772,19 @@ $defaultMilk = 'Fresh Milk';
         <?php foreach ($cart as $i => $item):
           $qty  = (int)($item['qty'] ?? 1);
           $line = (float)($item['price'] ?? 0) * $qty;
+          $pId  = (int)($item['product_id'] ?? 0);
+          $pData = $productsById[$pId] ?? null;
+          $canCustomize = false;
+          if (isset($item['has_customization'])) {
+              $canCustomize = ((int)$item['has_customization'] === 1);
+          } elseif ($pData) {
+              $catKey = $pData['category'] ?? '';
+              $catOpt = $categoryOpts[$catKey] ?? $categoryOpts[strtolower($catKey)] ?? null;
+              $hasSizes = (int)($pData['has_sizes'] ?? 0) === 1;
+              $canCustomize = $hasSizes || ($catOpt ? ((int)($catOpt['sweet'] ?? 0) === 1 || (int)($catOpt['ice'] ?? 0) === 1) : false);
+          } else {
+              $canCustomize = !empty($item['sweetness']) || !empty($item['ice']) || !empty($item['size_label']);
+          }
           $meta = array_filter([
             !empty($item['size_label']) ? 'Size: '.$item['size_label']  : '',
             !empty($item['sweetness'])  ? 'Sweet: '.$item['sweetness']  : '',
@@ -1766,9 +1792,14 @@ $defaultMilk = 'Fresh Milk';
             !empty($item['milk'])       ? 'Milk: '.$item['milk']        : '',
           ]);
         ?>
-        <div class="cp-item" id="cp-item-<?= $i ?>" data-product-id="<?= (int)($item['product_id'] ?? 0) ?>" data-cart-index="<?= $i ?>">
+        <div class="cp-item" id="cp-item-<?= $i ?>" data-product-id="<?= $pId ?>" data-cart-index="<?= $i ?>" data-can-customize="<?= $canCustomize ? '1' : '0' ?>">
+          <?php if ($canCustomize): ?>
           <img src="<?= e($item['image'] ?? '') ?>" alt="<?= e($item['product_name'] ?? '') ?>" class="js-cart-item-open" onclick="openCartItemEditModal(<?= $i ?>)" style="cursor:pointer;" title="<?= __('click_to_customize', 'Click to customize') ?>" onerror="this.onerror=null; this.src='images/logo.png';">
           <div class="cp-item-info js-cart-item-open" onclick="openCartItemEditModal(<?= $i ?>)" style="cursor:pointer;" title="<?= __('click_to_customize', 'Click to customize') ?>">
+          <?php else: ?>
+          <img src="<?= e($item['image'] ?? '') ?>" alt="<?= e($item['product_name'] ?? '') ?>" style="cursor:default;" onerror="this.onerror=null; this.src='images/logo.png';">
+          <div class="cp-item-info" style="cursor:default;">
+          <?php endif; ?>
             <div class="cp-item-name"><?= e($item['product_name'] ?? '') ?></div>
             <?php if ($meta): ?><div class="cp-item-meta"><?= e(implode(' • ', $meta)) ?></div><?php endif; ?>
             <?php if (!empty($item['addons'])): ?><div class="cp-item-meta"><?= e(implode(', ', array_map(fn($a) => $a['name'], $item['addons']))) ?></div><?php endif; ?>
@@ -2384,7 +2415,29 @@ function setModalEditMode(isEdit) {
   }
 }
 
+function itemCanCustomize(item) {
+  if (!item) return false;
+  if (item.has_customization !== undefined && item.has_customization !== null) {
+    return (item.has_customization === 1 || item.has_customization === '1' || item.has_customization === true);
+  }
+  var pId = item.product_id;
+  var card = pId ? document.querySelector('.product-card[data-product-id="' + pId + '"], .seller-card[data-product-id="' + pId + '"]') : null;
+  if (card) {
+    if (card.dataset.hasCustomization === '1') return true;
+    if (card.dataset.hasCustomization === '0') return false;
+    var cat = card.dataset.productCategory || '';
+    var co = (typeof CATEGORY_OPTS !== 'undefined' && CATEGORY_OPTS[cat]) ? CATEGORY_OPTS[cat] : null;
+    return card.dataset.productHasSizes === '1' || (co ? (Boolean(co.sweet) || Boolean(co.ice)) : false);
+  }
+  return Boolean(item.sweetness || item.ice || item.size_label);
+}
+
 function openCartItemEditModal(cartIndex) {
+  var row = document.getElementById('cp-item-' + cartIndex);
+  if (row && row.dataset.canCustomize === '0') {
+    return;
+  }
+
   var item = null;
   if (window.currentCartItems && window.currentCartItems[cartIndex]) {
     item = window.currentCartItems[cartIndex];
@@ -2392,12 +2445,26 @@ function openCartItemEditModal(cartIndex) {
   if (!item && window.currentCartItems && Array.isArray(window.currentCartItems)) {
     item = window.currentCartItems.find(function(it) { return Number(it.index) === Number(cartIndex); });
   }
+
+  if (item && !itemCanCustomize(item)) {
+    return;
+  }
+
   if (!item) {
-    var row = document.getElementById('cp-item-' + cartIndex);
     if (row && row.dataset.productId) {
       var matchingCard = document.querySelector('.product-card[data-product-id="' + row.dataset.productId + '"], .seller-card[data-product-id="' + row.dataset.productId + '"]');
       if (matchingCard) {
-        openModalFromCard(matchingCard);
+        if (matchingCard.dataset.hasCustomization === '0') {
+          return;
+        }
+        var pId = matchingCard.dataset.productId;
+        var name = matchingCard.dataset.productName || '';
+        var price = Number(matchingCard.dataset.productPrice || 0);
+        var img = matchingCard.dataset.productImage || 'images/logo.png';
+        var promoPct = parseInt(matchingCard.dataset.productPromo || 0, 10);
+        var maxStock = matchingCard.dataset.maxServings ? parseInt(matchingCard.dataset.maxServings, 10) : 100;
+        var cat = matchingCard.dataset.productCategory || '';
+        openModal(pId, name, price, img, cat, '', matchingCard.dataset.productBadge || '', matchingCard.dataset.productHasSizes === '1', [], [], promoPct, maxStock);
         editingCartIndex = Number(cartIndex);
         setModalEditMode(true);
         return;
@@ -2525,43 +2592,21 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
   document.body.style.overflow = 'hidden';
 }
 
-// Open the product modal using a card's data-product-* attributes, or auto-add to cart if no customization is needed
+// Open the product directly to cart from card click
 function openModalFromCard(card) {
   if (!card) return;
   if (card.dataset.stockStatus === 'out_of_stock' || card.classList.contains('disabled') || card.classList.contains('out-of-stock-card')) {
-    showToast((card.dataset.productName || 'This item') + ' is currently out of stock.', 'warning');
+    var outReason = card.getAttribute('title') || (window.CPM_IS_KM ? 'អស់ស្តុក' : 'Out of stock');
+    showToast((card.dataset.productName || 'This item') + ' is currently out of stock (' + outReason + ').', 'warning');
     return;
   }
 
-  // Check if product needs customization (ice, sugar, sizes)
-  var cat = card.dataset.productCategory || '';
-  var co = (typeof CATEGORY_OPTS !== 'undefined') ? (CATEGORY_OPTS[cat] || CATEGORY_OPTS[cat.toLowerCase()] || null) : null;
-  var hasSizes = card.dataset.productHasSizes === '1';
-  var hasCustomFlag = card.dataset.hasCustomization;
-  var needsCustomization = hasCustomFlag === '1' || (hasCustomFlag !== '0' && (hasSizes || (co ? (Boolean(co.sweet) || Boolean(co.ice)) : false)));
+  // Card micro-press feedback animation
+  card.classList.add('card-quick-pressed');
+  setTimeout(function() { card.classList.remove('card-quick-pressed'); }, 200);
 
-  if (!needsCustomization || hasCustomFlag === '0') {
-    // Card micro-press feedback animation
-    card.classList.add('card-quick-pressed');
-    setTimeout(function() { card.classList.remove('card-quick-pressed'); }, 200);
-
-    // Auto add directly to cart!
-    quickAdd(card.dataset.productId, Number(card.dataset.productPrice || 0));
-    return;
-  }
-
-  var sizes = [], addons = [];
-  try { sizes = JSON.parse(card.dataset.productSizes || '[]'); } catch (e) { sizes = []; }
-  try { addons = JSON.parse(card.dataset.productAddons || '[]'); } catch (e) { addons = []; }
-  
-  var m = document.getElementById('product-modal') || document.getElementById('modal');
-  if (m) {
-    m.dataset.currentProductId = card.dataset.productId;
-    m.dataset.maxServings = card.dataset.maxServings || '';
-  }
-
-  var maxStock = (card.dataset.maxServings !== '' && card.dataset.maxServings !== undefined) ? parseInt(card.dataset.maxServings, 10) : null;
-  openModal(card.dataset.productId, card.dataset.productName||'', Number(card.dataset.productPrice||0), card.dataset.productImage||'', card.dataset.productCategory||'', card.dataset.productDesc||'', card.dataset.productBadge||'', card.dataset.productHasSizes==='1', sizes, addons, Number(card.dataset.productPromo||0), maxStock);
+  // Auto add directly to cart!
+  quickAdd(card.dataset.productId, Number(card.dataset.productPrice || 0));
 }
 
 function closeModal() {
@@ -2674,14 +2719,15 @@ function updateProductCardStockState(card, info) {
 
     if (existingLowBadge) existingLowBadge.remove();
 
+    card.setAttribute('title', reason || 'Out of stock');
     if (!existingOverlay && cardImg) {
       var overlay = document.createElement('div');
-      overlay.className = 'out-of-stock-overlay absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-2 rounded-2xl z-20 transition-opacity duration-300';
-      overlay.innerHTML = '<span class="px-2.5 py-1 rounded-full bg-rose-600/90 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1"><i class="fa-solid fa-circle-xmark"></i> Out of Stock</span><span class="text-[9px] text-rose-200 mt-1 font-semibold line-clamp-1 px-1">' + escH(reason || 'Out of ingredients') + '</span>';
+      overlay.className = 'out-of-stock-overlay absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl z-20 transition-opacity duration-300';
+      overlay.innerHTML = '<span class="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10.5px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1.5"><i class="fa-solid fa-circle-xmark text-xs"></i> ' + (window.CPM_IS_KM ? 'អស់ស្តុក' : 'Out of Stock') + '</span><span class="text-[10px] text-rose-200 mt-2 font-medium px-1.5 py-0.5 rounded bg-black/40 border border-rose-500/30 line-clamp-2 max-w-full leading-tight"><i class="fa-solid fa-triangle-exclamation text-[9px] text-rose-400 mr-1"></i>' + escH(reason || 'Out of ingredients') + '</span>';
       cardImg.appendChild(overlay);
     } else if (existingOverlay) {
       var reasonSpan = existingOverlay.querySelector('span:nth-child(2)');
-      if (reasonSpan) reasonSpan.textContent = reason || 'Out of ingredients';
+      if (reasonSpan) reasonSpan.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[9px] text-rose-400 mr-1"></i>' + escH(reason || 'Out of ingredients');
     }
 
     if (quickBtn) quickBtn.style.display = 'none';
@@ -2824,7 +2870,8 @@ function addToCart() {
 function quickAdd(productId, price) {
   var card = document.querySelector('.product-card[data-product-id="' + productId + '"]');
   if (card && (card.dataset.stockStatus === 'out_of_stock' || card.classList.contains('disabled'))) {
-    showToast((card.dataset.productName || 'This item') + ' is currently out of stock.', 'warning');
+    var outReason = card.getAttribute('title') || (window.CPM_IS_KM ? 'អស់ស្តុក' : 'Out of stock');
+    showToast((card.dataset.productName || 'This item') + ' is currently out of stock (' + outReason + ').', 'warning');
     return;
   }
   var prodName = card ? (card.dataset.productName || '') : '';
@@ -2855,7 +2902,10 @@ function quickAdd(productId, price) {
 function loadCartPanel() {
   fetch('cart_refresh.php?_t=' + Date.now(), { cache: 'no-store' })
     .then(function(r) { return r.json(); })
-    .then(function(data) { if (data) renderCartPanel(data); })
+    .then(function(data) { 
+      if (data) renderCartPanel(data); 
+      pollProductStockStatuses();
+    })
     .catch(function(err) { console.error('cart_refresh error:', err); });
 }
 window.loadCartPanel = loadCartPanel;
@@ -2923,9 +2973,14 @@ function renderCartPanel(data) {
         (item.promo_percent > 0 ? '<span style="color:#e74c3c;font-size:9px;font-weight:700;margin-left:4px;">' + item.promo_percent + '% OFF</span>' : '');
     }
 
-    itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '" data-cart-index="' + item.index + '">' +
-      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '" class="js-cart-item-open" onclick="openCartItemEditModal(' + item.index + ')" style="cursor:pointer;" title="Click to customize" onerror="this.onerror=null; this.src=\'images/logo.png\';">' +
-      '<div class="cp-item-info js-cart-item-open" onclick="openCartItemEditModal(' + item.index + ')" style="cursor:pointer;" title="Click to customize">' +
+    var canCustomize = itemCanCustomize(item);
+    var clickAttr = canCustomize
+      ? ' class="js-cart-item-open" onclick="openCartItemEditModal(' + item.index + ')" style="cursor:pointer;" title="' + (window.CPM_IS_KM ? 'ចុចដើម្បីកែប្រែ' : 'Click to customize') + '"'
+      : ' style="cursor:default;"';
+
+    itemsHtml += '<div class="cp-item" id="cp-item-' + item.index + '" data-product-id="' + (item.product_id || '') + '" data-cart-index="' + item.index + '" data-can-customize="' + (canCustomize ? '1' : '0') + '">' +
+      '<img src="' + escH(item.image) + '" alt="' + escH(item.product_name) + '"' + clickAttr + ' onerror="this.onerror=null; this.src=\'images/logo.png\';">' +
+      '<div class="cp-item-info"' + clickAttr + '>' +
         '<div class="cp-item-name">' + escH(item.product_name) + '</div>' +
         (meta ? '<div class="cp-item-meta">' + escH(meta) + '</div>' : '') +
         (item.addons && item.addons.length

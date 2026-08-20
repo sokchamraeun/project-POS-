@@ -55,7 +55,7 @@ if ($milk !== '' && !in_array($milk, $valid_milk)) {
 }
 
 // Fetch product
-$stmt = $conn->prepare("SELECT p.product_id, p.name, p.price, p.image, p.has_sizes, p.promo_percent, COALESCE(c.earns_points,1) AS earns_points FROM products p LEFT JOIN categories c ON c.category_id = p.category_id WHERE p.product_id = ?");
+$stmt = $conn->prepare("SELECT p.product_id, p.name, p.price, p.image, p.has_sizes, p.promo_percent, p.category, COALESCE(c.earns_points,1) AS earns_points, COALESCE(c.offer_sweetness,0) AS offer_sweetness, COALESCE(c.offer_ice,0) AS offer_ice FROM products p LEFT JOIN categories c ON (c.category_id = p.category_id OR c.slug = p.category OR c.name = p.category) WHERE p.product_id = ?");
 $stmt->bind_param("i", $product_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -65,6 +65,8 @@ if (!$res || $res->num_rows === 0) {
 }
 
 $p = $res->fetch_assoc();
+$has_sizes = (int)($p['has_sizes'] ?? 0);
+$has_custom = ($has_sizes === 1 || (int)($p['offer_sweetness'] ?? 0) === 1 || (int)($p['offer_ice'] ?? 0) === 1) ? 1 : 0;
 
 // ── Stock Check: Validate inventory ingredients ──
 try {
@@ -150,21 +152,24 @@ unset($item);
 while ($remaining_qty > 0) {
     $line_qty = min(100, $remaining_qty);
     $_SESSION['cart'][] = [
-        'product_id'   => $p['product_id'],
-        'product_name' => $p['name'],
-        'price'        => $line_price,
-        'orig_price'   => $orig_price,
-        'promo_percent'=> $promo_percent,
-        'earns_points' => $earns_points,
-        'image'        => $p['image'],
-        'size_code'    => $resolved_code,
-        'size_label'   => $size_label,
-        'size_factor'  => $size_factor,
-        'sweetness'    => $sweetness,
-        'ice'          => $ice,
-        'milk'         => $milk,
-        'addons'       => $addons,
-        'qty'          => $line_qty,
+        'product_id'        => $p['product_id'],
+        'product_name'      => $p['name'],
+        'category'          => $p['category'] ?? '',
+        'has_sizes'         => $has_sizes,
+        'has_customization' => $has_custom,
+        'price'             => $line_price,
+        'orig_price'        => $orig_price,
+        'promo_percent'     => $promo_percent,
+        'earns_points'      => $earns_points,
+        'image'             => $p['image'],
+        'size_code'         => $resolved_code,
+        'size_label'        => $size_label,
+        'size_factor'       => $size_factor,
+        'sweetness'         => $sweetness,
+        'ice'               => $ice,
+        'milk'              => $milk,
+        'addons'            => $addons,
+        'qty'               => $line_qty,
     ];
     $remaining_qty -= $line_qty;
 }
