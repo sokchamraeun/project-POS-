@@ -45,6 +45,97 @@ if (($_GET['action'] ?? '') === 'view') {
     exit;
 }
 
+// Edit Product Modal data endpoint
+if (($_GET['action'] ?? '') === 'get_edit_data') {
+    header('Content-Type: application/json');
+    $id = (int)($_GET['id'] ?? 0);
+    if ($id <= 0) { echo json_encode(['ok' => false, 'error' => 'Invalid product ID']); exit; }
+
+    $s = $conn->prepare("SELECT * FROM products WHERE product_id = ?");
+    $s->bind_param('i', $id);
+    $s->execute();
+    $p = $s->get_result()->fetch_assoc();
+    if (!$p) { echo json_encode(['ok' => false, 'error' => 'Product not found']); exit; }
+
+    // Fetch existing recipe items
+    $recStmt = $conn->prepare("
+        SELECT r.item_id, r.quantity_required, r.unit, s.item_name, s.cost_per_unit, s.category, s.item_type
+        FROM product_recipes r
+        JOIN stock_items s ON r.item_id = s.item_id
+        WHERE r.product_id = ?
+        ORDER BY r.recipe_id ASC
+    ");
+    $recStmt->bind_param('i', $id);
+    $recStmt->execute();
+    $recRes = $recStmt->get_result();
+    $recipes = [];
+    while ($r = $recRes->fetch_assoc()) {
+        $recipes[] = [
+            'item_id'           => (int)$r['item_id'],
+            'item_name'         => $r['item_name'],
+            'quantity_required' => (float)$r['quantity_required'],
+            'unit'              => $r['unit'] ?? 'unit',
+            'cost_per_unit'     => (float)($r['cost_per_unit'] ?? 0),
+            'category'          => $r['category'] ?? '',
+            'item_type'         => $r['item_type'] ?? ''
+        ];
+    }
+    $recStmt->close();
+
+    // Fetch all active stock items for ingredient dropdown
+    $allStock = [];
+    $stockRes = $conn->query("
+        SELECT item_id, item_name, category, item_type, unit, cost_per_unit, quantity
+        FROM stock_items
+        WHERE is_active = 1
+        ORDER BY category ASC, item_name ASC
+    ");
+    if ($stockRes) {
+        while ($si = $stockRes->fetch_assoc()) {
+            $allStock[] = [
+                'item_id'       => (int)$si['item_id'],
+                'item_name'     => $si['item_name'],
+                'category'      => $si['category'] ?? '',
+                'item_type'     => $si['item_type'] ?? '',
+                'unit'          => $si['unit'] ?? 'unit',
+                'cost_per_unit' => (float)($si['cost_per_unit'] ?? 0)
+            ];
+        }
+    }
+
+    // Categories
+    $allCategories = [];
+    $catRes = $conn->query("SELECT slug, name FROM categories WHERE is_active = 1 ORDER BY display_order ASC");
+    if ($catRes) {
+        while ($c = $catRes->fetch_assoc()) {
+            $allCategories[] = [
+                'slug' => $c['slug'],
+                'name' => $c['name'] ?: $c['slug']
+            ];
+        }
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'product' => [
+            'id'           => (int)$p['product_id'],
+            'name'         => $p['name'],
+            'description'  => $p['description'] ?? '',
+            'price'        => (float)$p['price'],
+            'cost_price'   => (float)($p['cost_price'] ?? 0),
+            'category'     => $p['category'] ?? '',
+            'image'        => get_image_url($p['image'] ?? '', 'uploads/no-image.png'),
+            'is_available' => (int)($p['is_available'] ?? 1),
+            'badge_text'   => $p['badge_text'] ?? '',
+            'promo_percent'=> (int)($p['promo_percent'] ?? 0)
+        ],
+        'recipes'        => $recipes,
+        'stock_items'    => $allStock,
+        'categories'     => $allCategories
+    ]);
+    exit;
+}
+
 $result = $conn->query("
     SELECT p.*, 
            COUNT(r.recipe_id) AS recipe_count 
@@ -508,20 +599,23 @@ body {
     position: relative;
     top: 0;
     z-index: 40;
-    background: #0e0e10;
+    background: transparent;
     margin-top: 0;
     padding-top: 0;
-    padding-bottom: 6px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+[data-theme="light"] .products-sticky-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* ========== STATS BAR (ORDER PAGE STYLE) ========== */
+/* ========== STATS BAR (MODERN GLASS CARDS) ========== */
 .stats-bar {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 14px;
+    margin-bottom: 14px;
     width: 100%;
 }
 @media (max-width: 1024px) {
@@ -536,17 +630,17 @@ body {
         gap: 6px !important;
     }
     .stat-card {
-        padding: 8px 8px !important;
+        padding: 8px 10px !important;
         gap: 8px !important;
-        min-height: 54px !important;
-        border-radius: 11px !important;
+        min-height: 56px !important;
+        border-radius: 12px !important;
     }
     .stat-card .stat-icon {
-        width: 30px !important;
-        height: 30px !important;
-        min-width: 30px !important;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
         font-size: 13px !important;
-        border-radius: 8px !important;
+        border-radius: 9px !important;
     }
     .stat-card .stat-label {
         font-size: 8.5px !important;
@@ -558,123 +652,151 @@ body {
     .stat-card .stat-sub {
         display: none !important;
     }
-    .stat-card .avail-progress-wrap {
-        display: none !important;
-    }
-    .stat-card.top-cat {
-        display: none !important; /* Hide secondary 4th card on mobile so 3 main cards stay in 1 single row */
-    }
 }
 
 .stat-card {
-    background: rgba(255, 255, 255, 0.03);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 12px 16px;
+    border-radius: 16px;
+    padding: 14px 18px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 14px;
-    min-height: 76px;
+    gap: 16px;
+    min-height: 82px;
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     position: relative;
     overflow: hidden;
+}
+
+[data-theme="light"] .stat-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .stat-card:hover {
     transform: translateY(-3px);
     border-color: rgba(209, 144, 75, 0.4);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(209, 144, 75, 0.1);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.stat-card.active {
-    border-color: var(--accent, #d1904b);
-    background: rgba(209, 144, 75, 0.12);
-    box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+[data-theme="light"] .stat-card:hover {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* TOTAL (Indigo / Violet) */
+.stat-card.total .stat-icon {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.stat-card.total:hover {
+    border-color: #8b5cf6;
+    box-shadow: 0 10px 28px rgba(139, 92, 246, 0.2);
 }
 .stat-card.total.active {
-    border-color: #a78bfa;
-    background: rgba(139, 92, 246, 0.14);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.12);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.45), 0 8px 28px rgba(139, 92, 246, 0.2);
+}
+[data-theme="light"] .stat-card.total.active {
+    background: #f5f3ff;
+}
+
+/* ACTIVE (Emerald / Teal) */
+.stat-card.avail .stat-icon {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.stat-card.avail:hover {
+    border-color: #10b981;
+    box-shadow: 0 10px 28px rgba(16, 185, 129, 0.2);
 }
 .stat-card.avail.active {
-    border-color: #34d399;
-    background: rgba(16, 185, 129, 0.14);
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.45), 0 8px 28px rgba(16, 185, 129, 0.2);
+}
+[data-theme="light"] .stat-card.avail.active {
+    background: #ecfdf5;
+}
+
+/* INACTIVE (Rose / Crimson) */
+.stat-card.unavail .stat-icon {
+    background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.stat-card.unavail:hover {
+    border-color: #f43f5e;
+    box-shadow: 0 10px 28px rgba(244, 63, 94, 0.2);
 }
 .stat-card.unavail.active {
-    border-color: #f87171;
-    background: rgba(239, 68, 68, 0.14);
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+    border-color: #f43f5e;
+    background: rgba(244, 63, 94, 0.12);
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.45), 0 8px 28px rgba(244, 63, 94, 0.2);
 }
-.stat-card.top-cat.active {
-    border-color: #fbbf24;
-    background: rgba(245, 158, 11, 0.14);
-    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+[data-theme="light"] .stat-card.unavail.active {
+    background: #fff1f2;
 }
 
 .stat-card .stat-icon {
     width: 48px;
     height: 48px;
-    border-radius: 13px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 21px;
+    font-size: 19px;
     flex-shrink: 0;
-    transition: transform 0.25s ease;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .stat-card:hover .stat-icon {
-    transform: scale(1.08);
-}
-
-.stat-card.total .stat-icon {
-    background: rgba(139, 92, 246, 0.22);
-    color: #a78bfa;
-    border: 1px solid rgba(139, 92, 246, 0.4);
-}
-.stat-card.avail .stat-icon {
-    background: rgba(16, 185, 129, 0.22);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.4);
-}
-.stat-card.unavail .stat-icon {
-    background: rgba(239, 68, 68, 0.22);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.4);
-}
-.stat-card.top-cat .stat-icon {
-    background: rgba(245, 158, 11, 0.22);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.4);
+    transform: scale(1.08) rotate(3deg);
 }
 
 .stat-card .stat-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .stat-card .stat-label {
     font-size: 11px;
-    color: var(--text-muted);
+    color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: 700;
     white-space: nowrap;
 }
+[data-theme="light"] .stat-card .stat-label {
+    color: #64748b;
+}
+
 .stat-card .stat-value {
     font-size: 26px;
     font-weight: 800;
-    color: var(--text);
-    line-height: 1.2;
+    color: var(--text, #f8fafc);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
 }
+.stat-card.total .stat-value    { color: #818cf8; }
+[data-theme="light"] .stat-card.total .stat-value { color: #4f46e5; }
 .stat-card.avail .stat-value    { color: #34d399; }
-.stat-card.unavail .stat-value  { color: #f87171; }
+[data-theme="light"] .stat-card.avail .stat-value { color: #059669; }
+.stat-card.unavail .stat-value  { color: #fb7185; }
+[data-theme="light"] .stat-card.unavail .stat-value { color: #e11d48; }
+
 .stat-card .stat-sub {
     font-size: 11.5px;
-    color: var(--text-muted);
+    color: var(--text-muted, #888);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1038,6 +1160,42 @@ select.cat-filter-select option {
     background: rgba(0,0,0,0.2) !important;
     color: #ffffff !important;
 }
+[data-theme="light"] .search-box input {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .search-box input:focus {
+    background: #ffffff;
+    border-color: var(--accent, #d1904b);
+    box-shadow: 0 0 0 3px rgba(209, 144, 75, 0.2);
+}
+[data-theme="light"] select.cat-filter-select {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] select.cat-filter-select option {
+    background: #ffffff;
+    color: #1e293b;
+}
+[data-theme="light"] .view-mode-toggle {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+}
+[data-theme="light"] .view-btn {
+    color: #64748b;
+}
+[data-theme="light"] .view-btn:hover {
+    color: #0f172a;
+    background: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .view-btn.active {
+    background: var(--accent, #d1904b);
+    color: #ffffff;
+}
 
 /* Add Product Button */
 .btn-add-product {
@@ -1098,11 +1256,54 @@ select.cat-filter-select option {
     color: var(--text-muted);
 }
 
-/* ========== PRODUCT GRID ========== */
+/* ========== PRODUCT GRID (7 COLUMNS & FULLY RESPONSIVE) ========== */
 .product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+}
+
+@media (min-width: 1380px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+}
+@media (max-width: 1379px) and (min-width: 1180px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+}
+@media (max-width: 1179px) and (min-width: 980px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+}
+@media (max-width: 979px) and (min-width: 780px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+}
+@media (max-width: 779px) and (min-width: 580px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+}
+@media (max-width: 579px) and (min-width: 360px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+}
+@media (max-width: 359px) {
+    .product-grid:not(.list-view) {
+        grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
 }
 
 /* Scroll Container for Product List */
@@ -1544,36 +1745,37 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 .overlay-btn.delete-btn:hover { background: var(--danger); color: #fff; }
 
 /* ── Content ── */
-.product-card .content { padding: 14px 16px 16px; }
+.product-card .content { padding: 8px 10px 10px 10px; }
 
 .product-card .content .top-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
+    justify-content: flex-start;
+    margin-bottom: 4px;
 }
 .product-card .content .category-badge {
     display: inline-block;
-    padding: 3px 9px;
+    padding: 1.5px 6px;
     border-radius: 50px;
     background: rgba(209,144,75,0.1);
     color: var(--accent);
     border: 1px solid rgba(209,144,75,0.2);
-    font-size: 10px;
+    font-size: 8.5px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     transition: var(--transition);
 }
 .product-card:hover .content .category-badge { background: var(--accent); color: #000; border-color: var(--accent); }
 
-.product-card .content .product-id { color: var(--text-muted); font-size: 10px; }
+.product-card .content .product-id { display: none !important; }
 
 .product-card .content h3 {
     color: var(--text);
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
     margin-bottom: 2px;
+    line-height: 1.25;
     transition: var(--transition);
     white-space: nowrap;
     overflow: hidden;
@@ -1588,36 +1790,37 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 /* Inline price edit */
 .price {
     color: var(--accent);
-    font-size: 21px;
+    font-size: 15px;
     font-weight: 700;
     display: inline-block;
-    margin-top: 8px;
-    letter-spacing: -0.5px;
+    margin-top: 0;
+    letter-spacing: -0.3px;
     cursor: default;
     border-radius: 6px;
-    padding: 1px 4px;
-    margin-left: -4px;
+    padding: 1px 2px;
+    margin-left: 0;
     transition: background 0.2s;
+    line-height: 1.2;
 }
 .price:hover { background: rgba(209,144,75,0.1); }
 .price.editable-hint::after {
     content: ' ✎';
-    font-size: 12px;
+    font-size: 10px;
     opacity: 0.5;
     vertical-align: middle;
 }
 .price-input-inline {
     color: var(--accent);
-    font-size: 21px;
+    font-size: 15px;
     font-weight: 700;
     font-family: 'Poppins', sans-serif;
     background: rgba(209,144,75,0.08);
     border: 2px solid var(--accent);
-    border-radius: 8px;
-    padding: 2px 8px;
+    border-radius: 6px;
+    padding: 1px 5px;
     outline: none;
-    width: 110px;
-    margin-top: 8px;
+    width: 75px;
+    margin-top: 0;
     display: inline-block;
 }
 
@@ -1625,38 +1828,38 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 .badge {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 10px;
+    gap: 4px;
+    padding: 2px 8px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     white-space: nowrap;
-    margin-left: 6px;
+    margin-left: 4px;
 }
 .badge-danger { background: rgba(255,107,107,0.1); color: var(--danger); border: 1px solid rgba(255,107,107,0.25); }
 
 /* ── Actions ── */
 .product-card .content .actions {
     display: flex;
-    gap: 6px;
-    margin-top: 10px;
+    align-items: center;
+    gap: 2.5px;
+    margin-top: 0;
 }
 .product-card .content .actions .btn-action {
-    flex: 1;
-    padding: 6px 8px;
-    border-radius: 8px;
+    padding: 3.5px 5px;
+    border-radius: 5px;
     border: 1px solid var(--border);
     background: transparent;
     color: var(--text-muted);
     text-decoration: none;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     text-align: center;
     transition: var(--transition);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 2.5px;
     cursor: pointer;
     font-family: 'Poppins', sans-serif;
 }
@@ -2355,6 +2558,567 @@ body.select-mode .no-recipe-badge {
         border-radius: 8px !important;
     }
 }
+
+/* ========== EDIT PRODUCT MODAL (MATCHING SCREENSHOT 2) ========== */
+.ep-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ep-modal-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ep-modal-dialog {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 20px;
+    max-width: 1060px;
+    width: 100%;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    transform: scale(0.96) translateY(10px);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ep-modal-backdrop.active .ep-modal-dialog {
+    transform: scale(1) translateY(0);
+}
+[data-theme="dark"] .ep-modal-dialog,
+html:not([data-theme="light"]) .ep-modal-dialog {
+    background: #18181c;
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+}
+
+/* Modal Header */
+.ep-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid #f0eee9;
+}
+[data-theme="dark"] .ep-modal-header,
+html:not([data-theme="light"]) .ep-modal-header {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.ep-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.ep-header-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(209, 144, 75, 0.12);
+    border: 1px solid rgba(209, 144, 75, 0.25);
+    color: #d1904b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+}
+.ep-header-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1c1917;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+[data-theme="dark"] .ep-header-title,
+html:not([data-theme="light"]) .ep-header-title {
+    color: #f5f5f5;
+}
+.ep-header-title span {
+    color: #d1904b;
+}
+
+.ep-header-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: #1e293b;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+.ep-header-close:hover {
+    background: #334155;
+    transform: scale(1.05);
+}
+
+/* Modal Body */
+.ep-modal-body {
+    padding: 20px 22px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+}
+
+.ep-grid-3col {
+    display: grid;
+    grid-template-columns: 210px 240px 1fr;
+    gap: 16px;
+    align-items: stretch;
+}
+
+@media (max-width: 991px) {
+    .ep-grid-3col {
+        grid-template-columns: 1fr 1fr;
+    }
+    .ep-col-recipe {
+        grid-column: 1 / -1;
+    }
+}
+@media (max-width: 640px) {
+    .ep-grid-3col {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Card Boxes */
+.ep-card-box {
+    border: 1px solid #e7e5e4;
+    border-radius: 14px;
+    padding: 14px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+[data-theme="dark"] .ep-card-box,
+html:not([data-theme="light"]) .ep-card-box {
+    background: #202024;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.ep-section-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #292524;
+    margin-bottom: 2px;
+}
+[data-theme="dark"] .ep-section-hdr,
+html:not([data-theme="light"]) .ep-section-hdr {
+    color: #f5f5f5;
+}
+.ep-section-hdr i {
+    color: #d1904b;
+    margin-right: 6px;
+}
+
+/* Image Preview */
+.ep-img-preview-wrap {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    background: #faf8f5;
+    border: 1.5px dashed #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+[data-theme="dark"] .ep-img-preview-wrap,
+html:not([data-theme="light"]) .ep-img-preview-wrap {
+    background: #141416;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+.ep-img-preview-wrap:hover {
+    border-color: #d1904b;
+    background: #fdfaf6;
+}
+.ep-img-preview-wrap img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    transition: transform 0.2s ease;
+}
+.ep-img-preview-wrap:hover img {
+    transform: scale(1.04);
+}
+.ep-img-subtext {
+    font-size: 11px;
+    color: #888888;
+    text-align: center;
+    line-height: 1.35;
+}
+
+/* Form inputs */
+.ep-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.ep-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #78716c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+[data-theme="dark"] .ep-label,
+html:not([data-theme="light"]) .ep-label {
+    color: #a1a1aa;
+}
+
+.ep-input, .ep-select {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 9px;
+    border: 1px solid #e7e5e4;
+    background: #f5f5f4;
+    color: #1c1917;
+    font-family: 'Poppins', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    outline: none;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+[data-theme="dark"] .ep-input,
+[data-theme="dark"] .ep-select,
+html:not([data-theme="light"]) .ep-input,
+html:not([data-theme="light"]) .ep-select {
+    background: #141416;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #f5f5f5;
+}
+.ep-input:focus, .ep-select:focus {
+    border-color: #d1904b;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(209, 144, 75, 0.2);
+}
+[data-theme="dark"] .ep-input:focus,
+[data-theme="dark"] .ep-select:focus,
+html:not([data-theme="light"]) .ep-input:focus,
+html:not([data-theme="light"]) .ep-select:focus {
+    background: #1a1a1e;
+}
+
+.ep-price-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.ep-price-wrap .ep-dollar {
+    position: absolute;
+    left: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #78716c;
+}
+.ep-price-wrap .ep-input {
+    padding-left: 26px;
+    font-weight: 700;
+}
+
+/* Status switch */
+.ep-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 9px;
+    background: #f5f5f4;
+    border: 1px solid #e7e5e4;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #292524;
+}
+[data-theme="dark"] .ep-status-row,
+html:not([data-theme="light"]) .ep-status-row {
+    background: #141416;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #f5f5f5;
+}
+
+.ep-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 22px;
+}
+.ep-switch input { opacity: 0; width: 0; height: 0; }
+.ep-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #cbd5e1;
+    transition: .3s;
+    border-radius: 22px;
+}
+.ep-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+input:checked + .ep-slider { background-color: #10b981; }
+input:checked + .ep-slider:before { transform: translateX(16px); }
+
+/* Recipe Header Buttons */
+.ep-hdr-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ep-hdr-btn {
+    padding: 4px 10px;
+    border-radius: 7px;
+    border: 1px dashed rgba(209, 144, 75, 0.6);
+    background: rgba(209, 144, 75, 0.08);
+    color: #b45309;
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.ep-hdr-btn:hover {
+    background: rgba(209, 144, 75, 0.18);
+    border-color: #d1904b;
+    transform: translateY(-1px);
+}
+[data-theme="dark"] .ep-hdr-btn,
+html:not([data-theme="light"]) .ep-hdr-btn {
+    color: #f59e0b;
+}
+
+/* Recipe Table */
+.ep-recipe-table {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.ep-table-header {
+    display: grid;
+    grid-template-columns: 2.2fr 1.3fr 1.2fr 1fr 28px;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #f5f5f4;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #78716c;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+[data-theme="dark"] .ep-table-header,
+html:not([data-theme="light"]) .ep-table-header {
+    background: #141416;
+    color: #a1a1aa;
+}
+
+.ep-recipe-row {
+    display: grid;
+    grid-template-columns: 2.2fr 1.3fr 1.2fr 1fr 28px;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: #fafaf9;
+    border: 1px solid #f0eee9;
+    transition: all 0.2s ease;
+}
+[data-theme="dark"] .ep-recipe-row,
+html:not([data-theme="light"]) .ep-recipe-row {
+    background: #1a1a1e;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+.ep-recipe-row:hover {
+    border-color: rgba(209, 144, 75, 0.3);
+}
+
+.ep-row-qty-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e7e5e4;
+    border-radius: 7px;
+    background: #ffffff;
+    overflow: hidden;
+    height: 32px;
+}
+[data-theme="dark"] .ep-row-qty-wrap,
+html:not([data-theme="light"]) .ep-row-qty-wrap {
+    background: #141416;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.ep-row-qty-input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    padding: 0 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    color: inherit;
+    outline: none;
+}
+.ep-row-unit-badge {
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #78716c;
+    background: #f5f5f4;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    border-left: 1px solid #e7e5e4;
+    white-space: nowrap;
+}
+[data-theme="dark"] .ep-row-unit-badge,
+html:not([data-theme="light"]) .ep-row-unit-badge {
+    background: #202024;
+    border-left-color: rgba(255, 255, 255, 0.1);
+    color: #a1a1aa;
+}
+
+.ep-row-unit-cost {
+    font-size: 11px;
+    color: #78716c;
+    font-weight: 500;
+    text-align: center;
+}
+[data-theme="dark"] .ep-row-unit-cost,
+html:not([data-theme="light"]) .ep-row-unit-cost {
+    color: #a1a1aa;
+}
+
+.ep-row-total-cost {
+    font-size: 12px;
+    font-weight: 700;
+    color: #10b981;
+    text-align: right;
+}
+
+.ep-row-del-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #a8a29e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+.ep-row-del-btn:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
+/* Summary Box */
+.ep-summary-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f5f5f4;
+    border: 1px solid #e7e5e4;
+    text-align: center;
+    margin-top: auto;
+}
+[data-theme="dark"] .ep-summary-box,
+html:not([data-theme="light"]) .ep-summary-box {
+    background: #141416;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.ep-summary-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #78716c;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+}
+[data-theme="dark"] .ep-summary-label,
+html:not([data-theme="light"]) .ep-summary-label {
+    color: #a1a1aa;
+}
+.ep-summary-val {
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+/* Save Button */
+.ep-save-btn {
+    width: auto;
+    padding: 10px 22px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #e8b87a, #d1904b);
+    color: #000000;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(209, 144, 75, 0.3);
+    transition: all 0.2s ease;
+}
+.ep-save-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(209, 144, 75, 0.45);
+}
+.ep-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
 </style>
 </head>
 
@@ -2534,7 +3298,6 @@ body.select-mode .no-recipe-badge {
                         </div>
                         <div class="top-row">
                             <span class="category-badge"><?= htmlspecialchars($catNames[$row['category']] ?? ($row['category'] ?: 'Uncategorized')) ?></span>
-                            <span class="product-id">#<?= $row['product_id'] ?></span>
                         </div>
                         <div class="card-metrics-row">
                             <span class="price" data-pid="<?= $row['product_id'] ?>" title="Double-click to edit price">
@@ -2614,9 +3377,122 @@ body.select-mode .no-recipe-badge {
     </div>
 </div>
 
-<!-- ========== EDIT PRODUCT MODAL (SEAMLESS IN-PAGE MODAL) ========== -->
-<div id="productEditModalBackdrop" style="position: fixed; inset: 0; z-index: 99999; display: none; opacity: 0; transition: opacity 0.2s ease; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);">
-    <iframe id="productEditFrame" src="" style="width: 100%; height: 100%; border: none; background: transparent;" allowtransparency="true"></iframe>
+<!-- ========== EDIT PRODUCT MODAL (MATCHING SCREENSHOT 2) ========== -->
+<div class="ep-modal-backdrop" id="editProductModalBackdrop" onclick="if(event.target===this) closeEditProductModal()">
+    <div class="ep-modal-dialog">
+        <!-- Header -->
+        <div class="ep-modal-header">
+            <div class="ep-header-left">
+                <div class="ep-header-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+                <h3 class="ep-header-title">Edit product <span id="epHeaderProdName">Product</span></h3>
+            </div>
+            <button type="button" class="ep-header-close" onclick="closeEditProductModal()" title="Close (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Body Form -->
+        <form id="editProductForm" onsubmit="submitEpForm(event)" enctype="multipart/form-data" class="ep-modal-body">
+            <input type="hidden" id="epProductId" name="id" value="">
+            <input type="hidden" name="update_product" value="1">
+            <input type="hidden" name="ajax" value="1">
+
+            <!-- 3-Column Grid -->
+            <div class="ep-grid-3col">
+                <!-- Column 1: Product Image -->
+                <div class="ep-card-box ep-col-image">
+                    <div class="ep-section-hdr"><i class="fa-regular fa-image"></i> Product Image</div>
+                    <div class="ep-img-preview-wrap" onclick="document.getElementById('epImageInput').click()" title="Click to upload/change image">
+                        <img id="epImgPreview" src="uploads/no-image.png" alt="Preview">
+                    </div>
+                    <input type="file" id="epImageInput" name="image" accept="image/*" style="display:none;" onchange="previewEpImage(this)">
+                    <div class="ep-img-subtext">Current image — click above to replace</div>
+                </div>
+
+                <!-- Column 2: Product Details -->
+                <div class="ep-card-box ep-col-details">
+                    <div class="ep-section-hdr"><i class="fa-solid fa-clipboard-list"></i> Product Details</div>
+                    <div class="ep-field">
+                        <label class="ep-label" for="epName">PRODUCT NAME *</label>
+                        <input type="text" id="epName" name="name" class="ep-input" placeholder="e.g. Ize" required oninput="document.getElementById('epHeaderProdName').textContent = this.value || 'Product'">
+                    </div>
+                    <div class="ep-field">
+                        <label class="ep-label" for="epCategory">CATEGORY *</label>
+                        <select id="epCategory" name="category" class="ep-select" required></select>
+                    </div>
+                    <div class="ep-field">
+                        <label class="ep-label" for="epPrice">SELLING PRICE *</label>
+                        <div class="ep-price-wrap">
+                            <span class="ep-dollar">$</span>
+                            <input type="number" step="0.01" min="0" id="epPrice" name="price" class="ep-input" placeholder="0.00" required oninput="recalcEpTotals()">
+                        </div>
+                    </div>
+                    <div class="ep-field">
+                        <label class="ep-label">MENU STATUS</label>
+                        <div class="ep-status-row">
+                            <span>Show on menu</span>
+                            <label class="ep-switch">
+                                <input type="checkbox" id="epAvailable" name="is_available" value="1">
+                                <span class="ep-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 3: Recipe & Ingredients (BOM) -->
+                <div class="ep-card-box ep-col-recipe">
+                    <div class="ep-section-hdr">
+                        <div><i class="fa-solid fa-mortar-pestle"></i> Recipe & Ingredients (BOM)</div>
+                        <div class="ep-hdr-btn-group">
+                            <button type="button" class="ep-hdr-btn" onclick="addEpPackagingSet()">
+                                <i class="fa-solid fa-box-open"></i> + ឈុតវេចខ្ចប់ (Packaging Set)
+                            </button>
+                            <button type="button" class="ep-hdr-btn" onclick="addEpIngredientRow()">
+                                <i class="fa-solid fa-plus"></i> Add Ingredient
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table Header -->
+                    <div class="ep-table-header">
+                        <div>RAW INGREDIENT</div>
+                        <div style="text-align:center;">QTY REQUIRED</div>
+                        <div style="text-align:center;">UNIT COST</div>
+                        <div style="text-align:right;">TOTAL COST</div>
+                        <div></div>
+                    </div>
+
+                    <!-- Recipe Rows Container -->
+                    <div class="ep-recipe-table" id="epRecipeRows">
+                        <!-- Dynamic recipe rows inserted here -->
+                    </div>
+
+                    <!-- Summary Box -->
+                    <div class="ep-summary-box">
+                        <div>
+                            <div class="ep-summary-label">ESTIMATED RECIPE COST (COGS)</div>
+                            <div class="ep-summary-val" id="epCogsVal" style="color: #d1904b;">$0.00</div>
+                        </div>
+                        <div>
+                            <div class="ep-summary-label">SELLING PRICE</div>
+                            <div class="ep-summary-val" id="epSellVal" style="color: inherit;">$0.00</div>
+                        </div>
+                        <div>
+                            <div class="ep-summary-label">GROSS PROFIT MARGIN</div>
+                            <div class="ep-summary-val" id="epMarginVal" style="color: #10b981;">$0.00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Save Button -->
+            <div style="display: flex; justify-content: flex-start; margin-top: 4px;">
+                <button type="submit" class="ep-save-btn" id="epSaveBtn">
+                    <i class="fa-solid fa-floppy-disk"></i> Save Changes & Recipe
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- ========== DELETE MODAL ========== -->
@@ -3439,175 +4315,414 @@ function _qvEscHtml(str) {
 }
 
 // ─────────────────────────────────────────────
-// SEAMLESS IN-PAGE EDIT MODAL (NO REFRESH / NO SCROLL)
+// EDIT PRODUCT MODAL CONTROLLER (SCREENSHOT 2 DESIGN)
 // ─────────────────────────────────────────────
+let epStockItems = [];
+let epCategories = [];
+let epCurrentProduct = null;
+
 function openEditProductModal(id, e) {
     if (e) {
         e.preventDefault();
         e.stopPropagation();
     }
-    const backdrop = document.getElementById('productEditModalBackdrop');
-    const frame = document.getElementById('productEditFrame');
-    if (!backdrop || !frame) {
-        window.location.href = 'edit_product.php?id=' + id;
-        return;
-    }
-    frame.src = 'edit_product.php?id=' + id + '&modal=1';
-    backdrop.style.display = 'flex';
-    requestAnimationFrame(() => {
-        backdrop.style.opacity = '1';
-    });
+    const backdrop = document.getElementById('editProductModalBackdrop');
+    if (!backdrop) return;
+
+    // Reset form
+    document.getElementById('editProductForm').reset();
+    document.getElementById('epRecipeRows').innerHTML = '<div style="text-align:center;padding:16px;color:#888;font-size:12px;"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Loading product data…</div>';
+    document.getElementById('epImgPreview').src = 'uploads/no-image.png';
+    document.getElementById('epProductId').value = id;
+    document.getElementById('epHeaderProdName').textContent = 'Loading…';
+    document.getElementById('epCogsVal').textContent = '$0.00';
+    document.getElementById('epSellVal').textContent = '$0.00';
+    document.getElementById('epMarginVal').textContent = '$0.00';
+    
+    // Open backdrop
+    backdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
+
+    // Fetch product and recipe data
+    fetch('products.php?action=get_edit_data&id=' + id)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) {
+                closeEditProductModal();
+                showToast(data.error || 'Failed to load product data', 'error');
+                return;
+            }
+            epStockItems = data.stock_items || [];
+            epCategories = data.categories || [];
+            epCurrentProduct = data.product || {};
+
+            const p = epCurrentProduct;
+            document.getElementById('epProductId').value = p.id;
+            document.getElementById('epHeaderProdName').textContent = p.name || 'Product';
+            document.getElementById('epName').value = p.name || '';
+            document.getElementById('epPrice').value = parseFloat(p.price || 0).toFixed(2);
+            document.getElementById('epAvailable').checked = (parseInt(p.is_available) === 1);
+            document.getElementById('epImgPreview').src = p.image || 'uploads/no-image.png';
+
+            // Populate categories dropdown
+            const catSel = document.getElementById('epCategory');
+            catSel.innerHTML = '';
+            epCategories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.slug;
+                opt.textContent = cat.name;
+                if (cat.slug === p.category) opt.selected = true;
+                catSel.appendChild(opt);
+            });
+
+            // Populate recipe rows
+            const rowsContainer = document.getElementById('epRecipeRows');
+            rowsContainer.innerHTML = '';
+
+            if (data.recipes && data.recipes.length > 0) {
+                data.recipes.forEach(rec => {
+                    addEpIngredientRow(rec);
+                });
+            } else {
+                rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ ឈុតវេចខ្ចប់</strong> above.</div>';
+            }
+
+            recalcEpTotals();
+        })
+        .catch(err => {
+            console.error(err);
+            closeEditProductModal();
+            showToast('Error loading product details', 'error');
+        });
 }
 
 function closeEditProductModal() {
-    const backdrop = document.getElementById('productEditModalBackdrop');
-    const frame = document.getElementById('productEditFrame');
+    const backdrop = document.getElementById('editProductModalBackdrop');
     if (!backdrop) return;
-    backdrop.style.opacity = '0';
+    backdrop.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function previewEpImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            document.getElementById('epImgPreview').src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function renderStockOptions(selectedId = null) {
+    let raw = [];
+    let pkg = [];
+    let drk = [];
+
+    epStockItems.forEach(item => {
+        const isDrink = ((item.item_type === 'direct_drink') || (item.category === 'Direct Drinks'));
+        const isPkg = (item.category === 'Packaging' || item.category === 'កែវ & ការវេចខ្ចប់' || (item.item_name && item.item_name.toLowerCase().includes('packaging')) || (item.item_name && item.item_name.includes('ឈុត')));
+        if (isDrink) drk.push(item);
+        else if (isPkg) pkg.push(item);
+        else raw.push(item);
+    });
+
+    let html = '<option value="">Select ingredient / stock drink…</option>';
+
+    if (raw.length > 0) {
+        html += '<optgroup label="🥛 Ingredients / Raw Materials">';
+        raw.forEach(i => {
+            const sel = (String(i.item_id) === String(selectedId)) ? 'selected' : '';
+            html += `<option value="${i.item_id}" data-unit="${i.unit || 'unit'}" data-cpu="${i.cost_per_unit || 0}" ${sel}>${i.item_name}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    if (pkg.length > 0) {
+        html += '<optgroup label="📦 Packaging / Cups & Sets">';
+        pkg.forEach(i => {
+            const sel = (String(i.item_id) === String(selectedId)) ? 'selected' : '';
+            html += `<option value="${i.item_id}" data-unit="${i.unit || 'pcs'}" data-cpu="${i.cost_per_unit || 0}" ${sel}>${i.item_name}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    if (drk.length > 0) {
+        html += '<optgroup label="🥫 Drink Stock (Cans & Bottles)">';
+        drk.forEach(i => {
+            const sel = (String(i.item_id) === String(selectedId)) ? 'selected' : '';
+            html += `<option value="${i.item_id}" data-unit="${i.unit || 'can'}" data-cpu="${i.cost_per_unit || 0}" ${sel}>${i.item_name}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    return html;
+}
+
+function addEpIngredientRow(item = {}) {
+    const emptyMsg = document.getElementById('epEmptyRecipeMsg');
+    if (emptyMsg) emptyMsg.remove();
+
+    const rowsContainer = document.getElementById('epRecipeRows');
+    const row = document.createElement('div');
+    row.className = 'ep-recipe-row';
+
+    const selectedId = item.item_id || '';
+    const qty = (item.quantity_required !== undefined) ? item.quantity_required : 1;
+    const unit = item.unit || 'unit';
+    const cpu = (item.cost_per_unit !== undefined) ? parseFloat(item.cost_per_unit) : 0;
+    const total = qty * cpu;
+
+    row.innerHTML = `
+        <select class="ep-select" name="recipe_ingredient_id[]" onchange="onEpIngSelect(this)" required style="height:32px;font-size:11.5px;padding:0 6px;">
+            ${renderStockOptions(selectedId)}
+        </select>
+        <div class="ep-row-qty-wrap">
+            <input type="number" step="any" min="0.001" class="ep-row-qty-input" name="recipe_amount_used[]" value="${qty}" oninput="onEpQtyInput(this)" required>
+            <span class="ep-row-unit-badge">${unit}</span>
+        </div>
+        <div class="ep-row-unit-cost">$${cpu.toFixed(2)}/${unit}</div>
+        <div class="ep-row-total-cost">$${total.toFixed(2)}</div>
+        <button type="button" class="ep-row-del-btn" onclick="removeEpRow(this)" title="Delete ingredient">
+            <i class="fa-regular fa-trash-can"></i>
+        </button>
+    `;
+
+    rowsContainer.appendChild(row);
+    recalcEpTotals();
+}
+
+function addEpPackagingSet() {
+    const emptyMsg = document.getElementById('epEmptyRecipeMsg');
+    if (emptyMsg) emptyMsg.remove();
+
+    // Find packaging items
+    const pkgItems = epStockItems.filter(item => {
+        return (item.category === 'Packaging' || item.category === 'កែវ & ការវេចខ្ចប់' || (item.item_name && item.item_name.toLowerCase().includes('packaging')) || (item.item_name && item.item_name.includes('ឈុត')));
+    });
+
+    if (pkgItems.length === 0) {
+        // Fallback: add a blank row
+        addEpIngredientRow();
+        return;
+    }
+
+    // Add packaging items
+    pkgItems.forEach(pkg => {
+        // Check if already added
+        const exists = Array.from(document.querySelectorAll('.ep-recipe-row select[name="recipe_ingredient_id[]"]')).some(s => String(s.value) === String(pkg.item_id));
+        if (!exists) {
+            addEpIngredientRow({
+                item_id: pkg.item_id,
+                item_name: pkg.item_name,
+                quantity_required: 1,
+                unit: pkg.unit || 'pcs',
+                cost_per_unit: pkg.cost_per_unit || 0
+            });
+        }
+    });
+
+    showToast('Added packaging items!');
+}
+
+function onEpIngSelect(selectEl) {
+    const row = selectEl.closest('.ep-recipe-row');
+    if (!row) return;
+    const selectedOpt = selectEl.options[selectEl.selectedIndex];
+    const unit = selectedOpt?.dataset.unit || 'unit';
+    const cpu = parseFloat(selectedOpt?.dataset.cpu || 0);
+
+    const unitBadge = row.querySelector('.ep-row-unit-badge');
+    if (unitBadge) unitBadge.textContent = unit;
+
+    const unitCostEl = row.querySelector('.ep-row-unit-cost');
+    if (unitCostEl) unitCostEl.textContent = `$${cpu.toFixed(2)}/${unit}`;
+
+    const qtyInput = row.querySelector('.ep-row-qty-input');
+    const qty = parseFloat(qtyInput?.value || 0);
+    const totalEl = row.querySelector('.ep-row-total-cost');
+    if (totalEl) totalEl.textContent = `$${(qty * cpu).toFixed(2)}`;
+
+    recalcEpTotals();
+}
+
+function onEpQtyInput(inputEl) {
+    const row = inputEl.closest('.ep-recipe-row');
+    if (!row) return;
+    const selectEl = row.querySelector('select[name="recipe_ingredient_id[]"]');
+    const selectedOpt = selectEl?.options[selectEl.selectedIndex];
+    const cpu = parseFloat(selectedOpt?.dataset.cpu || 0);
+    const qty = parseFloat(inputEl.value || 0);
+
+    const totalEl = row.querySelector('.ep-row-total-cost');
+    if (totalEl) totalEl.textContent = `$${(qty * cpu).toFixed(2)}`;
+
+    recalcEpTotals();
+}
+
+function removeEpRow(btn) {
+    const row = btn.closest('.ep-recipe-row');
+    if (!row) return;
+    row.style.transition = 'opacity 0.2s, transform 0.2s';
+    row.style.opacity = '0';
+    row.style.transform = 'scale(0.95)';
     setTimeout(() => {
-        backdrop.style.display = 'none';
-        if (frame) frame.src = 'about:blank';
-        document.body.style.overflow = '';
+        row.remove();
+        const rowsContainer = document.getElementById('epRecipeRows');
+        if (rowsContainer && rowsContainer.children.length === 0) {
+            rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ ឈុតវេចខ្ចប់</strong> above.</div>';
+        }
+        recalcEpTotals();
     }, 200);
 }
 
-// Listen for messages from edit_product iframe
-window.addEventListener('message', function(e) {
-    if (!e.data || typeof e.data !== 'object') return;
-    
-    if (e.data.type === 'CLOSE_EDIT_MODAL') {
-        closeEditProductModal();
-    } else if (e.data.type === 'PRODUCT_SAVED') {
-        closeEditProductModal();
-        if (typeof showToast === 'function') {
-            showToast(e.data.message || 'Product & recipe updated successfully!', 'success');
+function recalcEpTotals() {
+    let totalCogs = 0;
+    document.querySelectorAll('.ep-recipe-row').forEach(row => {
+        const selectEl = row.querySelector('select[name="recipe_ingredient_id[]"]');
+        const selectedOpt = selectEl?.options[selectEl.selectedIndex];
+        const cpu = parseFloat(selectedOpt?.dataset.cpu || 0);
+        const qty = parseFloat(row.querySelector('.ep-row-qty-input')?.value || 0);
+        if (!isNaN(cpu) && !isNaN(qty)) {
+            totalCogs += (cpu * qty);
         }
-        
-        // Update product card in DOM without reloading or scrolling
-        const p = e.data.product;
-        const pid = e.data.productId;
-        if (p && pid) {
-            const card = document.querySelector(`.product-card[data-id="${pid}"]`);
-            if (card) {
-                if (p.name) {
-                    card.setAttribute('data-name', p.name.toLowerCase());
-                    const nameEl = card.querySelector('.qv-trigger');
-                    if (nameEl) nameEl.textContent = p.name;
-                }
-                if (p.price !== undefined) {
-                    const priceNum = parseFloat(p.price);
-                    card.setAttribute('data-price', priceNum);
-                    const priceEl = card.querySelector('.price');
-                    if (priceEl) priceEl.textContent = '$' + priceNum.toFixed(2);
-                }
-                if (p.category) {
-                    card.setAttribute('data-category', p.category);
-                    const catBadge = card.querySelector('.category-badge');
-                    if (catBadge) {
-                        const catDisplay = (window.CAT_NAMES && window.CAT_NAMES[p.category]) || p.category;
-                        catBadge.textContent = catDisplay;
-                    }
-                }
-                if (p.image) {
-                    const img = card.querySelector('.image-wrapper img');
-                    if (img) img.src = p.image;
-                }
-                if (p.is_available !== undefined) {
-                    const isAvail = parseInt(p.is_available, 10) === 1;
-                    card.setAttribute('data-avail', isAvail ? '1' : '0');
-                    if (isAvail) {
-                        card.classList.remove('unavailable');
-                        const soldBadge = card.querySelector('.sold-out-badge');
-                        if (soldBadge) soldBadge.remove();
-                    } else {
-                        card.classList.add('unavailable');
-                        let soldBadge = card.querySelector('.sold-out-badge');
-                        if (!soldBadge) {
-                            soldBadge = document.createElement('div');
-                            soldBadge.className = 'sold-out-badge';
-                            soldBadge.textContent = 'Inactive';
-                            card.querySelector('.image-wrapper')?.appendChild(soldBadge);
-                        }
-                    }
-                    const availBtn = card.querySelector('.actions .avail-on, .actions .avail-off');
-                    if (availBtn) {
-                        availBtn.className = `btn-action ${isAvail ? 'avail-on' : 'avail-off'}`;
-                        availBtn.title = isAvail ? 'Mark as inactive' : 'Mark as available';
-                        availBtn.innerHTML = `<i class="fa-solid ${isAvail ? 'fa-eye' : 'fa-eye-slash'}"></i> <span>${isAvail ? 'On' : 'Off'}</span>`;
-                    }
-                }
-                if (p.badge_text !== undefined) {
-                    let badgeEl = card.querySelector('.product-badge');
-                    if (p.badge_text) {
-                        card.setAttribute('data-badge', '1');
-                        if (!badgeEl) {
-                            badgeEl = document.createElement('span');
-                            badgeEl.className = 'product-badge';
-                            card.querySelector('.image-wrapper')?.appendChild(badgeEl);
-                        }
-                        badgeEl.textContent = p.badge_text;
-                    } else {
-                        card.setAttribute('data-badge', '0');
-                        if (badgeEl) badgeEl.remove();
-                    }
-                }
+    });
 
-                if (p.has_recipe !== undefined || p.recipe_count !== undefined) {
-                    const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0);
-                    card.setAttribute('data-has-recipe', hasRec ? '1' : '0');
-                    
-                    // 1. Grid View Badge (.no-recipe-badge in .image-wrapper)
-                    const imgWrapper = card.querySelector('.image-wrapper');
-                    let noRecBadge = card.querySelector('.image-wrapper .no-recipe-badge');
-                    if (!hasRec) {
-                        if (!noRecBadge && imgWrapper) {
-                            noRecBadge = document.createElement('div');
-                            noRecBadge.className = 'no-recipe-badge';
-                            noRecBadge.title = 'No Recipe Linked';
-                            noRecBadge.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
-                            imgWrapper.appendChild(noRecBadge);
-                        }
-                    } else {
-                        if (noRecBadge) noRecBadge.remove();
-                    }
+    const sellPrice = parseFloat(document.getElementById('epPrice')?.value || 0);
+    const margin = sellPrice - totalCogs;
 
-                    // 2. List View Badge (.no-recipe-inline-badge in .name-wrap)
-                    const nameWrap = card.querySelector('.content .name-wrap');
-                    let noRecInline = card.querySelector('.no-recipe-inline-badge');
-                    if (!hasRec) {
-                        if (!noRecInline && nameWrap) {
-                            noRecInline = document.createElement('span');
-                            noRecInline.className = 'no-recipe-inline-badge';
-                            noRecInline.title = 'No Recipe Linked';
-                            noRecInline.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
-                            nameWrap.appendChild(noRecInline);
-                        }
-                    } else {
-                        if (noRecInline) noRecInline.remove();
-                    }
+    const cogsEl = document.getElementById('epCogsVal');
+    if (cogsEl) cogsEl.textContent = '$' + totalCogs.toFixed(2);
 
-                    // 3. Refresh counters & filter
-                    if (typeof updateStatCounts === 'function') {
-                        updateStatCounts();
-                    }
-                    if (typeof filterProducts === 'function') {
-                        filterProducts();
-                    }
-                }
-                
-                // Highlight updated card with a brief glow
-                card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-                card.style.borderColor = '#d1904b';
-                card.style.boxShadow = '0 0 20px rgba(209,144,75,0.4)';
-                setTimeout(() => {
-                    card.style.borderColor = '';
-                    card.style.boxShadow = '';
-                }, 2000);
-            }
-        }
+    const sellEl = document.getElementById('epSellVal');
+    if (sellEl) sellEl.textContent = '$' + (isNaN(sellPrice) ? '0.00' : sellPrice.toFixed(2));
+
+    const marginEl = document.getElementById('epMarginVal');
+    if (marginEl) {
+        marginEl.textContent = '$' + margin.toFixed(2);
+        marginEl.style.color = (margin >= 0) ? '#10b981' : '#ef4444';
     }
-});
+}
+
+async function submitEpForm(e) {
+    if (e) e.preventDefault();
+    const form = document.getElementById('editProductForm');
+    if (!form) return;
+
+    const productId = document.getElementById('epProductId').value;
+    const saveBtn = document.getElementById('epSaveBtn');
+    const origBtnHtml = saveBtn.innerHTML;
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Saving changes…';
+
+    try {
+        const formData = new FormData(form);
+        formData.append('ajax', '1');
+        formData.append('update_product', '1');
+
+        const res = await fetch('edit_product.php?id=' + productId, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.ok) {
+            closeEditProductModal();
+            showToast(data.message || 'Product & recipe updated successfully!', 'success');
+
+            // Update product card in DOM instantly
+            const p = data.product;
+            if (p && productId) {
+                const card = document.querySelector(`.product-card[data-id="${productId}"]`);
+                if (card) {
+                    if (p.name) {
+                        card.setAttribute('data-name', p.name.toLowerCase());
+                        const nameEl = card.querySelector('.qv-trigger');
+                        if (nameEl) nameEl.textContent = p.name;
+                    }
+                    if (p.price !== undefined) {
+                        const priceNum = parseFloat(p.price);
+                        card.setAttribute('data-price', priceNum);
+                        const priceEl = card.querySelector('.price');
+                        if (priceEl) priceEl.textContent = '$' + priceNum.toFixed(2);
+                    }
+                    if (p.category) {
+                        card.setAttribute('data-category', p.category);
+                        const catBadge = card.querySelector('.category-badge');
+                        if (catBadge) {
+                            const catDisplay = (window.CAT_NAMES && window.CAT_NAMES[p.category]) || p.category;
+                            catBadge.textContent = catDisplay;
+                        }
+                    }
+                    if (p.image) {
+                        const img = card.querySelector('.image-wrapper img');
+                        if (img) img.src = p.image;
+                    }
+                    if (p.is_available !== undefined) {
+                        const isAvail = parseInt(p.is_available, 10) === 1;
+                        card.setAttribute('data-avail', isAvail ? '1' : '0');
+                        if (isAvail) {
+                            card.classList.remove('unavailable');
+                            const soldBadge = card.querySelector('.sold-out-badge');
+                            if (soldBadge) soldBadge.remove();
+                        } else {
+                            card.classList.add('unavailable');
+                            let soldBadge = card.querySelector('.sold-out-badge');
+                            if (!soldBadge) {
+                                soldBadge = document.createElement('div');
+                                soldBadge.className = 'sold-out-badge';
+                                soldBadge.textContent = 'Inactive';
+                                card.querySelector('.image-wrapper')?.appendChild(soldBadge);
+                            }
+                        }
+                        const availBtn = card.querySelector('.actions .avail-on, .actions .avail-off');
+                        if (availBtn) {
+                            availBtn.className = `btn-action ${isAvail ? 'avail-on' : 'avail-off'}`;
+                            availBtn.title = isAvail ? 'Mark as inactive' : 'Mark as available';
+                            availBtn.innerHTML = `<i class="fa-solid ${isAvail ? 'fa-eye' : 'fa-eye-slash'}"></i> <span>${isAvail ? 'On' : 'Off'}</span>`;
+                        }
+                    }
+                    if (p.has_recipe !== undefined || p.recipe_count !== undefined) {
+                        const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0);
+                        card.setAttribute('data-has-recipe', hasRec ? '1' : '0');
+
+                        const imgWrapper = card.querySelector('.image-wrapper');
+                        let noRecBadge = card.querySelector('.image-wrapper .no-recipe-badge');
+                        if (!hasRec) {
+                            if (!noRecBadge && imgWrapper) {
+                                noRecBadge = document.createElement('div');
+                                noRecBadge.className = 'no-recipe-badge';
+                                noRecBadge.title = 'No Recipe Linked';
+                                noRecBadge.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
+                                imgWrapper.appendChild(noRecBadge);
+                            }
+                        } else {
+                            if (noRecBadge) noRecBadge.remove();
+                        }
+                    }
+
+                    // Highlight card with soft glow
+                    card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+                    card.style.borderColor = '#d1904b';
+                    card.style.boxShadow = '0 0 20px rgba(209,144,75,0.4)';
+                    setTimeout(() => {
+                        card.style.borderColor = '';
+                        card.style.boxShadow = '';
+                    }, 2000);
+                }
+            }
+        } else {
+            showToast(data.error || 'Failed to save product changes', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Network error while saving product', 'error');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = origBtnHtml;
+    }
+}
 
 // ─────────────────────────────────────────────
 // TOAST

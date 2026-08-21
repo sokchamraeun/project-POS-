@@ -414,10 +414,10 @@ body, input, select, textarea, button {
     --radius:  14px;
 }
 [data-theme="light"], html[data-theme="light"] {
-    --bg:      #f4efe9 !important;
-    --surface: #ede8e0 !important;
+    --bg:      #ffffff !important;
+    --surface: #f3f4f6 !important;
     --card:    #ffffff !important;
-    --border:  #e0d4c4 !important;
+    --border:  #e5e7eb !important;
     --text:    #1a1410 !important;
     --muted:   #5a4a3a !important;
 }

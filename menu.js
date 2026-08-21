@@ -1,3 +1,4 @@
+// menu.js — Shared menu & cart interactions (Fly-to-Cart animation engine)
 var product = window.product || {};
 
 function getCsrfToken() {

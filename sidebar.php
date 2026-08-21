@@ -31,15 +31,15 @@ body, input, select, textarea, button, .sidebar, .app-main, .modal-content, tabl
 
 /* ══ Persistent Master Layout Shell ══ */
 :root {
-    --sidebar-w: 256px;
+    --sidebar-w: 240px;
 }
 :root.sidebar-collapsed {
-    --sidebar-w: 76px;
+    --sidebar-w: 72px;
 }
 body {
     margin: 0;
     padding: 0;
-    background-color: var(--bg, #0e0e10);
+    background-color: var(--bg, #0b1329);
 }
 .app-layout, .layout {
     display: flex;
@@ -47,173 +47,389 @@ body {
     width: 100vw;
     overflow: hidden;
     position: relative;
-    background-color: var(--bg, #0e0e10);
+    background-color: var(--bg, #0b1329);
 }
-.sidebar {
-    width: var(--sidebar-w, 256px) !important;
-    min-width: var(--sidebar-w, 256px) !important;
-    max-width: var(--sidebar-w, 256px) !important;
+
+/* ══ Modern Midnight Navy & Emerald Sidebar ══ */
+.sidebar,
+html[data-theme="light"] .sidebar,
+[data-theme="light"] .sidebar {
+    width: var(--sidebar-w, 240px) !important;
+    min-width: var(--sidebar-w, 240px) !important;
+    max-width: var(--sidebar-w, 240px) !important;
     flex-shrink: 0 !important;
     height: 100vh;
     position: relative !important;
     z-index: 50;
-    background: var(--surface, #121215);
-    border-right: 1px solid var(--border, #1f1f24);
+    background: #0b1329 !important;
+    border-right: 1px solid #1e293b !important;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1rem !important;
+    padding: 1.25rem 0.85rem 1rem 0.85rem !important;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    color: #94a3b8 !important;
     transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s ease !important;
+}
+.sidebar::-webkit-scrollbar {
+    width: 0px !important;
+    height: 0px !important;
+    display: none !important;
 }
 .sidebar.sidebar-no-anim {
     transition: none !important;
 }
 
+/* Permanent Dark Sidebar Lock */
+.sidebar *,
+html[data-theme="light"] .sidebar *,
+[data-theme="light"] .sidebar * {
+    color-scheme: dark;
+}
+
+/* Header / Brand Block */
+.sidebar-brand-block {
+    padding: 0.25rem 0.5rem 0.75rem 0.5rem;
+}
+.sidebar-brand-subtitle {
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
+    color: #94a3b8 !important;
+    line-height: 1.2 !important;
+}
+.sidebar-brand-title {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.5px !important;
+    text-transform: uppercase !important;
+    color: #ffffff !important;
+    margin-top: 4px !important;
+    line-height: 1.2 !important;
+}
+
+/* Section Label */
+.sidebar-section-title {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
+    color: #64748b !important;
+    padding: 10px 0.5rem 6px 0.5rem !important;
+}
+
+/* Navigation Links */
+.sidebar .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.sidebar .nav-item,
+html[data-theme="light"] .sidebar .nav-item,
+[data-theme="light"] .sidebar .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8.5px 12px !important;
+    border-radius: 8px !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    color: #cbd5e1 !important;
+    text-decoration: none;
+    transition: all 0.18s ease !important;
+    border: none !important;
+    background: transparent;
+}
+.sidebar .nav-item i,
+html[data-theme="light"] .sidebar .nav-item i,
+[data-theme="light"] .sidebar .nav-item i {
+    font-size: 15px !important;
+    width: 20px !important;
+    text-align: center !important;
+    color: #94a3b8 !important;
+    transition: color 0.18s ease, transform 0.18s ease !important;
+    flex-shrink: 0;
+}
+
+/* Nav Item Hover */
+.sidebar .nav-item:hover,
+html[data-theme="light"] .sidebar .nav-item:hover,
+[data-theme="light"] .sidebar .nav-item:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #ffffff !important;
+}
+.sidebar .nav-item:hover i {
+    color: #ffffff !important;
+    transform: scale(1.06);
+}
+
+/* Active Nav Item - Solid Emerald Pill */
+.sidebar .nav-item.active,
+html[data-theme="light"] .sidebar .nav-item.active,
+[data-theme="light"] .sidebar .nav-item.active {
+    background: #10b981 !important;
+    color: #022c22 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28) !important;
+}
+.sidebar .nav-item.active i,
+html[data-theme="light"] .sidebar .nav-item.active i,
+[data-theme="light"] .sidebar .nav-item.active i {
+    color: #022c22 !important;
+    transform: scale(1.05);
+}
+.sidebar .nav-item.active:hover {
+    background: #10b981 !important;
+    color: #022c22 !important;
+}
+.sidebar .nav-item.active:hover i {
+    color: #022c22 !important;
+}
+
+/* Submenu Styles (Reports / Users) */
+.sidebar #reportSubmenu,
+.sidebar #userMgmtSubmenu {
+    border-left: 2px solid #10b981 !important;
+    margin-left: 14px;
+    padding-left: 8px;
+}
+.sidebar #reportSubmenu .nav-item,
+.sidebar #userMgmtSubmenu .nav-item {
+    font-size: 12.5px !important;
+    padding: 6px 10px !important;
+}
+
+/* Footer Section */
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Theme Segmented Switcher */
+.sidebar-theme-switch {
+    display: flex;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 12px !important;
+    padding: 3px !important;
+    gap: 3px !important;
+    width: 100%;
+    box-sizing: border-box;
+}
+.theme-switch-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 6.5px 10px !important;
+    border-radius: 9px !important;
+    background: transparent;
+    border: 1px solid transparent !important;
+    color: #94a3b8 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.theme-switch-btn:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.05);
+}
+.theme-switch-btn .theme-switch-icon {
+    font-size: 13.5px !important;
+    transition: transform 0.2s ease, color 0.2s ease !important;
+}
+
+/* Active Segment State */
+.theme-switch-btn.active {
+    background: #162238 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Active Dark State (Bright Cyan/Teal glow) */
+.theme-switch-btn.theme-switch-dark.active {
+    color: #2dd4bf !important;
+    background: #152238 !important;
+    border-color: rgba(45, 212, 191, 0.3) !important;
+}
+.theme-switch-btn.theme-switch-dark.active .theme-switch-icon {
+    color: #2dd4bf !important;
+    transform: scale(1.08);
+}
+
+/* Active Light State (Warm Amber glow) */
+.theme-switch-btn.theme-switch-light.active {
+    color: #fbbf24 !important;
+    background: #1e293b !important;
+    border-color: rgba(251, 191, 36, 0.3) !important;
+}
+.theme-switch-btn.theme-switch-light.active .theme-switch-icon {
+    color: #fbbf24 !important;
+    transform: scale(1.08);
+}
+
+/* Language Selector Card */
+.sidebar-lang-card {
+    position: relative;
+    width: 100%;
+}
+.sidebar-lang-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.28) !important;
+    border-radius: 12px !important;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+.sidebar-lang-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.45) !important;
+}
+.sidebar-lang-main {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+.sidebar-lang-flag {
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+}
+.sidebar-lang-name {
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.01em;
+}
+.sidebar-lang-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sidebar-lang-badge {
+    background: rgba(16, 185, 129, 0.15) !important;
+    color: #10b981 !important;
+    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    letter-spacing: 0.5px;
+}
+.sidebar-lang-chevron {
+    color: #64748b !important;
+    font-size: 10px !important;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+.sidebar-lang-btn:hover .sidebar-lang-chevron {
+    color: #cbd5e1 !important;
+}
+
+/* User Profile & Logout Card */
+.sidebar-user-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+.sidebar-user-name {
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+}
+.sidebar-user-name:hover {
+    color: #10b981 !important;
+}
+.sidebar-logout-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8 !important;
+    font-size: 14px !important;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+.sidebar-logout-btn:hover {
+    color: #ef4444 !important;
+    transform: translateX(2px);
+}
+
 /* Collapsed State */
 .sidebar.collapsed {
-    --sidebar-w: 76px;
-    width: 76px !important;
-    min-width: 76px !important;
-    max-width: 76px !important;
-    padding: 0.75rem 0.35rem !important;
+    --sidebar-w: 72px;
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    padding: 1rem 0.4rem !important;
 }
-.sidebar .profile-info,
-.sidebar .brand-name,
-.sidebar .sidebar-brand-icon,
-.sidebar .brand-title-wrap,
-.sidebar .nav-label,
-.sidebar .sidebar-orders-badge,
-.sidebar .nav-chevron,
-.sidebar #reportChevron,
-.sidebar #reportSubmenu,
-.sidebar #userMgmtChevron,
-.sidebar #userMgmtSubmenu,
-.sidebar .lang-text-label,
-.sidebar .lang-flag-badge {
-    white-space: nowrap;
-    opacity: 1;
-    transition: opacity 0.15s ease;
-}
-.sidebar.collapsed .profile-info,
-.sidebar.collapsed .brand-name,
-.sidebar.collapsed .sidebar-brand-icon,
-.sidebar.collapsed .brand-title-wrap,
+.sidebar.collapsed .sidebar-brand-block,
+.sidebar.collapsed .sidebar-section-title,
 .sidebar.collapsed .nav-label,
-.sidebar.collapsed .sidebar-orders-badge,
+.sidebar.collapsed .theme-switch-label,
+.sidebar.collapsed .sidebar-lang-name,
+.sidebar.collapsed .sidebar-lang-right,
+.sidebar.collapsed .sidebar-user-name,
 .sidebar.collapsed .nav-chevron,
-.sidebar.collapsed #reportChevron,
 .sidebar.collapsed #reportSubmenu,
-.sidebar.collapsed #userMgmtChevron,
-.sidebar.collapsed #userMgmtSubmenu,
-.sidebar.collapsed .lang-text-label,
-.sidebar.collapsed .lang-flag-badge {
-    opacity: 0 !important;
-    pointer-events: none !important;
+.sidebar.collapsed #userMgmtSubmenu {
     display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
 }
-.sidebar .sidebar-brand-icon {
-    background: transparent !important;
-    background-image: none !important;
-    width: auto !important;
-    height: auto !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
+.sidebar.collapsed .sidebar-theme-switch {
+    flex-direction: column !important;
+    padding: 2px !important;
+    gap: 2px !important;
 }
-.sidebar.collapsed .sidebar-header {
+.sidebar.collapsed .theme-switch-btn {
+    padding: 6px 0 !important;
     justify-content: center !important;
-    align-items: center !important;
-    padding: 4px 0 !important;
-    width: 100% !important;
 }
-.sidebar.collapsed .sidebar-header .brand-title-wrap {
-    display: none !important;
-}
-.sidebar.collapsed .sidebar-collapse-btn {
-    margin: 0 auto !important;
-}
-.sidebar.collapsed .sidebar-profile {
+.sidebar.collapsed .sidebar-lang-btn {
     justify-content: center !important;
     padding: 8px 4px !important;
-    width: 100% !important;
 }
-.sidebar.collapsed .profile-avatar {
-    margin: 0 auto !important;
+.sidebar.collapsed .sidebar-user-card {
+    justify-content: center !important;
+    padding: 8px 4px !important;
 }
 .sidebar.collapsed .nav-item {
     justify-content: center !important;
     padding: 10px 0 !important;
-    width: 100% !important;
-    text-align: center !important;
 }
-.sidebar.collapsed .nav-item > div {
-    justify-content: center !important;
-    gap: 0 !important;
-}
-.sidebar.collapsed .nav-item i {
-    margin: 0 !important;
-    font-size: 18px !important;
-    width: 100% !important;
-    text-align: center !important;
-}
-.sidebar.collapsed .sidebar-footer {
-    padding-top: 8px !important;
-}
-.sidebar.collapsed .sidebar-footer a {
-    justify-content: center !important;
-    padding: 10px 0 !important;
-    width: 100% !important;
-}
-.sidebar.collapsed .sidebar-footer a i {
-    font-size: 18px !important;
-    margin: 0 !important;
-    width: 100% !important;
-    text-align: center !important;
-}
-.sidebar-profile {
-    margin: 0 !important;
-}
-/* Sidebar Typography Upgrades */
-.sidebar .nav-item {
-    font-size: 0.95rem !important;
-    font-weight: 600 !important;
-}
-.sidebar .nav-item i {
-    font-size: 1.05rem !important;
-}
-.sidebar #reportSubmenu .nav-item,
-.sidebar #userMgmtSubmenu .nav-item {
-    font-size: 0.88rem !important;
-    font-weight: 600 !important;
-}
-.sidebar #reportSubmenu .nav-item i,
-.sidebar #userMgmtSubmenu .nav-item i {
-    font-size: 0.95rem !important;
-}
-.sidebar .profile-name {
-    font-size: 0.98rem !important;
-    font-weight: 700 !important;
-}
-.sidebar .profile-role {
-    font-size: 0.8rem !important;
-    font-weight: 600 !important;
-}
-.sidebar .brand-name {
-    font-size: 1.15rem !important;
-    font-weight: 900 !important;
-}
-.sidebar .sidebar-footer .nav-item {
-    font-size: 0.95rem !important;
-    font-weight: 700 !important;
-}
-.sidebar .lang-flag-badge {
-    font-size: 0.78rem !important;
-    font-weight: 800 !important;
-}
+
+/* App Main Background for Light Mode */
 .app-main, .main-content-container {
     margin-left: 0 !important;
     flex: 1;
@@ -221,159 +437,12 @@ body {
     height: 100vh;
     overflow-y: auto;
     box-sizing: border-box;
-    transition: opacity 0.15s ease-in-out;
 }
-
-/* ══ Amber Sidebar Design Upgrade & Scrollbar Hiding ══ */
-.sidebar,
-html[data-theme="light"] .sidebar,
-[data-theme="light"] .sidebar {
-    background: #121215 !important;
-    border-right: 1px solid rgba(209, 144, 75, 0.18) !important;
-    padding: 0.6rem 0.75rem !important;
-    scrollbar-width: none !important; /* Firefox */
-    -ms-overflow-style: none !important; /* IE & Edge */
-    color: #a0a0ab !important;
-}
-.sidebar::-webkit-scrollbar {
-    width: 0px !important;
-    height: 0px !important;
-    display: none !important;
-}
-
-.sidebar.collapsed {
-    padding: 0.6rem 0.35rem !important;
-}
-
-/* Permanent Dark Sidebar Lock (Light Mode Immunity) */
-.sidebar *,
-html[data-theme="light"] .sidebar *,
-[data-theme="light"] .sidebar * {
-    color-scheme: dark;
-}
-
-/* Compact Nav Item Spacing */
-.sidebar .nav-item,
-html[data-theme="light"] .sidebar .nav-item,
-[data-theme="light"] .sidebar .nav-item {
-    padding-top: 0.45rem !important;
-    padding-bottom: 0.45rem !important;
-    color: #c8c8d2 !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    border: 1px solid transparent;
-}
-
-/* All Nav Icons in Amber */
-.sidebar .nav-item i,
-html[data-theme="light"] .sidebar .nav-item i,
-[data-theme="light"] .sidebar .nav-item i {
-    color: #d1904b !important;
-    transition: transform 0.2s ease, color 0.2s ease !important;
-}
-
-/* Nav Item Hover */
-.sidebar .nav-item:hover,
-html[data-theme="light"] .sidebar .nav-item:hover,
-[data-theme="light"] .sidebar .nav-item:hover {
-    background: rgba(209, 144, 75, 0.12) !important;
-    border-color: rgba(209, 144, 75, 0.28) !important;
-    color: #ffffff !important;
-}
-.sidebar .nav-item:hover i {
-    transform: scale(1.1);
-    color: #e5a15a !important;
-}
-
-/* Active Nav Item */
-.sidebar .nav-item.active,
-html[data-theme="light"] .sidebar .nav-item.active,
-[data-theme="light"] .sidebar .nav-item.active {
-    background: rgba(209, 144, 75, 0.18) !important;
-    border: 1px solid rgba(209, 144, 75, 0.38) !important;
-    color: #d1904b !important;
-    font-weight: 700 !important;
-    box-shadow: 0 3px 12px rgba(209, 144, 75, 0.2);
-}
-.sidebar .nav-item.active i {
-    color: #d1904b !important;
-    transform: scale(1.08);
-}
-
-/* Profile Card Accent */
-.sidebar-profile,
-html[data-theme="light"] .sidebar .sidebar-profile,
-[data-theme="light"] .sidebar .sidebar-profile {
-    border-color: rgba(209, 144, 75, 0.25) !important;
-    background: rgba(255, 255, 255, 0.03) !important;
-    padding: 0.5rem 0.75rem !important;
-}
-.sidebar-profile:hover {
-    border-color: #d1904b !important;
-    box-shadow: 0 0 16px rgba(209, 144, 75, 0.25) !important;
-}
-
-.sidebar .profile-name,
-.sidebar .brand-name,
-html[data-theme="light"] .sidebar .profile-name,
-html[data-theme="light"] .sidebar .brand-name,
-[data-theme="light"] .sidebar .profile-name,
-[data-theme="light"] .sidebar .brand-name {
-    color: #ffffff !important;
-}
-
-.sidebar .profile-role,
-html[data-theme="light"] .sidebar .profile-role,
-[data-theme="light"] .sidebar .profile-role {
-    color: #888888 !important;
-}
-
-/* Report & User Mgmt Submenu Left Border */
-.sidebar #reportSubmenu,
-.sidebar #userMgmtSubmenu,
-html[data-theme="light"] .sidebar #reportSubmenu,
-html[data-theme="light"] .sidebar #userMgmtSubmenu,
-[data-theme="light"] .sidebar #reportSubmenu,
-[data-theme="light"] .sidebar #userMgmtSubmenu {
-    border-left: 2px solid #d1904b !important;
-}
-
-/* Collapse Toggle Button */
-.sidebar .sidebar-collapse-btn,
-html[data-theme="light"] .sidebar .sidebar-collapse-btn,
-[data-theme="light"] .sidebar .sidebar-collapse-btn {
-    background: #18181c !important;
-    border-color: #24242b !important;
-    color: #888888 !important;
-}
-.sidebar-collapse-btn:hover,
-html[data-theme="light"] .sidebar .sidebar-collapse-btn:hover,
-[data-theme="light"] .sidebar .sidebar-collapse-btn:hover {
-    border-color: #d1904b !important;
-    color: #d1904b !important;
-}
-
-.sidebar .sidebar-footer,
-html[data-theme="light"] .sidebar .sidebar-footer,
-[data-theme="light"] .sidebar .sidebar-footer {
-    border-top-color: #24242b !important;
-}
-
-.sidebar .nav-logout,
-html[data-theme="light"] .sidebar .nav-logout,
-[data-theme="light"] .sidebar .nav-logout {
-    color: #ff6b6b !important;
-}
-.sidebar .nav-logout:hover,
-html[data-theme="light"] .sidebar .nav-logout:hover,
-[data-theme="light"] .sidebar .nav-logout:hover {
-    background: rgba(255, 107, 107, 0.10) !important;
-}
-
-.sidebar .lang-flag-badge,
-html[data-theme="light"] .sidebar .lang-flag-badge,
-[data-theme="light"] .sidebar .lang-flag-badge {
-    background: rgba(209, 144, 75, 0.15) !important;
-    color: #d1904b !important;
+html[data-theme="light"] .app-main,
+[data-theme="light"] .app-main,
+html[data-theme="light"] .main-content-container,
+[data-theme="light"] .main-content-container {
+    background-color: #ffffff !important;
 }
 
 /* ══ Mobile Responsive Drawer Overlay ══ */
@@ -401,9 +470,9 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
         top: 0 !important;
         left: 0 !important;
         bottom: 0 !important;
-        width: 280px !important;
-        min-width: 280px !important;
-        max-width: 280px !important;
+        width: 256px !important;
+        min-width: 256px !important;
+        max-width: 256px !important;
         z-index: 99999 !important;
         height: 100vh !important;
         height: 100dvh !important;
@@ -414,6 +483,172 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
     .sidebar.collapsed {
         transform: translateX(-100%) !important;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM GLOBAL TOAST & ALERT NOTIFICATION SYSTEM
+   ═══════════════════════════════════════════════════════════════════ */
+#toast-container {
+    position: fixed !important;
+    top: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
+    pointer-events: none !important;
+    width: auto !important;
+    max-width: calc(100vw - 32px) !important;
+}
+
+.toast {
+    pointer-events: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 9px 14px 9px 10px !important;
+    border-radius: 9999px !important;
+    font-family: 'Poppins', 'Kantumruy Pro', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    white-space: nowrap !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    backdrop-filter: blur(20px) !important;
+    background: rgba(18, 18, 24, 0.94) !important;
+    color: #f9fafb !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+    transform: translateY(-24px) scale(0.92) !important;
+    opacity: 0 !important;
+    transition: transform 0.36s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s ease !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.toast.show {
+    transform: translateY(0) scale(1) !important;
+    opacity: 1 !important;
+}
+
+.toast.hide {
+    transform: translateY(-16px) scale(0.92) !important;
+    opacity: 0 !important;
+    transition: transform 0.22s ease-in, opacity 0.22s ease-in !important;
+}
+
+[data-theme="light"] .toast,
+html[data-theme="light"] .toast {
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #111827 !important;
+    border: 1px solid rgba(229, 231, 235, 0.95) !important;
+    box-shadow: 0 14px 34px -4px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
+.toast-icon-badge {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+}
+
+.toast.success .toast-icon-badge {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.25)) !important;
+    color: #10b981 !important;
+    border: 1px solid rgba(16, 185, 129, 0.35) !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2) !important;
+}
+
+.toast.warning .toast-icon-badge {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.25)) !important;
+    color: #f59e0b !important;
+    border: 1px solid rgba(245, 158, 11, 0.35) !important;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2) !important;
+}
+
+.toast.error .toast-icon-badge {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.25)) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239, 68, 68, 0.35) !important;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.2) !important;
+}
+
+.toast.info .toast-icon-badge {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.25)) !important;
+    color: #3b82f6 !important;
+    border: 1px solid rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2) !important;
+}
+
+.toast-msg {
+    flex: 1 !important;
+    line-height: 1.4 !important;
+    padding-right: 2px !important;
+}
+
+.toast-dismiss {
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    color: #9ca3af !important;
+    font-size: 10.5px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    padding: 0 !important;
+    margin-left: 2px !important;
+    flex-shrink: 0 !important;
+}
+
+.toast-dismiss:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .toast-dismiss:hover,
+html[data-theme="light"] .toast-dismiss:hover {
+    background: rgba(0, 0, 0, 0.08) !important;
+    color: #111827 !important;
+}
+
+.toast-progress {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 14px !important;
+    right: 14px !important;
+    height: 2px !important;
+    border-radius: 99px !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    overflow: hidden !important;
+}
+
+.toast-progress-bar {
+    height: 100% !important;
+    width: 100% !important;
+    transform-origin: left !important;
+    animation: toastProgress 2.8s linear forwards !important;
+}
+
+.toast.success .toast-progress-bar { background: #10b981 !important; }
+.toast.warning .toast-progress-bar { background: #f59e0b !important; }
+.toast.error .toast-progress-bar   { background: #ef4444 !important; }
+.toast.info .toast-progress-bar    { background: #3b82f6 !important; }
+
+@keyframes toastProgress {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
 }
 </style>
 
@@ -430,7 +665,7 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-<aside class="w-64 h-full shrink-0 bg-[#121215] border-r border-[#1f1f24] flex flex-col justify-between p-4 text-[#a0a0ab] z-50 overflow-y-auto sidebar sidebar-no-anim" id="sidebar">
+<aside class="sidebar sidebar-no-anim" id="sidebar">
     <script>
     if (window.__isSidebarCollapsed) {
         document.getElementById('sidebar').classList.add('collapsed');
@@ -439,79 +674,62 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
         }
     }
     </script>
-    <div class="flex flex-col gap-2">
-        <!-- Profile Header -->
-        <a href="profile.php" class="flex items-center gap-3 p-2.5 rounded-2xl bg-[#18181c] border border-[#24242b] sidebar-profile hover:border-[#d1904b] transition-all cursor-pointer" title="View My Profile">
-            <div class="w-8 h-8 rounded-full bg-[#d1904b]/20 text-[#d1904b] font-bold flex items-center justify-center text-xs flex-shrink-0 profile-avatar">
-                <?= strtoupper(substr($_username, 0, 1)) ?>
-            </div>
-            <div class="min-w-0 flex-1 profile-info">
-                <div class="text-sm font-semibold text-white truncate profile-name"><?= htmlspecialchars($_username) ?></div>
-                <div class="text-xs text-[#888] truncate profile-role" style="--role-color: <?= $_role_color ?>;"><?= htmlspecialchars($_user_role) ?></div>
-            </div>
-        </a>
-
-        <!-- Brand Header with Collapse Toggle Button -->
-        <div class="flex items-center justify-between px-2 py-0.5 sidebar-header">
-            <div class="flex items-center gap-2.5 brand-title-wrap">
-                <i class="fa-solid fa-mug-hot text-[#d1904b] text-lg flex-shrink-0 sidebar-brand-icon"></i>
-                <h2 class="text-base font-extrabold text-white truncate brand-name">Bird's Nest</h2>
-            </div>
-            <button type="button" 
-                    id="sidebarToggleBtn" 
-                    onclick="toggleSidebar()" 
-                    class="sidebar-collapse-btn flex items-center justify-center w-7 h-7 rounded-lg bg-[#18181c] border border-[#24242b] text-[#888] hover:text-white hover:border-[#d1904b] transition-all cursor-pointer" 
-                    title="Close / Open Sidebar">
-                <i class="fa-solid fa-angles-left text-xs" id="sidebarToggleIcon"></i>
-            </button>
+    <div class="flex flex-col gap-1">
+        <!-- Brand Header Section -->
+        <div class="sidebar-brand-block">
+            <div class="sidebar-brand-subtitle">POINT OF SALE</div>
+            <div class="sidebar-brand-title">BIRD'S NEST</div>
         </div>
 
+        <!-- Section Label: MENU -->
+        <div class="sidebar-section-title">MENU</div>
+
         <!-- Vertical Stacked Nav Links -->
-        <nav class="flex flex-col gap-1.5 sidebar-nav" id="sidebarNav">
+        <nav class="sidebar-nav" id="sidebarNav">
 
             <?php if (can('take_order')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'menu.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="menu.php">
-                <i class="fa-solid fa-cart-shopping w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_take_order', 'Take Order') ?></span>
+            <a class="nav-item<?= $_cur_page === 'menu.php' ? ' active' : '' ?>" href="menu.php">
+                <i class="fa-solid fa-bag-shopping"></i>
+                <span class="nav-label"><?= __('nav_take_order', 'បង្កើតការកុម្ម៉ង់') ?></span>
             </a>
             <?php endif; ?>
 
             <?php if (can('dashboard')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'dashboard.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="dashboard.php">
-                <i class="fa-solid fa-chart-pie w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_dashboard', 'Dashboard') ?></span>
+            <a class="nav-item<?= $_cur_page === 'dashboard.php' ? ' active' : '' ?>" href="dashboard.php">
+                <i class="fa-solid fa-table-cells-large"></i>
+                <span class="nav-label"><?= __('nav_dashboard', 'ផ្ទាំងបញ្ជា') ?></span>
             </a>
             <?php endif; ?>
 
             <?php if (can('view_orders')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'view_order.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="view_order.php">
-                <i class="fa-solid fa-receipt w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_orders', 'Orders') ?></span>
+            <a class="nav-item<?= $_cur_page === 'view_order.php' ? ' active' : '' ?>" href="view_order.php">
+                <i class="fa-solid fa-receipt"></i>
+                <span class="nav-label"><?= __('nav_orders', 'បញ្ជីការកុម្ម៉ង់') ?></span>
             </a>
             <?php endif; ?>
 
             <?php if (can('products')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= in_array($_cur_page, ['products.php', 'edit_product.php', 'add_product.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="products.php">
-                <i class="fa-solid fa-cube w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_products', 'Products') ?></span>
+            <a class="nav-item<?= in_array($_cur_page, ['products.php', 'edit_product.php', 'add_product.php']) ? ' active' : '' ?>" href="products.php">
+                <i class="fa-solid fa-cube"></i>
+                <span class="nav-label"><?= __('nav_products', 'ទំនិញ') ?></span>
             </a>
             <?php endif; ?>
 
             <?php if (can('products') || can('inventory') || in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= in_array($_cur_page, ['stock.php', 'stock_count.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="stock.php">
-                <i class="fa-solid fa-wine-bottle w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_stock_drinks', 'Stock Drink') ?></span>
+            <a class="nav-item<?= in_array($_cur_page, ['stock.php', 'stock_count.php']) ? ' active' : '' ?>" href="stock.php">
+                <i class="fa-solid fa-wine-bottle"></i>
+                <span class="nav-label"><?= __('nav_stock_drinks', 'ស្តុកភេសជ្ជៈ') ?></span>
             </a>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'ingredients.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="ingredients.php">
-                <i class="fa-solid fa-seedling w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_raw_ingredients', 'Ingredient') ?></span>
+            <a class="nav-item<?= $_cur_page === 'ingredients.php' ? ' active' : '' ?>" href="ingredients.php">
+                <i class="fa-solid fa-seedling"></i>
+                <span class="nav-label"><?= __('nav_raw_ingredients', 'គ្រឿងផ្សំ') ?></span>
             </a>
             <?php endif; ?>
 
             <?php if (can('manage_categories')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'manage_categories.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="manage_categories.php">
-                <i class="fa-solid fa-tags w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_categories', 'Categories') ?></span>
+            <a class="nav-item<?= $_cur_page === 'manage_categories.php' ? ' active' : '' ?>" href="manage_categories.php">
+                <i class="fa-solid fa-tags"></i>
+                <span class="nav-label"><?= __('nav_categories', 'ប្រភេទទំនិញ') ?></span>
             </a>
             <?php endif; ?>
 
@@ -521,23 +739,23 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
                 <button type="button" 
                         id="reportNavToggle" 
                         onclick="toggleReportSubmenu(event)" 
-                        class="nav-item w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white cursor-pointer<?= in_array($_cur_page, ['daily_report.php', 'report.php']) ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>">
+                        class="nav-item w-full justify-between cursor-pointer<?= in_array($_cur_page, ['daily_report.php', 'report.php', 'shift_report.php']) ? ' active' : '' ?>">
                     <div class="flex items-center gap-3 min-w-0">
-                        <i class="fa-solid fa-chart-column w-5 text-center flex-shrink-0"></i>
-                        <span class="nav-label truncate"><?= __('nav_reports', 'Reports') ?></span>
+                        <i class="fa-solid fa-chart-simple"></i>
+                        <span class="nav-label truncate"><?= __('nav_reports', 'របាយការណ៍') ?></span>
                     </div>
                     <i class="fa-solid fa-chevron-down text-xs transition-transform duration-200 nav-chevron" id="reportChevron"></i>
                 </button>
-                <div class="hidden flex-col gap-1 pl-4 mt-1 space-y-1" id="reportSubmenu">
+                <div class="<?= in_array($_cur_page, ['daily_report.php', 'report.php', 'shift_report.php']) ? 'flex' : 'hidden' ?> flex-col gap-1 mt-1" id="reportSubmenu">
                     <?php if (can('daily_report')): ?>
-                    <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'daily_report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="daily_report.php">
-                        <i class="fa-solid fa-[#d1904b] fa-calendar-day w-4 text-center"></i>
+                    <a class="nav-item<?= $_cur_page === 'daily_report.php' ? ' active' : '' ?>" href="daily_report.php">
+                        <i class="fa-solid fa-calendar-day"></i>
                         <span class="nav-label"><?= __('nav_daily_report', 'Daily Summary') ?></span>
                     </a>
                     <?php endif; ?>
                     <?php if (can('sales_report')): ?>
-                    <a class="nav-item flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'report.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="report.php">
-                        <i class="fa-solid fa-[#d1904b] fa-chart-line w-4 text-center"></i>
+                    <a class="nav-item<?= $_cur_page === 'report.php' ? ' active' : '' ?>" href="report.php">
+                        <i class="fa-solid fa-chart-line"></i>
                         <span class="nav-label"><?= __('nav_sales_report', 'Analytics & Export') ?></span>
                     </a>
                     <?php endif; ?>
@@ -546,15 +764,15 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
             <?php endif; ?>
 
             <?php if (can('settings')): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'settings.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="settings.php">
-                <i class="fa-solid fa-gear w-5 text-center"></i>
-                <span class="nav-label"><?= __('nav_settings', 'Settings') ?></span>
+            <a class="nav-item<?= $_cur_page === 'settings.php' ? ' active' : '' ?>" href="settings.php">
+                <i class="fa-solid fa-gear"></i>
+                <span class="nav-label"><?= __('nav_settings', 'ការកំណត់') ?></span>
             </a>
             <?php endif; ?>
 
             <?php if (in_array($_SESSION['role'] ?? '', ['admin', 'manager'], true)): ?>
-            <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#1a1a20] hover:text-white<?= $_cur_page === 'users.php' ? ' active bg-[#1a1a20] text-[#d1904b] font-semibold' : '' ?>" href="users.php">
-                <i class="fa-solid fa-users-gear w-5 text-center"></i>
+            <a class="nav-item<?= $_cur_page === 'users.php' ? ' active' : '' ?>" href="users.php">
+                <i class="fa-solid fa-users-gear"></i>
                 <span class="nav-label">Users</span>
             </a>
             <?php endif; ?>
@@ -563,31 +781,53 @@ html[data-theme="light"] .sidebar .lang-flag-badge,
     </div>
 
     <!-- Sidebar Footer -->
-    <div class="pt-3 border-t border-[#24242b] flex flex-col gap-1.5 sidebar-footer">
-        <!-- Dark/Light Theme Toggle Button -->
-        <button type="button" 
-                onclick="toggleTheme()" 
-                class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#a0a0ab] hover:bg-[#1a1a20] hover:text-white transition-all cursor-pointer" 
-                title="Toggle Theme">
-            <div class="flex items-center gap-3 min-w-0">
-                <i class="fa-solid fa-moon text-[#d1904b] w-5 text-center flex-shrink-0" id="sidebarThemeIcon"></i>
-                <span class="nav-label truncate" id="sidebarThemeText">Dark Mode</span>
-            </div>
-            <span class="px-2 py-0.5 rounded-full bg-[#18181c] border border-[#24242b] text-[#d1904b] font-bold text-[10px] uppercase tracking-wider sidebar-orders-badge" id="sidebarThemeBadge">
-                Dark
-            </span>
-        </button>
-        <!-- Language Switcher Button -->
-        <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" class="nav-item flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-[#a0a0ab] hover:bg-[#1a1a20] hover:text-white transition-all" title="Language Switcher">
-            <i class="fa-solid fa-globe text-[#d1904b] w-5 text-center"></i>
-            <span class="px-2 py-0.5 rounded-full bg-[#d1904b]/15 text-[#d1904b] font-bold text-[11px] lang-flag-badge">
-                <?= current_lang() === 'en' ? '🇬🇧 English' : '🇰🇭 Khmer (ខ្មែរ)' ?>
-            </span>
-        </a>
-        <a class="nav-item nav-logout flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#ff6b6b] hover:bg-[#ff6b6b]/10 transition-all" href="logout.php" title="Logout">
-            <i class="fa-solid fa-right-from-bracket w-5 text-center"></i>
-            <span class="nav-label"><?= __('logout', 'Logout') ?></span>
-        </a>
+    <div class="sidebar-footer">
+        <!-- Language Switcher Card -->
+        <div class="sidebar-lang-card">
+            <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" class="sidebar-lang-btn" title="<?= current_lang() === 'en' ? 'Switch to ភាសាខ្មែរ' : 'Switch to English' ?>">
+                <div class="sidebar-lang-main">
+                    <span class="sidebar-lang-flag">
+                        <?php if (current_lang() === 'km'): ?>
+                        <svg class="sidebar-lang-flag-svg" viewBox="0 0 640 480" width="22" height="15" style="border-radius: 3px; overflow: hidden; flex-shrink: 0; display: block; box-shadow: 0 1px 3px rgba(0,0,0,0.35);">
+                            <path fill="#032ea1" d="M0 0h640v480H0z"/>
+                            <path fill="#e00025" d="M0 120h640v240H0z"/>
+                            <g fill="#ffffff">
+                                <path d="M320 160l18 64h-36zm-58 32l16 52h-32zm116 0l16 52h-32z"/>
+                                <path d="M236 244h168v16H236zm14 16h140v16H250zm14 16h112v16H264zm14 16h84v14H278z"/>
+                                <path d="M312 200h16v44h-16zm-58 30h16v14h-16zm116 0h16v14h-16z"/>
+                            </g>
+                        </svg>
+                        <?php else: ?>
+                        <svg class="sidebar-lang-flag-svg" viewBox="0 0 60 30" width="22" height="15" style="border-radius: 3px; overflow: hidden; flex-shrink: 0; display: block; box-shadow: 0 1px 3px rgba(0,0,0,0.35);">
+                            <clipPath id="uk-flag-clip"><path d="M0 0v30h60V0z"/></clipPath>
+                            <g clip-path="url(#uk-flag-clip)">
+                                <path d="M0 0v30h60V0z" fill="#012169"/>
+                                <path d="M0 0l60 30m0-30L0 30" stroke="#ffffff" stroke-width="6"/>
+                                <path d="M0 0l60 30m0-30L0 30" stroke="#c8102e" stroke-width="4"/>
+                                <path d="M30 0v30M0 15h60" stroke="#ffffff" stroke-width="10"/>
+                                <path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/>
+                            </g>
+                        </svg>
+                        <?php endif; ?>
+                    </span>
+                    <span class="sidebar-lang-name"><?= current_lang() === 'km' ? 'ភាសាខ្មែរ' : 'English' ?></span>
+                </div>
+                <div class="sidebar-lang-right">
+                    <span class="sidebar-lang-badge"><?= current_lang() === 'km' ? 'KH' : 'EN' ?></span>
+                    <i class="fa-solid fa-chevron-down sidebar-lang-chevron"></i>
+                </div>
+            </a>
+        </div>
+
+        <!-- User Profile & Logout Card -->
+        <div class="sidebar-user-card">
+            <a href="profile.php" class="sidebar-user-name" title="View Profile">
+                <?= htmlspecialchars($_username) ?>
+            </a>
+            <a class="sidebar-logout-btn" href="logout.php" title="Logout">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </a>
+        </div>
     </div>
 </aside>
 
@@ -689,10 +929,10 @@ function toggleReportSubmenu(e) {
     const isHidden = menu.classList.contains('hidden');
     if (isHidden) {
         menu.classList.remove('hidden');
-        chevron.classList.add('rotate-180', 'text-[#d1904b]');
+        chevron.classList.add('rotate-180');
     } else {
         menu.classList.add('hidden');
-        chevron.classList.remove('rotate-180', 'text-[#d1904b]');
+        chevron.classList.remove('rotate-180');
     }
 }
 
@@ -708,10 +948,10 @@ function toggleUserMgmtSubmenu(e) {
     const isHidden = menu.classList.contains('hidden');
     if (isHidden) {
         menu.classList.remove('hidden');
-        chevron.classList.add('rotate-180', 'text-[#d1904b]');
+        chevron.classList.add('rotate-180');
     } else {
         menu.classList.add('hidden');
-        chevron.classList.remove('rotate-180', 'text-[#d1904b]');
+        chevron.classList.remove('rotate-180');
     }
 }
 
@@ -724,9 +964,9 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.querySelectorAll('a.nav-item').forEach(el => {
             const itemHref = (el.getAttribute('href') || '').split('?')[0].split('/').pop();
             if (itemHref && itemHref === page) {
-                el.classList.add('active', 'bg-[#1a1a20]', 'text-[#d1904b]', 'font-semibold');
+                el.classList.add('active');
             } else {
-                el.classList.remove('active', 'bg-[#1a1a20]', 'text-[#d1904b]', 'font-semibold');
+                el.classList.remove('active');
             }
         });
 
@@ -735,9 +975,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const reportSubmenu = document.getElementById('reportSubmenu');
         const reportChevron = document.getElementById('reportChevron');
         if (reportPages.includes(page)) {
-            if (reportNavToggle) reportNavToggle.classList.add('text-[#d1904b]', 'font-semibold', 'bg-[#1a1a20]');
+            if (reportNavToggle) reportNavToggle.classList.add('active');
             if (reportSubmenu) reportSubmenu.classList.remove('hidden');
-            if (reportChevron) reportChevron.classList.add('rotate-180', 'text-[#d1904b]');
+            if (reportChevron) reportChevron.classList.add('rotate-180');
         }
 
         const userMgmtPages = ['employees.php', 'employee_add.php', 'manage_admin.php', 'manage_roles.php'];
@@ -745,9 +985,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const userMgmtSubmenu = document.getElementById('userMgmtSubmenu');
         const userMgmtChevron = document.getElementById('userMgmtChevron');
         if (userMgmtPages.includes(page)) {
-            if (userMgmtNavToggle) userMgmtNavToggle.classList.add('text-[#d1904b]', 'font-semibold', 'bg-[#1a1a20]');
+            if (userMgmtNavToggle) userMgmtNavToggle.classList.add('active');
             if (userMgmtSubmenu) userMgmtSubmenu.classList.remove('hidden');
-            if (userMgmtChevron) userMgmtChevron.classList.add('rotate-180', 'text-[#d1904b]');
+            if (userMgmtChevron) userMgmtChevron.classList.add('rotate-180');
         }
     }
 
@@ -808,15 +1048,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Global Theme Toggle & Sync System ──
+window.setAppTheme = function(theme) {
+    var html = document.documentElement;
+    html.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+
+    syncThemeUI(theme);
+    if (typeof initCharts === 'function') initCharts();
+};
+
 window.toggleTheme = function() {
     var html = document.documentElement;
     var isLight = html.getAttribute('data-theme') === 'light';
     var nextTheme = isLight ? 'dark' : 'light';
-    html.setAttribute('data-theme', nextTheme);
-    localStorage.setItem('theme', nextTheme);
-
-    syncThemeUI(nextTheme);
-    if (typeof initCharts === 'function') initCharts();
+    window.setAppTheme(nextTheme);
 };
 
 function syncThemeUI(theme) {
@@ -824,12 +1069,20 @@ function syncThemeUI(theme) {
     var iconClass = isLight ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
     var textLabel = isLight ? 'Light' : 'Dark';
 
-    document.querySelectorAll('#topThemeIcon, #themeIcon, #sidebarThemeIcon, #themeToggle i').forEach(function(icon) {
-        if (icon.id === 'sidebarThemeIcon') {
-            icon.className = iconClass + ' text-[#d1904b] text-center w-5';
+    var lightBtn = document.getElementById('themeBtnLight');
+    var darkBtn = document.getElementById('themeBtnDark');
+    if (lightBtn && darkBtn) {
+        if (isLight) {
+            lightBtn.classList.add('active');
+            darkBtn.classList.remove('active');
         } else {
-            icon.className = iconClass;
+            darkBtn.classList.add('active');
+            lightBtn.classList.remove('active');
         }
+    }
+
+    document.querySelectorAll('#topThemeIcon, #themeIcon, #sidebarThemeIcon, #themeToggle i').forEach(function(icon) {
+        icon.className = iconClass;
     });
     document.querySelectorAll('#topThemeText, #themeText, #sidebarThemeText').forEach(function(txt) {
         if (txt.id === 'sidebarThemeText') {
@@ -885,4 +1138,108 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, true);
 })();
+
+// ── Global Standardized Toast Engine (Max 3 to 5 concurrent alerts) ──
+if (typeof window.showToast !== 'function') {
+    window.showToast = function(message, type, duration) {
+        type = type || 'success';
+        duration = duration || 3200;
+        var MAX_VISIBLE_TOASTS = 5;
+
+        var container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+
+        // Cap visible toasts to max 5 (gracefully dismiss oldest if full)
+        var activeToasts = container.querySelectorAll('.toast:not(.hide)');
+        if (activeToasts.length >= MAX_VISIBLE_TOASTS) {
+            for (var i = 0; i <= activeToasts.length - MAX_VISIBLE_TOASTS; i++) {
+                var oldest = activeToasts[i];
+                if (oldest && !oldest.classList.contains('hide')) {
+                    oldest.classList.remove('show');
+                    oldest.classList.add('hide');
+                    (function(el) {
+                        setTimeout(function() {
+                            if (el && el.parentNode) el.parentNode.removeChild(el);
+                        }, 220);
+                    })(oldest);
+                }
+            }
+        }
+
+        var cleanMsg = String(message || '').replace(/^[✅❌⚠️🔁🗑️🔔👨‍🍳\s]+/, '');
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+
+        var iconClass = 'fa-check';
+        if (type === 'warning') iconClass = 'fa-triangle-exclamation';
+        else if (type === 'error') iconClass = 'fa-xmark';
+        else if (type === 'info') iconClass = 'fa-circle-info';
+
+        toast.innerHTML = 
+            '<div class="toast-icon-badge"><i class="fa-solid ' + iconClass + '"></i></div>' +
+            '<span class="toast-msg">' + cleanMsg + '</span>' +
+            '<button type="button" class="toast-dismiss" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>' +
+            '<div class="toast-progress"><div class="toast-progress-bar" style="animation-duration:' + (duration / 1000) + 's"></div></div>';
+
+        var dismissTimeout = null;
+        var remainingTime = duration;
+        var startTime = Date.now();
+        var isPaused = false;
+
+        function startTimer(ms) {
+            startTime = Date.now();
+            dismissTimeout = setTimeout(removeToast, ms);
+        }
+
+        function removeToast() {
+            if (dismissTimeout) clearTimeout(dismissTimeout);
+            toast.classList.remove('show');
+            toast.classList.add('hide');
+            setTimeout(function() {
+                if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 220);
+        }
+
+        // Hover to pause countdown timer
+        var progressBar = toast.querySelector('.toast-progress-bar');
+        toast.addEventListener('mouseenter', function() {
+            if (isPaused) return;
+            isPaused = true;
+            clearTimeout(dismissTimeout);
+            var elapsed = Date.now() - startTime;
+            remainingTime = Math.max(500, remainingTime - elapsed);
+            if (progressBar) {
+                progressBar.style.animationPlayState = 'paused';
+            }
+        });
+
+        toast.addEventListener('mouseleave', function() {
+            if (!isPaused) return;
+            isPaused = false;
+            if (progressBar) {
+                progressBar.style.animationPlayState = 'running';
+            }
+            startTimer(remainingTime);
+        });
+
+        var closeBtn = toast.querySelector('.toast-dismiss');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                removeToast();
+            });
+        }
+
+        container.appendChild(toast);
+        requestAnimationFrame(function() {
+            toast.classList.add('show');
+        });
+
+        startTimer(duration);
+    };
+}
 </script>

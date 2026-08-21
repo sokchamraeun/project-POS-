@@ -253,7 +253,7 @@ $defaultMilk = 'Fresh Milk';
     html, body { height: 100vh; width: 100%; overflow: hidden; margin: 0; padding: 0; }
     :root { --sidebar-w: 260px; }
     body {
-      background: var(--bg, #0e0e10);
+      background: var(--bg, #ffffff);
       color: var(--text, #1a1410);
       font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
       display: flex;
@@ -272,12 +272,24 @@ $defaultMilk = 'Fresh Milk';
   </style>
 
   <script>
+  function updateCartIconVisibility(isOpen) {
+    var btn = document.getElementById('cart-toggle-btn') || document.getElementById('cartToggleBtn');
+    if (btn) {
+      if (isOpen) {
+        btn.style.setProperty('display', 'none', 'important');
+      } else {
+        btn.style.setProperty('display', 'flex', 'important');
+      }
+    }
+  }
+
   function openCartSidebar() {
     var s = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
     if (!s) return;
     s.classList.remove('hidden');
     s.style.setProperty('display', 'flex', 'important');
     localStorage.setItem('cart_sidebar_closed', 'false');
+    updateCartIconVisibility(true);
   }
   function closeCartSidebar() {
     var s = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
@@ -285,6 +297,7 @@ $defaultMilk = 'Fresh Milk';
     s.classList.add('hidden');
     s.style.setProperty('display', 'none', 'important');
     localStorage.setItem('cart_sidebar_closed', 'true');
+    updateCartIconVisibility(false);
   }
   function toggleCartSidebar() {
     var s = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
@@ -303,6 +316,8 @@ $defaultMilk = 'Fresh Milk';
   document.addEventListener('DOMContentLoaded', function() {
     if (localStorage.getItem('cart_sidebar_closed') === 'true') {
       closeCartSidebar();
+    } else {
+      openCartSidebar();
     }
   });
   </script>
@@ -313,26 +328,115 @@ $defaultMilk = 'Fresh Milk';
       position: relative; z-index: 1000;
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 20px;
-      background: var(--bg-header, rgba(255,252,248,.97));
+      background: var(--bg-header, rgba(255,255,255,.97));
       backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border, #e0d4c4);
-      box-shadow: 0 2px 10px rgba(90,60,20,.07);
+      border-bottom: 1px solid var(--border, #e5e7eb);
+      box-shadow: 0 1px 4px rgba(0,0,0,.04);
       flex-shrink: 0;
     }
     .header-left  { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .header-center{ flex: 1; max-width: 480px; display: flex; align-items: center; gap: 8px; }
     .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
     .brand { display: flex; align-items: center; gap: 8px; }
-    .brand img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border,#e0d4c4); flex-shrink: 0; }
+    .brand img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border,#e5e7eb); flex-shrink: 0; }
     .brand-name { font-size: 15px; font-weight: 700; white-space: nowrap; color: var(--text,#1a1410); }
     .search-form  { display: flex; align-items: center; gap: 8px; width: 100%; }
-    .search-inner { display: flex; align-items: center; gap: 8px; flex: 1; border-radius: 50px; padding: 7px 14px; background: var(--bg-input,#ede8e0); border: 1px solid var(--border,#e0d4c4); }
+    .search-inner { display: flex; align-items: center; gap: 8px; flex: 1; border-radius: 50px; padding: 7px 14px; background: var(--bg-input,#f3f4f6); border: 1px solid var(--border,#e5e7eb); }
     .search-inner input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Poppins',sans-serif; font-size: 13px; color: var(--text,#1a1410); }
-    .sort-select { border-radius: 50px; padding: 7px 12px; border: 1px solid var(--border,#e0d4c4); background: var(--bg-input,#ede8e0); font-family: 'Poppins',sans-serif; font-size: 12px; outline: none; cursor: pointer; flex-shrink: 0; }
-    .btn-nav { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 50px; border: 1px solid var(--border,#e0d4c4); background: var(--bg-input,#ede8e0); text-decoration: none; color: var(--text-sec,#5a4a3a); font-size: 13px; font-weight: 500; white-space: nowrap; transition: all .25s; }
+    .sort-select { border-radius: 50px; padding: 7px 12px; border: 1px solid var(--border,#e5e7eb); background: var(--bg-input,#f3f4f6); font-family: 'Poppins',sans-serif; font-size: 12px; outline: none; cursor: pointer; flex-shrink: 0; }
+    .btn-nav { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 50px; border: 1px solid var(--border,#e5e7eb); background: var(--bg-input,#f3f4f6); text-decoration: none; color: var(--text-sec,#5a4a3a); font-size: 13px; font-weight: 500; white-space: nowrap; transition: all .25s; }
     .btn-nav:hover { background: #d1904b; color: #fff; border-color: #d1904b; }
-    .btn-theme { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border,#e0d4c4); background: var(--bg-input,#ede8e0); color: var(--text,#1a1410); cursor: pointer; flex-shrink: 0; }
+    .btn-theme { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border,#e5e7eb); background: var(--bg-input,#f3f4f6); color: var(--text,#1a1410); cursor: pointer; flex-shrink: 0; }
     .badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #d1904b; color: #fff; font-size: 10px; font-weight: 700; }
+
+    /* ── SLEEK GLASS PILL CART BUTTON ── */
+    .cart-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      height: 40px;
+      padding: 0 14px 0 8px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.03) 100%);
+      border: 1px solid rgba(209, 144, 75, 0.35);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      color: var(--text, #ffffff);
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-user-select: none;
+      user-select: none;
+      text-decoration: none;
+      outline: none;
+    }
+
+    [data-theme="light"] .cart-pill-btn {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border: 1px solid rgba(209, 144, 75, 0.35);
+      box-shadow: 0 4px 14px rgba(209, 144, 75, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+      color: #1e293b;
+    }
+
+    .cart-pill-btn:hover {
+      transform: translateY(-2px);
+      border-color: #d1904b;
+      box-shadow: 0 8px 24px rgba(209, 144, 75, 0.28), inset 0 1px 1px rgba(255, 255, 255, 0.22);
+      background: linear-gradient(135deg, rgba(209, 144, 75, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%);
+    }
+
+    [data-theme="light"] .cart-pill-btn:hover {
+      background: linear-gradient(135deg, #fffaf5 0%, #fef3c7 100%);
+      border-color: #d1904b;
+      box-shadow: 0 8px 22px rgba(209, 144, 75, 0.25);
+    }
+
+    .cart-pill-btn:active {
+      transform: scale(0.96);
+    }
+
+    .cart-pill-icon-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(209, 144, 75, 0.16);
+      color: #d1904b;
+      font-size: 13px;
+      transition: all 0.25s ease;
+    }
+
+    .cart-pill-btn:hover .cart-pill-icon-wrap {
+      background: #d1904b;
+      color: #ffffff;
+      transform: rotate(-6deg);
+    }
+
+    .cart-pill-text {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+
+    .cart-pill-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #1a1410;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.45);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
     /* ── POS SPLIT LAYOUT ── */
     .pos-layout {
@@ -341,6 +445,7 @@ $defaultMilk = 'Fresh Milk';
       height: calc(100vh - 61px);
       overflow: hidden;
       min-height: 0;
+      background: var(--bg, #ffffff);
     }
 
     /* ── MENU PANEL (left, scrollable) ── */
@@ -351,12 +456,13 @@ $defaultMilk = 'Fresh Milk';
       height: 100%;
       overflow: hidden;
       min-width: 0;
+      background: var(--bg, #ffffff);
     }
     .menu-panel .cat-nav {
       display: flex; align-items: center; gap: 8px;
       padding: 8px 20px 10px;
-      background: var(--bg-header, rgba(255,252,248,.97));
-      border-bottom: 1px solid var(--border,#e0d4c4);
+      background: var(--bg-header, rgba(255,255,255,.97));
+      border-bottom: 1px solid var(--border,#e5e7eb);
       overflow-x: auto;
       flex-shrink: 0;
       position: sticky; top: 0; z-index: 50;
@@ -484,8 +590,8 @@ $defaultMilk = 'Fresh Milk';
     .cp-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .cp-qty {
       display: flex; align-items: center;
-      border: 1.5px solid var(--border,#e0d4c4); border-radius: 50px;
-      background: var(--bg,#f4efe9); overflow: hidden;
+      border: 1.5px solid var(--border,#e5e7eb); border-radius: 50px;
+      background: var(--bg-input,#f3f4f6); overflow: hidden;
     }
     .cp-qty button {
       width: 28px; height: 28px; background: none; border: none;
@@ -556,39 +662,203 @@ $defaultMilk = 'Fresh Milk';
       border-color: #ef4444 !important;
       color: #ef4444 !important;
     }
+    /* ═══════════════════════════════════════════════════════════════════
+       PREMIUM SENIOR UX/UI TOAST NOTIFICATION SYSTEM
+       ═══════════════════════════════════════════════════════════════════ */
     #toast-container {
       position: fixed !important;
-      top: 24px !important;
-      right: 24px !important;
+      top: 20px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
       z-index: 2147483647 !important;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      pointer-events: none;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      gap: 8px !important;
+      pointer-events: none !important;
+      width: auto !important;
+      max-width: calc(100vw - 32px) !important;
     }
+
     .toast {
-      padding: 12px 18px;
-      border-radius: 12px;
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: #fff;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
-      transform: translateY(-20px) scale(0.95);
-      opacity: 0;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: auto;
-      font-family: 'Poppins', sans-serif;
+      pointer-events: auto !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+      padding: 9px 14px 9px 10px !important;
+      border-radius: 9999px !important;
+      font-family: 'Poppins', 'Kantumruy Pro', sans-serif !important;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.01em !important;
+      white-space: nowrap !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      backdrop-filter: blur(20px) !important;
+      background: rgba(18, 18, 24, 0.94) !important;
+      color: #f9fafb !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+      transform: translateY(-24px) scale(0.92) !important;
+      opacity: 0 !important;
+      transition: transform 0.36s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s ease !important;
+      -webkit-user-select: none !important;
+      user-select: none !important;
+      position: relative !important;
+      overflow: hidden !important;
     }
+
     .toast.show {
-      transform: translateY(0) scale(1);
-      opacity: 1;
+      transform: translateY(0) scale(1) !important;
+      opacity: 1 !important;
     }
-    .toast.success { background: #059669; }
-    .toast.warning { background: #d97706; }
-    .toast.error   { background: #dc2626; }
+
+    .toast.hide {
+      transform: translateY(-16px) scale(0.92) !important;
+      opacity: 0 !important;
+      transition: transform 0.22s ease-in, opacity 0.22s ease-in !important;
+    }
+
+    [data-theme="light"] .toast {
+      background: rgba(255, 255, 255, 0.96) !important;
+      color: #111827 !important;
+      border: 1px solid rgba(229, 231, 235, 0.95) !important;
+      box-shadow: 0 14px 34px -4px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+    }
+
+    .toast-icon-badge {
+      width: 26px !important;
+      height: 26px !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+      font-size: 12px !important;
+    }
+
+    .toast.success .toast-icon-badge {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.25)) !important;
+      color: #10b981 !important;
+      border: 1px solid rgba(16, 185, 129, 0.35) !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2) !important;
+    }
+
+    .toast.warning .toast-icon-badge {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.25)) !important;
+      color: #f59e0b !important;
+      border: 1px solid rgba(245, 158, 11, 0.35) !important;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.2) !important;
+    }
+
+    .toast.error .toast-icon-badge {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.25)) !important;
+      color: #ef4444 !important;
+      border: 1px solid rgba(239, 68, 68, 0.35) !important;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.2) !important;
+    }
+
+    .toast.info .toast-icon-badge {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.25)) !important;
+      color: #3b82f6 !important;
+      border: 1px solid rgba(59, 130, 246, 0.35) !important;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.2) !important;
+    }
+
+    .toast-msg {
+      flex: 1 !important;
+      line-height: 1.4 !important;
+      padding-right: 2px !important;
+    }
+
+    .toast-dismiss {
+      width: 20px !important;
+      height: 20px !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: transparent !important;
+      border: none !important;
+      color: #9ca3af !important;
+      font-size: 10.5px !important;
+      cursor: pointer !important;
+      transition: all 0.15s ease !important;
+      padding: 0 !important;
+      margin-left: 2px !important;
+      flex-shrink: 0 !important;
+    }
+
+    .toast-dismiss:hover {
+      background: rgba(255, 255, 255, 0.12) !important;
+      color: #ffffff !important;
+    }
+
+    [data-theme="light"] .toast-dismiss:hover {
+      background: rgba(0, 0, 0, 0.08) !important;
+      color: #111827 !important;
+    }
+
+    .toast-progress {
+      position: absolute !important;
+      bottom: 0 !important;
+      left: 14px !important;
+      right: 14px !important;
+      height: 2px !important;
+      border-radius: 99px !important;
+      background: rgba(255, 255, 255, 0.1) !important;
+      overflow: hidden !important;
+    }
+
+    .toast-progress-bar {
+      height: 100% !important;
+      width: 100% !important;
+      transform-origin: left !important;
+      animation: toastProgress 2.8s linear forwards !important;
+    }
+
+    .toast.success .toast-progress-bar { background: #10b981 !important; }
+    .toast.warning .toast-progress-bar { background: #f59e0b !important; }
+    .toast.error .toast-progress-bar   { background: #ef4444 !important; }
+    .toast.info .toast-progress-bar    { background: #3b82f6 !important; }
+
+    @keyframes toastProgress {
+      from { transform: scaleX(1); }
+      to   { transform: scaleX(0); }
+    }
+
+    /* ── FLY-TO-CART ANIMATION & CART ICON BUMP ── */
+    .fly-to-cart-clone {
+      position: fixed !important;
+      pointer-events: none !important;
+      z-index: 2147483646 !important;
+      will-change: transform, opacity !important;
+      transition: none;
+    }
+
+    @keyframes cartIconBounce {
+      0%   { transform: scale(1) rotate(0deg); }
+      20%  { transform: scale(1.28) rotate(-14deg); }
+      40%  { transform: scale(1.22) rotate(12deg); }
+      60%  { transform: scale(1.12) rotate(-6deg); }
+      80%  { transform: scale(1.04) rotate(2deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
+    @keyframes cartBadgePop {
+      0%   { transform: scale(1); }
+      45%  { transform: scale(1.55); box-shadow: 0 0 16px rgba(245, 158, 11, 0.95); }
+      100% { transform: scale(1); }
+    }
+
+    .cart-icon-bump {
+      animation: cartIconBounce 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+      transform-origin: center center !important;
+    }
+
+    .cart-badge-bump {
+      animation: cartBadgePop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+      transform-origin: center center !important;
+    }
 
     /* Summary area: pinned below the scrolling items, above the footer */
     .cp-summary { flex-shrink: 0; padding: 12px 16px; border-top: 1px solid var(--border,#e0d4c4); }
@@ -629,8 +899,8 @@ $defaultMilk = 'Fresh Milk';
     .cp-pay-methods { display: flex; gap: 8px; }
     .cp-pay-method {
       flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
-      padding: 13px 4px 11px; border: 1.5px solid var(--border,#e0d4c4); border-radius: 14px;
-      cursor: pointer; background: var(--bg,#f4efe9); color: var(--text-sec,#5a4a3a);
+      padding: 13px 4px 11px; border: 1.5px solid var(--border,#e5e7eb); border-radius: 14px;
+      cursor: pointer; background: var(--bg-card-hover,#f9fafb); color: var(--text-sec,#5a4a3a);
       transition: transform .12s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
       user-select: none;
     }
@@ -649,12 +919,12 @@ $defaultMilk = 'Fresh Milk';
     .cp-pay-method input { display: none; }
 
     /* Split payment inputs */
-    .cp-split-inputs { display: none; background: var(--bg,#f4efe9); border-radius: 8px; padding: 8px; border: 1px solid var(--border,#e0d4c4); margin-top: 5px; }
+    .cp-split-inputs { display: none; background: var(--bg-card-hover,#f9fafb); border-radius: 8px; padding: 8px; border: 1px solid var(--border,#e5e7eb); margin-top: 5px; }
     .cp-split-inputs.active { display: block; }
     .cp-split-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
     .cp-split-row:last-child { margin-bottom: 0; }
     .cp-split-row label { font-size: 11px; color: var(--text-sec,#5a4a3a); min-width: 52px; }
-    .cp-split-row input { flex: 1; padding: 5px 7px; border-radius: 5px; border: 1px solid var(--border,#e0d4c4); background: var(--bg-card,#fff); color: var(--text,#1a1410); font-size: 12px; font-family: 'Poppins',sans-serif; outline: none; }
+    .cp-split-row input { flex: 1; padding: 5px 7px; border-radius: 5px; border: 1px solid var(--border,#e5e7eb); background: var(--bg-card,#fff); color: var(--text,#1a1410); font-size: 12px; font-family: 'Poppins',sans-serif; outline: none; }
     .cp-split-row input:focus { border-color: #d1904b; }
 
     /* Change calculator */
@@ -665,7 +935,7 @@ $defaultMilk = 'Fresh Milk';
     .cp-change-calc input:focus { border-color: #55e087; }
     /* Quick tender — the note the customer actually handed over, one tap */
     .cp-tender-quick { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
-    .cp-tender-btn { flex: 1 1 auto; min-width: 48px; padding: 6px 8px; border-radius: 7px; border: 1.5px solid rgba(85,224,135,.3); background: var(--bg,#f4efe9); color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
+    .cp-tender-btn { flex: 1 1 auto; min-width: 48px; padding: 6px 8px; border-radius: 7px; border: 1.5px solid rgba(85,224,135,.3); background: var(--bg-input,#f3f4f6); color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
     .cp-tender-btn:hover { border-color: #55e087; color: #2e9c5a; }
     .cp-tender-btn.active { background: rgba(85,224,135,.16); border-color: #55e087; color: #2e9c5a; box-shadow: 0 0 0 2px rgba(85,224,135,.15); }
     [data-theme="dark"] .cp-tender-btn { background: #1a1a1a; border-color: #2d2d2d; color: #aaa; }
@@ -678,14 +948,14 @@ $defaultMilk = 'Fresh Milk';
 
     /* Drink type toggle */
     .cp-drink-type { display: flex; gap: 6px; margin-top: 4px; }
-    .cp-drink-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 9px; border-radius: 10px; border: 1.5px solid var(--border,#e0d4c4); background: var(--bg,#f4efe9); color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s; }
+    .cp-drink-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 9px; border-radius: 10px; border: 1.5px solid var(--border,#e5e7eb); background: var(--bg-card-hover,#f9fafb); color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s; }
     .cp-drink-btn.active { border-color: #d1904b; background: rgba(209,144,75,.12); color: #d1904b; font-weight: 600; box-shadow: 0 0 0 2px rgba(209,144,75,.15); }
 
     /* Customer input */
     .cp-form-group { margin-top: 7px; }
     .cp-form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text-sec,#5a4a3a); margin-bottom: 3px; }
     .cp-form-group input,
-    .cp-form-group select { width: 100%; padding: 7px 10px; border-radius: 7px; border: 1px solid var(--border,#e0d4c4); background: var(--bg,#f4efe9); color: var(--text,#1a1410); font-family: 'Poppins',sans-serif; font-size: 12px; outline: none; transition: border-color .2s; }
+    .cp-form-group select { width: 100%; padding: 7px 10px; border-radius: 7px; border: 1px solid var(--border,#e5e7eb); background: var(--bg-card-hover,#f9fafb); color: var(--text,#1a1410); font-family: 'Poppins',sans-serif; font-size: 12px; outline: none; transition: border-color .2s; }
     .cp-form-group input:focus,
     .cp-form-group select:focus { border-color: #d1904b; }
 
@@ -769,7 +1039,7 @@ $defaultMilk = 'Fresh Milk';
       box-shadow: 0 1px 0 #4c1d95, inset 0 2px 5px rgba(0, 0, 0, 0.3) !important;
     }
     .cp-shortcuts { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 9px; font-size: 10px; color: var(--text-muted,#9a8070); opacity: .8; }
-    .cp-shortcuts kbd { background: var(--bg,#f4efe9); border: 1px solid var(--border,#e0d4c4); border-radius: 4px; padding: 2px 5px; font-size: 9px; font-weight: 700; color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; letter-spacing: .03em; }
+    .cp-shortcuts kbd { background: var(--bg-input,#f3f4f6); border: 1px solid var(--border,#e5e7eb); border-radius: 4px; padding: 2px 5px; font-size: 9px; font-weight: 700; color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; letter-spacing: .03em; }
 
     /* ── Dark theme overrides ── */
     [data-theme="dark"] body { background: #0c0c0c; }
@@ -1294,12 +1564,12 @@ $defaultMilk = 'Fresh Milk';
         color: #6a5e52 !important;
     }
     [data-theme="light"] #cartRemoveModal .btn-remove-cancel {
-        background: #f4efe9 !important;
-        border-color: #dcd1c2 !important;
-        color: #635343 !important;
+        background: #f3f4f6 !important;
+        border-color: #e5e7eb !important;
+        color: #4b5563 !important;
     }
     [data-theme="light"] #cartRemoveModal .btn-remove-cancel:hover {
-        background: #ede6dc !important;
+        background: #e5e7eb !important;
         color: #1a1410 !important;
     }
 
@@ -1346,10 +1616,100 @@ $defaultMilk = 'Fresh Milk';
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.3) !important;
     }
 
+    /* ══ LIGHT THEME COMPLETE WHITE CONTENT BACKGROUND ══ */
+    [data-theme="light"],
+    html[data-theme="light"] {
+      --bg: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f9fafb;
+      --bg-input: #f3f4f6;
+      --bg-header: rgba(255,255,255,0.96);
+      --border: #e5e7eb;
+      --border-hover: #d1d5db;
+    }
+
+    [data-theme="light"] body,
+    [data-theme="light"] .app-main,
+    [data-theme="light"] .pos-layout,
+    [data-theme="light"] .menu-panel,
+    [data-theme="light"] .menu-scroll,
+    [data-theme="light"] .menu-main {
+      background-color: #ffffff !important;
+    }
+
+    [data-theme="light"] .menu-header,
+    [data-theme="light"] .menu-panel .cat-nav {
+      background-color: rgba(255, 255, 255, 0.97) !important;
+      border-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .search-inner,
+    [data-theme="light"] .sort-select,
+    [data-theme="light"] .btn-nav,
+    [data-theme="light"] .btn-theme {
+      background-color: #f3f4f6 !important;
+      border-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .cat-pill:not(.active) {
+      background-color: #f3f4f6 !important;
+      border-color: #e5e7eb !important;
+      color: #5a4a3a !important;
+    }
+
+    [data-theme="light"] .cat-header {
+      border-bottom-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .product-card {
+      background-color: #ffffff !important;
+      border-color: #e5e7eb !important;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    [data-theme="light"] .product-card:hover {
+      border-color: #d1904b !important;
+      box-shadow: 0 4px 20px rgba(209,144,75,0.25) !important;
+    }
+
+    [data-theme="light"] .cart-panel {
+      background-color: #ffffff !important;
+      border-left-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .cp-header,
+    [data-theme="light"] .cp-footer,
+    [data-theme="light"] .cp-summary,
+    [data-theme="light"] .cp-section,
+    [data-theme="light"] .cp-item {
+      border-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .cp-qty {
+      background-color: #f3f4f6 !important;
+      border-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .cp-pay-method {
+      background-color: #f9fafb !important;
+      border-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .cp-drink-btn {
+      background-color: #f9fafb !important;
+      border-color: #e5e7eb !important;
+    }
+
+    [data-theme="light"] .cp-form-group input,
+    [data-theme="light"] .cp-form-group select {
+      background-color: #f9fafb !important;
+      border-color: #e5e7eb !important;
+    }
+
     /* ══ LIGHT THEME CUSTOMIZATION MODAL COMPLETE FIX ══ */
     [data-theme="light"] #product-modal,
     [data-theme="light"] .cp-paymodal {
-      background-color: rgba(0,0,0,0.2) !important;
+      background-color: rgba(0,0,0,0.3) !important;
       backdrop-filter: blur(4px) !important;
       -webkit-backdrop-filter: blur(4px) !important;
     }
@@ -1357,8 +1717,8 @@ $defaultMilk = 'Fresh Milk';
     [data-theme="light"] #product-modal .modal-card,
     [data-theme="light"] .modal-card {
       background-color: #ffffff !important;
-      border: 1px solid #e0d4c4 !important;
-      box-shadow: 0 20px 45px rgba(90, 60, 20, 0.2) !important;
+      border: 1px solid #e5e7eb !important;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.12) !important;
       color: #1a1410 !important;
     }
 
@@ -1375,25 +1735,25 @@ $defaultMilk = 'Fresh Milk';
     }
 
     [data-theme="light"] #product-modal .modal-close {
-      background-color: #ede8e0 !important;
+      background-color: #f3f4f6 !important;
       color: #1a1410 !important;
-      border-color: #e0d4c4 !important;
+      border-color: #e5e7eb !important;
     }
 
     [data-theme="light"] #product-modal .modal-close:hover {
-      background-color: #e0d4c4 !important;
+      background-color: #e5e7eb !important;
       color: #000000 !important;
     }
 
     [data-theme="light"] #product-modal .modal-price-row {
-      background-color: #f8f3ed !important;
-      border-color: #e0d4c4 !important;
+      background-color: #f9fafb !important;
+      border-color: #e5e7eb !important;
     }
 
     [data-theme="light"] #product-modal .qty-control,
     [data-theme="light"] .qty-control {
-      background-color: #ede8e0 !important;
-      border-color: #e0d4c4 !important;
+      background-color: #f3f4f6 !important;
+      border-color: #e5e7eb !important;
     }
 
     [data-theme="light"] #product-modal #modalQtyDisplay,
@@ -1407,8 +1767,8 @@ $defaultMilk = 'Fresh Milk';
 
     [data-theme="light"] #product-modal .modal-footer,
     [data-theme="light"] .modal-footer {
-      background-color: #fdfaf6 !important;
-      border-top: 1px solid #e0d4c4 !important;
+      background-color: #ffffff !important;
+      border-top: 1px solid #e5e7eb !important;
     }
 
     [data-theme="light"] #product-modal .modal-total,
@@ -1418,9 +1778,9 @@ $defaultMilk = 'Fresh Milk';
 
     /* Light Theme Option Pills */
     [data-theme="light"] .option-pill {
-      background: #ede8e0 !important;
+      background: #f3f4f6 !important;
       color: #5a4a3a !important;
-      border: 1px solid #e0d4c4 !important;
+      border: 1px solid #e5e7eb !important;
     }
 
     [data-theme="light"] .option-pill:hover {
@@ -1445,15 +1805,6 @@ $defaultMilk = 'Fresh Milk';
 
 <!-- HEADER -->
 <header class="menu-header">
-  <div class="header-left">
-    <button type="button" 
-            onclick="toggleSidebar()" 
-            class="sidebar-toggle-btn flex items-center justify-center w-9 h-9 rounded-xl bg-[#18181c] border border-[#24242b] text-[#d1904b] hover:text-white hover:border-[#d1904b] transition-all cursor-pointer shadow-sm"
-            title="Toggle Menu Sidebar">
-      <i class="fa-solid fa-bars text-sm"></i>
-    </button>
-  </div>
-
   <div class="header-center">
     <form class="search-form" method="GET" id="searchForm">
       <div class="search-inner">
@@ -1467,13 +1818,12 @@ $defaultMilk = 'Fresh Milk';
   </div>
 
   <div class="header-right">
-    <div class="brand">
-      <img src="images/Newlogo.jpg" alt="Logo">
-      <span class="brand-name">Bird's Nest</span>
-    </div>
-    <button type="button" class="btn-nav relative flex items-center justify-center p-2 rounded-xl" id="cart-toggle-btn" onclick="toggleCartSidebar()" title="Toggle Cart">
-      <i class="fa-solid fa-cart-shopping text-base"></i>
-      <span id="cart-badge" class="badge absolute -top-1 -right-1 bg-amber-500 text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center"><?= $cart_count ?></span>
+    <button type="button" class="cart-pill-btn" id="cart-toggle-btn" onclick="toggleCartSidebar()" title="<?= __('cart', 'Cart') ?>">
+      <div class="cart-pill-icon-wrap">
+        <i class="fa-solid fa-cart-shopping"></i>
+      </div>
+      <span class="cart-pill-text"><?= __('cart', 'Cart') ?></span>
+      <span id="cart-badge" class="cart-pill-badge"><?= $cart_count ?></span>
     </button>
   </div>
 </header>
@@ -2346,7 +2696,7 @@ $defaultMilk = 'Fresh Milk';
       <p style="font-size:12px;color:var(--text-sec,#5a4a3a);">Enter your loyalty ID to view points and redeem rewards</p>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <input type="text" id="loyaltyIdInput" placeholder="e.g. CARD-12345" style="flex:1;padding:9px 12px;border-radius:9px;border:1px solid var(--border,#e0d4c4);background:var(--bg,#f4efe9);color:var(--text,#1a1410);font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+      <input type="text" id="loyaltyIdInput" placeholder="e.g. CARD-12345" style="flex:1;padding:9px 12px;border-radius:9px;border:1px solid var(--border,#e5e7eb);background:var(--bg-input,#f3f4f6);color:var(--text,#1a1410);font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
       <button onclick="lookupLoyalty()" style="background:#d1904b;color:#fff;border:none;padding:9px 16px;border-radius:9px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;"><i class="fa-solid fa-magnifying-glass"></i></button>
     </div>
     <div id="loyaltyResult" style="display:none;padding:14px;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border,#e0d4c4);">
@@ -2592,6 +2942,131 @@ function openModal(id, name, price, img, cat, desc, badge, hasSizes, sizes, addo
   document.body.style.overflow = 'hidden';
 }
 
+// ── FLY-TO-CART ANIMATION ENGINE ──
+function flyToCart(sourceElement) {
+  if (!sourceElement) return;
+
+  var sourceImg = null;
+  if (sourceElement.tagName === 'IMG') {
+    sourceImg = sourceElement;
+  } else if (sourceElement.querySelector) {
+    sourceImg = sourceElement.querySelector('img');
+  }
+
+  if (!sourceImg || !sourceImg.src) return;
+
+  var rect = sourceImg.getBoundingClientRect();
+  if (!rect || rect.width === 0 || rect.height === 0) return;
+
+  // Target: Cart Sidebar Header Count (#cpCount) if open, or Header Cart Button if closed
+  var sidebar = document.getElementById('cart-sidebar') || document.getElementById('cartPanel');
+  var isSidebarOpen = sidebar && !sidebar.classList.contains('hidden') && sidebar.style.display !== 'none' && window.getComputedStyle(sidebar).display !== 'none';
+
+  var targetEl = null;
+  if (isSidebarOpen) {
+    targetEl = document.getElementById('cpCount') || 
+               sidebar.querySelector('.cp-count') || 
+               sidebar.querySelector('.cp-title') || 
+               sidebar.querySelector('.cp-header');
+  } else {
+    targetEl = document.getElementById('cart-badge') || 
+               document.getElementById('cart-toggle-btn') || 
+               document.getElementById('cartToggleBtn') || 
+               document.querySelector('.header-right .cart-pill-btn') ||
+               document.querySelector('.header-right .btn-nav') ||
+               document.querySelector('.cart-toggle-btn');
+  }
+
+  var targetX = window.innerWidth - 65;
+  var targetY = 28;
+
+  if (targetEl) {
+    var tRect = targetEl.getBoundingClientRect();
+    if (tRect.width > 0 && tRect.left > 0) {
+      targetX = tRect.left + (tRect.width / 2) - 15;
+      targetY = tRect.top + (tRect.height / 2) - 15;
+    }
+  }
+
+  var dx = targetX - rect.left;
+  var dy = targetY - rect.top;
+
+  var clone = document.createElement('img');
+  clone.src = sourceImg.src;
+  clone.className = 'fly-to-cart-clone';
+  clone.style.position = 'fixed';
+  clone.style.top = rect.top + 'px';
+  clone.style.left = rect.left + 'px';
+  clone.style.width = rect.width + 'px';
+  clone.style.height = rect.height + 'px';
+  clone.style.objectFit = 'contain';
+  clone.style.borderRadius = '16px';
+  clone.style.pointerEvents = 'none';
+  clone.style.zIndex = '2147483646';
+  clone.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.4)';
+  clone.style.transformOrigin = 'center center';
+  document.body.appendChild(clone);
+
+  function triggerCartBump() {
+    var cpCount = document.getElementById('cpCount');
+    if (cpCount) {
+      cpCount.classList.remove('cart-badge-bump');
+      void cpCount.offsetWidth;
+      cpCount.classList.add('cart-badge-bump');
+      setTimeout(function() { cpCount.classList.remove('cart-badge-bump'); }, 400);
+    }
+
+    var badge = document.getElementById('cart-badge');
+    if (badge) {
+      badge.classList.remove('cart-badge-bump');
+      void badge.offsetWidth;
+      badge.classList.add('cart-badge-bump');
+      setTimeout(function() { badge.classList.remove('cart-badge-bump'); }, 400);
+    }
+  }
+
+  if (typeof clone.animate === 'function') {
+    var anim = clone.animate([
+      {
+        transform: 'translate(0px, 0px) scale(1) rotate(0deg)',
+        opacity: 1,
+        borderRadius: '16px'
+      },
+      {
+        transform: 'translate(' + (dx * 0.5) + 'px, ' + (dy * 0.3 - 35) + 'px) scale(0.65) rotate(-10deg)',
+        opacity: 0.9,
+        offset: 0.45
+      },
+      {
+        transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.18) rotate(15deg)',
+        opacity: 0.1,
+        borderRadius: '50%'
+      }
+    ], {
+      duration: 600,
+      easing: 'cubic-bezier(0.2, 0.8, 0.25, 1)',
+      fill: 'forwards'
+    });
+
+    anim.onfinish = function() {
+      clone.remove();
+      triggerCartBump();
+    };
+  } else {
+    clone.style.transition = 'transform 0.6s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.6s cubic-bezier(0.2, 0.8, 0.25, 1), border-radius 0.6s ease';
+    requestAnimationFrame(function() {
+      clone.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.2) rotate(15deg)';
+      clone.style.opacity = '0.1';
+      clone.style.borderRadius = '50%';
+    });
+    setTimeout(function() {
+      clone.remove();
+      triggerCartBump();
+    }, 600);
+  }
+}
+window.flyToCart = flyToCart;
+
 // Open the product directly to cart from card click
 function openModalFromCard(card) {
   if (!card) return;
@@ -2605,8 +3080,11 @@ function openModalFromCard(card) {
   card.classList.add('card-quick-pressed');
   setTimeout(function() { card.classList.remove('card-quick-pressed'); }, 200);
 
+  // Smooth Fly-to-Cart animation
+  flyToCart(card);
+
   // Auto add directly to cart!
-  quickAdd(card.dataset.productId, Number(card.dataset.productPrice || 0));
+  quickAdd(card.dataset.productId, Number(card.dataset.productPrice || 0), card, true);
 }
 
 function closeModal() {
@@ -2837,6 +3315,14 @@ function addToCart() {
     return;
   }
 
+  var modalImg = document.getElementById('modalImg');
+  if (modalImg && modalImg.src && modalImg.offsetParent !== null) {
+    flyToCart(modalImg);
+  } else {
+    var curCard = document.querySelector('.product-card[data-product-id="' + product.id + '"]');
+    if (curCard) flyToCart(curCard);
+  }
+
   var params = new URLSearchParams({ id: product.id, qty: modalQty, csrf_token: CSRF });
   if (swVal) params.append('sweetness', swVal);
   if (iceVal) params.append('ice', iceVal);
@@ -2867,14 +3353,18 @@ function addToCart() {
 }
 
 // ── QUICK ADD ──
-function quickAdd(productId, price) {
-  var card = document.querySelector('.product-card[data-product-id="' + productId + '"]');
+function quickAdd(productId, price, sourceEl, skipFly) {
+  var card = (sourceEl && sourceEl.nodeType) ? sourceEl : document.querySelector('.product-card[data-product-id="' + productId + '"]');
   if (card && (card.dataset.stockStatus === 'out_of_stock' || card.classList.contains('disabled'))) {
     var outReason = card.getAttribute('title') || (window.CPM_IS_KM ? 'អស់ស្តុក' : 'Out of stock');
     showToast((card.dataset.productName || 'This item') + ' is currently out of stock (' + outReason + ').', 'warning');
     return;
   }
   var prodName = card ? (card.dataset.productName || '') : '';
+
+  if (!skipFly && card) {
+    flyToCart(card);
+  }
 
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: new URLSearchParams({ id: productId, qty: 1, csrf_token: CSRF }).toString() })
     .then(function(r) { return r.json(); })
@@ -4424,8 +4914,8 @@ function cpSelectDirectPayment(el, method) {
   if (container) {
     container.querySelectorAll('.cp-pay-method').forEach(function(item) {
       item.classList.remove('selected');
-      item.style.border = '1.5px solid var(--border,#e0d4c4)';
-      item.style.background = 'var(--bg,#f4efe9)';
+      item.style.border = '';
+      item.style.background = '';
       var cb = item.querySelector('input[type="checkbox"]');
       if (cb) cb.checked = false;
     });
@@ -4917,22 +5407,109 @@ function cpClickPayMethod(method) {
   if (el) el.closest('.cp-pay-method').click();
 }
 
-// ── TOAST ──
-function showToast(message, type) {
+// ── TOAST (Max 2 concurrent alerts with automatic dismiss queue) ──
+function showToast(message, type, duration) {
   type = type || 'success';
+  duration = duration || 2800;
+  var MAX_VISIBLE_TOASTS = 2;
+
   var container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
     document.body.appendChild(container);
   }
+
+  // Cap visible toasts to max 2 (gracefully dismiss oldest if full)
+  var activeToasts = container.querySelectorAll('.toast:not(.hide)');
+  if (activeToasts.length >= MAX_VISIBLE_TOASTS) {
+    var toRemoveCount = activeToasts.length - MAX_VISIBLE_TOASTS + 1;
+    for (var i = 0; i < toRemoveCount; i++) {
+      var oldest = activeToasts[i];
+      if (oldest && !oldest.classList.contains('hide')) {
+        oldest.classList.remove('show');
+        oldest.classList.add('hide');
+        (function(el) {
+          setTimeout(function() {
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+          }, 200);
+        })(oldest);
+      }
+    }
+  }
+
+  // Clean message if emojis already exist
+  var cleanMsg = String(message || '').replace(/^[✅❌⚠️🔁🗑️🔔👨‍🍳\s]+/, '');
+
   var toast = document.createElement('div');
   toast.className = 'toast ' + type;
-  var icon = type === 'success' ? 'fa-check-circle' : (type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-exclamation');
-  toast.innerHTML = '<i class="fa-solid ' + icon + '"></i><span>' + message + '</span>';
+
+  var iconClass = 'fa-check';
+  if (type === 'warning') iconClass = 'fa-triangle-exclamation';
+  else if (type === 'error') iconClass = 'fa-xmark';
+  else if (type === 'info') iconClass = 'fa-circle-info';
+
+  toast.innerHTML = 
+    '<div class="toast-icon-badge"><i class="fa-solid ' + iconClass + '"></i></div>' +
+    '<span class="toast-msg">' + cleanMsg + '</span>' +
+    '<button type="button" class="toast-dismiss" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>' +
+    '<div class="toast-progress"><div class="toast-progress-bar" style="animation-duration:' + (duration / 1000) + 's"></div></div>';
+
+  var dismissTimeout = null;
+  var remainingTime = duration;
+  var startTime = Date.now();
+  var isPaused = false;
+
+  function startTimer(ms) {
+    startTime = Date.now();
+    dismissTimeout = setTimeout(removeToast, ms);
+  }
+
+  function removeToast() {
+    if (dismissTimeout) clearTimeout(dismissTimeout);
+    toast.classList.remove('show');
+    toast.classList.add('hide');
+    setTimeout(function() {
+      if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 220);
+  }
+
+  // Hover to pause countdown timer
+  var progressBar = toast.querySelector('.toast-progress-bar');
+  toast.addEventListener('mouseenter', function() {
+    if (isPaused) return;
+    isPaused = true;
+    clearTimeout(dismissTimeout);
+    var elapsed = Date.now() - startTime;
+    remainingTime = Math.max(500, remainingTime - elapsed);
+    if (progressBar) {
+      progressBar.style.animationPlayState = 'paused';
+    }
+  });
+
+  toast.addEventListener('mouseleave', function() {
+    if (!isPaused) return;
+    isPaused = false;
+    if (progressBar) {
+      progressBar.style.animationPlayState = 'running';
+    }
+    startTimer(remainingTime);
+  });
+
+  var closeBtn = toast.querySelector('.toast-dismiss');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      removeToast();
+    });
+  }
+
   container.appendChild(toast);
-  requestAnimationFrame(function() { toast.classList.add('show'); });
-  setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 350); }, 2800);
+  requestAnimationFrame(function() {
+    toast.classList.add('show');
+  });
+
+  startTimer(duration);
 }
 
 // ── CHAT ──

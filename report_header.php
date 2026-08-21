@@ -289,7 +289,7 @@ html, body {
 
 /* Light theme overrides matching app design system */
 [data-theme="light"] .er-container {
-    background-color: #f4efe9 !important;
+    background-color: #ffffff !important;
     color: #1a1410 !important;
 }
 [data-theme="light"] .er-breadcrumb {

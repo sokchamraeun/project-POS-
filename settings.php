@@ -91,15 +91,15 @@ $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
 
 /* ══ LIGHT THEME OVERRIDES FOR SETTINGS ══ */
 [data-theme="light"], html[data-theme="light"] {
-  --bg:           #f4efe9 !important;
+  --bg:           #ffffff !important;
   --panel:        #ffffff !important;
-  --panel-border: #e0d4c4 !important;
+  --panel-border: #e5e7eb !important;
   --text:         #1a1410 !important;
   --text-muted:   #5a4a3a !important;
 }
 
 [data-theme="light"] .app-main {
-  background-color: #f4efe9 !important;
+  background-color: #ffffff !important;
   color: #1a1410 !important;
 }
 
