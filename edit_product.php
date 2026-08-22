@@ -1170,6 +1170,7 @@ select.cat-select {
     background: rgba(209,144,75,0.15); border-color: #d1904b;
 }
 </style>
+<link rel="stylesheet" href="assets/css/product_cropper.css">
 </head>
 <body class="<?= !empty($_GET['modal']) ? 'bg-transparent overflow-hidden' : '' ?>">
 <?php if (empty($_GET['modal'])): ?>
@@ -1451,26 +1452,74 @@ if (imgWrap) {
 function handleFile() {
     const file = imgInput.files[0];
     if (!file) return;
-    if (fileInfo) fileInfo.innerHTML = `<span>${file.name}</span> — ${(file.size/1024).toFixed(1)} KB`;
-    const reader = new FileReader();
-    reader.onload = e => {
-        if (imgPreview) {
-            imgPreview.src = e.target.result;
-            imgPreview.style.display = 'block';
-        }
-        if (imgWrap && imgWrap.classList.contains('no-image')) {
-            imgWrap.classList.remove('no-image');
-            imgWrap.classList.add('img-preview-wrap');
-            imgWrap.innerHTML = '';
-            imgWrap.appendChild(imgPreview);
-            const ov = document.createElement('div');
-            ov.className = 'img-overlay';
-            ov.innerHTML = '<i class="fa-solid fa-camera"></i>Replace image';
-            ov.onclick = () => imgInput.click();
-            imgWrap.appendChild(ov);
-        }
-    };
-    reader.readAsDataURL(file);
+    
+    if (file._isCropped) {
+        if (fileInfo) fileInfo.innerHTML = `<span>${file.name}</span> (Cropped) — ${(file.size/1024).toFixed(1)} KB`;
+        const reader = new FileReader();
+        reader.onload = e => {
+            if (imgPreview) {
+                imgPreview.src = e.target.result;
+                imgPreview.style.display = 'block';
+            }
+        };
+        reader.readAsDataURL(file);
+        return;
+    }
+
+    if (typeof openProductCropper === 'function') {
+        const reader = new FileReader();
+        reader.onload = e => {
+            openProductCropper(e.target.result, function(blob, dataUrl, croppedFile) {
+                croppedFile._isCropped = true;
+                try {
+                    const dt = new DataTransfer();
+                    dt.items.add(croppedFile);
+                    imgInput.files = dt.files;
+                } catch (err) {
+                    console.warn(err);
+                }
+
+                if (fileInfo) fileInfo.innerHTML = `<span>${croppedFile.name}</span> (Cropped) — ${(croppedFile.size/1024).toFixed(1)} KB`;
+                if (imgPreview) {
+                    imgPreview.src = dataUrl;
+                    imgPreview.style.display = 'block';
+                }
+                if (imgWrap && imgWrap.classList.contains('no-image')) {
+                    imgWrap.classList.remove('no-image');
+                    imgWrap.classList.add('img-preview-wrap');
+                    imgWrap.innerHTML = '';
+                    imgWrap.appendChild(imgPreview);
+                    const ov = document.createElement('div');
+                    ov.className = 'img-overlay';
+                    ov.innerHTML = '<i class="fa-solid fa-camera"></i>Replace image';
+                    ov.onclick = () => imgInput.click();
+                    imgWrap.appendChild(ov);
+                }
+            }, 1);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        if (fileInfo) fileInfo.innerHTML = `<span>${file.name}</span> — ${(file.size/1024).toFixed(1)} KB`;
+        const reader = new FileReader();
+        reader.onload = e => {
+            if (imgPreview) {
+                imgPreview.src = e.target.result;
+                imgPreview.style.display = 'block';
+            }
+            if (imgWrap && imgWrap.classList.contains('no-image')) {
+                imgWrap.classList.remove('no-image');
+                imgWrap.classList.add('img-preview-wrap');
+                imgWrap.innerHTML = '';
+                imgWrap.appendChild(imgPreview);
+                const ov = document.createElement('div');
+                ov.className = 'img-overlay';
+                ov.innerHTML = '<i class="fa-solid fa-camera"></i>Replace image';
+                ov.onclick = () => imgInput.click();
+                imgWrap.appendChild(ov);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 // ── Live preview & input sync ──
@@ -2160,5 +2209,6 @@ document.addEventListener('keydown', e => {
     }
 });
 </script>
+<script src="assets/js/product_cropper.js"></script>
 </body>
 </html>

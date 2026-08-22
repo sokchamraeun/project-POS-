@@ -414,12 +414,12 @@ body {
   z-index: 999;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 24px 12px;
-  background: var(--bg-header);
+  gap: 10px;
+  padding: 10px 20px 12px;
+  background: var(--bg-header, rgba(255,255,255,.97));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border, #e5e7eb);
   overflow-x: auto;
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -433,50 +433,158 @@ body {
 .cat-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 6px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 13px;
+  gap: 10px;
+  padding: 5px 12px 5px 6px;
+  height: 42px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #1e293b;
+  font-size: 13.5px;
   font-weight: 600;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
   text-decoration: none;
   white-space: nowrap;
-  transition: var(--transition);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
 }
 
-.cat-pill:hover {
-  border-color: var(--orange);
-  color: var(--orange);
+.cat-pill .cat-pill-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--cat-icon-bg, #f1f5f9);
+  color: var(--cat-icon-color, #64748b);
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  overflow: hidden;
 }
 
-.cat-pill.active {
-  background: var(--orange);
-  color: #fff;
-  border-color: var(--orange);
-  box-shadow: var(--shadow-accent);
+.cat-pill .cat-pill-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 7px;
+  display: block;
+}
+
+.cat-pill .cat-name {
+  line-height: 1.2;
 }
 
 .cat-pill .pill-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(255,255,255,0.25);
-  min-width: 20px;
-  height: 18px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  min-width: 22px;
+  height: 22px;
+  transition: all 0.2s ease;
 }
 
-.cat-pill:not(.active) .pill-count {
-  background: rgba(209,144,75,0.15);
-  color: var(--orange);
+/* Inactive Hover state */
+.cat-pill:not(.active):hover {
+  border-color: #0f172a;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.cat-pill:not(.active):hover .pill-count {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+/* Active State - Focus Green */
+.cat-pill.active {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #10b981 !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.cat-pill.active .cat-pill-icon-box {
+  background: rgba(0, 0, 0, 0.16) !important;
+  color: #ffffff !important;
+}
+
+.cat-pill.active .cat-name {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.cat-pill.active .pill-count {
+  background: rgba(0, 0, 0, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+/* Dark theme styles */
+[data-theme="dark"] .cat-nav {
+  background: rgba(14, 14, 14, 0.96);
+  border-color: #252525;
+}
+
+[data-theme="dark"] .cat-pill {
+  background: #182234;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .cat-pill .pill-count {
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .cat-pill:not(.active):hover {
+  border-color: #e2e8f0;
+  color: #ffffff;
+  background: #1e293b;
+}
+
+[data-theme="dark"] .cat-pill:not(.active):hover .pill-count {
+  background: #334155;
+  border-color: #475569;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .cat-pill.active {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.45);
+}
+
+[data-theme="dark"] .cat-pill.active .cat-pill-icon-box {
+  background: rgba(0, 0, 0, 0.22) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .cat-pill.active .cat-name {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .cat-pill.active .pill-count {
+  background: rgba(0, 0, 0, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
 }
 
 /* ── ADD TO ORDER BANNER ── */
@@ -690,6 +798,7 @@ body {
   aspect-ratio: 1 / 1;
   width: 100%;
   height: auto;
+  background: transparent;
 }
 
 .card-img img {
@@ -697,23 +806,24 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.5s ease;
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: center center;
+  will-change: transform;
 }
 
 .product-card:hover .card-img img {
-  transform: scale(1.06);
+  transform: scale(1.08);
 }
 
 .img-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
-  opacity: 0;
-  transition: var(--transition);
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .product-card:hover .img-overlay {
-  opacity: 1;
+  display: none !important;
+  opacity: 0 !important;
 }
 
 /* ── QUICK ADD BUTTON ── */
@@ -1911,10 +2021,39 @@ body {
   .card-price {
     font-size: 14px !important;
   }
-
-  .cart-panel {
-    max-width: 100% !important;
-  }
 }
+
+.cp-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text, #1a1410);
+  letter-spacing: -0.01em;
+  font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+}
+
+.cp-title i {
+  color: #c8863f;
+  font-size: 1.15rem;
+}
+
+.cp-count {
+  background: #c8863f;
+  color: #ffffff;
+  border-radius: 9999px;
+  padding: 3px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+  font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+  box-shadow: 0 1px 3px rgba(200, 134, 63, 0.2);
+}
+
 
 

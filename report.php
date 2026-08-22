@@ -1,857 +1,595 @@
 <?php
-require 'auth.php';
-require 'config.php';
-require_once 'lang.php';
-if (!can('report_product')) { header("Location: dashboard.php?denied=1"); exit; }
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/lang.php';
+
+if (!can('report_product') && !can('report_sale') && !can('sales_report') && !can('report')) {
+    header("Location: dashboard.php?denied=1");
+    exit;
+}
 
 date_default_timezone_set("Asia/Phnom_Penh");
+$isKm = (current_lang() === 'km');
+$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 
-if (!function_exists('businessRangeFromDate')) {
-    function businessRangeFromDate(string $dateYmd): array {
-        $start = new DateTime($dateYmd . " 06:00:00");
-        $end = clone $start;
-        $end->modify("+1 day")->modify("-1 second");
-        return [$start, $end];
+// ── Date Filters Setup ──
+$today = date('Y-m-d');
+$currentYear = date('Y');
+$quickRange = $_GET['quick_range'] ?? 'month';
+$selectedMonth = $_GET['month_select'] ?? '';
+$fromDate = $_GET['from_date'] ?? $_GET['date_from'] ?? '';
+$toDate   = $_GET['to_date']   ?? $_GET['date_to']   ?? '';
+
+// If a specific month is chosen, override fromDate & toDate
+if (!empty($selectedMonth) && preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
+    $fromDate = $selectedMonth . '-01';
+    $toDate   = date('Y-m-t', strtotime($fromDate));
+} elseif (empty($fromDate) || empty($toDate)) {
+    if ($quickRange === 'today') {
+        $fromDate = $today;
+        $toDate   = $today;
+    } elseif ($quickRange === 'yesterday') {
+        $fromDate = date('Y-m-d', strtotime('-1 day'));
+        $toDate   = date('Y-m-d', strtotime('-1 day'));
+    } elseif ($quickRange === 'week' || $quickRange === 'this_week') {
+        $fromDate = date('Y-m-d', strtotime('monday this week'));
+        $toDate   = date('Y-m-d', strtotime('sunday this week'));
+    } elseif ($quickRange === 'year' || $quickRange === 'this_year') {
+        $fromDate = date('Y-01-01');
+        $toDate   = date('Y-12-31');
+    } elseif ($quickRange === 'all') {
+        $fromDate = '2020-01-01';
+        $toDate   = date('Y-m-d', strtotime('+1 day'));
+    } else { // default 'month'
+        $fromDate = date('Y-m-01');
+        $toDate   = $today;
+        $quickRange = 'month';
     }
 }
 
-if (!function_exists('fmtQty')) {
-    function fmtQty($n): string {
-        return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
+if ($fromDate > $toDate) {
+    [$fromDate, $toDate] = [$toDate, $fromDate];
+}
+
+$timeShift      = trim($_GET['time_shift'] ?? '');
+$filterUser     = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
+if (!$_is_mgr) {
+    $filterUser = (int)$_SESSION['user_id'];
+}
+$filterCategory = trim($_GET['category'] ?? '');
+$searchQuery    = trim($_GET['search'] ?? '');
+
+// ── Fetch Staff & Categories for Filter Dropdowns ──
+$staffList = [];
+$q_staff = $conn->query("SELECT user_id, username, COALESCE(NULLIF(name, ''), username) AS display_name FROM users ORDER BY username ASC");
+if ($q_staff) {
+    while ($sr = $q_staff->fetch_assoc()) {
+        $staffList[] = $sr;
     }
 }
 
-if (!function_exists('fmtMoney')) {
-    function fmtMoney($n): string {
-        return number_format((float)$n, 2);
+$categoryList = [];
+$q_cat = $conn->query("SELECT category_id, name, slug FROM categories ORDER BY display_order ASC, name ASC");
+if ($q_cat) {
+    while ($cr = $q_cat->fetch_assoc()) {
+        $categoryList[] = $cr;
     }
 }
 
-if (!function_exists('deltaStr')) {
-    function deltaStr(float $current, float $prev): string {
-        if ($prev <= 0) return '';
-        $pct = round(($current - $prev) / $prev * 100, 1);
-        if ($pct === 0.0) return '<span class="delta neutral">= same</span>';
-        $cls = $pct > 0 ? 'up' : 'down';
-        $arrow = $pct > 0 ? '&#9650;' : '&#9660;';
-        return "<span class=\"delta {$cls}\">{$arrow} " . abs($pct) . "%</span>";
+// ── Build Database Query for Product Sales & Profit Analysis ──
+$whereClauses = [
+    "DATE(o.order_date) BETWEEN ? AND ?",
+    "oc.order_id IS NULL",
+    paid_orders_where('o')
+];
+$bindTypes    = "ss";
+$bindParams   = [$fromDate, $toDate];
+
+if ($timeShift === 'morning') {
+    $whereClauses[] = "TIME(o.order_date) BETWEEN '06:00:00' AND '11:59:59'";
+} elseif ($timeShift === 'afternoon') {
+    $whereClauses[] = "TIME(o.order_date) BETWEEN '12:00:00' AND '17:59:59'";
+} elseif ($timeShift === 'evening') {
+    $whereClauses[] = "TIME(o.order_date) BETWEEN '18:00:00' AND '23:59:59'";
+}
+
+if ($filterUser > 0) {
+    $whereClauses[] = "o.user_id = ?";
+    $bindTypes   .= "i";
+    $bindParams[] = $filterUser;
+}
+
+if (!empty($filterCategory)) {
+    $whereClauses[] = "(c.slug = ? OR c.name = ? OR p.category = ?)";
+    $bindTypes   .= "sss";
+    $bindParams[] = $filterCategory;
+    $bindParams[] = $filterCategory;
+    $bindParams[] = $filterCategory;
+}
+
+if (!empty($searchQuery)) {
+    $whereClauses[] = "(p.name LIKE ? OR oi.product_name LIKE ? OR c.name LIKE ? OR p.category LIKE ?)";
+    $sParam = "%$searchQuery%";
+    $bindTypes .= "ssss";
+    $bindParams[] = $sParam;
+    $bindParams[] = $sParam;
+    $bindParams[] = $sParam;
+    $bindParams[] = $sParam;
+}
+
+$whereSql = implode(" AND ", $whereClauses);
+
+$sql = "
+    SELECT 
+        COALESCE(p.product_id, oi.product_id) AS product_id,
+        COALESCE(p.name, oi.product_name) AS product_name,
+        COALESCE(NULLIF(c.name, ''), NULLIF(p.category, ''), 'Other') AS category_name,
+        COALESCE(p.cost_price, 0) AS cost_per_unit,
+        CASE 
+            WHEN SUM(oi.quantity) > 0 THEN SUM(oi.quantity * oi.price) / SUM(oi.quantity) 
+            ELSE COALESCE(p.price, 0) 
+        END AS avg_selling_price,
+        SUM(oi.quantity) AS total_qty_sold,
+        SUM(oi.quantity * oi.price) AS total_revenue,
+        SUM(oi.quantity * COALESCE(p.cost_price, 0)) AS total_cost,
+        (SUM(oi.quantity * oi.price) - SUM(oi.quantity * COALESCE(p.cost_price, 0))) AS total_profit
+    FROM order_items oi
+    JOIN orders o ON o.order_id = oi.order_id
+    LEFT JOIN products p ON p.product_id = oi.product_id
+    LEFT JOIN categories c ON (c.category_id = p.category_id OR c.slug = p.category OR c.name = p.category)
+    LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id
+    WHERE {$whereSql}
+    GROUP BY COALESCE(p.product_id, oi.product_id), COALESCE(p.name, oi.product_name), COALESCE(NULLIF(c.name, ''), NULLIF(p.category, ''), 'Other'), p.cost_price, p.price
+    ORDER BY total_qty_sold DESC, total_revenue DESC
+";
+
+$stmt = $conn->prepare($sql);
+if (!$stmt) {
+    die("Database query error: " . $conn->error);
+}
+if ($bindTypes !== "") {
+    $stmt->bind_param($bindTypes, ...$bindParams);
+}
+$stmt->execute();
+$result = $stmt->get_result();
+
+$productsList = [];
+$totalDistinctProducts = 0;
+$totalUnitsSold = 0;
+$totalRevenue = 0.0;
+$totalCost = 0.0;
+$totalProfit = 0.0;
+
+while ($row = $result->fetch_assoc()) {
+    $productsList[] = $row;
+    $totalDistinctProducts++;
+    $totalUnitsSold += (int)$row['total_qty_sold'];
+    $totalRevenue   += (float)$row['total_revenue'];
+    $totalCost      += (float)$row['total_cost'];
+    $totalProfit    += (float)$row['total_profit'];
+}
+
+// ── Export CSV Handler ──
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="product_analytics_report_' . $fromDate . '_to_' . $toDate . '.csv"');
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+    fputcsv($out, ['Product Name', 'Category', 'Qty Sold', 'Cost / Unit ($)', 'Price / Unit ($)', 'Total Revenue ($)', 'Total Cost ($)', 'Profit ($)']);
+    foreach ($productsList as $p) {
+        fputcsv($out, [
+            $p['product_name'],
+            $p['category_name'],
+            $p['total_qty_sold'],
+            number_format((float)$p['cost_per_unit'], 2, '.', ''),
+            number_format((float)$p['avg_selling_price'], 2, '.', ''),
+            number_format((float)$p['total_revenue'], 2, '.', ''),
+            number_format((float)$p['total_cost'], 2, '.', ''),
+            number_format((float)$p['total_profit'], 2, '.', '')
+        ]);
     }
+    fclose($out);
+    exit;
 }
-
-/* =========================
-   INPUT
-========================= */
-$mode = $_GET['mode'] ?? 'daily';
-$filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
-$quickRange = trim($_GET['quick_range'] ?? '');
-$selectMonth = trim($_GET['select_month'] ?? '');
-
-if (isset($_GET['from_date']) || isset($_GET['to_date']) || isset($_GET['date_from']) || isset($_GET['date_to']) || in_array($quickRange, ['week','this_week','month','this_month','year','this_year']) || !empty($selectMonth)) {
-    $mode = 'range';
-}
-
-if (!in_array($mode, ['daily', 'monthly', 'range'])) {
-    $mode = 'daily';
-}
-
-if ($mode === 'monthly') {
-    $month = $_GET['month'] ?? (new DateTime())->format("Y-m");
-
-    $start = new DateTime($month . "-01 06:00:00");
-    $end = clone $start;
-    $end->modify("+1 month")->modify("-1 second");
-
-    $label = $start->format("F Y");
-
-} elseif ($mode === 'range') {
-    $fromDate = $_GET['from_date'] ?? $_GET['date_from'] ?? null;
-    $toDate   = $_GET['to_date']   ?? $_GET['date_to']   ?? null;
-
-    if ($fromDate === null || $toDate === null) {
-        if ($quickRange === 'week' || $quickRange === 'this_week') {
-            $fromDate = date('Y-m-d', strtotime('monday this week'));
-            $toDate   = date('Y-m-d', strtotime('sunday this week'));
-        } elseif ($quickRange === 'month' || $quickRange === 'this_month') {
-            $fromDate = date('Y-m-01');
-            $toDate   = date('Y-m-t');
-        } elseif ($quickRange === 'year' || $quickRange === 'this_year') {
-            $fromDate = date('Y-01-01');
-            $toDate   = date('Y-12-31');
-        } elseif (!empty($selectMonth) && (int)$selectMonth >= 1 && (int)$selectMonth <= 12) {
-            $m_num    = sprintf('%02d', (int)$selectMonth);
-            $curr_yr  = date('Y');
-            $fromDate = "$curr_yr-$m_num-01";
-            $toDate   = date('Y-m-t', strtotime($fromDate));
-        } else {
-            $fromDate = business_date_today();
-            $toDate   = business_date_today();
-        }
-    }
-    if ($fromDate > $toDate) [$fromDate, $toDate] = [$toDate, $fromDate];
-
-    $start = new DateTime($fromDate . " 06:00:00");
-    $end   = new DateTime($toDate . " 06:00:00");
-    $end->modify("+1 day")->modify("-1 second");
-
-    $label = (new DateTime($fromDate))->format("d M Y") .
-             " → " .
-             (new DateTime($toDate))->format("d M Y");
-
-} else {
-    $date = $_GET['date'] ?? business_date_today();
-
-    [$start, $end] = businessRangeFromDate($date);
-
-    $label = (new DateTime($date))->format("d M Y");
-}
-
-// ── Daily sales target (configurable in Settings → Sales Target) ──
-$dailyTarget = DAILY_SALES_TARGET;
-
-// ── Is this period "live" (includes today)? ──
-$_today = business_date_today();
-$isLive = match($mode) {
-    'monthly' => isset($month)    && $month    === (new DateTime())->format("Y-m"),
-    'range'   => isset($toDate)   && $toDate   >= $_today,
-    default   => isset($date)     && $date     === $_today,
-};
-unset($_today);
-
-/* =========================
-   LOAD INGREDIENT COST MAP
-========================= */
-$ingredients = ingredient_cost_map($conn);
-
-/* =========================
-   GET COMPLETED ORDERS
-========================= */
-$startStr = $start->format("Y-m-d H:i:s");
-$endStr   = $end->format("Y-m-d H:i:s");
-
-$orderIds = [];
-$totalSales = 0;
-$orderCount = 0;
-
-$userCond = $filter_user > 0 ? " AND user_id = $filter_user" : "";
-
-$stmt_orders = $conn->prepare("SELECT order_id, total FROM orders WHERE " . paid_orders_where() . " AND order_date BETWEEN ? AND ?" . $userCond);
-$stmt_orders->bind_param("ss", $startStr, $endStr);
-$stmt_orders->execute();
-$qOrders = $stmt_orders->get_result();
-
-while ($o = mysqli_fetch_assoc($qOrders)) {
-    $id = (int)$o['order_id'];
-    $orderIds[] = $id;
-    $totalSales += (float)$o['total'];
-    $orderCount++;
-}
-$avgOrder = $orderCount > 0 ? $totalSales / $orderCount : 0;
-
-$totalCOGS = 0;
-$totalProfit = 0;
-$margin = 0;
-$totalItemsSold = 0;
-$topProducts = [];
-$categorySales = [];
-
-if (count($orderIds) > 0) {
-    $inOrder = implode(",", array_map('intval', $orderIds));
-
-    $items = [];
-    $productIds = [];
-
-    $qItems = mysqli_query($conn, "
-        SELECT
-            oi.order_id,
-            oi.product_id,
-            oi.product_name,
-            oi.milk,
-            oi.quantity,
-            oi.price,
-            COALESCE(oi.orig_price, oi.price) AS orig_price,
-            COALESCE(oi.promo_percent, 0) AS promo_percent,
-            COALESCE(NULLIF(p.category, ''), 'Uncategorized') AS category,
-            COALESCE(p.cost_price, 0) AS cost_price
-        FROM order_items oi
-        LEFT JOIN products p ON p.product_id = oi.product_id
-        WHERE oi.order_id IN ($inOrder)
-          AND oi.price > 0
-    ");
-
-    while ($it = mysqli_fetch_assoc($qItems)) {
-        $items[] = $it;
-        $pid = (int)$it['product_id'];
-
-        if ($pid > 0) {
-            $productIds[$pid] = true;
-        }
-    }
-
-    $recipes = [];
-
-    foreach ($items as $it) {
-        $pid      = (int)$it['product_id'];
-        $qty      = (int)$it['quantity'];
-        $milkType = trim((string)$it['milk']);
-        $pname    = (string)$it['product_name'];
-        $category = trim((string)$it['category']);
-
-        if ($category === '') {
-            $category = 'Uncategorized';
-        }
-
-        if ($qty <= 0) {
-            $qty = 1;
-        }
-
-        $itemCost = 0;
-
-        if (isset($recipes[$pid])) {
-            foreach ($recipes[$pid] as $rc) {
-                $iname  = strtolower(trim($rc['ingredient_name']));
-                $amount = (float)$rc['amount_used'] * $qty;
-
-                if ($amount <= 0) {
-                    continue;
-                }
-
-                if (strpos($iname, 'milk') !== false) {
-                    if ($milkType === '') {
-                        $milkType = 'Fresh Milk';
-                    }
-
-                    $key = strtolower(trim($milkType));
-
-                    if (isset($ingredients[$key])) {
-                        $unitCost = (float)$ingredients[$key]['unit_cost'];
-                        $itemCost += ($amount * $unitCost);
-                    }
-                } else {
-                    $iid = (int)$rc['ingredient_id'];
-                    $unitCost = isset($ingredients[$iid]) ? (float)$ingredients[$iid]['unit_cost'] : 0;
-                    $itemCost += ($amount * $unitCost);
-                }
-            }
-        }
-
-        $p_unit_cost = (float)($it['cost_price'] ?? 0);
-        if ($itemCost <= 0 && $p_unit_cost > 0) {
-            $itemCost = $p_unit_cost * $qty;
-        }
-
-        $totalCOGS     += $itemCost;
-        $totalItemsSold += $qty;
-
-        $itemRevenue = (float)($it['price'] ?? 0) * $qty;
-
-        $origPrice = (float)($it['orig_price'] > 0 ? $it['orig_price'] : $it['price']);
-        $sellingPrice = (float)($it['price'] ?? 0);
-        $promoPct = (float)($it['promo_percent'] ?? 0);
-        $itemDiscUnit = 0;
-        if ($origPrice > $sellingPrice) {
-            $itemDiscUnit = $origPrice - $sellingPrice;
-        } elseif ($promoPct > 0) {
-            $itemDiscUnit = $sellingPrice * ($promoPct / 100);
-        }
-        $itemTotalDisc = $itemDiscUnit * $qty;
-
-        if (!isset($topProducts[$pname])) {
-            $topProducts[$pname] = [
-                "qty" => 0, 
-                "cogs" => 0, 
-                "revenue" => 0, 
-                "discount" => 0, 
-                "category" => $category,
-                "unit_cost" => $p_unit_cost,
-                "unit_price" => (float)($it['price'] ?? 0)
-            ];
-        }
-
-        $topProducts[$pname]["qty"]      += $qty;
-        $topProducts[$pname]["cogs"]     += $itemCost;
-        $topProducts[$pname]["revenue"]  += $itemRevenue;
-        $topProducts[$pname]["discount"] += $itemTotalDisc;
-        if ($p_unit_cost > 0) {
-            $topProducts[$pname]["unit_cost"] = $p_unit_cost;
-        }
-
-        if (!isset($categorySales[$category])) {
-            $categorySales[$category] = [
-                "qty" => 0,
-                "cogs" => 0
-            ];
-        }
-
-        $categorySales[$category]["qty"] += $qty;
-        $categorySales[$category]["cogs"] += $itemCost;
-    }
-
-    $totalProfit = $totalSales - $totalCOGS;
-    $margin = ($totalSales > 0) ? (($totalProfit / $totalSales) * 100) : 0;
-
-    uasort($topProducts, function($a, $b) {
-        return $b["qty"] <=> $a["qty"];
-    });
-
-    uasort($categorySales, function($a, $b) {
-        return $b["qty"] <=> $a["qty"];
-    });
-}
-
-/* =========================
-   HOURLY BREAKDOWN (daily only)
-========================= */
-$hourlyData = [];
-$peakHour   = null;
-if ($mode === 'daily') {
-    $qHourly = mysqli_query($conn, "
-        SELECT HOUR(order_date) as h, COUNT(*) as cnt, SUM(total) as rev
-        FROM orders
-        WHERE " . paid_orders_where() . "
-          AND order_date BETWEEN '$startStr' AND '$endStr'
-        GROUP BY HOUR(order_date)
-        ORDER BY h ASC
-    ");
-    $hourMap = [];
-    while ($r = mysqli_fetch_assoc($qHourly)) {
-        $hourMap[(int)$r['h']] = ['count' => (int)$r['cnt'], 'revenue' => (float)$r['rev']];
-    }
-    $maxRev = 0;
-    for ($h = 6; $h <= 22; $h++) {
-        $rev = $hourMap[$h]['revenue'] ?? 0;
-        $hourlyData[] = [
-            'label'   => sprintf('%02d:00', $h),
-            'count'   => $hourMap[$h]['count']   ?? 0,
-            'revenue' => $rev,
-        ];
-        if ($rev > $maxRev) { $maxRev = $rev; $peakHour = date('g:i A', mktime($h, 0, 0)); }
-    }
-}
-
-/* =========================
-   DAILY TREND (monthly / range)
-========================= */
-$dailyTrendData = [];
-if ($mode !== 'daily') {
-    $qTrend = mysqli_query($conn, "
-        SELECT DATE(order_date) as d, COUNT(*) as cnt, SUM(total) as rev
-        FROM orders
-        WHERE " . paid_orders_where() . "
-          AND order_date BETWEEN '$startStr' AND '$endStr'
-        GROUP BY DATE(order_date)
-        ORDER BY d ASC
-    ");
-    while ($r = mysqli_fetch_assoc($qTrend)) {
-        $dailyTrendData[] = [
-            'label'   => date('M d', strtotime($r['d'])),
-            'count'   => (int)$r['cnt'],
-            'revenue' => (float)$r['rev'],
-        ];
-    }
-}
-
-/* =========================
-   PAYMENT METHOD BREAKDOWN
-========================= */
-$paymentMethods = [];
-if (count($orderIds) > 0) {
-    $qPay = mysqli_query($conn, "
-        SELECT payment_method, COUNT(*) as cnt, SUM(total) as rev
-        FROM orders
-        WHERE " . paid_orders_where() . "
-          AND order_date BETWEEN '$startStr' AND '$endStr'
-        GROUP BY payment_method
-        ORDER BY rev DESC
-    ");
-    while ($r = mysqli_fetch_assoc($qPay)) {
-        $paymentMethods[] = [
-            'method'  => ucfirst($r['payment_method']),
-            'count'   => (int)$r['cnt'],
-            'revenue' => (float)$r['rev'],
-        ];
-    }
-}
-
-/* =========================
-   GET REFUND DATA (NEW)
-========================= */
-$totalRefunded = 0;
-$refundCount = 0;
-$refundOrders = [];
-$netRevenue = $totalSales - $totalRefunded;
-
-/* =========================
-   GET REMAKE DATA (removed)
-========================= */
-$remakeCount  = 0;
-$remakeOrders = [];
-
-/* =========================
-   PREVIOUS PERIOD COMPARISON
-========================= */
-$prevSales = 0.0; $prevOrderCount = 0;
-if ($mode === 'daily') {
-    $prevD     = (new DateTime($date))->modify('-1 day');
-    $prevStart2 = new DateTime($prevD->format('Y-m-d') . ' 06:00:00');
-    $prevEnd2   = clone $prevStart2; $prevEnd2->modify('+1 day')->modify('-1 second');
-} elseif ($mode === 'monthly') {
-    $prevStart2 = new DateTime($month . '-01 06:00:00'); $prevStart2->modify('-1 month');
-    $prevEnd2   = clone $prevStart2; $prevEnd2->modify('+1 month')->modify('-1 second');
-} else {
-    $rangeDays  = (new DateTime($fromDate))->diff(new DateTime($toDate))->days + 1;
-    $prevEnd2   = new DateTime($fromDate . ' 06:00:00'); $prevEnd2->modify('-1 second');
-    $prevStart2 = clone $prevEnd2; $prevStart2->modify('+1 second')->modify("-{$rangeDays} days");
-}
-$prevStartStr2 = $prevStart2->format('Y-m-d H:i:s');
-$prevEndStr2   = $prevEnd2->format('Y-m-d H:i:s');
-$qPrev = mysqli_query($conn, "SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as rev FROM orders WHERE " . paid_orders_where() . " AND order_date BETWEEN '$prevStartStr2' AND '$prevEndStr2'");
-if ($rp = mysqli_fetch_assoc($qPrev)) { $prevOrderCount = (int)$rp['cnt']; $prevSales = (float)$rp['rev']; }
-$deltaOrders = deltaStr((float)$orderCount, (float)$prevOrderCount);
-$deltaSales  = deltaStr($totalSales, $prevSales);
-
-/* =========================
-   GET DAILY REFUNDS FOR CHART (removed)
-========================= */
-$refundChartData = [];
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="<?= current_lang() ?>">
 <head>
-<meta charset="UTF-8" />
-<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
-<title>Product Report | Bird's Nest Coffee</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta charset="UTF-8">
+    <title><?= $isKm ? 'ការវិភាគ & នាំចេញ' : 'Analytics & Export' ?> | Bird's Nest Coffee</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, .app-layout, .app-main, .rep-page-wrapper {
+            background-color: #f8fafc !important;
+            background-image: none !important;
+            color: #0f172a;
+            font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+        }
+
+        /* Custom Scrollbar matching Daily Summary */
+        ::-webkit-scrollbar,
+        #reportOrdersContainer::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track,
+        #reportOrdersContainer::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb,
+        #reportOrdersContainer::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover,
+        #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        @media print {
+            .sidebar, .print-hide, aside, #sidebar { display: none !important; }
+            .app-main { overflow: visible !important; height: auto !important; padding: 0 !important; }
+            body, .app-layout, .rep-page-wrapper { background: #fff !important; }
+            #reportOrdersCard { border: none !important; box-shadow: none !important; }
+            #reportOrdersContainer { max-height: none !important; overflow: visible !important; }
+        }
+    </style>
 </head>
 <body>
-<div class="flex h-screen w-full overflow-hidden app-layout">
-<?php require_once __DIR__ . '/sidebar.php'; ?>
-<main class="app-main flex-1 h-full overflow-y-auto er-container">
-    <?php
-    $report_category = 'Products';
-    $report_title    = 'Product Report';
-    $date_from       = $start->format('Y-m-d');
-    $date_to         = $end->format('Y-m-d');
+<div class="flex h-screen w-screen overflow-hidden app-layout" style="background-color: #f8fafc !important;">
+    <?php require_once __DIR__ . '/sidebar.php'; ?>
 
-    // Fetch category slug -> display name map from categories table
-    $cat_slug_to_name = [];
-    $q_cats = mysqli_query($conn, "SELECT slug, name FROM categories ORDER BY display_order, category_id ASC");
-    if ($q_cats) {
-        while ($cr = mysqli_fetch_assoc($q_cats)) {
-            $cat_slug_to_name[$cr['slug']] = !empty($cr['name']) ? $cr['name'] : $cr['slug'];
-        }
-    }
+    <div class="app-main flex-1 h-screen overflow-hidden flex flex-col" style="background-color: #f8fafc !important;">
+        <div class="rep-page-wrapper w-full h-full p-4 md:p-6 bg-[#f8fafc] flex flex-col gap-4 overflow-hidden" style="background-color: #f8fafc !important;">
 
-    $cat_options = ['' => 'All Categories'];
-    $q_prod_cats = mysqli_query($conn, "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category <> ''");
-    if ($q_prod_cats) {
-        while ($pcr = mysqli_fetch_assoc($q_prod_cats)) {
-            $slug = $pcr['category'];
-            $cat_options[$slug] = $cat_slug_to_name[$slug] ?? $slug;
-        }
-    }
-    foreach ($cat_slug_to_name as $slug => $name) {
-        if (!isset($cat_options[$slug])) {
-            $cat_options[$slug] = $name;
-        }
-    }
-    $selected_cat = trim($_GET['category'] ?? '');
+            <!-- TOP BREADCRUMBS & ACTION BUTTONS -->
+            <div class="flex items-center justify-between gap-4 pb-0.5 flex-shrink-0 print-hide">
+                <!-- Breadcrumbs -->
+                <div class="flex items-center gap-2 text-xs md:text-sm font-medium">
+                    <span class="text-slate-400"><?= $isKm ? 'របាយការណ៍' : 'Reports' ?></span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
+                    <span class="text-slate-400"><?= $isKm ? 'ការលក់' : 'Sales' ?></span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
+                    <span class="text-slate-900 font-bold"><?= $isKm ? 'ការវិភាគ & នាំចេញ' : 'Analytics & Export' ?></span>
+                </div>
 
-    $user_options = ['' => 'All Staff'];
-    $q_users = $conn->query("SELECT u.user_id, u.username, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY u.username ASC");
-    if ($q_users) {
-        while ($ur = $q_users->fetch_assoc()) {
-            $displayName = $ur['display_name'] ?? $ur['username'];
-            $user_options[$ur['user_id']] = $displayName;
-        }
-    }
-
-    $filter_options  = [
-        [
-            'name' => 'user_id',
-            'label' => 'Staff Member',
-            'options' => $user_options,
-            'selected' => $filter_user
-        ],
-        [
-            'name' => 'category',
-            'label' => 'Category',
-            'options' => $cat_options,
-            'selected' => $selected_cat
-        ]
-    ];
-    $isKm = (current_lang() === 'km');
-    $lbl_table_title  = $isKm ? 'ការវិភាគចំណូល & ប្រាក់ចំណេញតាមមុខទំនិញ' : 'Revenue & Profit Analysis by Product';
-    $lbl_search_ph    = $isKm ? 'ស្វែងរកទំនិញ...' : 'Search product...';
-    $lbl_col_product  = $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'Product (PRODUCT)';
-    $lbl_col_cat      = $isKm ? 'ប្រភេទ' : 'Category';
-    $lbl_col_qty      = $isKm ? 'ចំនួនលក់' : 'Qty Sold';
-    $lbl_col_cost_cup = $isKm ? 'ថ្លៃដើម/កែវ' : 'Cost/Cup';
-    $lbl_col_pr_cup   = $isKm ? 'តម្លៃលក់/កែវ' : 'Price/Cup';
-    $lbl_col_rev      = $isKm ? 'ចំណូលសរុប (REV)' : 'Total Rev (REV)';
-    $lbl_col_cost     = $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'Total Cost (COST)';
-    $lbl_col_profit   = $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'Profit (PROFIT)';
-
-    $lbl_date_from    = $isKm ? 'ចាប់ពីថ្ងៃ :' : 'Date From :';
-    $lbl_date_to      = $isKm ? 'ដល់ថ្ងៃ :' : 'Date To :';
-    $lbl_doc_count    = $isKm ? 'ចំនួនមុខទំនិញ :' : 'Products Count :';
-    $lbl_stat_rev     = $isKm ? 'ចំណូលសរុប' : 'Total Revenue';
-    $lbl_stat_cogs    = $isKm ? 'ថ្លៃដើមសរុប' : 'Total Cost';
-    $lbl_stat_profit  = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit';
-    $lbl_no_data      = $isKm ? 'គ្មានទិន្នន័យ' : 'No data';
-
-    $export_excel_url = "daily_report_xlsx.php?mode=products&from_date=" . urlencode($date_from) . "&to_date=" . urlencode($date_to) . "&user_id=" . urlencode($filter_user) . "&category=" . urlencode($selected_cat);
-    $export_pdf_url   = "report_pdf.php?from_date=" . urlencode($date_from) . "&to_date=" . urlencode($date_to) . "&user_id=" . urlencode($filter_user) . "&category=" . urlencode($selected_cat) . "&lang=" . urlencode(current_lang());
-    require __DIR__ . '/report_header.php';
-    ?>
-
-    <style>
-    .prod-summary-card {
-        background: #111114 !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 14px !important;
-        padding: 1.25rem !important;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
-        margin-bottom: 1.25rem !important;
-    }
-    .prod-summary-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 1.25rem;
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-    .prod-summary-title {
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: #f3f4f6;
-        margin: 0;
-        letter-spacing: 0.01em;
-    }
-    .prod-search-wrapper {
-        position: relative;
-        width: 240px;
-        max-width: 100%;
-    }
-    .prod-search-icon {
-        position: absolute;
-        left: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #6b7280;
-        font-size: 0.8rem;
-        pointer-events: none;
-    }
-    .prod-search-input {
-        width: 100%;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        padding: 7px 12px 7px 32px;
-        color: #f3f4f6;
-        font-size: 0.85rem;
-        outline: none;
-        transition: all 0.2s ease;
-    }
-    .prod-search-input:focus {
-        border-color: rgba(245, 158, 11, 0.5);
-        background: rgba(255, 255, 255, 0.08);
-        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
-    }
-    .prod-search-input::placeholder {
-        color: #6b7280;
-    }
-
-    .prod-analysis-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.85rem;
-    }
-    .prod-analysis-table thead th {
-        background: transparent !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-        color: #9ca3af !important;
-        font-weight: 600 !important;
-        font-size: 0.75rem !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.05em !important;
-        padding: 0.85rem 0.9rem !important;
-        border-right: none !important;
-    }
-    .prod-analysis-table tbody td {
-        padding: 0.95rem 0.9rem !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
-        border-right: none !important;
-        vertical-align: middle;
-    }
-    .prod-analysis-table tbody tr.product-data-row:hover {
-        background: rgba(255, 255, 255, 0.02) !important;
-    }
-
-    .prod-amber-dot {
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: #f59e0b;
-        margin-right: 8px;
-        vertical-align: middle;
-        box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
-    }
-    .prod-cat-pill {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 9999px;
-        background: rgba(255, 255, 255, 0.05);
-        color: #9ca3af;
-        font-size: 0.72rem;
-        font-weight: 500;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        text-transform: capitalize;
-    }
-    .prod-total-row {
-        border-top: 2px solid rgba(245, 158, 11, 0.4) !important;
-        border-bottom: none !important;
-        background: rgba(245, 158, 11, 0.02) !important;
-    }
-    .prod-total-label {
-        display: inline-flex;
-        align-items: center;
-        color: #f59e0b;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        font-size: 0.85rem;
-    }
-
-    [data-theme="light"] .prod-summary-card {
-        background: #ffffff !important;
-        border: 1px solid rgba(0, 0, 0, 0.08) !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
-    }
-    [data-theme="light"] .prod-summary-title {
-        color: #1f2937 !important;
-    }
-    [data-theme="light"] .prod-search-input {
-        background: #f9fafb !important;
-        border: 1px solid #e5e7eb !important;
-        color: #1f2937 !important;
-    }
-    [data-theme="light"] .prod-analysis-table thead th {
-        border-bottom: 1px solid #e5e7eb !important;
-        color: #6b7280 !important;
-    }
-    [data-theme="light"] .prod-analysis-table tbody td {
-        border-bottom: 1px solid #f3f4f6 !important;
-        color: #374151 !important;
-    }
-    [data-theme="light"] .prod-analysis-table tbody tr.product-data-row:hover {
-        background: #f9fafb !important;
-    }
-    [data-theme="light"] .prod-cat-pill {
-        background: #f3f4f6 !important;
-        color: #4b5563 !important;
-        border: 1px solid #e5e7eb !important;
-    }
-    </style>
-
-    <!-- Data Table Card -->
-    <div class="er-table-card prod-summary-card">
-        <div class="prod-summary-header">
-            <h3 class="prod-summary-title"><?= htmlspecialchars($lbl_table_title) ?></h3>
-            <div class="prod-search-wrapper">
-                <i class="fa-solid fa-magnifying-glass prod-search-icon"></i>
-                <input type="text" id="prodSearchInput" class="prod-search-input" placeholder="<?= htmlspecialchars($lbl_search_ph) ?>" oninput="filterProductTable()">
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="window.print()" 
+                            class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
+                        <i class="fa-solid fa-print text-slate-400 text-xs"></i>
+                        <span><?= $isKm ? 'បោះពុម្ព' : 'Print' ?></span>
+                    </button>
+                    <a href="report.php?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" 
+                       class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm font-bold rounded-xl shadow-sm transition cursor-pointer">
+                        <i class="fa-solid fa-file-excel text-xs"></i>
+                        <span>Export CSV</span>
+                    </a>
+                </div>
             </div>
-        </div>
 
-        <div class="er-table-wrap">
-            <table class="er-table prod-analysis-table">
-                <thead>
-                    <tr>
-                        <th style="text-align:left; padding-left:1.25rem;"><?= htmlspecialchars($lbl_col_product) ?></th>
-                        <th style="text-align:center;"><?= htmlspecialchars($lbl_col_cat) ?></th>
-                        <th style="text-align:center;"><?= htmlspecialchars($lbl_col_qty) ?></th>
-                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_cost_cup) ?></th>
-                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_pr_cup) ?></th>
-                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_rev) ?></th>
-                        <th style="text-align:right;"><?= htmlspecialchars($lbl_col_cost) ?></th>
-                        <th style="text-align:right; padding-right:1.25rem; color:#22c55e;"><?= htmlspecialchars($lbl_col_profit) ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php 
-                    $filtered_products = [];
-                    foreach ($topProducts as $pname => $pdata) {
-                        $p_cat = $pdata['category'] ?? '';
-                        if ($p_cat === '' || $p_cat === 'Uncategorized') {
-                            $q_pcat = mysqli_query($conn, "SELECT category FROM products WHERE name = '" . mysqli_real_escape_string($conn, $pname) . "'");
-                            if ($q_pcat && ($row = mysqli_fetch_assoc($q_pcat))) {
-                                $p_cat = !empty($row['category']) ? $row['category'] : 'Uncategorized';
-                                $topProducts[$pname]['category'] = $p_cat;
-                            } else {
-                                $p_cat = 'Uncategorized';
-                            }
-                        }
-                        if ($selected_cat !== '' && strtolower($p_cat) !== strtolower($selected_cat)) {
-                            continue;
-                        }
-                        $filtered_products[$pname] = $pdata;
-                    }
-                    ?>
-                    <?php if (empty($filtered_products)): ?>
-                    <tr class="no-data">
-                        <td colspan="8" class="no-data" style="text-align:center; padding:3rem 1rem; color:#777788;"><?= $lbl_no_data ?></td>
-                    </tr>
-                    <?php else: ?>
-                    <?php 
-                    $tot_qty = 0; $tot_rev = 0; $tot_cogs = 0;
-                    foreach ($filtered_products as $pname => $pdata): 
-                        $p_qty   = (int)$pdata['qty'];
-                        $p_rev   = (float)$pdata['revenue'];
-                        $p_cogs  = (float)($pdata['cogs'] ?? 0);
-                        $p_profit = $p_rev - $p_cogs;
-                        $avg_pr  = $p_qty > 0 ? ($p_rev / $p_qty) : (float)($pdata['unit_price'] ?? 0);
-                        $avg_cost = $p_qty > 0 ? ($p_cogs / $p_qty) : (float)($pdata['unit_cost'] ?? 0);
-                        $raw_cat = !empty($pdata['category']) ? $pdata['category'] : 'Uncategorized';
-                        $cat_name = $cat_slug_to_name[$raw_cat] ?? $raw_cat;
+            <!-- FILTER CARD -->
+            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-5 flex-shrink-0 print-hide">
+                <form method="GET" action="report.php" id="analyticsReportFilterForm" class="flex flex-col gap-3.5">
+                    <!-- Row 1: 6 Filter Columns -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <!-- 1. Start Date -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date' ?></label>
+                            <div class="relative">
+                                <input type="date" id="fromDateInput" name="from_date" value="<?= htmlspecialchars($fromDate) ?>" onchange="this.form.submit()"
+                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                            </div>
+                        </div>
 
-                        $tot_qty  += $p_qty;
-                        $tot_rev  += $p_rev;
-                        $tot_cogs += $p_cogs;
-                    ?>
-                    <tr class="product-data-row" data-name="<?= htmlspecialchars(strtolower($pname)) ?>" data-cat="<?= htmlspecialchars(strtolower($cat_name)) ?>" data-qty="<?= $p_qty ?>" data-rev="<?= $p_rev ?>" data-cost="<?= $p_cogs ?>" data-profit="<?= $p_profit ?>">
-                        <td style="text-align:left; padding-left:1.25rem; font-weight:600; color:#f9fafb;">
-                            <span class="prod-amber-dot"></span>
-                            <span><?= htmlspecialchars($pname) ?></span>
-                        </td>
-                        <td style="text-align:center;">
-                            <span class="prod-cat-pill"><?= htmlspecialchars($cat_name) ?></span>
-                        </td>
-                        <td style="text-align:center; font-weight:600; color:#f3f4f6;"><?= $p_qty ?></td>
-                        <td style="text-align:right; color:#9ca3af;">$<?= number_format($avg_cost, 2) ?></td>
-                        <td style="text-align:right; color:#d1d5db;">$<?= number_format($avg_pr, 2) ?></td>
-                        <td style="text-align:right; font-weight:600; color:#f3f4f6;">$<?= number_format($p_rev, 2) ?></td>
-                        <td style="text-align:right; color:#9ca3af;">$<?= number_format($p_cogs, 2) ?></td>
-                        <td style="text-align:right; padding-right:1.25rem; font-weight:700; color:<?= $p_profit >= 0 ? '#22c55e' : '#ef4444' ?>;">
-                            <?= ($p_profit >= 0 ? '+' : '-') ?>$<?= number_format(abs($p_profit), 2) ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <?php $tot_profit = $tot_rev - $tot_cogs; ?>
-                    <tr id="noMatchRow" style="display:none;">
-                        <td colspan="8" style="text-align:center; padding:2.5rem 1rem; color:#888;">
-                            <i class="fa-solid fa-magnifying-glass" style="font-size:1.5rem; opacity:0.3; margin-bottom:8px; display:block;"></i>
-                            <?= $isKm ? 'រកមិនឃើញទំនិញដែលត្រូវនឹងការស្វែងរកទេ' : 'No matching products found' ?>
-                        </td>
-                    </tr>
-                    <tr class="total-summary-row prod-total-row">
-                        <td style="text-align:left; padding-left:1.25rem;">
-                            <span class="prod-total-label">
-                                <i class="fa-regular fa-file-lines" style="margin-right:6px;"></i> TOTAL
-                            </span>
-                        </td>
-                        <td></td>
-                        <td style="text-align:center; font-weight:700; color:#f3f4f6;" id="totalQtyVal"><?= $tot_qty ?></td>
-                        <td></td>
-                        <td></td>
-                        <td style="text-align:right; font-weight:700; color:#f59e0b;" id="totalRevVal">$<?= number_format($tot_rev, 2) ?></td>
-                        <td style="text-align:right; font-weight:600; color:#d1d5db;" id="totalCostVal">$<?= number_format($tot_cogs, 2) ?></td>
-                        <td style="text-align:right; padding-right:1.25rem; font-weight:700; color:<?= $tot_profit >= 0 ? '#22c55e' : '#ef4444' ?>;" id="totalProfitVal">
-                            <?= ($tot_profit >= 0 ? '+' : '-') ?>$<?= number_format(abs($tot_profit), 2) ?>
-                        </td>
-                    </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+                        <!-- 2. End Date -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date' ?></label>
+                            <div class="relative">
+                                <input type="date" id="toDateInput" name="to_date" value="<?= htmlspecialchars($toDate) ?>" onchange="this.form.submit()"
+                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                            </div>
+                        </div>
 
-    <script>
-    function filterProductTable() {
-        const query = (document.getElementById('prodSearchInput')?.value || '').toLowerCase().trim();
-        const rows = document.querySelectorAll('.product-data-row');
-        let visQty = 0, visRev = 0, visCost = 0, visProfit = 0;
-        let matchCount = 0;
+                        <!-- 3. Select Month -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ជ្រើសរើសខែ' : 'Select Month' ?></label>
+                            <div class="relative">
+                                <select name="month_select" id="monthSelect" onchange="handleMonthSelect(this.value)" 
+                                        class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="">-- <?= $isKm ? 'គ្រប់ខែ' : 'All Months' ?> --</option>
+                                    <?php for ($m = 1; $m <= 12; $m++): ?>
+                                        <?php 
+                                            $mStr = str_pad((string)$m, 2, '0', STR_PAD_LEFT);
+                                            $mVal = $currentYear . '-' . $mStr;
+                                            $mNamesKm = ['', 'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+                                            $mLabel = $isKm ? ($mStr . ' (' . $mNamesKm[$m] . ')') : date('F', mktime(0, 0, 0, $m, 10));
+                                        ?>
+                                        <option value="<?= $mVal ?>" <?= $selectedMonth === $mVal ? 'selected' : '' ?>><?= $mLabel ?></option>
+                                    <?php endfor; ?>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
 
-        rows.forEach(r => {
-            const name = (r.dataset.name || '').toLowerCase();
-            const cat = (r.dataset.cat || '').toLowerCase();
-            const match = query === '' || name.includes(query) || cat.includes(query);
-            r.style.display = match ? '' : 'none';
-            if (match) {
-                matchCount++;
-                visQty += parseInt(r.dataset.qty || 0, 10);
-                visRev += parseFloat(r.dataset.rev || 0);
-                visCost += parseFloat(r.dataset.cost || 0);
-                visProfit += parseFloat(r.dataset.profit || 0);
-            }
-        });
+                        <!-- 4. Quick Range -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
+                            <div class="relative">
+                                <select name="quick_range" id="quickRangeSelect" onchange="handleQuickRangeChange(this.value)" 
+                                        class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="">-- <?= $isKm ? 'ជ្រើសរើស' : 'Select' ?> --</option>
+                                    <option value="today" <?= $quickRange === 'today' ? 'selected' : '' ?>><?= $isKm ? 'ថ្ងៃនេះ (Today)' : 'Today' ?></option>
+                                    <option value="yesterday" <?= $quickRange === 'yesterday' ? 'selected' : '' ?>><?= $isKm ? 'ម្សិលមិញ (Yesterday)' : 'Yesterday' ?></option>
+                                    <option value="week" <?= ($quickRange === 'week' || $quickRange === 'this_week') ? 'selected' : '' ?>><?= $isKm ? 'សប្តាហ៍នេះ (This Week)' : 'This Week' ?></option>
+                                    <option value="month" <?= $quickRange === 'month' ? 'selected' : '' ?>><?= $isKm ? 'ខែនេះ (This Month)' : 'This Month' ?></option>
+                                    <option value="year" <?= ($quickRange === 'year' || $quickRange === 'this_year') ? 'selected' : '' ?>><?= $isKm ? 'ឆ្នាំនេះ (This Year)' : 'This Year' ?></option>
+                                    <option value="all" <?= $quickRange === 'all' ? 'selected' : '' ?>><?= $isKm ? 'ទាំងអស់ (All Time)' : 'All Time' ?></option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
 
-        const noDataRow = document.getElementById('noMatchRow');
-        if (noDataRow) {
-            noDataRow.style.display = (matchCount === 0 && rows.length > 0) ? '' : 'none';
-        }
+                        <!-- 5. Staff -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
+                            <div class="relative">
+                                <select name="user_id" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="0">All Staff</option>
+                                    <?php foreach ($staffList as $st): ?>
+                                    <option value="<?= (int)$st['user_id'] ?>" <?= $filterUser === (int)$st['user_id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($st['display_name']) ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
 
-        const elQty = document.getElementById('totalQtyVal');
-        if (elQty) elQty.textContent = visQty;
+                        <!-- 6. Category -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ប្រភេទទំនិញ' : 'Category' ?></label>
+                            <div class="relative">
+                                <select name="category" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="">All Categories</option>
+                                    <?php foreach ($categoryList as $cat): ?>
+                                    <option value="<?= htmlspecialchars($cat['slug'] ?: $cat['name']) ?>" <?= $filterCategory === ($cat['slug'] ?: $cat['name']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($cat['name']) ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
+                    </div>
 
-        const elRev = document.getElementById('totalRevVal');
-        if (elRev) elRev.textContent = '$' + visRev.toFixed(2);
+                    <!-- Row 2: Search Input & Action Buttons -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                        <!-- Left: Search Box -->
+                        <div class="relative flex-1 max-w-sm">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                            <input type="text" id="tableSearchInput" name="search" value="<?= htmlspecialchars($searchQuery) ?>" oninput="filterTableClientSide()"
+                                   placeholder="<?= $isKm ? 'ស្វែងរកទំនិញ, ប្រភេទ...' : 'Search product, category...' ?>"
+                                   class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 transition">
+                        </div>
 
-        const elCost = document.getElementById('totalCostVal');
-        if (elCost) elCost.textContent = '$' + visCost.toFixed(2);
-
-        const elProfit = document.getElementById('totalProfitVal');
-        if (elProfit) {
-            const sign = visProfit >= 0 ? '+' : '-';
-            elProfit.textContent = sign + '$' + Math.abs(visProfit).toFixed(2);
-            elProfit.style.color = visProfit >= 0 ? '#22c55e' : '#ef4444';
-        }
-
-        const elSummaryProfit = document.getElementById('summaryCardProfitVal');
-        if (elSummaryProfit) {
-            const sign = visProfit >= 0 ? '+' : '-';
-            elSummaryProfit.textContent = sign + '$' + Math.abs(visProfit).toFixed(2);
-            elSummaryProfit.style.color = visProfit >= 0 ? '#22c55e' : '#ef4444';
-        }
-
-        const elSummaryRev = document.getElementById('summaryCardRevVal');
-        if (elSummaryRev) {
-            elSummaryRev.textContent = '$' + visRev.toFixed(2);
-        }
-    }
-    </script>
-
-    <!-- Summary Card -->
-    <?php
-    $filtered_sales = 0;
-    $filtered_cogs  = 0;
-    foreach ($filtered_products as $fpdata) {
-        $filtered_sales += (float)($fpdata['revenue'] ?? 0);
-        $filtered_cogs  += (float)($fpdata['cogs'] ?? 0);
-    }
-    $filtered_profit = $filtered_sales - $filtered_cogs;
-    ?>
-    <div class="er-summary-card">
-        <div class="er-summary-info">
-            <span><?= $lbl_date_from ?> <strong><?= htmlspecialchars($date_from) ?></strong></span>
-            <span><?= $lbl_date_to ?> <strong><?= htmlspecialchars($date_to) ?></strong></span>
-            <span><?= $lbl_doc_count ?> <strong><?= count($filtered_products) ?></strong></span>
-        </div>
-        <div class="er-summary-stats">
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= $lbl_stat_profit ?></span>
-                <span class="stat-val" id="summaryCardProfitVal" style="color: #22c55e;"><?= ($filtered_profit >= 0 ? '+' : '-') ?>$<?= number_format(abs($filtered_profit), 2) ?></span>
+                        <!-- Right: Reset & Filter Button -->
+                        <div class="flex items-center justify-end gap-3.5">
+                            <a href="report.php" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
+                                <?= $isKm ? 'កំណត់ឡើងវិញ' : 'Reset' ?>
+                            </a>
+                            <button type="submit" 
+                                    class="inline-flex items-center gap-2 px-5 py-2 bg-[#0b1329] hover:bg-[#162238] text-white text-xs font-bold rounded-xl shadow-sm transition hover:shadow cursor-pointer">
+                                <i class="fa-solid fa-filter text-[11px]"></i>
+                                <span><?= $isKm ? 'ស្វែងរកទិន្នន័យ' : 'Filter' ?></span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= $lbl_stat_rev ?></span>
-                <span class="stat-val" id="summaryCardRevVal">$<?= number_format($filtered_sales, 2) ?></span>
+
+            <!-- DATA TABLE CARD WITH VERTICAL SCROLL -->
+            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
+                <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="reportOrdersContainer">
+                    <table class="w-full text-left border-collapse" id="reportOrdersTable">
+                        <thead class="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_#f1f5f9]">
+                            <tr class="border-b border-slate-100 bg-white">
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'PRODUCT NAME' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រភេទ' : 'CATEGORY' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំនួនលក់' : 'QTY SOLD' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើម/កែវ' : 'COST / UNIT' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'តម្លៃលក់/កែវ' : 'PRICE / UNIT' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំណូលសរុប (REV)' : 'REVENUE' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'TOTAL COST' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'PROFIT' ?></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            <?php if (empty($productsList)): ?>
+                            <tr id="noDataRow">
+                                <td colspan="8" class="text-center py-16 px-4 text-slate-400">
+                                    <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl">
+                                        <i class="fa-solid fa-folder-open"></i>
+                                    </div>
+                                    <div class="font-bold text-slate-700 text-sm mb-1"><?= $isKm ? 'គ្មានទិន្នន័យការលក់' : 'No product sales recorded' ?></div>
+                                    <div class="text-xs text-slate-400"><?= $isKm ? 'សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting the date range or filters' ?></div>
+                                </td>
+                            </tr>
+                            <?php else: ?>
+                                <?php foreach ($productsList as $p): ?>
+                                <?php
+                                    $pName       = htmlspecialchars($p['product_name']);
+                                    $catName     = htmlspecialchars($p['category_name']);
+                                    $qtySold     = (int)$p['total_qty_sold'];
+                                    $costUnit    = (float)$p['cost_per_unit'];
+                                    $priceUnit   = (float)$p['avg_selling_price'];
+                                    $revTotal    = (float)$p['total_revenue'];
+                                    $costTotal   = (float)$p['total_cost'];
+                                    $profit      = (float)$p['total_profit'];
+                                    $isProfitPos = ($profit >= 0);
+                                ?>
+                                <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors product-item-row">
+                                    <!-- 1. Product Name with Dot Indicator -->
+                                    <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0 shadow-xs"></span>
+                                            <span><?= $pName ?></span>
+                                        </div>
+                                    </td>
+                                    <!-- 2. Category Pill Badge -->
+                                    <td class="py-4 px-6 text-center whitespace-nowrap">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70 text-slate-700 text-xs font-bold">
+                                            <?= $catName ?>
+                                        </span>
+                                    </td>
+                                    <!-- 3. Qty Sold -->
+                                    <td class="py-4 px-6 text-center text-xs font-black text-slate-800 whitespace-nowrap">
+                                        <?= number_format($qtySold) ?>
+                                    </td>
+                                    <!-- 4. Cost / Unit -->
+                                    <td class="py-4 px-6 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                        $<?= number_format($costUnit, 2) ?>
+                                    </td>
+                                    <!-- 5. Price / Unit -->
+                                    <td class="py-4 px-6 text-right text-xs font-semibold text-slate-700 whitespace-nowrap">
+                                        $<?= number_format($priceUnit, 2) ?>
+                                    </td>
+                                    <!-- 6. Total Revenue -->
+                                    <td class="py-4 px-6 text-right text-xs font-black text-slate-900 whitespace-nowrap">
+                                        $<?= number_format($revTotal, 2) ?>
+                                    </td>
+                                    <!-- 7. Total Cost -->
+                                    <td class="py-4 px-6 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                        $<?= number_format($costTotal, 2) ?>
+                                    </td>
+                                    <!-- 8. Profit -->
+                                    <td class="py-4 px-6 text-right text-xs font-black whitespace-nowrap <?= $isProfitPos ? 'text-emerald-600' : 'text-rose-600' ?>">
+                                        <?= ($isProfitPos ? '+' : '') . '$' . number_format($profit, 2) ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- TABLE SUMMARY FOOTER -->
+                <div class="p-4 md:p-5 bg-white border-t border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
+                    <!-- Left: Date Range & Product Count -->
+                    <div class="flex flex-col gap-0.5 text-xs text-slate-500">
+                        <div><?= $isKm ? 'ចន្លោះកាលបរិច្ឆេទ:' : 'Date Range:' ?> <span class="font-bold text-slate-700"><?= date('j/n/Y', strtotime($fromDate)) ?> — <?= date('j/n/Y', strtotime($toDate)) ?></span></div>
+                        <div><?= $isKm ? 'ចំនួនមុខទំនិញសរុប:' : 'Total Products Count:' ?> <span class="font-bold text-slate-700"><?= number_format($totalDistinctProducts) ?> <?= $isKm ? 'មុខ' : 'items' ?></span></div>
+                    </div>
+
+                    <!-- Right: Units, Total Profit & Total Sales -->
+                    <div class="flex items-center gap-7 sm:gap-10 self-end md:self-auto flex-wrap">
+                        <div class="text-left sm:text-right">
+                            <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំនួនលក់សរុប' : 'TOTAL UNITS' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight"><?= number_format($totalUnitsSold) ?></div>
+                        </div>
+                        <div class="text-left sm:text-right">
+                            <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'TOTAL PROFIT' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-[#059669] tracking-tight leading-tight"><?= ($totalProfit >= 0 ? '+' : '') . '$' . number_format($totalProfit, 2) ?></div>
+                        </div>
+                        <div class="text-left sm:text-right">
+                            <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំណូលសរុប' : 'TOTAL SALES' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight"><?= '$' . number_format($totalRevenue, 2) ?></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</main>
-</div>
+
+        </div><!-- /.rep-page-wrapper -->
+    </div><!-- /.app-main -->
+</div><!-- /.app-layout -->
+
+<script>
+function handleMonthSelect(val) {
+    if (!val) return;
+    const form = document.getElementById('analyticsReportFilterForm');
+    const [yyyy, mm] = val.split('-');
+    const lastDay = new Date(yyyy, mm, 0).getDate();
+    const pad = (n) => String(n).padStart(2, '0');
+    
+    document.getElementById('fromDateInput').value = `${yyyy}-${pad(mm)}-01`;
+    document.getElementById('toDateInput').value = `${yyyy}-${pad(mm)}-${pad(lastDay)}`;
+    
+    const qr = document.getElementById('quickRangeSelect');
+    if (qr) qr.value = '';
+    
+    form.submit();
+}
+
+function handleQuickRangeChange(val) {
+    if (!val) return;
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    
+    let fromStr = todayStr;
+    let toStr = todayStr;
+    
+    if (val === 'today') {
+        fromStr = todayStr;
+        toStr = todayStr;
+    } else if (val === 'yesterday') {
+        const yest = new Date(today);
+        yest.setDate(today.getDate() - 1);
+        const yMm = String(yest.getMonth() + 1).padStart(2, '0');
+        const yDd = String(yest.getDate()).padStart(2, '0');
+        fromStr = `${yest.getFullYear()}-${yMm}-${yDd}`;
+        toStr = fromStr;
+    } else if (val === 'week' || val === 'this_week') {
+        const day = today.getDay();
+        const diffToMon = (day === 0 ? -6 : 1 - day);
+        const monDate = new Date(today);
+        monDate.setDate(today.getDate() + diffToMon);
+        const sunDate = new Date(monDate);
+        sunDate.setDate(monDate.getDate() + 6);
+        const pad = (n) => String(n).padStart(2, '0');
+        fromStr = `${monDate.getFullYear()}-${pad(monDate.getMonth() + 1)}-${pad(monDate.getDate())}`;
+        toStr = `${sunDate.getFullYear()}-${pad(sunDate.getMonth() + 1)}-${pad(sunDate.getDate())}`;
+    } else if (val === 'month') {
+        fromStr = `${yyyy}-${mm}-01`;
+        toStr = todayStr;
+    } else if (val === 'year' || val === 'this_year') {
+        fromStr = `${yyyy}-01-01`;
+        toStr = todayStr;
+    } else if (val === 'all') {
+        fromStr = '2020-01-01';
+        toStr = todayStr;
+    }
+    
+    const ms = document.getElementById('monthSelect');
+    if (ms) ms.value = '';
+    
+    document.getElementById('fromDateInput').value = fromStr;
+    document.getElementById('toDateInput').value = toStr;
+    document.getElementById('analyticsReportFilterForm').submit();
+}
+
+function filterTableClientSide() {
+    const query = (document.getElementById('tableSearchInput').value || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#reportOrdersTable tbody tr.product-item-row');
+    let visibleCount = 0;
+    
+    rows.forEach(tr => {
+        const text = tr.innerText.toLowerCase();
+        if (text.includes(query)) {
+            tr.style.display = '';
+            visibleCount++;
+        } else {
+            tr.style.display = 'none';
+        }
+    });
+    
+    const noDataRow = document.getElementById('noDataRow');
+    if (noDataRow) {
+        noDataRow.style.display = visibleCount === 0 ? '' : 'none';
+    }
+}
+</script>
 </body>
 </html>

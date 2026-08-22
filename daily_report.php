@@ -12,8 +12,8 @@ $date  = is_string($_GET['date'] ?? null) ? trim($_GET['date']) : '';
 $dateOk = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m) && checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
 if (!$dateOk || $date > $today) { $date = $today; }
 
-$dateFrom = is_string($_GET['from_date'] ?? $_GET['date_from'] ?? null) ? trim($_GET['from_date'] ?? $_GET['date_from']) : '';
-$dateTo   = is_string($_GET['to_date']   ?? $_GET['date_to']   ?? null) ? trim($_GET['to_date']   ?? $_GET['date_to'])   : '';
+$dateFrom = is_string($_GET['from_date'] ?? $_GET['date_from'] ?? $_GET['from'] ?? null) ? trim($_GET['from_date'] ?? $_GET['date_from'] ?? $_GET['from']) : '';
+$dateTo   = is_string($_GET['to_date']   ?? $_GET['date_to']   ?? $_GET['to']   ?? null) ? trim($_GET['to_date']   ?? $_GET['date_to']   ?? $_GET['to'])   : '';
 $quickRangeParam = is_string($_GET['quick_range'] ?? null) ? trim($_GET['quick_range']) : '';
 $selectMonthParam = is_string($_GET['select_month'] ?? null) ? trim($_GET['select_month']) : '';
 
@@ -1299,311 +1299,436 @@ body {
 </style>
 </head>
 <?php
-$filter_from = trim($_GET['from_date'] ?? $_GET['date_from'] ?? ($isRange ? $dateFrom : $date));
-$filter_to   = trim($_GET['to_date']   ?? $_GET['date_to']   ?? ($isRange ? $dateTo   : $date));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_from)) $filter_from = $today;
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_to))   $filter_to   = $today;
-if ($filter_from > $filter_to) [$filter_from, $filter_to] = [$filter_to, $filter_from];
+$isKm = (current_lang() === 'km');
+$today = date('Y-m-d');
+$quickRange = $_GET['quick_range'] ?? ($isRange ? 'range' : 'today');
+$fromDate = $_GET['from_date'] ?? $_GET['date_from'] ?? ($isRange ? $dateFrom : $date);
+$toDate   = $_GET['to_date']   ?? $_GET['date_to']   ?? ($isRange ? $dateTo   : $date);
 
-$filter_status  = trim($_GET['status'] ?? '');
-$filter_payment = trim($_GET['payment_method'] ?? '');
+if (empty($fromDate) || empty($toDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+    if ($quickRange === 'today') {
+        $fromDate = $today;
+        $toDate   = $today;
+    } elseif ($quickRange === 'yesterday') {
+        $fromDate = date('Y-m-d', strtotime('-1 day'));
+        $toDate   = date('Y-m-d', strtotime('-1 day'));
+    } elseif ($quickRange === 'week' || $quickRange === 'this_week') {
+        $fromDate = date('Y-m-d', strtotime('monday this week'));
+        $toDate   = date('Y-m-d', strtotime('sunday this week'));
+    } elseif ($quickRange === 'year' || $quickRange === 'this_year') {
+        $fromDate = date('Y-01-01');
+        $toDate   = date('Y-12-31');
+    } else { // default 'month'
+        $fromDate = date('Y-m-01');
+        $toDate   = $today;
+        $quickRange = 'month';
+    }
+}
+if ($fromDate > $toDate) {
+    [$fromDate, $toDate] = [$toDate, $fromDate];
+}
+
+$timeShift     = trim($_GET['time_shift'] ?? '');
+$filterUser    = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
 if (!$_is_mgr) {
-    $filter_user = (int)$_SESSION['user_id'];
+    $filterUser = (int)$_SESSION['user_id'];
+}
+$paymentMethod = trim($_GET['payment_method'] ?? 'all');
+$searchQuery   = trim($_GET['search'] ?? '');
+
+$whereClauses = ["DATE(o.order_date) BETWEEN ? AND ?"];
+$bindTypes    = "ss";
+$bindParams   = [$fromDate, $toDate];
+
+$whereClauses[] = "oc.order_id IS NULL";
+
+if ($timeShift === 'morning') {
+    $whereClauses[] = "TIME(o.order_date) BETWEEN '06:00:00' AND '11:59:59'";
+} elseif ($timeShift === 'afternoon') {
+    $whereClauses[] = "TIME(o.order_date) BETWEEN '12:00:00' AND '17:59:59'";
+} elseif ($timeShift === 'evening') {
+    $whereClauses[] = "TIME(o.order_date) BETWEEN '18:00:00' AND '23:59:59'";
 }
 
-$where_conds = ["DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'"];
-if ($filter_payment !== '') {
-    $where_conds[] = "LOWER(o.payment_method) = '" . $conn->real_escape_string(strtolower($filter_payment)) . "'";
-}
-if ($filter_user > 0) {
-    $where_conds[] = "(o.user_id = $filter_user OR (o.user_id IS NULL AND LOWER(o.prepared_by) = (SELECT LOWER(username) FROM users WHERE user_id = $filter_user LIMIT 1)))";
-}
-$where_str = implode(' AND ', $where_conds);
-
-$sql_table_orders = "SELECT o.order_id, o.order_id AS daily_order_no, o.order_date, 'Guest' AS customer_name, '' AS table_number, 'drink_in' AS order_type, o.total, o.payment_method, 'Completed' AS status,
-                            0 AS discount_amount,
-                            COALESCE(NULLIF(u.name, ''), u.username, 'Staff') as staff_name 
-                     FROM orders o 
-                     LEFT JOIN users u ON u.user_id = o.user_id 
-                     WHERE $where_str 
-                     ORDER BY o.order_id DESC";
-$res_table_orders = $conn->query($sql_table_orders);
-$table_orders = $res_table_orders ? $res_table_orders->fetch_all(MYSQLI_ASSOC) : [];
-
-// Compute per-order COGS for Profit column
-$cogsByOrder = [];
-if ($table_orders) {
-    $tbl_order_ids = array_map(fn($o) => (int)$o['order_id'], $table_orders);
-    $in_ids = implode(',', $tbl_order_ids);
-    $cost_map_ref = ingredient_cost_map($conn);
-    
-    $q_its = $conn->query("
-        SELECT oi.order_id, oi.product_id, oi.milk, oi.quantity
-        FROM order_items oi
-        WHERE oi.order_id IN ($in_ids)
-    ");
-    $items_by_order = [];
-    $pids_map = [];
-    if ($q_its) {
-        while ($it = $q_its->fetch_assoc()) {
-            $items_by_order[(int)$it['order_id']][] = $it;
-            if ((int)$it['product_id'] > 0) { $pids_map[(int)$it['product_id']] = true; }
-        }
-    }
-    
-    $recipes_map = [];
-
-    foreach ($items_by_order as $oid => $its) {
-        $ocost = 0.0;
-        foreach ($its as $it) {
-            $pid  = (int)$it['product_id'];
-            $qty  = max(1, (int)$it['quantity']);
-            $milk = trim((string)$it['milk']);
-            foreach ($recipes_map[$pid] ?? [] as $rc) {
-                $amount = $rc['amount_used'] * $qty;
-                if ($amount <= 0) continue;
-                if (strpos(strtolower(trim($rc['ingredient_name'])), 'milk') !== false) {
-                    $key = strtolower(trim($milk !== '' ? $milk : 'Fresh Milk'));
-                    if (isset($cost_map_ref[$key])) { $ocost += $amount * (float)$cost_map_ref[$key]['unit_cost']; }
-                } else {
-                    $ocost += $amount * (float)($cost_map_ref[$rc['ingredient_id']]['unit_cost'] ?? 0);
-                }
-            }
-        }
-        $cogsByOrder[$oid] = $ocost;
-    }
+if ($filterUser > 0) {
+    $whereClauses[] = "o.user_id = ?";
+    $bindTypes   .= "i";
+    $bindParams[] = $filterUser;
 }
 
-$sum_gross  = 0.0;
-$sum_disc   = 0.0;
-$sum_net    = 0.0;
-$sum_cogs   = 0.0;
-$sum_profit = 0.0;
-$sum_qty    = 0;
-
-$processed_rows = [];
-$idx = 0;
-foreach ($table_orders as $to) {
-    $idx++;
-    $dailyOrderNo = (int)($to['daily_order_no'] ?? $idx);
-    $orderNoStr   = '#' . str_pad((string)$dailyOrderNo, 4, '0', STR_PAD_LEFT);
-    $oid   = (int)$to['order_id'];
-    $disc  = (float)($to['discount_amount'] ?? 0);
-    $net   = (float)$to['total'];
-    $gross = $net + $disc;
-    $ocogs = (float)($cogsByOrder[$oid] ?? 0.0);
-    $profit = $net - $ocogs;
-
-    $o_its = $items_by_order[$oid] ?? [];
-    $o_qty = 0;
-    foreach ($o_its as $oit) {
-        $o_qty += max(1, (int)($oit['quantity'] ?? 1));
-    }
-
-    $sum_gross  += $gross;
-    $sum_disc   += $disc;
-    $sum_net    += $net;
-    $sum_cogs   += $ocogs;
-    $sum_profit += $profit;
-    $sum_qty    += $o_qty;
-
-    $date_str = date('g:i j/n/Y', strtotime($to['order_date']));
-    $cust = htmlspecialchars($to['customer_name'] ?: 'General');
-    $staff = htmlspecialchars($to['staff_name'] ?: 'Visal');
-
-    $fmt_gross  = ($gross == floor($gross) ? number_format($gross, 0) : number_format($gross, 2)) . '$';
-    $fmt_disc   = $disc > 0 ? (($disc == floor($disc) ? number_format($disc, 0) : number_format($disc, 2)) . '$') : '0';
-    $fmt_net    = ($net == floor($net) ? number_format($net, 0) : number_format($net, 2)) . '$';
-    $fmt_cogs   = ($ocogs == floor($ocogs) ? number_format($ocogs, 0) : number_format($ocogs, 2)) . '$';
-    $fmt_profit = ($profit == floor($profit) ? number_format($profit, 0) : number_format($profit, 2)) . '$';
-
-    $pm_raw = strtolower(trim((string)($to['payment_method'] ?? 'cash')));
-    if ($pm_raw === 'bakong' || $pm_raw === 'khqr') {
-        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(225,29,72,0.12);color:#f43f5e;border:1px solid rgba(225,29,72,0.3);white-space:nowrap;"><i class="fa-solid fa-qrcode"></i> Bakong</span>';
-        $pm_text = 'Bakong';
-    } elseif ($pm_raw === 'cash') {
-        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.3);white-space:nowrap;"><i class="fa-solid fa-money-bill-wave"></i> Cash</span>';
-        $pm_text = 'Cash';
-    } elseif ($pm_raw === 'split') {
-        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(59,130,246,0.12);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);white-space:nowrap;"><i class="fa-solid fa-layer-group"></i> Split</span>';
-        $pm_text = 'Split';
-    } elseif ($pm_raw === 'pay_later') {
-        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(234,179,8,0.12);color:#eab308;border:1px solid rgba(234,179,8,0.3);white-space:nowrap;"><i class="fa-regular fa-clock"></i> Pay Later</span>';
-        $pm_text = 'Pay Later';
+if ($paymentMethod !== 'all' && !empty($paymentMethod)) {
+    if (strtolower($paymentMethod) === 'cash') {
+        $whereClauses[] = "LOWER(o.payment_method) LIKE '%cash%'";
+    } elseif (strtolower($paymentMethod) === 'bakong' || strtolower($paymentMethod) === 'khqr') {
+        $whereClauses[] = "(LOWER(o.payment_method) LIKE '%bakong%' OR LOWER(o.payment_method) LIKE '%khqr%' OR LOWER(o.payment_method) LIKE '%qr%')";
+    } elseif (strtolower($paymentMethod) === 'paylater' || strtolower($paymentMethod) === 'pay_later') {
+        $whereClauses[] = "(LOWER(o.payment_method) LIKE '%later%' OR LOWER(o.payment_method) LIKE '%credit%')";
     } else {
-        $pm_badge = '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.3);white-space:nowrap;">' . htmlspecialchars(ucfirst($pm_raw ?: 'Paid')) . '</span>';
-        $pm_text = ucfirst($pm_raw ?: 'Paid');
+        $whereClauses[] = "o.payment_method = ?";
+        $bindTypes   .= "s";
+        $bindParams[] = $paymentMethod;
     }
-
-    $processed_rows[] = [
-        'no'             => $orderNoStr,
-        'date'           => $date_str,
-        'customer'       => $cust,
-        'qty_item'       => $o_qty,
-        'price'          => $fmt_gross,
-        'discount'       => $fmt_disc,
-        'total'          => $fmt_net,
-        'profit'         => $fmt_profit,
-        'cogs'           => $fmt_cogs,
-        'payment_badge'  => $pm_badge,
-        'payment_method' => $pm_text,
-        'place_by'       => $staff,
-    ];
 }
 
-$fmt_sum_gross  = ($sum_gross == floor($sum_gross) ? number_format($sum_gross, 0) : number_format($sum_gross, 2)) . '$';
-$fmt_sum_disc   = ($sum_disc == floor($sum_disc) ? number_format($sum_disc, 0) : number_format($sum_disc, 2)) . '$';
-$fmt_sum_net    = ($sum_net == floor($sum_net) ? number_format($sum_net, 0) : number_format($sum_net, 2)) . '$';
-$fmt_sum_cogs   = ($sum_cogs == floor($sum_cogs) ? number_format($sum_cogs, 0) : number_format($sum_cogs, 2)) . '$';
-$fmt_sum_profit = ($sum_profit == floor($sum_profit) ? number_format($sum_profit, 0) : number_format($sum_profit, 2)) . '$';
+if (!empty($searchQuery)) {
+    $whereClauses[] = "(o.order_id LIKE ? OR u.username LIKE ? OR u.name LIKE ?)";
+    $sParam = "%$searchQuery%";
+    $bindTypes .= "sss";
+    $bindParams[] = $sParam;
+    $bindParams[] = $sParam;
+    $bindParams[] = $sParam;
+}
+
+$whereSql = implode(" AND ", $whereClauses);
+
+$sql = "
+    SELECT 
+        o.order_id,
+        o.order_id AS daily_order_no,
+        'Guest' AS customer_name,
+        o.total,
+        o.order_date,
+        o.payment_method,
+        COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS seller_name,
+        COALESCE(SUM(oi.quantity), 0) AS total_items
+    FROM orders o
+    LEFT JOIN users u ON u.user_id = o.user_id
+    LEFT JOIN order_items oi ON oi.order_id = o.order_id
+    LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id
+    WHERE {$whereSql}
+    GROUP BY o.order_id, o.total, o.order_date, o.payment_method, u.name, u.username, o.prepared_by
+    ORDER BY o.order_id DESC
+";
+
+$stmt = $conn->prepare($sql);
+if (!$stmt) {
+    die("Database query error: " . $conn->error);
+}
+if ($bindTypes !== "") {
+    $stmt->bind_param($bindTypes, ...$bindParams);
+}
+$stmt->execute();
+$ordersResult = $stmt->get_result();
+
+$ordersList = [];
+$totalOrdersCount = 0;
+$totalItemsSold = 0;
+$totalSalesAmount = 0.0;
+
+while ($row = $ordersResult->fetch_assoc()) {
+    $ordersList[] = $row;
+    $totalOrdersCount++;
+    $totalItemsSold += (int)$row['total_items'];
+    $totalSalesAmount += (float)$row['total'];
+}
+
+$staffList = [];
+if ($_is_mgr) {
+    $q_staff = $conn->query("SELECT user_id, username, COALESCE(NULLIF(name, ''), username) AS display_name FROM users ORDER BY username ASC");
+    if ($q_staff) {
+        while ($sr = $q_staff->fetch_assoc()) {
+            $staffList[] = $sr;
+        }
+    }
+}
 ?>
-<body>
-<div class="flex h-screen w-full overflow-hidden app-layout">
-<?php require_once __DIR__ . '/sidebar.php'; ?>
-<main class="app-main flex-1 h-full overflow-y-auto er-container">
-    <?php
-    $report_category = 'Sales';
-    $report_title    = 'Sales Report';
-    $date_from       = $filter_from;
-    $date_to         = $filter_to;
+<body style="background-color: #f8fafc !important;">
+<div class="flex h-screen w-screen overflow-hidden app-layout" style="background-color: #f8fafc !important;">
+    <?php require_once __DIR__ . '/sidebar.php'; ?>
 
-    $user_options = [];
-    if ($_is_mgr) {
-        $user_options[''] = 'All Staff';
-        $q_users = $conn->query("SELECT u.user_id, u.username, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY u.username ASC");
-        if ($q_users) {
-            while ($ur = $q_users->fetch_assoc()) {
-                $displayName = $ur['display_name'] ?? $ur['username'];
-                $user_options[$ur['user_id']] = $displayName;
-            }
-        }
-    } else {
-        $my_uid = (int)$_SESSION['user_id'];
-        $my_name = $_SESSION['emp_name'] ?? ($_SESSION['username'] ?? 'My Sales');
-        $user_options[$my_uid] = $my_name;
+    <div class="app-main flex-1 h-screen overflow-hidden flex flex-col" style="background-color: #f8fafc !important;">
+        <div class="rep-page-wrapper w-full h-full p-4 md:p-6 bg-[#f8fafc] flex flex-col gap-4 overflow-hidden" style="background-color: #f8fafc !important;">
+
+            <!-- TOP BREADCRUMBS & ACTION BUTTONS -->
+            <div class="flex items-center justify-between gap-4 pb-0.5 flex-shrink-0 print-hide">
+                <!-- Breadcrumbs -->
+                <div class="flex items-center gap-2 text-xs md:text-sm font-medium">
+                    <span class="text-slate-400"><?= $isKm ? 'របាយការណ៍' : 'Reports' ?></span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
+                    <span class="text-slate-400">Sales</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
+                    <span class="text-slate-900 font-bold"><?= $isKm ? 'របាយការណ៍លក់' : 'Sales Report' ?></span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="window.print()" 
+                            class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
+                        <i class="fa-solid fa-print text-slate-400 text-xs"></i>
+                        <span><?= $isKm ? 'បោះពុម្ព' : 'Print' ?></span>
+                    </button>
+                    <a href="daily_report_xlsx.php?from_date=<?= urlencode($fromDate) ?>&to_date=<?= urlencode($toDate) ?>&user_id=<?= urlencode($filterUser) ?>" 
+                       class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm font-bold rounded-xl shadow-sm transition cursor-pointer">
+                        <i class="fa-solid fa-download text-xs"></i>
+                        <span>Export Excel</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- FILTER CARD -->
+            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-5 flex-shrink-0 print-hide">
+                <form method="GET" action="daily_report.php" id="salesReportFilterForm" class="flex flex-col gap-3.5">
+                    <!-- Row 1: 6 Filter Columns -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <!-- 1. Start Date -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date' ?></label>
+                            <div class="relative">
+                                <input type="date" id="fromDateInput" name="from_date" value="<?= htmlspecialchars($fromDate) ?>" onchange="this.form.submit()"
+                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                            </div>
+                        </div>
+
+                        <!-- 2. End Date -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date' ?></label>
+                            <div class="relative">
+                                <input type="date" id="toDateInput" name="to_date" value="<?= htmlspecialchars($toDate) ?>" onchange="this.form.submit()"
+                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                            </div>
+                        </div>
+
+                        <!-- 3. Time Shift -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ជ្រើសរើសម៉ោង' : 'Select Time' ?></label>
+                            <div class="relative">
+                                <select name="time_shift" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="" <?= $timeShift === '' ? 'selected' : '' ?>>-- <?= $isKm ? 'គ្រប់ម៉ោង' : 'All Shifts' ?> --</option>
+                                    <option value="morning" <?= $timeShift === 'morning' ? 'selected' : '' ?>><?= $isKm ? 'ព្រឹក (06:00 - 12:00)' : 'Morning (06:00 - 12:00)' ?></option>
+                                    <option value="afternoon" <?= $timeShift === 'afternoon' ? 'selected' : '' ?>><?= $isKm ? 'រសៀល (12:00 - 18:00)' : 'Afternoon (12:00 - 18:00)' ?></option>
+                                    <option value="evening" <?= $timeShift === 'evening' ? 'selected' : '' ?>><?= $isKm ? 'យប់ (18:00 - 23:00)' : 'Evening (18:00 - 23:00)' ?></option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <!-- 4. Quick Range -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
+                            <div class="relative">
+                                <select name="quick_range" id="quickRangeSelect" onchange="handleQuickRangeChange(this.value)" 
+                                        class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="">-- <?= $isKm ? 'ជ្រើសរើស' : 'Select' ?> --</option>
+                                    <option value="today" <?= $quickRange === 'today' ? 'selected' : '' ?>><?= $isKm ? 'ថ្ងៃនេះ (Today)' : 'Today' ?></option>
+                                    <option value="yesterday" <?= $quickRange === 'yesterday' ? 'selected' : '' ?>><?= $isKm ? 'ម្សិលមិញ (Yesterday)' : 'Yesterday' ?></option>
+                                    <option value="week" <?= $quickRange === 'week' ? 'selected' : '' ?>><?= $isKm ? 'សប្តាហ៍នេះ (This Week)' : 'This Week' ?></option>
+                                    <option value="month" <?= $quickRange === 'month' ? 'selected' : '' ?>><?= $isKm ? 'ខែនេះ (This Month)' : 'This Month' ?></option>
+                                    <option value="year" <?= $quickRange === 'year' ? 'selected' : '' ?>><?= $isKm ? 'ឆ្នាំនេះ (This Year)' : 'This Year' ?></option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <!-- 5. Staff -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
+                            <div class="relative">
+                                <select name="user_id" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="0">All Staff</option>
+                                    <?php foreach ($staffList as $st): ?>
+                                    <option value="<?= (int)$st['user_id'] ?>" <?= $filterUser === (int)$st['user_id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($st['display_name']) ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <!-- 6. Payment Method -->
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'វិធីទូទាត់' : 'Payment Method' ?></label>
+                            <div class="relative">
+                                <select name="payment_method" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                    <option value="all" <?= $paymentMethod === 'all' ? 'selected' : '' ?>>All Methods</option>
+                                    <option value="Cash" <?= $paymentMethod === 'Cash' ? 'selected' : '' ?>>Cash</option>
+                                    <option value="Bakong" <?= $paymentMethod === 'Bakong' ? 'selected' : '' ?>>Bakong</option>
+                                    <option value="PayLater" <?= $paymentMethod === 'PayLater' ? 'selected' : '' ?>>Pay Later</option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Search Input & Action Buttons -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                        <!-- Left: Search Box -->
+                        <div class="relative flex-1 max-w-sm">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                            <input type="text" id="tableSearchInput" name="search" value="<?= htmlspecialchars($searchQuery) ?>" oninput="filterTableClientSide()"
+                                   placeholder="<?= $isKm ? 'ស្វែងរកតាមលេខ Order, អតិថិជន...' : 'Search order #, customer...' ?>"
+                                   class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 transition">
+                        </div>
+
+                        <!-- Right: Reset & Filter Button -->
+                        <div class="flex items-center justify-end gap-3.5">
+                            <a href="daily_report.php" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
+                                <?= $isKm ? 'កំណត់ឡើងវិញ' : 'Reset' ?>
+                            </a>
+                            <button type="submit" 
+                                    class="inline-flex items-center gap-2 px-5 py-2 bg-[#0b1329] hover:bg-[#162238] text-white text-xs font-bold rounded-xl shadow-sm transition hover:shadow cursor-pointer">
+                                <i class="fa-solid fa-filter text-[11px]"></i>
+                                <span><?= $isKm ? 'ស្វែងរកទិន្នន័យ' : 'Filter' ?></span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- DATA TABLE CARD WITH VERTICAL SCROLL -->
+            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
+                <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="reportOrdersContainer">
+                    <table class="w-full text-left border-collapse" id="reportOrdersTable">
+                        <thead class="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_#f1f5f9]">
+                            <tr class="border-b border-slate-100 bg-white">
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'លេខ ORDER' : 'ORDER NO' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'កាលបរិច្ឆេទ' : 'DATE & TIME' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'អតិថិជន' : 'CUSTOMER' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'តម្លៃ' : 'TOTAL' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញ' : 'ITEMS' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'វិធីទូទាត់' : 'PAYMENT' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'អ្នកលក់' : 'CASHIER' ?></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            <?php if (empty($ordersList)): ?>
+                            <tr id="noDataRow">
+                                <td colspan="7" class="text-center py-16 px-4 text-slate-400">
+                                    <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl">
+                                        <i class="fa-solid fa-folder-open"></i>
+                                    </div>
+                                    <div class="font-bold text-slate-700 text-sm mb-1"><?= $isKm ? 'គ្មានទិន្នន័យការលក់' : 'No sales records found' ?></div>
+                                    <div class="text-xs text-slate-400"><?= $isKm ? 'សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting the date range or filters' ?></div>
+                                </td>
+                            </tr>
+                            <?php else: ?>
+                                <?php foreach ($ordersList as $o): ?>
+                                <?php
+                                    $orderNoPadded = '#' . str_pad((string)($o['daily_order_no'] ?? $o['order_id']), 4, '0', STR_PAD_LEFT);
+                                    $dtFormatted   = date('G:i j/n/Y', strtotime($o['order_date']));
+                                    $customerName  = !empty($o['customer_name']) ? $o['customer_name'] : 'Guest';
+                                    $totalFormatted = '$' . number_format((float)$o['total'], 2);
+                                    $itemsCount    = (int)$o['total_items'];
+                                    $sellerName    = $o['seller_name'];
+                                    
+                                    // Payment Method badge
+                                    $pmLower = strtolower($o['payment_method'] ?? 'cash');
+                                    if (strpos($pmLower, 'bakong') !== false || strpos($pmLower, 'khqr') !== false || strpos($pmLower, 'qr') !== false) {
+                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-700 text-xs font-bold"><i class="fa-solid fa-qrcode text-[10px]"></i> Bakong</span>';
+                                    } elseif (strpos($pmLower, 'later') !== false || strpos($pmLower, 'credit') !== false) {
+                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-700 text-xs font-bold"><i class="fa-regular fa-clock text-[10px]"></i> Pay Later</span>';
+                                    } else {
+                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/70 text-emerald-700 text-xs font-bold"><i class="fa-solid fa-money-bill-wave text-[10px]"></i> Cash</span>';
+                                    }
+                                ?>
+                                <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
+                                    <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap"><?= $orderNoPadded ?></td>
+                                    <td class="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap"><?= htmlspecialchars($dtFormatted) ?></td>
+                                    <td class="py-4 px-6 text-xs font-semibold text-slate-700 whitespace-nowrap"><?= htmlspecialchars($customerName) ?></td>
+                                    <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap"><?= $totalFormatted ?></td>
+                                    <td class="py-4 px-6 text-center text-xs font-semibold text-slate-600 whitespace-nowrap"><?= $itemsCount ?></td>
+                                    <td class="py-4 px-6 whitespace-nowrap"><?= $pmBadge ?></td>
+                                    <td class="py-4 px-6 text-xs font-medium text-slate-500 whitespace-nowrap"><?= htmlspecialchars($sellerName) ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- TABLE SUMMARY FOOTER -->
+                <div class="p-4 md:p-5 bg-white border-t border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
+                    <!-- Left: Date Range & Order Count -->
+                    <div class="flex flex-col gap-0.5 text-xs text-slate-500">
+                        <div><?= $isKm ? 'ចន្លោះកាលបរិច្ឆេទ:' : 'Date Range:' ?> <span class="font-bold text-slate-700"><?= date('j/n/Y', strtotime($fromDate)) ?> — <?= date('j/n/Y', strtotime($toDate)) ?></span></div>
+                        <div><?= $isKm ? 'ចំនួនប្រតិបត្តិការសរុប (Orders):' : 'Total Orders Count:' ?> <span class="font-bold text-slate-700"><?= number_format($totalOrdersCount) ?></span></div>
+                    </div>
+
+                    <!-- Right: Total Items & Total Sales -->
+                    <div class="flex items-center gap-8 self-end md:self-auto">
+                        <div class="text-right">
+                            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញសរុប' : 'Total Items' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-slate-900 leading-tight"><?= number_format($totalItemsSold) ?></div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ការលក់សរុប' : 'Total Sales' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-emerald-600 leading-tight"><?= '$' . number_format($totalSalesAmount, 2) ?></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.rep-page-wrapper -->
+    </div><!-- /.app-main -->
+</div><!-- /.app-layout -->
+
+<script>
+function handleQuickRangeChange(val) {
+    if (!val) return;
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    
+    let fromStr = todayStr;
+    let toStr = todayStr;
+    
+    if (val === 'today') {
+        fromStr = todayStr;
+        toStr = todayStr;
+    } else if (val === 'yesterday') {
+        const yest = new Date(today);
+        yest.setDate(today.getDate() - 1);
+        const yMm = String(yest.getMonth() + 1).padStart(2, '0');
+        const yDd = String(yest.getDate()).padStart(2, '0');
+        fromStr = `${yest.getFullYear()}-${yMm}-${yDd}`;
+        toStr = fromStr;
+    } else if (val === 'week') {
+        const day = today.getDay();
+        const diffToMon = (day === 0 ? -6 : 1 - day);
+        const monDate = new Date(today);
+        monDate.setDate(today.getDate() + diffToMon);
+        const sunDate = new Date(monDate);
+        sunDate.setDate(monDate.getDate() + 6);
+        const pad = (n) => String(n).padStart(2, '0');
+        fromStr = `${monDate.getFullYear()}-${pad(monDate.getMonth() + 1)}-${pad(monDate.getDate())}`;
+        toStr = `${sunDate.getFullYear()}-${pad(sunDate.getMonth() + 1)}-${pad(sunDate.getDate())}`;
+    } else if (val === 'month') {
+        fromStr = `${yyyy}-${mm}-01`;
+        toStr = todayStr;
+    } else if (val === 'year') {
+        fromStr = `${yyyy}-01-01`;
+        toStr = todayStr;
     }
+    
+    document.getElementById('fromDateInput').value = fromStr;
+    document.getElementById('toDateInput').value = toStr;
+    document.getElementById('salesReportFilterForm').submit();
+}
 
-    $filter_options  = [
-        [
-            'name' => 'user_id',
-            'label' => 'Staff Member',
-            'options' => $user_options,
-            'selected' => $filter_user
-        ],
-        [
-            'name' => 'payment_method',
-            'label' => 'Payment Method',
-            'options' => ['' => 'All Methods', 'cash' => 'Cash', 'bakong' => 'Bakong'],
-            'selected' => $filter_payment
-        ]
-    ];
-    $export_excel_url = "daily_report_xlsx.php?date_from=" . urlencode($filter_from) . "&date_to=" . urlencode($filter_to);
-    $export_pdf_url   = "daily_report_pdf.php?date_from=" . urlencode($filter_from) . "&date_to=" . urlencode($filter_to) . "&user_id=" . urlencode($filter_user) . "&payment_method=" . urlencode($filter_payment) . "&lang=" . urlencode(current_lang());
-    require __DIR__ . '/report_header.php';
-
-    $isKm = (current_lang() === 'km');
-    $lbl_col_no       = $isKm ? 'លេខ Order' : 'No Order';
-    $lbl_col_date     = $isKm ? 'កាលបរិច្ឆេទ' : 'Date';
-    $lbl_col_cust     = $isKm ? 'អតិថិជន' : 'Customer';
-    $lbl_col_price    = $isKm ? 'តម្លៃ' : 'Price';
-    $lbl_col_qty      = $isKm ? 'ចំនួនទំនិញ' : 'Qty Item';
-    $lbl_col_total    = $isKm ? 'ចំណូល' : 'Revenue';
-    $lbl_col_profit   = $isKm ? 'ប្រាក់ចំណេញ' : 'Profit';
-    $lbl_col_cogs     = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
-    $lbl_col_place    = $isKm ? 'អ្នកលក់' : 'Place by';
-    $lbl_col_sum      = $isKm ? 'សរុប' : 'Total';
-    $lbl_date_from    = $isKm ? 'ចាប់ពីថ្ងៃ :' : 'Date From :';
-    $lbl_date_to      = $isKm ? 'ដល់ថ្ងៃ :' : 'Date To :';
-    $lbl_doc_no       = $isKm ? 'ចំនួន Order :' : 'Order :';
-    $lbl_gross_sales  = $isKm ? 'ការលក់សរុប' : 'Total Gross Sales';
-    $lbl_total_items  = $isKm ? 'ទំនិញសរុប' : 'Total Items';
-    $lbl_net_revenue  = $isKm ? 'ចំណូលសុទ្ធសរុប' : 'Total Net Revenue';
-    $lbl_total_profit = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit';
-    $lbl_col_payment  = $isKm ? 'វិធីទូទាត់' : 'Payment Method';
-    ?>
-
-    <!-- Data Table -->
-    <div class="er-table-card">
-        <div class="er-table-wrap">
-            <table class="er-table">
-                <thead>
-                    <tr>
-                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_no) ?></th>
-                        <th><?= htmlspecialchars($lbl_col_date) ?></th>
-                        <th><?= htmlspecialchars($lbl_col_cust) ?></th>
-                        <th style="text-align:right"><?= htmlspecialchars($lbl_col_price) ?></th>
-                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_qty) ?></th>
-                        <th style="text-align:center"><?= htmlspecialchars($lbl_col_payment) ?></th>
-                        <th><?= htmlspecialchars($lbl_col_place) ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($processed_rows)): ?>
-                    <tr class="no-data">
-                        <td colspan="7" class="no-data"><?= $isKm ? 'គ្មានទិន្នន័យ' : 'No data' ?></td>
-                    </tr>
-                    <?php else: ?>
-                    <?php foreach ($processed_rows as $r): ?>
-                    <tr>
-                        <td style="text-align:center;font-weight:600;"><?= $r['no'] ?></td>
-                        <td><?= $r['date'] ?></td>
-                        <td><?= $r['customer'] ?></td>
-                        <td style="text-align:right;font-weight:600;"><?= $r['price'] ?></td>
-                        <td style="text-align:center;font-weight:600;"><?= $r['qty_item'] ?></td>
-                        <td style="text-align:center;"><?= $r['payment_badge'] ?></td>
-                        <td><?= $r['place_by'] ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <tr class="total-summary-row" style="font-weight:700; background: linear-gradient(90deg, rgba(209, 144, 75, 0.15) 0%, rgba(20, 20, 28, 0.95) 100%); border-top: 2px solid #d1904b; border-bottom: 2px solid rgba(209, 144, 75, 0.3);">
-                        <td colspan="3" style="text-align:center; padding: 0.85rem 1rem;">
-                            <span style="display:inline-flex; align-items:center; gap:0.4rem; padding: 0.25rem 0.75rem; border-radius: 6px; background: rgba(209, 144, 75, 0.2); color: #d1904b; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid rgba(209, 144, 75, 0.35);">
-                                <i class="fa-solid fa-calculator" style="font-size:0.75rem;"></i> <?= htmlspecialchars($lbl_col_sum) ?>
-                            </span>
-                        </td>
-                        <td style="text-align:right; color: #38bdf8; font-size: 0.95rem; font-weight: 700;"><?= $fmt_sum_gross ?></td>
-                        <td style="text-align:center; padding: 0.85rem 1rem;">
-                            <span style="display:inline-block; padding: 0.15rem 0.6rem; border-radius: 9999px; background: rgba(167, 139, 250, 0.18); color: #c084fc; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(167, 139, 250, 0.3);"><?= $sum_qty ?></span>
-                        </td>
-                        <td></td>
-                        <td></td>
-                    </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Summary Card -->
-    <div class="er-summary-card">
-        <div class="er-summary-info">
-            <span><?= htmlspecialchars($lbl_date_from) ?> <strong><?= htmlspecialchars(date('j/n/Y', strtotime($filter_from))) ?></strong></span>
-            <span><?= htmlspecialchars($lbl_date_to) ?> <strong><?= htmlspecialchars(date('j/n/Y', strtotime($filter_to))) ?></strong></span>
-            <span><?= htmlspecialchars($lbl_doc_no) ?> <strong><?= count($processed_rows) ?></strong></span>
-        </div>
-        <div class="er-summary-stats">
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= htmlspecialchars($lbl_gross_sales) ?></span>
-                <span class="stat-val"><?= $fmt_sum_gross ?></span>
-            </div>
-            <div class="er-summary-stat-item">
-                <span class="stat-label"><?= htmlspecialchars($lbl_total_items) ?></span>
-                <span class="stat-val text-blue-400"><?= $sum_qty ?></span>
-            </div>
-        </div>
-    </div>
-</main>
-</div>
-        </div>
-
-
-    </div>
-    <div class="dr-panel" id="panel-orders" hidden></div>
-    <div class="dr-panel" id="panel-stock"  hidden></div>
-    <div class="dr-panel" id="panel-staff"  hidden></div>
-
-
-
-</div>
+function filterTableClientSide() {
+    const query = (document.getElementById('tableSearchInput').value || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#reportOrdersTable tbody tr');
+    let visibleCount = 0;
+    
+    rows.forEach(tr => {
+        if (tr.id === 'noDataRow') return;
+        const text = tr.innerText.toLowerCase();
+        if (text.includes(query)) {
+            tr.style.display = '';
+            visibleCount++;
+        } else {
+            tr.style.display = 'none';
+        }
+    });
+    
+    const noDataRow = document.getElementById('noDataRow');
+    if (noDataRow) {
+        noDataRow.style.display = visibleCount === 0 ? '' : 'none';
+    }
+}
+</script>
 
 <script>
 const drLoaded = {};           // tab -> true once its HTML has arrived

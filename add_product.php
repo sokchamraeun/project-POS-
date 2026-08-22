@@ -1133,6 +1133,7 @@ select.cat-select option {
 }
 .alert-danger { background: rgba(255,77,77,.12); color: var(--danger); border: 1px solid rgba(255,77,77,.25); }
 </style>
+<link rel="stylesheet" href="assets/css/product_cropper.css">
 </head>
 <body>
 <div class="flex h-screen w-screen overflow-hidden app-layout">
@@ -1339,14 +1340,48 @@ const imgStatusText = document.getElementById('imgStatusText');
 if (fImgInput) {
     fImgInput.addEventListener('change', function() {
         if (this.files && this.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imgPreview.src = e.target.result;
-                imgPreviewWrap.style.display = 'block';
-                noImgBox.style.display = 'none';
-                imgStatusText.textContent = fImgInput.files[0].name;
-            };
-            reader.readAsDataURL(this.files[0]);
+            const file = this.files[0];
+            if (file._isCropped) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imgPreview.src = e.target.result;
+                    imgPreviewWrap.style.display = 'block';
+                    noImgBox.style.display = 'none';
+                    imgStatusText.textContent = file.name + ' (Cropped)';
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            if (typeof openProductCropper === 'function') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    openProductCropper(e.target.result, function(blob, dataUrl, croppedFile) {
+                        croppedFile._isCropped = true;
+                        try {
+                            const dt = new DataTransfer();
+                            dt.items.add(croppedFile);
+                            fImgInput.files = dt.files;
+                        } catch(err) {
+                            console.warn(err);
+                        }
+                        imgPreview.src = dataUrl;
+                        imgPreviewWrap.style.display = 'block';
+                        noImgBox.style.display = 'none';
+                        imgStatusText.textContent = croppedFile.name + ' (Cropped)';
+                    }, 1);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imgPreview.src = e.target.result;
+                    imgPreviewWrap.style.display = 'block';
+                    noImgBox.style.display = 'none';
+                    imgStatusText.textContent = file.name;
+                };
+                reader.readAsDataURL(file);
+            }
         }
     });
 }
@@ -1929,5 +1964,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 </script>
+<script src="assets/js/product_cropper.js"></script>
 </body>
 </html>

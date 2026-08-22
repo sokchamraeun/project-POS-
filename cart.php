@@ -206,7 +206,7 @@ if (isset($_POST['ajax_clear_discount'])) {
 ====================== */
 if (isset($_POST['ajax_update'])) {
     $i = intval($_POST['index']);
-    $qty = max(1, min(1000, intval($_POST['qty'])));
+    $qty = max(1, min(100, intval($_POST['qty'])));
 
     if (isset($_SESSION['cart'][$i])) {
         $pId = (int)($_SESSION['cart'][$i]['product_id'] ?? 0);

@@ -197,6 +197,7 @@ $availPct = $totalProducts > 0 ? round($availCount / $totalProducts * 100) : 0;
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="assets/css/product_cropper.css">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 
@@ -4405,11 +4406,32 @@ function closeEditProductModal() {
 
 function previewEpImage(input) {
     if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            document.getElementById('epImgPreview').src = e.target.result;
-        };
-        reader.readAsDataURL(input.files[0]);
+        const file = input.files[0];
+        if (file._isCropped) return;
+        
+        if (typeof openProductCropper === 'function') {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                openProductCropper(e.target.result, function (blob, dataUrl, croppedFile) {
+                    croppedFile._isCropped = true;
+                    try {
+                        const dt = new DataTransfer();
+                        dt.items.add(croppedFile);
+                        input.files = dt.files;
+                    } catch (err) {
+                        console.warn(err);
+                    }
+                    document.getElementById('epImgPreview').src = dataUrl;
+                }, 1);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById('epImgPreview').src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
     }
 }
 
@@ -4817,5 +4839,6 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php endif; ?>
 </main>
 </div>
+<script src="assets/js/product_cropper.js"></script>
 </body>
 </html>

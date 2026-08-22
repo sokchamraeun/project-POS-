@@ -124,35 +124,34 @@ if ($action === ""):
         padding: 0; 
     }
 
-    /* ── PREMIUM DARK BACKGROUND ── */
-    body {
-        background-color: var(--bg, #09090b);
+    /* ── BASE & PAGE LAYOUT BACKGROUND ── */
+    body,
+    .app-layout,
+    .app-main,
+    .vo-page-wrapper {
+        background-color: #f8fafc !important;
+        background-image: none !important;
+        color: #0f172a;
+        font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+    }
+
+    body.barista-mode,
+    .barista-mode .app-layout,
+    .barista-mode .app-main {
+        background-color: #09090b !important;
         background-image:
             radial-gradient(ellipse 90% 60% at 15% -10%, rgba(80,80,120,0.10) 0%, transparent 55%),
             radial-gradient(ellipse 70% 60% at 85% 110%, rgba(60,60,100,0.08) 0%, transparent 55%),
             radial-gradient(ellipse 50% 50% at 50% 50%, rgba(209,144,75,0.03) 0%, transparent 60%),
             linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
-        background-size: auto, auto, auto, 72px 72px, 72px 72px;
-        background-attachment: fixed;
-        font-family: 'Poppins', sans-serif;
-        color: var(--text);
-        margin: 0;
-        padding: 0;
-        height: 100vh;
-        width: 100vw;
-        position: relative;
-        overflow: hidden;
+            linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px) !important;
+        background-size: auto, auto, auto, 72px 72px, 72px 72px !important;
+        color: #f5f5f5 !important;
     }
 
-    html[data-theme="light"] body,
-    [data-theme="light"] body,
-    [data-theme="light"] .app-layout,
-    [data-theme="light"] .app-main,
-    [data-theme="light"] .vo-page-wrapper {
-        background-color: #ECEEF2 !important;
-        color: #111827 !important;
-        background-image: none !important;
+    /* Hide steam in normal cashier mode */
+    body:not(.barista-mode) .steam-container {
+        display: none !important;
     }
 
     /* ── Coffee Steam Animation ── */
@@ -247,13 +246,17 @@ if ($action === ""):
     }
 
     /* ── Custom Scrollbar ── */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb {
-        background: var(--accent);
-        border-radius: 10px;
+    ::-webkit-scrollbar,
+    #ordersBody::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track,
+    #ordersBody::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb,
+    #ordersBody::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 9999px;
     }
-    ::-webkit-scrollbar-thumb:hover { background: var(--accent-dark); }
+    ::-webkit-scrollbar-thumb:hover,
+    #ordersBody::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
     /* ── Back Button ── */
     .back {
@@ -1168,23 +1171,25 @@ if ($action === ""):
         color: #0F172A !important;
     }
 
-    /* Date Filter Range Pills in Light Mode */
-    [data-theme="light"] .vo-date-pill {
-        background: #FFFFFF !important;
-        border-color: #E2E5EA !important;
-        color: #475569 !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+    /* Date Filter Range Pills */
+    .vo-date-pill {
+        background: transparent !important;
+        border: 1px solid transparent !important;
+        color: #64748b !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
     }
-    [data-theme="light"] .vo-date-pill:hover {
-        background: rgba(209, 144, 75, 0.12) !important;
-        color: #d1904b !important;
-        border-color: rgba(209, 144, 75, 0.4) !important;
+    .vo-date-pill:hover {
+        color: #0f172a !important;
+        background: rgba(0, 0, 0, 0.03) !important;
     }
-    [data-theme="light"] .vo-date-pill.active {
-        background: #d1904b !important;
-        color: #FFFFFF !important;
-        border-color: #d1904b !important;
-        box-shadow: 0 2px 8px rgba(209, 144, 75, 0.3) !important;
+    .vo-date-pill.active {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border-color: rgba(226, 232, 240, 0.8) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        font-weight: 700 !important;
     }
 
     /* Action Buttons in Light Mode */
@@ -2353,14 +2358,9 @@ html[data-theme="light"] body,
 [data-theme="light"] .app-main,
 [data-theme="light"] .vo-page-wrapper,
 [data-theme="light"] .main-content-container {
-    background-color:#ECEEF2 !important;
-    color:#111827 !important;
-    background-image:
-        radial-gradient(ellipse 90% 60% at 15% -10%, rgba(120,120,160,0.06) 0%, transparent 55%),
-        radial-gradient(ellipse 70% 60% at 85% 110%, rgba(100,100,140,0.05) 0%, transparent 55%),
-        linear-gradient(rgba(0,0,0,0.028) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,0.028) 1px, transparent 1px) !important;
-    background-size:auto, auto, 72px 72px, 72px 72px !important;
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+    background-image: none !important;
 }
 [data-theme="light"] .order-card{
     background:#FFFFFF; border-color:#E2E5EA;
@@ -2644,10 +2644,12 @@ body.barista-mode { padding: 0; }
     </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden app-layout">
+<?php $r = $_SESSION['role'] ?? ''; ?>
+<div class="flex h-screen w-screen overflow-hidden app-layout" style="background-color: <?= $r === 'barista' ? '#09090b' : '#f8fafc' ?> !important;">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
-<div class="app-main flex-1 h-full overflow-y-auto">
+<div class="app-main flex-1 h-screen overflow-hidden flex flex-col" style="background-color: <?= $r === 'barista' ? '#09090b' : '#f8fafc' ?> !important;">
 
+<?php if ($r === 'barista'): ?>
 <!-- Coffee Steam Animation -->
 <div class="steam-container">
     <div class="steam"></div>
@@ -2658,8 +2660,7 @@ body.barista-mode { padding: 0; }
     <div class="steam"></div>
     <div class="steam"></div>
 </div>
-
-<?php $r = $_SESSION['role'] ?? ''; ?>
+<?php endif; ?>
 <style>
 @keyframes annIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
 </style>
@@ -2853,87 +2854,89 @@ function showClockToast(msg, isErr) {
   </main>
 </div>
 <?php else: ?>
-<div class="vo-page-wrapper">
-<?php $page_title = __('nav_orders', 'Orders'); require __DIR__ . '/header_bar.php'; ?>
+<?php $isKm = (current_lang() === 'km'); ?>
+<div class="vo-page-wrapper w-full h-full p-4 md:p-6 bg-[#f8fafc] flex flex-col gap-4 overflow-hidden" style="background-color: #f8fafc !important;">
 
-<!-- Header Stat Boxes -->
-<div class="vo-stats-grid">
-    <div class="vo-stat-box" id="statCard-all" onclick="filterStatus('all')">
-        <div class="vo-stat-icon all-orders">
-            <i class="fa-solid fa-layer-group"></i>
-        </div>
-        <div class="vo-stat-content">
-            <span class="vo-stat-title"><?= __('all_orders', 'All Order') ?></span>
-            <span class="vo-stat-value" id="stat-count-all-orders">0</span>
-            <span class="vo-stat-sub"><?= __('show_all_orders', 'Show all orders') ?></span>
-        </div>
-    </div>
-
-    <div class="vo-stat-box" id="statCard-total-price" onclick="filterStatus('all')">
-        <div class="vo-stat-icon total-price">
-            <i class="fa-solid fa-dollar-sign"></i>
-        </div>
-        <div class="vo-stat-content">
-            <span class="vo-stat-title"><?= __('total_price', 'Total Price') ?></span>
-            <span class="vo-stat-value" id="stat-count-total-price">$0.00</span>
-            <span class="vo-stat-sub"><?= __('total_sales_today', 'Total sales today') ?></span>
-        </div>
-    </div>
-</div>
-
-<?php
-$_init_range = is_string($_GET['range'] ?? null) ? trim($_GET['range']) : 'all';
-if (!in_array($_init_range, ['all', 'today', 'week', 'month', 'year'], true)) { $_init_range = 'all'; }
-?>
-<!-- Search & Filter Controls (2 Column Grid on Mobile) -->
-<div class="search-bar vo-filter-controls">
-    <div class="vo-filter-search-box">
-        <input type="text" id="searchInput" placeholder="<?= __('search_orders_ph', 'Search by customer name, order #, or status...') ?>"
-               oninput="searchOrders()" onkeydown="if(event.key==='Escape')clearSearch()">
+  <!-- TOP HEADER BAR -->
+  <div class="flex items-center justify-between gap-4 pb-1 flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <button type="button" onclick="toggleSidebar()" 
+              class="w-10 h-10 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 flex items-center justify-center transition shadow-sm cursor-pointer" 
+              title="Toggle Sidebar">
+        <i class="fa-solid fa-bars text-base"></i>
+      </button>
+      <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+        <?= $isKm ? 'បញ្ជីការកុម្ម៉ង់' : __('nav_orders', 'Orders') ?>
+      </h1>
     </div>
     
-    <div class="vo-filter-selects-box">
-        <!-- Date Dropdown (Mobile Select / Desktop Secondary) -->
-        <div class="vo-date-select-mobile">
-            <select id="voMobileDateSelect" class="vo-mobile-select" onchange="filterDateRange(this.value, null)">
-                <option value="all" <?= $_init_range === 'all' ? 'selected' : '' ?>><?= __('range_all', 'All Time') ?></option>
-                <option value="today" <?= $_init_range === 'today' ? 'selected' : '' ?>><?= __('range_today', 'Today') ?></option>
-                <option value="week" <?= $_init_range === 'week' ? 'selected' : '' ?>><?= __('range_this_week', 'This Week') ?></option>
-                <option value="month" <?= $_init_range === 'month' ? 'selected' : '' ?>><?= __('range_this_month', 'This Month') ?></option>
-                <option value="year" <?= $_init_range === 'year' ? 'selected' : '' ?>><?= __('range_this_year', 'This Year') ?></option>
-            </select>
-        </div>
+    <a href="daily_report_xlsx.php?date=<?= date('Y-m-d') ?>" 
+       class="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs md:text-sm rounded-xl border border-slate-200 shadow-sm transition hover:shadow cursor-pointer">
+      <i class="fa-solid fa-download text-slate-400 text-xs"></i>
+      <span><?= $isKm ? 'ទាញយក Excel' : 'Export Excel' ?></span>
+    </a>
+  </div>
 
-        <select id="staffFilterSelect" onchange="filterByStaff(this.value)">
-            <option value="all" <?= (($_GET['staff'] ?? 'all') === 'all') ? 'selected' : '' ?>><?= __('filter_all_orders', 'All Orders') ?></option>
-            <option value="mine" <?= (($_GET['staff'] ?? '') === 'mine') ? 'selected' : '' ?>><?= __('filter_my_orders', 'My Orders') ?></option>
-        </select>
+  <!-- TOP 2 METRIC CARDS (MEDIUM SIZE) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
+    
+    <!-- 1. Total Orders Card -->
+    <div class="bg-white border border-slate-200/80 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
+      <div class="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center text-lg flex-shrink-0">
+        <i class="fa-solid fa-layer-group"></i>
+      </div>
+      <div class="flex flex-col min-w-0">
+        <span class="text-xs font-semibold text-slate-500 truncate"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
+        <span class="text-xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-all-orders">0</span>
+      </div>
     </div>
-</div>
 
-<!-- Desktop Quick Date Filter Pills (Hidden on Mobile) -->
-<div class="vo-date-pills-desktop" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
-    <button type="button" class="vo-date-pill <?= $_init_range === 'all' ? 'active' : '' ?>" onclick="filterDateRange('all', this)">
-        <i class="fa-solid fa-layer-group"></i> <?= __('range_all', 'All Time') ?>
-    </button>
-    <button type="button" class="vo-date-pill <?= $_init_range === 'today' ? 'active' : '' ?>" onclick="filterDateRange('today', this)">
-        <i class="fa-solid fa-calendar-day"></i> <?= __('range_today', 'Today') ?>
-    </button>
-    <button type="button" class="vo-date-pill <?= $_init_range === 'week' ? 'active' : '' ?>" onclick="filterDateRange('week', this)">
-        <i class="fa-solid fa-calendar-week"></i> <?= __('range_this_week', 'This Week') ?>
-    </button>
-    <button type="button" class="vo-date-pill <?= $_init_range === 'month' ? 'active' : '' ?>" onclick="filterDateRange('month', this)">
-        <i class="fa-solid fa-calendar-days"></i> <?= __('range_this_month', 'This Month') ?>
-    </button>
-    <button type="button" class="vo-date-pill <?= $_init_range === 'year' ? 'active' : '' ?>" onclick="filterDateRange('year', this)">
-        <i class="fa-regular fa-calendar-check"></i> <?= __('range_this_year', 'This Year') ?>
-    </button>
-</div>
+    <!-- 2. Today's Total Revenue Card -->
+    <div class="bg-white border border-slate-200/80 rounded-2xl px-5 py-3.5 shadow-sm flex items-center justify-between gap-4 transition hover:shadow-md">
+      <div class="flex items-center gap-4 min-w-0">
+        <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0">
+          <i class="fa-solid fa-dollar-sign font-bold"></i>
+        </div>
+        <div class="flex flex-col min-w-0">
+          <span class="text-xs font-semibold text-slate-500 truncate"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
+          <span class="text-xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-total-price">$0.00</span>
+        </div>
+      </div>
+      <span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg flex items-center gap-1.5 flex-shrink-0">
+        <i class="fa-solid fa-arrow-trend-up text-[10px]"></i> +12%
+      </span>
+    </div>
 
-<!-- Orders Container -->
-<div class="vo-table-container" style="width:100% !important; max-width:100% !important; margin:0 !important; padding:0 !important;">
-    <div id="ordersBody" class="orders-grid" style="width:100% !important; max-width:100% !important;"></div>
-</div>
+  </div>
+
+  <!-- SEARCH & FILTER BAR -->
+  <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4 flex-shrink-0">
+    <!-- Left: Search Box -->
+    <div class="relative flex-1 max-w-md">
+      <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+      <input type="text" id="searchInput" 
+             placeholder="<?= $isKm ? 'ស្វែងរកតាមឈ្មោះ, លេខកុម្ម៉ង់...' : 'Search by name, order #...' ?>"
+             oninput="searchOrders()" 
+             class="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200/90 rounded-xl text-xs md:text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 shadow-sm transition">
+    </div>
+
+    <!-- Right: Date Range Segmented Switcher -->
+    <div class="flex items-center gap-3 flex-wrap justify-between md:justify-end">
+      <!-- Date Segmented Pills -->
+      <div class="inline-flex items-center p-1 bg-slate-100/90 border border-slate-200/90 rounded-xl gap-1" id="voDatePillsDesktop">
+        <button type="button" onclick="filterDateRange('all', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer active"><?= $isKm ? 'ទាំងអស់' : 'All' ?></button>
+        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
+        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
+        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE CONTAINER CARD WITH INTERNAL SCROLL -->
+  <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden" id="ordersTableCard">
+    <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="ordersBody"></div>
+  </div>
+
 </div><!-- /.vo-page-wrapper -->
 </div><!-- /.app-main -->
 </div><!-- /.app-layout -->
@@ -3591,19 +3594,13 @@ function applyFilters() {
 // ── Filter Status ──
 function filterStatus(status) {
     currentFilter = status;
+    currentPage = 1;
     
-    // Update active tab
-    document.querySelectorAll('.status-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.status === status);
-    });
+    var sel = document.getElementById('statusFilterSelect');
+    if (sel && sel.value !== status) {
+        sel.value = status;
+    }
 
-    // Update active header stat box
-    document.querySelectorAll('.vo-stat-box').forEach(box => {
-        box.classList.remove('active');
-    });
-    const activeBox = document.getElementById('statCard-' + status);
-    if (activeBox) activeBox.classList.add('active');
-    
     if (currentViewMode === 'table') {
         renderTableView();
     } else {
@@ -3613,26 +3610,38 @@ function filterStatus(status) {
 
 // ── I18N Translation Object for Orders Table ──
 window.I18N = {
-    no: '<?= __('col_no', 'No.') ?>',
-    item: '<?= __('col_item', 'ITEM') ?>',
-    total_price: '<?= __('col_total_price', 'Total Price') ?>',
-    time: '<?= __('col_time', 'TIME') ?>',
-    status: '<?= __('col_status', 'Status') ?>',
-    place_by: '<?= __('col_place_by', 'Place By') ?>',
-    action: '<?= __('col_action', 'Action') ?>',
-    view_detail: '<?= __('view_detail', 'View Detail') ?>',
-    reprint: '<?= __('reprint', 'Reprint') ?>',
-    item_single: '<?= __('item_single', 'Item') ?>',
-    item_plural: '<?= __('item_plural', 'Items') ?>',
-    no_orders_found: '<?= __('no_orders_found', 'No orders found') ?>',
-    try_changing_search: '<?= __('try_changing_search', 'Try changing search query or header filter card.') ?>',
-    status_new: '<?= __('new_order', 'New') ?>',
-    status_completed: '<?= __('status_completed', 'Complete') ?>',
-    status_preparing: '<?= __('making', 'Making') ?>',
-    status_pending: '<?= __('status_pending', 'Pending') ?>',
-    status_cancelled: '<?= __('status_cancelled', 'Cancelled') ?>',
-    status_refunded: '<?= __('status_refunded', 'Refunded') ?>'
+    no: '<?= current_lang() === "km" ? "លេខរៀង" : __("col_no", "No.") ?>',
+    item: '<?= current_lang() === "km" ? "មុខទំនិញ" : __("col_item", "ITEM") ?>',
+    total_price: '<?= current_lang() === "km" ? "តម្លៃសរុប" : __("col_total_price", "Total Price") ?>',
+    time: '<?= current_lang() === "km" ? "កាលបរិច្ឆេទ & ម៉ោង" : __("col_time", "TIME") ?>',
+    status: '<?= current_lang() === "km" ? "ស្ថានភាព" : __("col_status", "Status") ?>',
+    place_by: '<?= current_lang() === "km" ? "បង្កើតដោយ" : __("col_place_by", "Place By") ?>',
+    action: '<?= current_lang() === "km" ? "សកម្មភាព" : __("col_action", "Action") ?>',
+    view_detail: '<?= __("view_detail", "View Detail") ?>',
+    reprint: '<?= __("reprint", "Reprint") ?>',
+    item_single: '<?= current_lang() === "km" ? "មុខទំនិញ" : __("item_single", "Item") ?>',
+    item_plural: '<?= current_lang() === "km" ? "មុខទំនិញ" : __("item_plural", "Items") ?>',
+    no_orders_found: '<?= current_lang() === "km" ? "មិនមានការកុម្ម៉ង់ទេ" : __("no_orders_found", "No orders found") ?>',
+    try_changing_search: '<?= current_lang() === "km" ? "សូមព្យាយាមស្វែងរកជាមួយពាក្យផ្សេង ឬផ្លាស់ប្តូរកាលបរិច្ឆេទ" : __("try_changing_search", "Try changing search query or date range.") ?>',
+    status_new: '<?= current_lang() === "km" ? "ការកុម្ម៉ង់ថ្មី (New)" : __("new_order", "New") ?>',
+    status_completed: '<?= current_lang() === "km" ? "បានបញ្ចប់ (Complete)" : __("status_completed", "Complete") ?>',
+    status_preparing: '<?= current_lang() === "km" ? "កំពុងធ្វើ (Making)" : __("making", "Making") ?>',
+    status_pending: '<?= current_lang() === "km" ? "រង់ចាំការទូទាត់ (Pending)" : __("status_pending", "Pending") ?>',
+    status_cancelled: '<?= current_lang() === "km" ? "បានបោះបង់ (Cancelled)" : __("status_cancelled", "Cancelled") ?>',
+    status_refunded: '<?= current_lang() === "km" ? "បានសងប្រាក់វិញ (Refunded)" : __("status_refunded", "Refunded") ?>'
 };
+
+function searchOrders() {
+    searchQuery = (document.getElementById('searchInput') || {}).value || '';
+    applyFilters();
+}
+
+function clearSearch() {
+    var inEl = document.getElementById('searchInput');
+    if (inEl) inEl.value = '';
+    searchQuery = '';
+    applyFilters();
+}
 
 // ── Table Status Badge Renderer (New / Making / Complete) ──
 function getTableStatusBadge(boardSt) {
@@ -3727,7 +3736,9 @@ function updateCounts(orders) {
     (orders || []).forEach(o => {
         if (isOrderInDateRange(o, currentDateRange)) {
             countAll++;
-            totalPrice += parseFloat(o.total || 0);
+            if (o.status !== 'Cancelled' && o.status !== 'Refunded') {
+                totalPrice += parseFloat(o.total || 0);
+            }
         }
     });
 
@@ -3735,11 +3746,12 @@ function updateCounts(orders) {
     if (elAll) elAll.textContent = countAll;
 
     const elPrice = document.getElementById('stat-count-total-price');
-    if (elPrice) elPrice.textContent = '$' + totalPrice.toFixed(2);
+    if (elPrice) elPrice.textContent = '$' + totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function filterDateRange(range, btn) {
     currentDateRange = range || 'all';
+    currentPage = 1;
 
     // Sync mobile select
     const mobSelect = document.getElementById('voMobileDateSelect');
@@ -3761,11 +3773,11 @@ function filterDateRange(range, btn) {
     loadOrders();
 }
 
-// ── Teal Table View Renderer ──
+// ── Clean Modern Table View Renderer (Full Scrollable Orders) ──
 function renderTableView() {
     const container = document.getElementById('ordersBody');
     if (!container) return;
-    container.className = 'orders-table-wrapper-container';
+    container.className = 'flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full';
 
     const staffAndDateFiltered = (allOrders || []).filter(o => {
         if (!isOrderInDateRange(o, currentDateRange)) return false;
@@ -3779,14 +3791,7 @@ function renderTableView() {
     updateCounts(staffAndDateFiltered);
 
     const query = searchQuery.toLowerCase().trim();
-    const now = new Date();
-    const filteredOrders = (allOrders || []).filter(o => {
-        if (!isOrderInDateRange(o, currentDateRange)) return false;
-        if (currentStaffFilter === 'mine') {
-            const empName = (getEmployeeDisplayName(o) || '').trim().toLowerCase();
-            const myName = (myUsername || '').trim().toLowerCase();
-            if (empName !== myName) return false;
-        }
+    const filteredOrders = staffAndDateFiltered.filter(o => {
         const boardSt = boardState(o);
         if (query) {
             const text = (o.daily_order_no + ' ' + (o.customer_name||'') + ' ' + boardSt + ' ' + (o.employee_name||'')).toLowerCase();
@@ -3795,114 +3800,102 @@ function renderTableView() {
         } else {
             if (userRole === 'barista') {
                 if (!['New', 'Making'].includes(boardSt)) return false;
-            } else if (currentFilter !== 'all' && boardSt !== currentFilter) {
-                return false;
             }
-            if ((boardSt === 'Completed' || o.status === 'Refunded') && !showCompleted && currentFilter !== 'Completed') return false;
         }
         return true;
     });
 
     if (filteredOrders.length === 0) {
         container.innerHTML = `
-            <div class="vo-table-wrapper">
-                <table class="vo-table">
-                    <thead>
-                        <tr>
-                            <th style="width:10%;">${window.I18N.no}</th>
-                            <th style="width:22%;">${window.I18N.item}</th>
-                            <th style="width:15%;">${window.I18N.total_price}</th>
-                            <th style="width:18%;">${window.I18N.time}</th>
-                            <th style="width:15%;">${window.I18N.place_by}</th>
-                            <th style="width:20%;">${window.I18N.action}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="6" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
-                                <div style="width:56px;height:56px;border-radius:50%;background:rgba(15,118,110,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:#0f766e;font-size:22px;">
-                                    <i class="fa-solid fa-mug-hot"></i>
-                                </div>
-                                <div style="font-weight:700;color:var(--text);margin-bottom:4px;font-size:15px;">${window.I18N.no_orders_found}</div>
-                                <div style="font-size:12.5px;">${window.I18N.try_changing_search}</div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-100 bg-white">
+                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.no}</th>
+                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.item}</th>
+                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.total_price}</th>
+                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.time}</th>
+                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.place_by}</th>
+                        <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.action}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6" class="text-center py-16 px-4 text-slate-400">
+                            <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl">
+                                <i class="fa-solid fa-mug-hot"></i>
+                            </div>
+                            <div class="font-bold text-slate-700 text-sm mb-1">${window.I18N.no_orders_found}</div>
+                            <div class="text-xs text-slate-400">${window.I18N.try_changing_search}</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         `;
         return;
     }
 
+    const currentIsKm = (<?= json_encode(current_lang() === 'km') ?>) || (document.documentElement.lang === 'km');
+
     const rowsHtml = filteredOrders.map(o => {
         const boardSt = boardState(o);
         const totalItemsQty = (o.items || []).reduce((sum, item) => sum + parseInt(item.quantity || 1, 10), 0);
-        const itemLabel = totalItemsQty === 1 ? window.I18N.item_single : window.I18N.item_plural;
-        const itemsSummary = `<span class="vo-items-count-badge" title="${escapeHtml((o.items || []).map(i => i.quantity + 'x ' + i.product_name).join(', '))}"><i class="fa-solid fa-box"></i> ${totalItemsQty} ${itemLabel}</span>`;
+        const itemLabel = currentIsKm ? 'មុខទំនិញ' : (totalItemsQty === 1 ? 'Item' : 'Items');
+        const itemsSummary = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/50 text-slate-700 text-xs font-semibold" title="${escapeHtml((o.items || []).map(i => i.quantity + 'x ' + i.product_name).join(', '))}">
+                <i class="fa-solid fa-cube text-slate-400 text-[10.5px]"></i>
+                <span>${totalItemsQty} ${itemLabel}</span>
+            </span>
+        `;
         const dtFormatted = formatDateTime(o.order_date);
         const timeDisplay = `
-            <span class="vo-date-time-badge" style="font-size:12px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.06);color:var(--text);display:inline-flex;align-items:center;gap:6px;font-weight:600;white-space:nowrap;">
-                <i class="fa-regular fa-clock" style="color:var(--accent);font-size:12px;"></i> ${escapeHtml(dtFormatted)}
+            <span class="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap">
+                <i class="fa-regular fa-clock text-slate-400 text-xs"></i>
+                <span>${escapeHtml(dtFormatted)}</span>
             </span>
         `;
 
-        const completeBtnHtml = (boardSt === 'Making') ? `
-            <button class="complete-btn" onclick="completeOrder(${Number(o.order_id)})" title="Complete Order">
-                <i class="fa-solid fa-check"></i> <span>Complete</span>
-            </button>
-        ` : '';
-
-        const orderNoPadded = String(o.daily_order_no || o.order_id || '').padStart(4, '0');
+        const orderNoPadded = '#' + String(o.daily_order_no || o.order_id || '').padStart(4, '0');
+        const staffName = escapeHtml(getEmployeeDisplayName(o));
+        const totalFormatted = '$' + parseFloat(o.total || 0).toFixed(2);
 
         return `
-            <tr id="row-${o.order_id}" data-status="${boardSt}">
-                <td class="vo-col-order">#${escapeHtml(orderNoPadded)}</td>
-                <td class="vo-col-items">${itemsSummary}</td>
-                <td class="vo-col-total">$${parseFloat(o.total || 0).toFixed(2)}</td>
-                <td class="vo-col-date" title="${escapeHtml(o.order_date || '')}">${timeDisplay}</td>
-                <td class="vo-col-placed">${escapeHtml(getEmployeeDisplayName(o))}</td>
-                <td class="vo-col-actions" style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
-                    <button class="btn-view-detail" onclick="openOrderDetailModal(${Number(o.order_id)})" title="View Order Details">
-                        <i class="fa-solid fa-eye"></i> <span>${window.I18N.view_detail}</span>
-                    </button>
-                    <button class="btn-reprint" onclick="printReceipt(${Number(o.order_id)})" title="Reprint Receipt">
-                        <i class="fa-solid fa-print"></i> <span>${window.I18N.reprint}</span>
-                    </button>
-                    ${completeBtnHtml}
+            <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors" id="row-${o.order_id}">
+                <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">${orderNoPadded}</td>
+                <td class="py-4 px-6">${itemsSummary}</td>
+                <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap">${totalFormatted}</td>
+                <td class="py-4 px-6">${timeDisplay}</td>
+                <td class="py-4 px-6 text-xs font-medium text-slate-500 whitespace-nowrap">${staffName}</td>
+                <td class="py-4 px-6 text-center whitespace-nowrap">
+                    <div class="inline-flex items-center justify-center gap-2">
+                        <button type="button" onclick="openOrderDetailModal(${Number(o.order_id)})" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-800 inline-flex items-center justify-center transition cursor-pointer" title="View Details">
+                            <i class="fa-regular fa-eye text-sm"></i>
+                        </button>
+                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-800 inline-flex items-center justify-center transition cursor-pointer" title="Print Receipt">
+                            <i class="fa-solid fa-print text-sm"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
     }).join('');
 
-    const prevWrapper = container.querySelector('.vo-table-wrapper');
-    const savedScrollTop = prevWrapper ? prevWrapper.scrollTop : 0;
-    const savedScrollLeft = prevWrapper ? prevWrapper.scrollLeft : 0;
-
     container.innerHTML = `
-        <div class="vo-table-wrapper">
-            <table class="vo-table">
-                <thead>
-                    <tr>
-                        <th style="width:10%;">${window.I18N.no}</th>
-                        <th style="width:22%;">${window.I18N.item}</th>
-                        <th style="width:15%;">${window.I18N.total_price}</th>
-                        <th style="width:18%;">${window.I18N.time}</th>
-                        <th style="width:15%;">${window.I18N.place_by}</th>
-                        <th style="width:20%;">${window.I18N.action}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rowsHtml}
-                </tbody>
-            </table>
-        </div>
+        <table class="w-full text-left border-collapse">
+            <thead class="sticky top-0 bg-white z-10 shadow-[0_1px_0_0_#f1f5f9]">
+                <tr class="border-b border-slate-100 bg-white">
+                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.no}</th>
+                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.item}</th>
+                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.total_price}</th>
+                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.time}</th>
+                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.place_by}</th>
+                    <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.action}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50">
+                ${rowsHtml}
+            </tbody>
+        </table>
     `;
-
-    const newWrapper = container.querySelector('.vo-table-wrapper');
-    if (newWrapper) {
-        newWrapper.scrollTop = savedScrollTop;
-        newWrapper.scrollLeft = savedScrollLeft;
-    }
 }
 
 // ── View Toggle ──
