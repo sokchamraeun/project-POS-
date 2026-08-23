@@ -264,11 +264,11 @@ foreach ($users as $u) {
 }
 
 [data-theme="light"], html[data-theme="light"] {
-    --bg: #ECEEF2;
+    --bg: #f8fafc;
     --bg-card: #FFFFFF;
-    --border: #E2E5EA;
-    --text: #111827;
-    --text-muted: #5A6373;
+    --border: #E2E8F0;
+    --text: #0f172a;
+    --text-muted: #64748b;
 }
 
 body, input, select, textarea, button {
@@ -287,15 +287,18 @@ body {
     font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+body,
+.app-layout,
+.app-main,
 [data-theme="light"] body,
 [data-theme="light"] .app-layout,
 [data-theme="light"] .app-main {
-    background-color: #ECEEF2 !important;
-    color: #111827 !important;
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
 }
 
 .um-wrapper {
-    padding: 24px 32px;
+    padding: 12px 24px 32px 24px;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box;
@@ -808,7 +811,11 @@ body {
     <?php require __DIR__ . '/sidebar.php'; ?>
 
     <div class="app-main flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <?php $page_title = 'User Management'; require __DIR__ . '/header_bar.php'; ?>
+        <div class="flex items-center justify-between gap-4 px-6 pt-6 pb-2">
+            <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                <?= __('nav_user_management', 'User Management') ?>
+            </h1>
+        </div>
 
         <div class="um-wrapper">
 

@@ -5,7 +5,7 @@
 use KHQR\Helpers\KHQRData;
 
 return [
-    'token' => 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiYzA2YjdlYzU1NzE2NGUzNiJ9LCJpYXQiOjE3ODY5NDA3NjgsImV4cCI6MTc5NDcxNjc2OH0.u5_3GkBfst6O6xvdY-Ywa29iVNtDLz5jUQwkB7TXvwE',
+    'token' => 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiNmI5YjIwZGFjZDMyNDc2MCJ9LCJpYXQiOjE3ODc0MTYwODksImV4cCI6MTc5NTE5MjA4OX0.Leg2h-2mjg0I2-zJ4FGaqUldHDe7xOyESvVfP-3W9Dc',
     'bakong_id' => 'sok_chamraeun@bkrt',
     'merchant_name' => 'Sok Chamraeun',
     'merchantCity' => 'PHNOM PENH',

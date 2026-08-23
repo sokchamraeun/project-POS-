@@ -141,30 +141,79 @@
         </div>
 
         <!-- Footer Buttons -->
-        <div class="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-800 no-print">
-            <button onclick="closeReceiptModal()" class="px-4 py-2 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 font-medium text-sm transition-all">
-                Close
+        <div class="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-gray-800 no-print">
+            <button type="button" onclick="closeReceiptModal()" class="px-4 py-2.5 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white font-bold text-sm transition-all cursor-pointer">
+                <?= defined('CURRENT_LANG') && CURRENT_LANG === 'km' ? 'រួចរាល់' : 'Done / Close' ?>
             </button>
-            <button onclick="printThermalReceipt()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-semibold text-sm shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all">
-                <i class="fa-solid fa-print"></i> Print Receipt
-            </button>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="openReceiptPrintTab()" class="px-3.5 py-2.5 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white font-bold text-sm transition-all cursor-pointer" title="Open in dedicated tab">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </button>
+                <button type="button" onclick="printThermalReceipt()" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition-all cursor-pointer">
+                    <i class="fa-solid fa-print"></i> <?= defined('CURRENT_LANG') && CURRENT_LANG === 'km' ? 'បោះពុម្ពវិក្កយបត្រ' : 'Print Receipt' ?>
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
+var _currentReceiptOrderId = null;
+
 function openReceiptModal() {
     var modal = document.getElementById('receiptModal');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
 }
 
 function closeReceiptModal() {
     var modal = document.getElementById('receiptModal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+    if (window._cpmReloadOnClose) {
+        window._cpmReloadOnClose = false;
+        window.location.href = 'menu.php';
+    }
 }
 
 function printThermalReceipt() {
     window.print();
+}
+
+function openReceiptPrintTab() {
+    if (_currentReceiptOrderId) {
+        window.open('receipt_print.php?order_id=' + _currentReceiptOrderId, '_blank', 'width=460,height=720,scrollbars=yes');
+    }
+}
+
+function showReceiptModalPopup(orderId, autoPrint) {
+    if (!orderId) return;
+    _currentReceiptOrderId = orderId;
+
+    fetch('api_receipt.php?order_id=' + Number(orderId))
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res && res.success) {
+                renderReceiptModal(res);
+                if (autoPrint) {
+                    setTimeout(function() {
+                        printThermalReceipt();
+                    }, 400);
+                }
+            } else {
+                console.error('Failed to fetch receipt data:', res ? res.error : 'Unknown error');
+                // Fallback to receipt_print.php in window
+                openReceiptPrintTab();
+            }
+        })
+        .catch(function(err) {
+            console.error('Network error loading receipt:', err);
+            openReceiptPrintTab();
+        });
 }
 
 function printReceipt(orderData) {
@@ -183,24 +232,31 @@ function printReceipt(orderData) {
 
 function renderReceiptModal(data) {
     if (!data) return;
+    _currentReceiptOrderId = data.order_id || null;
 
     if (document.getElementById('rcpt-shop-name') && data.shop_name) {
         document.getElementById('rcpt-shop-name').innerText = data.shop_name;
     }
+    if (document.getElementById('rcpt-shop-location') && data.shop_location) {
+        document.getElementById('rcpt-shop-location').innerText = data.shop_location;
+    }
+    if (document.getElementById('rcpt-shop-phone') && data.shop_phone) {
+        document.getElementById('rcpt-shop-phone').innerText = data.shop_phone;
+    }
     if (document.getElementById('rcpt-cashier')) {
-        document.getElementById('rcpt-cashier').innerText = data.employee_name || 'admin';
+        document.getElementById('rcpt-cashier').innerText = data.employee_name || 'Staff';
     }
     if (document.getElementById('rcpt-inv-no')) {
-        document.getElementById('rcpt-inv-no').innerText = String(data.daily_order_no || data.order_id || '26000043').padStart(8, '0');
+        document.getElementById('rcpt-inv-no').innerText = String(data.daily_order_no || data.order_id || '00000001').padStart(8, '0');
     }
     if (document.getElementById('rcpt-customer')) {
         document.getElementById('rcpt-customer').innerText = data.customer_name || 'General Customer';
     }
     if (document.getElementById('rcpt-datetime')) {
-        document.getElementById('rcpt-datetime').innerText = data.order_time || data.order_date || '05-08-2026 10:14 AM';
+        document.getElementById('rcpt-datetime').innerText = data.order_time || data.order_date || 'Today';
     }
     if (document.getElementById('rcpt-payment-method')) {
-        document.getElementById('rcpt-payment-method').innerText = data.payment_method || 'Cash-$';
+        document.getElementById('rcpt-payment-method').innerText = data.payment_method || 'Bakong KHQR';
     }
 
     if (data.items && Array.isArray(data.items)) {
@@ -215,15 +271,15 @@ function renderReceiptModal(data) {
                 ].filter(Boolean).join(' ');
 
                 return '<tr>' +
-                    '<td class="border border-black p-1 text-center">' + (idx + 1) + '</td>' +
+                    '<td class="border border-black p-1 text-center font-bold">' + (idx + 1) + '</td>' +
                     '<td class="border border-black p-1 text-left">' +
-                        '<div class="font-bold">' + escapeHtml(item.product_name) + '</div>' +
-                        (subtext ? '<div class="text-[9px] text-gray-700">' + escapeHtml(subtext) + '</div>' : '') +
+                        '<div class="font-bold text-[10.5px]">' + escapeHtml(item.product_name) + '</div>' +
+                        (subtext ? '<div class="text-[9px] text-gray-700 leading-tight">' + escapeHtml(subtext) + '</div>' : '') +
                     '</td>' +
-                    '<td class="border border-black p-1 text-center">' + parseFloat(item.quantity).toFixed(1) + '</td>' +
+                    '<td class="border border-black p-1 text-center font-bold">' + parseFloat(item.quantity).toFixed(1) + '</td>' +
                     '<td class="border border-black p-1 text-center">' + parseFloat(item.price).toFixed(2) + '</td>' +
                     '<td class="border border-black p-1 text-center">' + (discPct > 0 ? discPct + '%' : '0%') + '</td>' +
-                    '<td class="border border-black p-1 text-center">' + lineTotal.toFixed(2) + '</td>' +
+                    '<td class="border border-black p-1 text-center font-bold">' + lineTotal.toFixed(2) + '</td>' +
                 '</tr>';
             }).join('');
         }
@@ -246,12 +302,12 @@ function renderReceiptModal(data) {
     var chKhr = parseInt(data.change_khr || 0, 10);
     var chKhrRow = document.getElementById('rcpt-change-khr-row');
 
-    if (document.getElementById('rcpt-subtotal')) document.getElementById('rcpt-subtotal').innerText = 'USD ' + (parseFloat(data.subtotal) || 85).toFixed(2);
+    if (document.getElementById('rcpt-subtotal')) document.getElementById('rcpt-subtotal').innerText = 'USD ' + (parseFloat(data.subtotal) || 0).toFixed(2);
     if (document.getElementById('rcpt-disc-pct')) document.getElementById('rcpt-disc-pct').innerText = data.discount_percent || '0';
     if (document.getElementById('rcpt-discount')) document.getElementById('rcpt-discount').innerText = 'USD ' + discVal.toFixed(2);
-    if (document.getElementById('rcpt-total')) document.getElementById('rcpt-total').innerText = 'USD ' + (parseFloat(data.total) || 85).toFixed(2);
-    if (document.getElementById('rcpt-total-khr')) document.getElementById('rcpt-total-khr').innerText = 'KHR ' + (data.total_khr || '340,000');
-    if (document.getElementById('rcpt-received')) document.getElementById('rcpt-received').innerText = data.received_text || ('USD ' + (parseFloat(data.received) || parseFloat(data.total) || 85).toFixed(2));
+    if (document.getElementById('rcpt-total')) document.getElementById('rcpt-total').innerText = 'USD ' + (parseFloat(data.total) || 0).toFixed(2);
+    if (document.getElementById('rcpt-total-khr')) document.getElementById('rcpt-total-khr').innerText = 'KHR ' + (data.total_khr || '0');
+    if (document.getElementById('rcpt-received')) document.getElementById('rcpt-received').innerText = data.received_text || ('USD ' + (parseFloat(data.received) || parseFloat(data.total) || 0).toFixed(2));
 
     if (document.getElementById('rcpt-change')) {
         if (chUsd > 0 && chKhr > 0) {

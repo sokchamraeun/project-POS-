@@ -123,8 +123,8 @@ if ($pm_total > 0) {
     $bakong_pct = round(($bakong_cnt / $pm_total) * 100);
     $cash_pct   = 100 - $bakong_pct;
 } else {
-    $bakong_pct = 50;
-    $cash_pct   = 50;
+    $bakong_pct = 0;
+    $cash_pct   = 0;
 }
 
 // ── 2. Localized Date & Greeting ──
@@ -446,7 +446,7 @@ if ($q_rec) {
             <!-- 4. Bakong KHQR vs Cash Split Card -> Links to Daily Summary (daily_report.php) -->
             <a href="<?= $daily_report_link ?>" class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-rose-400 hover:shadow-md hover:-translate-y-0.5 transition group cursor-pointer block text-inherit no-underline">
                 <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider group-hover:text-slate-800 transition">BAKONG KHQR VS CASH</span>
+                    <span class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider group-hover:text-slate-800 transition"><?= $isKm ? 'បាគង KHQR VS សាច់ប្រាក់' : 'BAKONG KHQR VS CASH' ?></span>
                     <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center text-base group-hover:bg-rose-600 group-hover:text-white transition">
                         <i class="fa-solid fa-qrcode"></i>
                     </div>
@@ -454,15 +454,21 @@ if ($q_rec) {
                 <div class="mt-2 flex items-center justify-around">
                     <!-- Left: KHQR -->
                     <div class="flex flex-col items-center">
-                        <span class="text-xl lg:text-2xl font-black text-rose-600 leading-tight"><?= $bakong_pct ?>%</span>
-                        <span class="text-[10px] font-extrabold text-slate-400 tracking-wider">KHQR</span>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-xl lg:text-2xl font-black text-rose-600 leading-tight"><?= number_format($bakong_cnt) ?></span>
+                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កុម្ម៉ង់' : 'orders' ?></span>
+                        </div>
+                        <span class="text-[10px] font-extrabold text-rose-600/80 tracking-wider">KHQR (<?= $bakong_pct ?>%)</span>
                     </div>
                     <!-- Divider -->
                     <div class="w-px h-8 bg-slate-100"></div>
                     <!-- Right: CASH -->
                     <div class="flex flex-col items-center">
-                        <span class="text-xl lg:text-2xl font-black text-emerald-600 leading-tight"><?= $cash_pct ?>%</span>
-                        <span class="text-[10px] font-extrabold text-slate-400 tracking-wider">CASH</span>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-xl lg:text-2xl font-black text-emerald-600 leading-tight"><?= number_format($cash_cnt) ?></span>
+                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កុម្ម៉ង់' : 'orders' ?></span>
+                        </div>
+                        <span class="text-[10px] font-extrabold text-emerald-600/80 tracking-wider">CASH (<?= $cash_pct ?>%)</span>
                     </div>
                 </div>
             </a>

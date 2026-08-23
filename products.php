@@ -6,6 +6,7 @@ require_once __DIR__ . '/lang.php';
 if (!can('products')) { header("Location: dashboard.php?denied=1"); exit; }
 $_can_manage_products = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 $_flash_welcome = !empty($_SESSION['flash_welcome']); unset($_SESSION['flash_welcome']);
+$isKm = (current_lang() === 'km');
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
@@ -149,7 +150,80 @@ while ($row = $result->fetch_assoc()) { $products[] = $row; }
 $totalProducts  = count($products);
 $availCount     = count(array_filter($products, fn($p) => ($p['is_available'] ?? 1) == 1));
 $unavailCount   = $totalProducts - $availCount;
-$noRecipeCount  = count(array_filter($products, fn($p) => (int)($p['recipe_count'] ?? 0) === 0));
+
+// Direct drink stock items (Method 2)
+$direct_stocks = [];
+$d_res = $conn->query("SELECT item_id, item_name, quantity, unit, alert_level FROM stock_items WHERE item_type = 'direct_drink' AND is_active = 1");
+if ($d_res) {
+    while ($d = $d_res->fetch_assoc()) {
+        $direct_stocks[] = $d;
+    }
+}
+
+if (!function_exists('is_direct_drink_product')) {
+    function is_direct_drink_product(array $product): bool {
+        if (!empty($product['product_type']) && $product['product_type'] === 'direct_drink') {
+            return true;
+        }
+        $cat = strtolower($product['category'] ?? '');
+        $name = strtolower($product['name'] ?? '');
+        $directKeywords = ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'carabao', 'pocari', 'fanta', 'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 'drink'];
+        foreach ($directKeywords as $kw) {
+            if (str_contains($cat, $kw) || str_contains($name, $kw)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+if (!function_exists('get_product_stock_connection')) {
+    function get_product_stock_connection(array $product, array $direct_stocks): array {
+        if ((int)($product['recipe_count'] ?? 0) > 0) {
+            return [
+                'type'  => 'recipe',
+                'label' => 'Recipe Linked',
+                'class' => 'recipe-linked-badge',
+                'icon'  => 'fa-mortar-pestle'
+            ];
+        }
+        $cleanP = strtolower(str_replace(' ', '', $product['name'] ?? ''));
+        foreach ($direct_stocks as $ds) {
+            $cleanS = strtolower(str_replace(' ', '', $ds['item_name'] ?? ''));
+            if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
+                $q = (float)($ds['quantity'] ?? 0);
+                $unit = !empty($ds['unit']) ? $ds['unit'] : 'cans';
+                return [
+                    'type'     => 'direct',
+                    'label'    => 'Direct Stock (' . (int)$q . ' ' . $unit . ')',
+                    'class'    => 'direct-stock-badge',
+                    'icon'     => 'fa-wine-bottle',
+                    'item_name'=> $ds['item_name'],
+                    'qty'      => $q
+                ];
+            }
+        }
+
+        // Direct drink items do not need a recipe (BOM)
+        if (is_direct_drink_product($product)) {
+            return [
+                'type'     => 'direct',
+                'label'    => 'Direct Drink',
+                'class'    => 'direct-stock-badge',
+                'icon'     => 'fa-box-archive'
+            ];
+        }
+
+        return [
+            'type'  => 'none',
+            'label' => 'No Recipe / Stock',
+            'class' => 'no-recipe-badge',
+            'icon'  => 'fa-triangle-exclamation'
+        ];
+    }
+}
+
+$noRecipeCount  = count(array_filter($products, fn($p) => (int)($p['recipe_count'] ?? 0) === 0 && !is_direct_drink_product($p) && get_product_stock_connection($p, $direct_stocks)['type'] === 'none'));
 
 $catCounts = [];
 $realCategories = [];
@@ -234,42 +308,33 @@ body, input, select, textarea, button {
 }
 
 [data-theme="light"] {
-    --bg: #F0F2F5;
+    --bg: #f8fafc;
     --bg-card: #FFFFFF;
-    --bg-card-hover: #F5F7FA;
-    --border: #E5E7EB;
-    --border-hover: #D1D5DB;
-    --text: #111827;
-    --text-muted: #6B7280;
-    --text-light: #111827;
-    --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
-    --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
+    --bg-card-hover: #F8FAFC;
+    --border: #E2E8F0;
+    --border-hover: #CBD5E1;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-light: #0f172a;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
 }
 
+body,
+.app-layout,
+.app-main,
 [data-theme="light"] body,
 [data-theme="light"] .app-layout,
 [data-theme="light"] .app-main {
-    background-color: #F0F2F5 !important;
-    color: #111827 !important;
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
 }
 
+.products-sticky-header,
 [data-theme="light"] .products-sticky-header {
-    background: #F0F2F5 !important;
-    border-bottom-color: #E5E7EB !important;
-}
-
-[data-theme="light"] .header-bar h1 {
-    color: #111827 !important;
-}
-[data-theme="light"] .header-bar {
-    border-bottom-color: #E2E8F0 !important;
-}
-[data-theme="light"] .sidebar-toggle-btn,
-[data-theme="light"] .top-theme-toggle {
-    background: #FFFFFF !important;
-    border-color: #CBD5E1 !important;
-    color: #334155 !important;
+    background: #f8fafc !important;
+    border-bottom: none !important;
 }
 
 /* Stat Cards in Light Mode */
@@ -1959,6 +2024,56 @@ body.select-mode .no-recipe-badge {
     box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
 }
 
+.direct-stock-card-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(14, 165, 233, 0.92);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: 750;
+    padding: 3px 8px;
+    border-radius: 50px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4);
+    z-index: 5;
+    line-height: 1.2;
+}
+.direct-stock-card-badge i {
+    font-size: 9px;
+    color: #bae6fd;
+}
+body.select-mode .direct-stock-card-badge {
+    display: none;
+}
+
+.direct-stock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-size: 9.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    background: rgba(14, 165, 233, 0.15);
+    color: #0284c7;
+    border: 1px solid rgba(14, 165, 233, 0.35);
+}
+[data-theme="dark"] .direct-stock-badge {
+    background: rgba(14, 165, 233, 0.2);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
 /* ========== BULK ACTION BAR ========== */
 .bulk-bar {
     position: fixed;
@@ -2560,102 +2675,95 @@ body.select-mode .no-recipe-badge {
     }
 }
 
-/* ========== EDIT PRODUCT MODAL (MATCHING SCREENSHOT 2) ========== */
+/* ── EDIT PRODUCT MODAL (SCREENSHOT CARD THEME) ── */
 .ep-modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 100000;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9999;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 16px;
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .ep-modal-backdrop.active {
     opacity: 1;
+    visibility: visible;
     pointer-events: auto;
 }
 
 .ep-modal-dialog {
+    width: 96vw;
+    max-width: 1380px;
     background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 20px;
-    max-width: 1060px;
-    width: 100%;
-    max-height: 92vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+    border-radius: 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45);
     overflow: hidden;
     transform: scale(0.96) translateY(10px);
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    color: #1e293b;
 }
 .ep-modal-backdrop.active .ep-modal-dialog {
     transform: scale(1) translateY(0);
 }
-[data-theme="dark"] .ep-modal-dialog,
-html:not([data-theme="light"]) .ep-modal-dialog {
-    background: #18181c;
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+.ep-modal-dialog.direct-drink-mode {
+    max-width: 860px !important;
 }
 
 /* Modal Header */
 .ep-modal-header {
+    background: #141724 !important;
+    padding: 18px 26px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 22px;
-    border-bottom: 1px solid #f0eee9;
+    border-bottom: none;
 }
-[data-theme="dark"] .ep-modal-header,
-html:not([data-theme="light"]) .ep-modal-header {
-    border-bottom-color: rgba(255, 255, 255, 0.08);
-}
-
 .ep-header-left {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 .ep-header-icon {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border-radius: 10px;
-    background: rgba(209, 144, 75, 0.12);
-    border: 1px solid rgba(209, 144, 75, 0.25);
-    color: #d1904b;
+    background: #232738;
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 15px;
 }
 .ep-header-title {
-    font-size: 18px;
+    font-size: 15.5px;
     font-weight: 700;
-    color: #1c1917;
+    color: #ffffff;
     margin: 0;
-    letter-spacing: -0.3px;
-}
-[data-theme="dark"] .ep-header-title,
-html:not([data-theme="light"]) .ep-header-title {
-    color: #f5f5f5;
 }
 .ep-header-title span {
-    color: #d1904b;
+    color: #818cf8;
 }
-
+.ep-header-sub {
+    font-size: 11.5px;
+    color: #8c93a8;
+    margin-top: 1px;
+}
 .ep-header-close {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: #1e293b;
-    color: #ffffff;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #232738;
+    color: #8c93a8;
     border: none;
     cursor: pointer;
     display: flex;
@@ -2665,14 +2773,15 @@ html:not([data-theme="light"]) .ep-header-title {
     transition: all 0.2s ease;
 }
 .ep-header-close:hover {
-    background: #334155;
-    transform: scale(1.05);
+    background: #2d3246;
+    color: #ffffff;
 }
 
 /* Modal Body */
 .ep-modal-body {
-    padding: 20px 22px;
+    padding: 20px 24px;
     overflow-y: auto;
+    background: #ffffff;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -2682,39 +2791,107 @@ html:not([data-theme="light"]) .ep-header-title {
 
 .ep-grid-3col {
     display: grid;
-    grid-template-columns: 210px 240px 1fr;
-    gap: 16px;
+    grid-template-columns: 230px 310px 1fr;
+    gap: 18px;
     align-items: stretch;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (min-width: 1280px) {
+    .ep-grid-3col {
+        grid-template-columns: 240px 330px 1fr;
+    }
+}
+@media (max-width: 1080px) {
+    .ep-grid-3col { grid-template-columns: 1fr; }
+}
+.ep-grid-3col.direct-drink-mode {
+    grid-template-columns: 260px minmax(360px, 480px) !important;
+    max-width: 820px;
+    margin: 0 auto;
+    justify-content: center;
+}
+.ep-grid-3col.direct-drink-mode .ep-col-recipe {
+    display: none !important;
 }
 
-@media (max-width: 991px) {
-    .ep-grid-3col {
-        grid-template-columns: 1fr 1fr;
-    }
-    .ep-col-recipe {
-        grid-column: 1 / -1;
-    }
+/* Product Type Switcher in Edit Modal */
+.ep-type-segment {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    background: #f1f4f9;
+    padding: 5px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 2px;
 }
-@media (max-width: 640px) {
-    .ep-grid-3col {
-        grid-template-columns: 1fr;
-    }
+.ep-type-btn {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: transparent;
+    border: 1.5px solid transparent;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    user-select: none;
+    text-align: center;
+}
+.ep-type-btn .ep-type-icon {
+    font-size: 14px;
+    display: inline-block;
+}
+.ep-type-btn .ep-type-icon.tilted {
+    transform: rotate(-35deg);
+}
+.ep-type-btn .ep-type-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.ep-type-btn:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.04);
+    color: #334155;
+}
+.ep-type-btn.active {
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+    border-color: #4f46e5 !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
+}
+.ep-type-btn.active .ep-type-icon,
+.ep-type-btn.active .ep-type-title {
+    color: #ffffff !important;
+}
+
+.ep-dd-card {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 14px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 11.5px;
+    color: #0369a1;
+    line-height: 1.4;
 }
 
 /* Card Boxes */
 .ep-card-box {
-    border: 1px solid #e7e5e4;
-    border-radius: 14px;
-    padding: 14px;
+    border: 1.5px solid #eef1f6;
+    border-radius: 20px;
+    padding: 18px;
     background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     display: flex;
     flex-direction: column;
-    gap: 12px;
-}
-[data-theme="dark"] .ep-card-box,
-html:not([data-theme="light"]) .ep-card-box {
-    background: #202024;
-    border-color: rgba(255, 255, 255, 0.08);
+    gap: 14px;
 }
 
 .ep-section-hdr {
@@ -2722,27 +2899,37 @@ html:not([data-theme="light"]) .ep-card-box {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 700;
-    color: #292524;
+    color: #1e293b;
     margin-bottom: 2px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f4f9;
 }
-[data-theme="dark"] .ep-section-hdr,
-html:not([data-theme="light"]) .ep-section-hdr {
-    color: #f5f5f5;
+.ep-section-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
-.ep-section-hdr i {
-    color: #d1904b;
-    margin-right: 6px;
+.ep-icon-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    background: #eff2fe;
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
 }
 
 /* Image Preview */
 .ep-img-preview-wrap {
     width: 100%;
-    aspect-ratio: 1 / 1;
-    border-radius: 12px;
-    background: #faf8f5;
-    border: 1.5px dashed #e2e8f0;
+    height: 220px;
+    border-radius: 18px;
+    background: #fafbfc;
+    border: 2px dashed #dbe2ea;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2751,14 +2938,9 @@ html:not([data-theme="light"]) .ep-section-hdr {
     cursor: pointer;
     transition: all 0.2s ease;
 }
-[data-theme="dark"] .ep-img-preview-wrap,
-html:not([data-theme="light"]) .ep-img-preview-wrap {
-    background: #141416;
-    border-color: rgba(255, 255, 255, 0.12);
-}
 .ep-img-preview-wrap:hover {
-    border-color: #d1904b;
-    background: #fdfaf6;
+    border-color: #6366f1;
+    background: #f5f7ff;
 }
 .ep-img-preview-wrap img {
     max-width: 90%;
@@ -2770,10 +2952,13 @@ html:not([data-theme="light"]) .ep-img-preview-wrap {
     transform: scale(1.04);
 }
 .ep-img-subtext {
-    font-size: 11px;
-    color: #888888;
+    background: #f1f4f9;
+    border-radius: 9999px;
+    padding: 7px 14px;
     text-align: center;
-    line-height: 1.35;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 500;
 }
 
 /* Form inputs */
@@ -2783,50 +2968,28 @@ html:not([data-theme="light"]) .ep-img-preview-wrap {
     gap: 5px;
 }
 .ep-label {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
-    color: #78716c;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-[data-theme="dark"] .ep-label,
-html:not([data-theme="light"]) .ep-label {
-    color: #a1a1aa;
+    color: #334155;
+    letter-spacing: 0.1px;
 }
 
 .ep-input, .ep-select {
     width: 100%;
-    height: 38px;
-    padding: 0 12px;
-    border-radius: 9px;
-    border: 1px solid #e7e5e4;
-    background: #f5f5f4;
-    color: #1c1917;
-    font-family: 'Poppins', sans-serif;
-    font-size: 12.5px;
-    font-weight: 500;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    color: #1e293b;
+    font-family: inherit;
+    font-size: 13px;
     outline: none;
     box-sizing: border-box;
-    transition: all 0.2s ease;
-}
-[data-theme="dark"] .ep-input,
-[data-theme="dark"] .ep-select,
-html:not([data-theme="light"]) .ep-input,
-html:not([data-theme="light"]) .ep-select {
-    background: #141416;
-    border-color: rgba(255, 255, 255, 0.1);
-    color: #f5f5f5;
+    transition: border-color .18s, box-shadow .18s;
 }
 .ep-input:focus, .ep-select:focus {
-    border-color: #d1904b;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(209, 144, 75, 0.2);
-}
-[data-theme="dark"] .ep-input:focus,
-[data-theme="dark"] .ep-select:focus,
-html:not([data-theme="light"]) .ep-input:focus,
-html:not([data-theme="light"]) .ep-select:focus {
-    background: #1a1a1e;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .ep-price-wrap {
@@ -2836,13 +2999,13 @@ html:not([data-theme="light"]) .ep-select:focus {
 }
 .ep-price-wrap .ep-dollar {
     position: absolute;
-    left: 12px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #78716c;
+    left: 13px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #94a3b8;
 }
 .ep-price-wrap .ep-input {
-    padding-left: 26px;
+    padding-left: 28px;
     font-weight: 700;
 }
 
@@ -2851,26 +3014,14 @@ html:not([data-theme="light"]) .ep-select:focus {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    border-radius: 9px;
-    background: #f5f5f4;
-    border: 1px solid #e7e5e4;
-    font-size: 12.5px;
-    font-weight: 500;
-    color: #292524;
-}
-[data-theme="dark"] .ep-status-row,
-html:not([data-theme="light"]) .ep-status-row {
-    background: #141416;
-    border-color: rgba(255, 255, 255, 0.1);
-    color: #f5f5f5;
+    padding: 2px 0;
 }
 
 .ep-switch {
     position: relative;
     display: inline-block;
-    width: 38px;
-    height: 22px;
+    width: 44px;
+    height: 24px;
 }
 .ep-switch input { opacity: 0; width: 0; height: 0; }
 .ep-slider {
@@ -2878,22 +3029,23 @@ html:not([data-theme="light"]) .ep-status-row {
     cursor: pointer;
     inset: 0;
     background-color: #cbd5e1;
-    transition: .3s;
-    border-radius: 22px;
+    transition: .25s;
+    border-radius: 9999px;
 }
 .ep-slider:before {
     position: absolute;
     content: "";
-    height: 16px;
-    width: 16px;
+    height: 18px;
+    width: 18px;
     left: 3px;
     bottom: 3px;
     background-color: white;
-    transition: .3s;
+    transition: .25s;
     border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 input:checked + .ep-slider { background-color: #10b981; }
-input:checked + .ep-slider:before { transform: translateX(16px); }
+input:checked + .ep-slider:before { transform: translateX(20px); }
 
 /* Recipe Header Buttons */
 .ep-hdr-btn-group {
@@ -2901,58 +3053,46 @@ input:checked + .ep-slider:before { transform: translateX(16px); }
     align-items: center;
     gap: 6px;
 }
-.ep-hdr-btn {
-    padding: 4px 10px;
-    border-radius: 7px;
-    border: 1px dashed rgba(209, 144, 75, 0.6);
-    background: rgba(209, 144, 75, 0.08);
-    color: #b45309;
-    font-family: 'Poppins', sans-serif;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
+.ep-hdr-btn-pkg {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border-radius: 9999px; background: #fef3c7; border: 1px solid #fde68a;
+    color: #d97706; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all .2s ease;
 }
-.ep-hdr-btn:hover {
-    background: rgba(209, 144, 75, 0.18);
-    border-color: #d1904b;
-    transform: translateY(-1px);
+.ep-hdr-btn-pkg:hover { background: #fde68a; }
+.ep-hdr-btn-ing {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border-radius: 9999px; background: #ede9fe; border: 1px solid #ddd6fe;
+    color: #6366f1; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all .2s ease;
 }
-[data-theme="dark"] .ep-hdr-btn,
-html:not([data-theme="light"]) .ep-hdr-btn {
-    color: #f59e0b;
-}
+.ep-hdr-btn-ing:hover { background: #ddd6fe; }
 
 /* Recipe Table */
+.ep-recipe-table-wrap {
+    border: 1px solid #e2e8f0; border-radius: 16px; background: #f8fafc; overflow: hidden;
+}
 .ep-recipe-table {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
     max-height: 200px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding: 6px;
+    background: #ffffff;
 }
 .ep-table-header {
     display: grid;
     grid-template-columns: 2.2fr 1.3fr 1.2fr 1fr 28px;
     gap: 8px;
-    padding: 6px 8px;
-    background: #f5f5f4;
-    border-radius: 8px;
-    font-size: 10px;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    font-size: 10.5px;
     font-weight: 700;
-    color: #78716c;
+    color: #64748b;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-}
-[data-theme="dark"] .ep-table-header,
-html:not([data-theme="light"]) .ep-table-header {
-    background: #141416;
-    color: #a1a1aa;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .ep-recipe-row {
@@ -2960,34 +3100,25 @@ html:not([data-theme="light"]) .ep-table-header {
     grid-template-columns: 2.2fr 1.3fr 1.2fr 1fr 28px;
     gap: 8px;
     align-items: center;
-    padding: 4px 6px;
-    border-radius: 8px;
-    background: #fafaf9;
-    border: 1px solid #f0eee9;
-    transition: all 0.2s ease;
-}
-[data-theme="dark"] .ep-recipe-row,
-html:not([data-theme="light"]) .ep-recipe-row {
-    background: #1a1a1e;
-    border-color: rgba(255, 255, 255, 0.05);
+    padding: 6px 8px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    transition: all 0.15s ease;
 }
 .ep-recipe-row:hover {
-    border-color: rgba(209, 144, 75, 0.3);
+    background: #f8fafc;
+    border-color: #e2e8f0;
 }
 
 .ep-row-qty-wrap {
     display: flex;
     align-items: center;
-    border: 1px solid #e7e5e4;
-    border-radius: 7px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
     background: #ffffff;
     overflow: hidden;
     height: 32px;
-}
-[data-theme="dark"] .ep-row-qty-wrap,
-html:not([data-theme="light"]) .ep-row-qty-wrap {
-    background: #141416;
-    border-color: rgba(255, 255, 255, 0.1);
 }
 .ep-row-qty-input {
     width: 100%;
@@ -2998,37 +3129,27 @@ html:not([data-theme="light"]) .ep-row-qty-wrap {
     font-size: 11.5px;
     font-weight: 600;
     text-align: center;
-    color: inherit;
+    color: #1e293b;
     outline: none;
 }
 .ep-row-unit-badge {
     padding: 0 6px;
     font-size: 10px;
     font-weight: 600;
-    color: #78716c;
-    background: #f5f5f4;
+    color: #64748b;
+    background: #f1f5f9;
     height: 100%;
     display: flex;
     align-items: center;
-    border-left: 1px solid #e7e5e4;
+    border-left: 1px solid #e2e8f0;
     white-space: nowrap;
-}
-[data-theme="dark"] .ep-row-unit-badge,
-html:not([data-theme="light"]) .ep-row-unit-badge {
-    background: #202024;
-    border-left-color: rgba(255, 255, 255, 0.1);
-    color: #a1a1aa;
 }
 
 .ep-row-unit-cost {
     font-size: 11px;
-    color: #78716c;
+    color: #64748b;
     font-weight: 500;
     text-align: center;
-}
-[data-theme="dark"] .ep-row-unit-cost,
-html:not([data-theme="light"]) .ep-row-unit-cost {
-    color: #a1a1aa;
 }
 
 .ep-row-total-cost {
@@ -3041,10 +3162,10 @@ html:not([data-theme="light"]) .ep-row-unit-cost {
 .ep-row-del-btn {
     width: 26px;
     height: 26px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: none;
     background: transparent;
-    color: #a8a29e;
+    color: #94a3b8;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -3053,67 +3174,94 @@ html:not([data-theme="light"]) .ep-row-unit-cost {
     transition: all 0.2s ease;
 }
 .ep-row-del-btn:hover {
-    background: rgba(239, 68, 68, 0.12);
+    background: #fee2e2;
     color: #ef4444;
 }
 
 /* Summary Box */
 .ep-summary-box {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: #f5f5f4;
-    border: 1px solid #e7e5e4;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 22px;
+    border-radius: 16px;
+    background: #0f1422;
+    color: #ffffff;
     margin-top: auto;
 }
-[data-theme="dark"] .ep-summary-box,
-html:not([data-theme="light"]) .ep-summary-box {
-    background: #141416;
-    border-color: rgba(255, 255, 255, 0.08);
-}
 .ep-summary-label {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    color: #78716c;
-    letter-spacing: 0.4px;
+    color: #94a3b8;
+    letter-spacing: 0.3px;
     margin-bottom: 2px;
 }
-[data-theme="dark"] .ep-summary-label,
-html:not([data-theme="light"]) .ep-summary-label {
-    color: #a1a1aa;
-}
 .ep-summary-val {
-    font-size: 16px;
-    font-weight: 800;
+    font-size: 18px;
+    font-weight: 900;
     line-height: 1.2;
 }
 
 /* Save Button */
-.ep-save-btn {
-    width: auto;
-    padding: 10px 22px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #e8b87a, #d1904b);
-    color: #000000;
-    font-family: 'Poppins', sans-serif;
-    font-size: 13px;
+.ep-footer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    margin-top: 6px;
+    border-top: 1px solid #f1f4f9;
+}
+.ep-cancel-btn {
+    color: #64748b;
     font-weight: 700;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    transition: all .2s;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+.ep-cancel-btn:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+}
+.ep-draft-btn {
+    background: #f1f4f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all .2s;
+}
+.ep-draft-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+.ep-save-btn {
+    background: #4f46e5;
+    color: #ffffff;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 11px 24px;
+    border-radius: 14px;
     border: none;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: 0 4px 14px rgba(209, 144, 75, 0.3);
-    transition: all 0.2s ease;
+    gap: 6px;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+    transition: all .2s;
 }
 .ep-save-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(209, 144, 75, 0.45);
+    background: #4338ca;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.45);
 }
 .ep-save-btn:disabled {
     opacity: 0.6;
@@ -3131,7 +3279,11 @@ html:not([data-theme="light"]) .ep-summary-label {
 <!-- ========== MAIN ========== -->
 <div class="container">
     <div class="products-sticky-header">
-        <?php $page_title = __('nav_products', 'Products'); require __DIR__ . '/header_bar.php'; ?>
+        <div class="flex items-center justify-between gap-4 mb-4 pb-1">
+            <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                <?= $isKm ? 'បញ្ជីផលិតផល' : __('nav_products', 'Products') ?>
+            </h1>
+        </div>
 
         <!-- ── Stats Bar ── -->
         <div class="stats-bar">
@@ -3248,7 +3400,8 @@ html:not([data-theme="light"]) .ep-summary-label {
                     $sellP = (float)$row['price'];
                     $mDol  = $sellP - $costP;
                     $mPct  = $sellP > 0 ? (($sellP - $costP) / $sellP) * 100 : 0;
-                    $hasRecipe = ((int)($row['recipe_count'] ?? 0) > 0) ? '1' : '0';
+                    $isDirect = is_direct_drink_product($row);
+                    $hasRecipe = (((int)($row['recipe_count'] ?? 0) > 0) || $isDirect) ? '1' : '0';
                 ?>
                 <div class="product-card <?= $available ? '' : 'unavailable' ?>"
                      data-category="<?= htmlspecialchars($row['category'] ?: 'Uncategorized') ?>"
@@ -3277,8 +3430,11 @@ html:not([data-theme="light"]) .ep-summary-label {
                         <?php if (!$available): ?>
                         <div class="sold-out-badge">Inactive</div>
                         <?php endif; ?>
-                        <?php if ((int)($row['recipe_count'] ?? 0) === 0): ?>
-                        <div class="no-recipe-badge" title="No Recipe Linked"><i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></div>
+                        <?php 
+                        $stockConn = get_product_stock_connection($row, $direct_stocks); 
+                        ?>
+                        <?php if ($stockConn['type'] === 'none' && !$isDirect): ?>
+                        <div class="no-recipe-badge" title="No Recipe or Stock Item Linked"><i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></div>
                         <?php endif; ?>
                         <?php $__badge = product_badge_label($row); if ($__badge !== ''): ?>
                         <span class="product-badge"><?= htmlspecialchars($__badge) ?></span>
@@ -3290,8 +3446,8 @@ html:not([data-theme="light"]) .ep-summary-label {
                             <h3 class="qv-trigger"
                                 title="Click to preview"
                                 onclick="openQV(<?= (int)$row['product_id'] ?>)"><?= htmlspecialchars($row['name']) ?></h3>
-                            <?php if ((int)($row['recipe_count'] ?? 0) === 0): ?>
-                            <span class="no-recipe-inline-badge" title="No Recipe Linked"><i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></span>
+                            <?php if ($stockConn['type'] === 'none' && !$isDirect): ?>
+                            <span class="no-recipe-inline-badge" title="No Recipe or Stock Item Linked"><i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></span>
                             <?php endif; ?>
                             <?php if (!$available): ?>
                             <span class="sold-out-inline-badge">Inactive</span>
@@ -3378,14 +3534,17 @@ html:not([data-theme="light"]) .ep-summary-label {
     </div>
 </div>
 
-<!-- ========== EDIT PRODUCT MODAL (MATCHING SCREENSHOT 2) ========== -->
+<!-- ========== EDIT PRODUCT MODAL (MATCHING SCREENSHOT) ========== -->
 <div class="ep-modal-backdrop" id="editProductModalBackdrop" onclick="if(event.target===this) closeEditProductModal()">
     <div class="ep-modal-dialog">
         <!-- Header -->
         <div class="ep-modal-header">
             <div class="ep-header-left">
                 <div class="ep-header-icon"><i class="fa-solid fa-pen-to-square"></i></div>
-                <h3 class="ep-header-title">Edit product <span id="epHeaderProdName">Product</span></h3>
+                <div>
+                    <h3 class="ep-header-title">កែប្រែមុខទំនិញ (Edit Product) <span id="epHeaderProdName">Product</span></h3>
+                    <div class="ep-header-sub">កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)</div>
+                </div>
             </div>
             <button type="button" class="ep-header-close" onclick="closeEditProductModal()" title="Close (Esc)">
                 <i class="fa-solid fa-xmark"></i>
@@ -3402,36 +3561,106 @@ html:not([data-theme="light"]) .ep-summary-label {
             <div class="ep-grid-3col">
                 <!-- Column 1: Product Image -->
                 <div class="ep-card-box ep-col-image">
-                    <div class="ep-section-hdr"><i class="fa-regular fa-image"></i> Product Image</div>
+                    <div class="ep-section-hdr">
+                        <div class="ep-section-title-wrap">
+                            <div class="ep-icon-badge"><i class="fa-regular fa-image"></i></div>
+                            <span>រូបភាពទំនិញ (Product Image)</span>
+                        </div>
+                    </div>
                     <div class="ep-img-preview-wrap" onclick="document.getElementById('epImageInput').click()" title="Click to upload/change image">
                         <img id="epImgPreview" src="uploads/no-image.png" alt="Preview">
                     </div>
                     <input type="file" id="epImageInput" name="image" accept="image/*" style="display:none;" onchange="previewEpImage(this)">
-                    <div class="ep-img-subtext">Current image — click above to replace</div>
+                    <div class="ep-img-subtext">រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ</div>
                 </div>
 
                 <!-- Column 2: Product Details -->
                 <div class="ep-card-box ep-col-details">
-                    <div class="ep-section-hdr"><i class="fa-solid fa-clipboard-list"></i> Product Details</div>
-                    <div class="ep-field">
-                        <label class="ep-label" for="epName">PRODUCT NAME *</label>
-                        <input type="text" id="epName" name="name" class="ep-input" placeholder="e.g. Ize" required oninput="document.getElementById('epHeaderProdName').textContent = this.value || 'Product'">
+                    <div class="ep-section-hdr">
+                        <div class="ep-section-title-wrap">
+                            <div class="ep-icon-badge"><i class="fa-regular fa-file-lines"></i></div>
+                            <span>ព័ត៌មានទំនិញ (Product Details)</span>
+                        </div>
                     </div>
+                    
+                    <!-- Product Type Segment -->
                     <div class="ep-field">
-                        <label class="ep-label" for="epCategory">CATEGORY *</label>
-                        <select id="epCategory" name="category" class="ep-select" required></select>
+                        <label class="ep-label">ប្រភេទផលិតកម្ម (PRODUCT TYPE) <span style="color:#ef4444;">*</span></label>
+                        <div class="ep-type-segment">
+                            <button type="button" class="ep-type-btn active" id="epTypeRecipe" onclick="setEpProductType('recipe')">
+                                <i class="fa-solid fa-mug-hot ep-type-icon"></i>
+                                <span class="ep-type-title">កែច្នៃផ្ទាល់</span>
+                            </button>
+                            <button type="button" class="ep-type-btn" id="epTypeDirect" onclick="setEpProductType('direct_drink')">
+                                <i class="fa-solid fa-box-archive ep-type-icon"></i>
+                                <span class="ep-type-title">ទំនិញស្រាប់</span>
+                            </button>
+                        </div>
+                        <input type="hidden" name="product_type" id="epProductType" value="recipe">
                     </div>
+
+                    <!-- Direct Drink Info Notice -->
+                    <div id="epDirectInfoCard" class="ep-dd-card" style="display:none;">
+                        <i class="fa-solid fa-circle-check text-indigo-600 mt-0.5 shrink-0"></i>
+                        <div>
+                            <strong class="block font-semibold text-indigo-900">ទំនិញភេសជ្ជៈស្រាប់ (Direct Drink Stock)</strong>
+                            <span class="text-indigo-700">កាត់ស្តុកផ្ទាល់តាមចំនួនកំប៉ុង/ដប ដោយមិនចាំបាច់កំណត់រូបមន្តគ្រឿងផ្សំឡើយ។</span>
+                        </div>
+                    </div>
+
                     <div class="ep-field">
-                        <label class="ep-label" for="epPrice">SELLING PRICE *</label>
-                        <div class="ep-price-wrap">
-                            <span class="ep-dollar">$</span>
-                            <input type="number" step="0.01" min="0" id="epPrice" name="price" class="ep-input" placeholder="0.00" required oninput="recalcEpTotals()">
+                        <label class="ep-label" for="epName">ឈ្មោះទំនិញ (PRODUCT NAME) <span style="color:#ef4444;">*</span></label>
+                        <div id="epDirectPickerWrap" style="display:none;">
+                            <select id="epDirectSelect" onchange="onSelectEpDirectDrink(this)" class="ep-select" style="font-weight:600;color:#1e293b;">
+                                <option value="">-- ជ្រើសរើសទំនិញពីស្តុក (Select Stock Drink) --</option>
+                            </select>
+                        </div>
+                        <div id="epRecipeNameWrap">
+                            <input type="text" id="epName" name="name" class="ep-input" placeholder="ឧ. Oolong Macchiato ឬ Bird's Nest Latte" required oninput="document.getElementById('epHeaderProdName').textContent = this.value || 'Product'">
                         </div>
                     </div>
                     <div class="ep-field">
-                        <label class="ep-label">MENU STATUS</label>
+                        <label class="ep-label" for="epCategory">ក្រុមប្រភេទ (CATEGORY) <span style="color:#ef4444;">*</span></label>
+                        <select id="epCategory" name="category" class="ep-select cat-select" required></select>
+                    </div>
+                    <!-- MADE-TO-ORDER SELLING PRICE FIELD -->
+                    <div class="ep-field" id="epRecipePriceWrap">
+                        <label class="ep-label" for="epPrice">តម្លៃលក់ (SELLING PRICE) <span style="color:#ef4444;">*</span></label>
+                        <div class="ep-price-wrap">
+                            <span class="ep-dollar">$</span>
+                            <input type="number" step="0.01" min="0" id="epPrice" name="price" class="ep-input" placeholder="0.00" required oninput="syncEpSellingPrice(this.value)">
+                        </div>
+                    </div>
+
+                    <!-- DIRECT DRINK 2-COLUMN PRICES ROW -->
+                    <div id="epDirectPricesRow" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;display:none;">
+                        <div class="ep-field">
+                            <label class="ep-label" for="epPriceDD">តម្លៃលក់ (SELLING PRICE) <span style="color:#ef4444;">*</span></label>
+                            <div class="ep-price-wrap">
+                                <span class="ep-dollar">$</span>
+                                <input type="number" step="0.01" min="0" id="epPriceDD" class="ep-input" placeholder="0.00" oninput="syncEpSellingPrice(this.value)">
+                            </div>
+                        </div>
+                        <div class="ep-field">
+                            <label class="ep-label" for="epDirectCost">ថ្លៃដើមទិញចូល (PURCHASE COST) <span style="color:#ef4444;">*</span></label>
+                            <div class="ep-price-wrap">
+                                <span class="ep-dollar">$</span>
+                                <input type="number" step="0.01" min="0" id="epDirectCost" name="cost_price" class="ep-input" placeholder="0.00" oninput="onEpDirectCostChange(this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
+                    <div id="epDirectMarginCard" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:10px 16px;display:none;align-items:center;justify-content:space-between;">
+                        <span style="font-size:12px;font-weight:700;color:#065f46;">ចំណេញដុល (Profit Margin):</span>
+                        <span id="epDirectMargin" style="font-size:13.5px;font-weight:800;color:#059669;">+$0.00 (+0.0%)</span>
+                    </div>
+
+                    <div class="ep-field">
                         <div class="ep-status-row">
-                            <span>Show on menu</span>
+                            <div>
+                                <strong style="font-size:12.5px;color:#1e293b;display:block;">បង្ហាញលើម៉ឺនុយ (Show on Menu)</strong>
+                            </div>
                             <label class="ep-switch">
                                 <input type="checkbox" id="epAvailable" name="is_available" value="1">
                                 <span class="ep-slider"></span>
@@ -3443,54 +3672,67 @@ html:not([data-theme="light"]) .ep-summary-label {
                 <!-- Column 3: Recipe & Ingredients (BOM) -->
                 <div class="ep-card-box ep-col-recipe">
                     <div class="ep-section-hdr">
-                        <div><i class="fa-solid fa-mortar-pestle"></i> Recipe & Ingredients (BOM)</div>
+                        <div class="ep-section-title-wrap">
+                            <div class="ep-icon-badge"><i class="fa-solid fa-flask"></i></div>
+                            <span>រូបមន្ត & គ្រឿងផ្សំ (BOM)</span>
+                        </div>
                         <div class="ep-hdr-btn-group">
-                            <button type="button" class="ep-hdr-btn" onclick="addEpPackagingSet()">
-                                <i class="fa-solid fa-box-open"></i> + ឈុតវេចខ្ចប់ (Packaging Set)
+                            <button type="button" class="ep-hdr-btn-pkg" onclick="addEpPackagingSet()">
+                                <i class="fa-solid fa-box-open text-xs"></i> + ឈុតវេចខ្ចប់
                             </button>
-                            <button type="button" class="ep-hdr-btn" onclick="addEpIngredientRow()">
-                                <i class="fa-solid fa-plus"></i> Add Ingredient
+                            <button type="button" class="ep-hdr-btn-ing" onclick="addEpIngredientRow()">
+                                <i class="fa-solid fa-plus text-xs"></i> + ថែមគ្រឿងផ្សំ
                             </button>
                         </div>
                     </div>
 
-                    <!-- Table Header -->
-                    <div class="ep-table-header">
-                        <div>RAW INGREDIENT</div>
-                        <div style="text-align:center;">QTY REQUIRED</div>
-                        <div style="text-align:center;">UNIT COST</div>
-                        <div style="text-align:right;">TOTAL COST</div>
-                        <div></div>
-                    </div>
+                    <!-- Table Header & Wrapper -->
+                    <div class="ep-recipe-table-wrap">
+                        <div class="ep-table-header">
+                            <div>គ្រឿងផ្សំ (RAW MATERIAL)</div>
+                            <div style="text-align:center;">ចំនួន</div>
+                            <div style="text-align:center;">តម្លៃរាយ</div>
+                            <div style="text-align:right;">សរុប</div>
+                            <div></div>
+                        </div>
 
-                    <!-- Recipe Rows Container -->
-                    <div class="ep-recipe-table" id="epRecipeRows">
-                        <!-- Dynamic recipe rows inserted here -->
+                        <!-- Recipe Rows Container -->
+                        <div class="ep-recipe-table" id="epRecipeRows">
+                            <!-- Dynamic recipe rows inserted here -->
+                        </div>
                     </div>
 
                     <!-- Summary Box -->
                     <div class="ep-summary-box">
                         <div>
-                            <div class="ep-summary-label">ESTIMATED RECIPE COST (COGS)</div>
-                            <div class="ep-summary-val" id="epCogsVal" style="color: #d1904b;">$0.00</div>
+                            <div class="ep-summary-label">ថ្លៃដើម (COGS)</div>
+                            <div class="ep-summary-val" id="epCogsVal" style="color: #f59e0b;">$0.00</div>
                         </div>
                         <div>
-                            <div class="ep-summary-label">SELLING PRICE</div>
-                            <div class="ep-summary-val" id="epSellVal" style="color: inherit;">$0.00</div>
+                            <div class="ep-summary-label">តម្លៃលក់</div>
+                            <div class="ep-summary-val" id="epSellVal" style="color: #ffffff;">$0.00</div>
                         </div>
                         <div>
-                            <div class="ep-summary-label">GROSS PROFIT MARGIN</div>
+                            <div class="ep-summary-label">ប្រាក់ចំណេញ (MARGIN)</div>
                             <div class="ep-summary-val" id="epMarginVal" style="color: #10b981;">$0.00</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Footer Save Button -->
-            <div style="display: flex; justify-content: flex-start; margin-top: 4px;">
-                <button type="submit" class="ep-save-btn" id="epSaveBtn">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Changes & Recipe
+            <!-- Modal Footer Action Bar -->
+            <div class="ep-footer-bar">
+                <button type="button" class="ep-cancel-btn" onclick="closeEditProductModal()">
+                    បោះបង់ (Cancel)
                 </button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <button type="button" class="ep-draft-btn" onclick="closeEditProductModal()">
+                        រក្សាទុកជាព្រាង (Save Draft)
+                    </button>
+                    <button type="submit" class="ep-save-btn" id="epSaveBtn">
+                        <i class="fa-solid fa-check"></i> រក្សាទុកការផ្លាស់ប្តូរ (Save Changes)
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -4376,11 +4618,41 @@ function openEditProductModal(id, e) {
                 catSel.appendChild(opt);
             });
 
+            // Populate direct stock drinks dropdown
+            const directSel = document.getElementById('epDirectSelect');
+            if (directSel) {
+                directSel.innerHTML = '<option value="">-- ជ្រើសរើសទំនិញពីស្តុក (Select Stock Drink) --</option>';
+                let matched = false;
+                epStockItems.forEach(item => {
+                    const isDrink = ((item.item_type === 'direct_drink') || (item.category === 'Direct Drinks'));
+                    if (isDrink) {
+                        const opt = document.createElement('option');
+                        opt.value = item.item_name;
+                        opt.dataset.cost = item.cost_per_unit || 0;
+                        opt.dataset.qty = item.quantity || 0;
+                        opt.dataset.unit = item.unit || 'cans';
+                        const isMatch = (item.item_name.toLowerCase() === (p.name || '').toLowerCase());
+                        if (isMatch) { opt.selected = true; matched = true; }
+                        opt.textContent = item.item_name;
+                        directSel.appendChild(opt);
+                    }
+                });
+                if (!matched && p.name && p.name.trim()) {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.name;
+                    opt.selected = true;
+                    directSel.appendChild(opt);
+                }
+            }
+            checkEpDirectStockMatch(p.name || '');
+
             // Populate recipe rows
             const rowsContainer = document.getElementById('epRecipeRows');
             rowsContainer.innerHTML = '';
 
-            if (data.recipes && data.recipes.length > 0) {
+            const hasRecipes = (data.recipes && data.recipes.length > 0);
+            if (hasRecipes) {
                 data.recipes.forEach(rec => {
                     addEpIngredientRow(rec);
                 });
@@ -4388,13 +4660,194 @@ function openEditProductModal(id, e) {
                 rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ ឈុតវេចខ្ចប់</strong> above.</div>';
             }
 
+            // Set direct cost price value
+            const costVal = parseFloat(p.cost_price || 0);
+            const directCostInput = document.getElementById('epDirectCost');
+            if (directCostInput) {
+                directCostInput.value = costVal > 0 ? costVal.toFixed(2) : '';
+            }
+
+            // Determine if direct drink
+            const cleanName = (p.name || '').toLowerCase();
+            const cleanCat = (p.category || '').toLowerCase();
+            const isDirectByDefault = !hasRecipes && (
+                cleanCat.includes('direct') || cleanCat.includes('soft') || cleanCat.includes('bottle') || cleanCat.includes('can') ||
+                cleanName.includes('coca') || cleanName.includes('coke') || cleanName.includes('red bull') || cleanName.includes('sting') || cleanName.includes('ize') || cleanName.includes('water')
+            );
+
+            if (isDirectByDefault) {
+                setEpProductType('direct_drink');
+            } else {
+                setEpProductType('recipe');
+            }
+
             recalcEpTotals();
+            recalcEpDirectMargin();
         })
         .catch(err => {
             console.error(err);
             closeEditProductModal();
             showToast('Error loading product details', 'error');
         });
+}
+
+function setEpProductType(type) {
+    const isDirect = (type === 'direct_drink');
+    const input = document.getElementById('epProductType');
+    if (input) input.value = isDirect ? 'direct_drink' : 'recipe';
+
+    const btnRecipe = document.getElementById('epTypeRecipe');
+    const btnDirect = document.getElementById('epTypeDirect');
+    if (btnRecipe) btnRecipe.classList.toggle('active', !isDirect);
+    if (btnDirect) btnDirect.classList.toggle('active', isDirect);
+
+    const dialog = document.querySelector('.ep-modal-dialog');
+    const grid = document.querySelector('.ep-grid-3col');
+    const recipeCol = document.querySelector('.ep-col-recipe');
+    const ddCard = document.getElementById('epDirectInfoCard');
+    const ddPricesRow = document.getElementById('epDirectPricesRow');
+    const recipePriceWrap = document.getElementById('epRecipePriceWrap');
+    const ddMarginCard = document.getElementById('epDirectMarginCard');
+    const ddPicker = document.getElementById('epDirectPickerWrap');
+
+    if (dialog) dialog.classList.toggle('direct-drink-mode', isDirect);
+    if (grid) grid.classList.toggle('direct-drink-mode', isDirect);
+
+    if (recipeCol) {
+        recipeCol.style.display = isDirect ? 'none' : '';
+        recipeCol.querySelectorAll('select, input').forEach(el => {
+            if (isDirect) {
+                if (el.hasAttribute('required')) {
+                    el.setAttribute('data-was-required', 'true');
+                    el.removeAttribute('required');
+                }
+            } else {
+                if (el.getAttribute('data-was-required') === 'true') {
+                    el.setAttribute('required', 'required');
+                }
+            }
+        });
+    }
+
+    if (ddCard) ddCard.style.display = isDirect ? 'flex' : 'none';
+    if (ddPricesRow) ddPricesRow.style.display = isDirect ? 'grid' : 'none';
+    if (recipePriceWrap) recipePriceWrap.style.display = isDirect ? 'none' : 'block';
+    if (ddMarginCard) ddMarginCard.style.display = isDirect ? 'flex' : 'none';
+    
+    // Show ONLY 1 box for product name: dropdown in Direct Drink, text input in Made-to-Order
+    const nameWrap = document.getElementById('epRecipeNameWrap');
+    if (ddPicker) ddPicker.style.display = isDirect ? 'block' : 'none';
+    if (nameWrap) nameWrap.style.display = isDirect ? 'none' : 'block';
+
+    if (isDirect) {
+        recalcEpDirectMargin();
+    } else {
+        recalcEpTotals();
+    }
+}
+
+function syncEpSellingPrice(val) {
+    const epPrice = document.getElementById('epPrice');
+    const epPriceDD = document.getElementById('epPriceDD');
+    if (epPrice && epPrice.value !== val) epPrice.value = val;
+    if (epPriceDD && epPriceDD.value !== val) epPriceDD.value = val;
+    recalcEpTotals();
+    recalcEpDirectMargin();
+}
+
+function onEpDirectCostChange(val) {
+    recalcEpDirectMargin();
+}
+
+function recalcEpDirectMargin() {
+    const sell = parseFloat(document.getElementById('epPrice')?.value || document.getElementById('epPriceDD')?.value || 0);
+    const cost = parseFloat(document.getElementById('epDirectCost')?.value || 0);
+    const marginDisp = document.getElementById('epDirectMargin');
+    if (!marginDisp) return;
+    const margin = sell - cost;
+    const pct = sell > 0 ? ((margin / sell) * 100).toFixed(1) : '0.0';
+    const sign = margin >= 0 ? '+' : '';
+    marginDisp.textContent = `${sign}$${margin.toFixed(2)} (${sign}${pct}%)`;
+    marginDisp.style.color = margin >= 0 ? '#059669' : '#dc2626';
+}
+
+function toggleEpDirectPicker() {
+    const wrap = document.getElementById('epDirectPickerWrap');
+    if (!wrap) return;
+    const isShown = (wrap.style.display !== 'none');
+    wrap.style.display = isShown ? 'none' : 'block';
+    if (!isShown) {
+        document.getElementById('epDirectSelect')?.focus();
+    }
+}
+
+function onSelectEpDirectDrink(sel) {
+    if (!sel || !sel.value) return;
+    const val = sel.value;
+    const opt = sel.options[sel.selectedIndex];
+    const inp = document.getElementById('epName');
+    if (inp) {
+        inp.value = val;
+        document.getElementById('epHeaderProdName').textContent = val || 'Product';
+        checkEpDirectStockMatch(val);
+    }
+    
+    // Auto switch to direct drink mode
+    setEpProductType('direct_drink');
+
+    // Auto fill cost if present
+    const cost = parseFloat(opt.dataset.cost || 0);
+    if (cost > 0) {
+        const directCostInput = document.getElementById('epDirectCost');
+        if (directCostInput) {
+            directCostInput.value = cost.toFixed(2);
+            recalcEpDirectMargin();
+        }
+    }
+
+    // Auto select Soft Drink or Drinks category if empty
+    const catSel = document.getElementById('epCategory');
+    if (catSel && (!catSel.value || catSel.value === 'coffee' || catSel.value === 'tea')) {
+        for (let i = 0; i < catSel.options.length; i++) {
+            const oText = catSel.options[i].text.toLowerCase();
+            const oVal = catSel.options[i].value.toLowerCase();
+            if (oVal.includes('soft') || oText.includes('soft') || oVal.includes('direct') || oText.includes('drink')) {
+                catSel.selectedIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+function onEpNameInput(val) {
+    document.getElementById('epHeaderProdName').textContent = val || 'Product';
+    checkEpDirectStockMatch(val);
+}
+
+function checkEpDirectStockMatch(val) {
+    const hint = document.getElementById('epDirectStockHint');
+    const hintText = document.getElementById('epDirectStockHintText');
+    if (!hint || !hintText) return;
+    
+    if (!val || !val.trim()) {
+        hint.style.display = 'none';
+        return;
+    }
+    
+    const cleanV = val.trim().toLowerCase().replace(/\s+/g, '');
+    const match = epStockItems.find(d => {
+        const isDrink = ((d.item_type === 'direct_drink') || (d.category === 'Direct Drinks'));
+        if (!isDrink) return false;
+        const cleanD = (d.item_name || '').toLowerCase().replace(/\s+/g, '');
+        return cleanD === cleanV || cleanV.includes(cleanD) || cleanD.includes(cleanV);
+    });
+    
+    if (match) {
+        hint.style.display = 'flex';
+        hintText.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#0284c7;"></i> Auto-linked with Stock Drink: <strong>${match.item_name}</strong> (${parseInt(match.quantity || 0, 10)} ${match.unit || 'cans'} in inventory)`;
+    } else {
+        hint.style.display = 'none';
+    }
 }
 
 function closeEditProductModal() {
@@ -4706,12 +5159,14 @@ async function submitEpForm(e) {
                         }
                     }
                     if (p.has_recipe !== undefined || p.recipe_count !== undefined) {
-                        const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0);
+                        const isDirect = (p.product_type === 'direct_drink') || 
+                                         ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'vital', 'drink', 'juice'].some(kw => (p.category || '').toLowerCase().includes(kw) || (p.name || '').toLowerCase().includes(kw));
+                        const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0 || isDirect);
                         card.setAttribute('data-has-recipe', hasRec ? '1' : '0');
 
                         const imgWrapper = card.querySelector('.image-wrapper');
                         let noRecBadge = card.querySelector('.image-wrapper .no-recipe-badge');
-                        if (!hasRec) {
+                        if (!hasRec && !isDirect) {
                             if (!noRecBadge && imgWrapper) {
                                 noRecBadge = document.createElement('div');
                                 noRecBadge.className = 'no-recipe-badge';

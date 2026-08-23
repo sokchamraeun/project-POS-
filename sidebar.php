@@ -3,11 +3,49 @@
 if (!function_exists('can')) {
     require_once __DIR__ . '/auth.php';
 }
+require_once __DIR__ . '/config.php';
+
 $_cur_page = basename($_SERVER['PHP_SELF'] ?? '');
 $_is_admin = (($_SESSION['role'] ?? '') === 'admin');
 $_username = $_SESSION['emp_name'] ?? ($_SESSION['username'] ?? 'User');
 $_user_role = ucfirst($_SESSION['role'] ?? 'Staff');
 $_role_color = ($_SESSION['role'] ?? '') === 'admin' ? '#ff6b6b' : (($_SESSION['role'] ?? '') === 'manager' ? '#f0b429' : '#d1904b');
+
+// ── Calculate Low Stock / Out of Stock Alert Counts ──
+$_stock_drink_alerts = 0;
+$_stock_drink_has_out = false;
+$_ingredient_alerts = 0;
+$_ingredient_has_out = false;
+
+if (isset($conn) && $conn instanceof mysqli) {
+    try {
+        $q_stock = $conn->query("
+            SELECT 
+                SUM(CASE WHEN quantity <= alert_level THEN 1 ELSE 0 END) AS alert_cnt,
+                SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END) AS out_cnt
+            FROM stock_items 
+            WHERE item_type = 'direct_drink' AND is_active = 1
+        ");
+        if ($q_stock && ($r_stock = $q_stock->fetch_assoc())) {
+            $_stock_drink_alerts = (int)($r_stock['alert_cnt'] ?? 0);
+            $_stock_drink_has_out = (int)($r_stock['out_cnt'] ?? 0) > 0;
+        }
+
+        $q_ing = $conn->query("
+            SELECT 
+                SUM(CASE WHEN quantity <= alert_level THEN 1 ELSE 0 END) AS alert_cnt,
+                SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END) AS out_cnt
+            FROM stock_items 
+            WHERE (item_type = 'ingredient' OR item_type = 'raw_ingredient') 
+              AND is_active = 1 
+              AND (item_name NOT LIKE '%Packaging Set%' AND item_name NOT LIKE '%ឈុត%')
+        ");
+        if ($q_ing && ($r_ing = $q_ing->fetch_assoc())) {
+            $_ingredient_alerts = (int)($r_ing['alert_cnt'] ?? 0);
+            $_ingredient_has_out = (int)($r_ing['out_cnt'] ?? 0) > 0;
+        }
+    } catch (Throwable $e) {}
+}
 ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -188,6 +226,59 @@ html[data-theme="light"] .sidebar .nav-item.active i,
 }
 .sidebar .nav-item.active:hover i {
     color: #022c22 !important;
+}
+
+/* ══ Sidebar Stock & Ingredient Alert Badge ══ */
+.sidebar-stock-badge {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+.sidebar-stock-badge.badge-danger {
+    background: rgba(239, 68, 68, 0.22);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+.sidebar-stock-badge.badge-warning {
+    background: rgba(245, 158, 11, 0.22);
+    color: #fde68a;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+}
+.sidebar .nav-item.active .sidebar-stock-badge.badge-danger {
+    background: #991b1b;
+    color: #ffffff;
+    border-color: #ef4444;
+    box-shadow: none;
+}
+.sidebar .nav-item.active .sidebar-stock-badge.badge-warning {
+    background: #92400e;
+    color: #ffffff;
+    border-color: #f59e0b;
+    box-shadow: none;
+}
+
+/* Collapsed mode: glowing alert dot */
+.sidebar.collapsed .sidebar-stock-badge {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    min-width: 8px;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    font-size: 0;
+    border-radius: 50%;
 }
 
 /* Submenu Styles (Reports / Users) */
@@ -716,13 +807,19 @@ html[data-theme="light"] .toast-dismiss:hover {
             <?php endif; ?>
 
             <?php if (can('products') || can('inventory') || in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])): ?>
-            <a class="nav-item<?= in_array($_cur_page, ['stock.php', 'stock_count.php']) ? ' active' : '' ?>" href="stock.php">
+            <a id="sidebarNavStockDrink" class="nav-item relative<?= in_array($_cur_page, ['stock.php', 'stock_count.php']) ? ' active' : '' ?>" href="stock.php">
                 <i class="fa-solid fa-wine-bottle"></i>
                 <span class="nav-label"><?= __('nav_stock_drinks', 'ស្តុកភេសជ្ជៈ') ?></span>
+                <span id="sidebarStockDrinkBadge" class="sidebar-stock-badge <?= $_stock_drink_has_out ? 'badge-danger' : 'badge-warning' ?>" style="<?= $_stock_drink_alerts > 0 ? '' : 'display:none;' ?>" title="<?= $_stock_drink_alerts ?> <?= __('stock_alert', 'Low / Out of Stock') ?>">
+                    <?= $_stock_drink_alerts ?>
+                </span>
             </a>
-            <a class="nav-item<?= $_cur_page === 'ingredients.php' ? ' active' : '' ?>" href="ingredients.php">
+            <a id="sidebarNavIngredient" class="nav-item relative<?= $_cur_page === 'ingredients.php' ? ' active' : '' ?>" href="ingredients.php">
                 <i class="fa-solid fa-seedling"></i>
                 <span class="nav-label"><?= __('nav_raw_ingredients', 'គ្រឿងផ្សំ') ?></span>
+                <span id="sidebarIngredientBadge" class="sidebar-stock-badge <?= $_ingredient_has_out ? 'badge-danger' : 'badge-warning' ?>" style="<?= $_ingredient_alerts > 0 ? '' : 'display:none;' ?>" title="<?= $_ingredient_alerts ?> <?= __('stock_alert', 'Low / Out of Stock') ?>">
+                    <?= $_ingredient_alerts ?>
+                </span>
             </a>
             <?php endif; ?>
 
@@ -1242,4 +1339,71 @@ if (typeof window.showToast !== 'function') {
         startTimer(duration);
     };
 }
+
+// ── Real-Time Sidebar Stock Alert Badges Updater ──
+function updateSidebarStockBadges(alerts) {
+    if (!alerts) return;
+
+    // 1. Stock Drinks
+    var stockBadge = document.getElementById('sidebarStockDrinkBadge');
+    var stockNav = document.getElementById('sidebarNavStockDrink');
+    if (alerts.stock_drinks) {
+        var cnt = parseInt(alerts.stock_drinks.count || 0, 10);
+        var hasOut = !!alerts.stock_drinks.has_out;
+        if (cnt > 0) {
+            if (!stockBadge && stockNav) {
+                stockBadge = document.createElement('span');
+                stockBadge.id = 'sidebarStockDrinkBadge';
+                stockNav.appendChild(stockBadge);
+            }
+            if (stockBadge) {
+                stockBadge.style.display = 'inline-flex';
+                stockBadge.className = 'sidebar-stock-badge ' + (hasOut ? 'badge-danger' : 'badge-warning');
+                stockBadge.textContent = cnt;
+                stockBadge.title = cnt + (window.CPM_IS_KM ? ' អស់/ជិតអស់ស្តុក' : ' Low / Out of Stock');
+            }
+        } else if (stockBadge) {
+            stockBadge.style.display = 'none';
+        }
+    }
+
+    // 2. Raw Ingredients
+    var ingBadge = document.getElementById('sidebarIngredientBadge');
+    var ingNav = document.getElementById('sidebarNavIngredient');
+    if (alerts.ingredients) {
+        var cnt = parseInt(alerts.ingredients.count || 0, 10);
+        var hasOut = !!alerts.ingredients.has_out;
+        if (cnt > 0) {
+            if (!ingBadge && ingNav) {
+                ingBadge = document.createElement('span');
+                ingBadge.id = 'sidebarIngredientBadge';
+                ingNav.appendChild(ingBadge);
+            }
+            if (ingBadge) {
+                ingBadge.style.display = 'inline-flex';
+                ingBadge.className = 'sidebar-stock-badge ' + (hasOut ? 'badge-danger' : 'badge-warning');
+                ingBadge.textContent = cnt;
+                ingBadge.title = cnt + (window.CPM_IS_KM ? ' អស់/ជិតអស់ស្តុក' : ' Low / Out of Stock');
+            }
+        } else if (ingBadge) {
+            ingBadge.style.display = 'none';
+        }
+    }
+}
+window.updateSidebarStockBadges = updateSidebarStockBadges;
+
+function pollSidebarStockBadges() {
+    fetch('api_stock_status.php?_t=' + Date.now(), { cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.sidebar_alerts) {
+                updateSidebarStockBadges(data.sidebar_alerts);
+            }
+        })
+        .catch(function() {});
+}
+window.pollSidebarStockBadges = pollSidebarStockBadges;
+
+// Automatically poll sidebar badges across all pages every 8 seconds
+setInterval(pollSidebarStockBadges, 8000);
 </script>

@@ -276,17 +276,13 @@ function closeReceiptModalOnly() {
     }
 }
 
-function handlePaymentSuccess(orderId) {
+function handlePaymentSuccess(orderId, existingWin) {
     if (pollIntervalTimer) clearInterval(pollIntervalTimer);
+    if (redirectCountdownTimer) clearInterval(redirectCountdownTimer);
 
-    // Hide QR and default actions
-    var qrSec = document.getElementById('qrSection');
-    var statusInd = document.getElementById('statusIndicator');
-    var successBox = document.getElementById('paymentSuccessBox');
-    
-    if (qrSec) qrSec.style.display = 'none';
-    if (statusInd) statusInd.style.display = 'none';
-    if (successBox) successBox.style.display = 'block';
+    // Hide Bakong QR modal if present
+    var modal = document.getElementById('receipt-modal');
+    if (modal) modal.style.display = 'none';
 
     // Clean up URL in background
     if (window.history && window.history.replaceState) {
@@ -296,27 +292,46 @@ function handlePaymentSuccess(orderId) {
         window.history.replaceState({}, '', url.toString());
     }
 
-    // Auto-countdown to return main page to menu.php
-    var count = 2;
-    var countSpan = document.getElementById('countdownSec');
-    redirectCountdownTimer = setInterval(function() {
-        count--;
-        if (countSpan) countSpan.textContent = count;
-        if (count <= 0) {
-            clearInterval(redirectCountdownTimer);
-            window.location.href = 'menu.php';
-        }
-    }, 1000);
+    // Silently clear cart
+    if (typeof cpSilentClearCart === 'function') {
+        cpSilentClearCart();
+    }
 
-    // Attempt to auto-open receipt in a new tab
+    var receiptUrl = 'receipt_print.php?order_id=' + Number(orderId);
+
+    // If popup window already open, navigate and focus it
+    if (existingWin && !existingWin.closed) {
+        try {
+            existingWin.location.href = receiptUrl;
+            existingWin.focus();
+            return;
+        } catch(e) {}
+    }
+
+    // Open receipt print window
+    var win = null;
     try {
-        var receiptUrl = 'receipt_print.php?order_id=' + orderId;
-        var printWin = window.open(receiptUrl, '_blank', 'width=460,height=720,top=80,left=100,scrollbars=yes');
-        if (printWin) {
-            try { printWin.focus(); } catch(e) {}
+        win = window.open(receiptUrl, 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+        if (win) {
+            try { win.focus(); } catch(e) {}
         }
-    } catch(e) {
-        console.log("Popup auto-open blocked by browser, user can click Open Receipt button.");
+    } catch(e) {}
+
+    // Fallback to hidden iframe
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+        var iframe = document.getElementById('receiptPrintFrame');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'receiptPrintFrame';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+        }
+        iframe.src = receiptUrl;
     }
 }
 
@@ -326,6 +341,16 @@ function confirmBakongManual(orderId) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
     }
+
+    // Pre-open receipt window immediately on user click
+    var popupWin = null;
+    try {
+        popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+        if (popupWin) {
+            try { popupWin.focus(); } catch(e) {}
+        }
+    } catch(e) {}
+
     var formData = new FormData();
     formData.append('order_id', orderId);
     formData.append('action', 'manual_confirm');
@@ -333,8 +358,17 @@ function confirmBakongManual(orderId) {
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res && res.paid) {
-                handlePaymentSuccess(orderId);
+                if (popupWin) {
+                    try {
+                        popupWin.location.href = 'receipt_print.php?order_id=' + Number(orderId);
+                        popupWin.focus();
+                    } catch(e) {}
+                }
+                handlePaymentSuccess(orderId, popupWin);
             } else {
+                if (popupWin) {
+                    try { popupWin.close(); } catch(e) {}
+                }
                 alert(res.error || 'Payment confirmation failed');
                 if (btn) {
                     btn.disabled = false;
@@ -343,6 +377,9 @@ function confirmBakongManual(orderId) {
             }
         })
         .catch(function(e) {
+            if (popupWin) {
+                try { popupWin.close(); } catch(e) {}
+            }
             alert('Network error while confirming payment.');
             if (btn) {
                 btn.disabled = false;

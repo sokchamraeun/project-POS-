@@ -518,11 +518,135 @@ if (!function_exists('evaluate_products_stock')) {
 }
 
 /**
+ * Strict Multi-Line Inventory Capacity Allocator & Clamper.
+ * Accurately tracks ingredient & direct drink stock consumption across ALL cart lines.
+ * Clamps any line item whose requested quantity exceeds remaining physical inventory.
+ * Returns per-line max_stock allowances for frontend controls.
+ */
+if (!function_exists('reconcile_cart_stock')) {
+    function reconcile_cart_stock(mysqli $conn, array &$cart): array {
+        $line_max_stocks = [];
+        if (empty($cart)) return $line_max_stocks;
+
+        // 1. Load active stock inventory
+        $stock_remaining = [];
+        $si_res = $conn->query("SELECT item_id, item_name, quantity, item_type, category FROM stock_items WHERE is_active = 1");
+        if ($si_res) {
+            while ($si = $si_res->fetch_assoc()) {
+                $stock_remaining[(int)$si['item_id']] = [
+                    'name'      => $si['item_name'],
+                    'qty'       => (float)$si['quantity'],
+                    'item_type' => $si['item_type'],
+                    'category'  => $si['category'],
+                ];
+            }
+        }
+
+        // 2. Load recipes for all products in cart
+        $pids = [];
+        foreach ($cart as $it) {
+            $pid = (int)($it['product_id'] ?? 0);
+            if ($pid > 0) $pids[$pid] = true;
+        }
+
+        $prod_recipes = [];
+        if (!empty($pids)) {
+            $pids_in = implode(',', array_keys($pids));
+            $r_res = $conn->query("
+                SELECT r.product_id, r.item_id, r.quantity_required, s.item_name, s.category, s.item_type
+                FROM product_recipes r
+                JOIN stock_items s ON r.item_id = s.item_id
+                WHERE r.product_id IN ($pids_in)
+                  AND s.is_active = 1
+                  AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging')
+            ");
+            if ($r_res) {
+                while ($r = $r_res->fetch_assoc()) {
+                    $prod_recipes[(int)$r['product_id']][] = [
+                        'item_id'           => (int)$r['item_id'],
+                        'quantity_required' => (float)$r['quantity_required'],
+                    ];
+                }
+            }
+        }
+
+        // 3. Sequential Allocation & Clamping per line item
+        foreach ($cart as $idx => &$cItem) {
+            $pId = (int)($cItem['product_id'] ?? 0);
+            $pName = $cItem['product_name'] ?? '';
+            $requestedQty = max(1, min(100, (int)($cItem['qty'] ?? 1)));
+            $recipes = $prod_recipes[$pId] ?? [];
+
+            $max_possible_servings = 100;
+
+            if (!empty($recipes)) {
+                foreach ($recipes as $rec) {
+                    $itemId = $rec['item_id'];
+                    $req = (float)$rec['quantity_required'];
+                    if ($req <= 0) continue;
+
+                    $avail = $stock_remaining[$itemId]['qty'] ?? 0.0;
+                    $servings = (int)floor($avail / $req);
+                    if ($servings < $max_possible_servings) {
+                        $max_possible_servings = max(0, $servings);
+                    }
+                }
+            } else {
+                foreach ($stock_remaining as $sId => $sData) {
+                    if ($sData['item_type'] === 'direct_drink') {
+                        $cleanS = strtolower(str_replace(' ', '', $sData['name']));
+                        $cleanP = strtolower(str_replace(' ', '', $pName));
+                        if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
+                            $max_possible_servings = min($max_possible_servings, max(0, (int)floor($sData['qty'])));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Allowed quantity for this line item
+            $allowedQty = min($requestedQty, $max_possible_servings);
+            $cItem['qty'] = max(1, $allowedQty);
+            $line_max_stocks[$idx] = min(100, $max_possible_servings);
+
+            // Deduct allocated quantity from working stock pool
+            if (!empty($recipes)) {
+                foreach ($recipes as $rec) {
+                    $itemId = $rec['item_id'];
+                    $req = (float)$rec['quantity_required'];
+                    if (isset($stock_remaining[$itemId])) {
+                        $stock_remaining[$itemId]['qty'] = max(0.0, $stock_remaining[$itemId]['qty'] - ($req * $allowedQty));
+                    }
+                }
+            } else {
+                foreach ($stock_remaining as $sId => &$sData) {
+                    if ($sData['item_type'] === 'direct_drink') {
+                        $cleanS = strtolower(str_replace(' ', '', $sData['name']));
+                        $cleanP = strtolower(str_replace(' ', '', $pName));
+                        if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
+                            $sData['qty'] = max(0.0, $sData['qty'] - $allowedQty);
+                            break;
+                        }
+                    }
+                }
+                unset($sData);
+            }
+        }
+        unset($cItem);
+
+        return $line_max_stocks;
+    }
+}
+
+/**
  * Calculates and returns full formatted cart payload for POS & AJAX endpoints.
  */
 if (!function_exists('get_cart_payload')) {
     function get_cart_payload(mysqli $conn): array {
         $cart = $_SESSION['cart'] ?? [];
+        $line_max_stocks = function_exists('reconcile_cart_stock') ? reconcile_cart_stock($conn, $cart) : [];
+        $_SESSION['cart'] = $cart;
+
         $subtotal = 0.0; $total_qty = 0; $item_promos = 0.0;
         $min_price = PHP_FLOAT_MAX; $cheapest_idx = -1;
         $_fpid = defined('FREE_ITEM_PRODUCT_ID') ? (int)FREE_ITEM_PRODUCT_ID : 0;
@@ -533,13 +657,6 @@ if (!function_exists('get_cart_payload')) {
             $q = (int)($item['qty'] ?? 1);
             $p = (float)($item['price'] ?? 0);
             $pId = (int)($item['product_id'] ?? 0);
-
-            // Stock check: clamp quantity if it exceeds currently available stock
-            $max_stock = function_exists('getProductMaxStock') ? getProductMaxStock($conn, $pId) : null;
-            if ($max_stock !== null && $q > $max_stock) {
-                $q = max(1, $max_stock);
-                $_SESSION['cart'][$i]['qty'] = $q;
-            }
 
             $itemLineTotal = $p * $q;
             $subtotal += $itemLineTotal;
@@ -587,6 +704,8 @@ if (!function_exists('get_cart_payload')) {
                 $has_custom = (!empty($item['sweetness']) || !empty($item['ice']) || !empty($item['size_label'])) ? 1 : 0;
             }
 
+            $lineMaxStock = $line_max_stocks[$i] ?? 100;
+
             $items_out[] = [
                 'index'             => $i,
                 'product_id'        => $pId,
@@ -596,7 +715,7 @@ if (!function_exists('get_cart_payload')) {
                 'orig_price'        => (float)($item['orig_price'] ?? $p),
                 'promo_percent'     => (int)($item['promo_percent'] ?? 0),
                 'qty'               => $q,
-                'max_stock'         => ($max_stock !== null) ? $max_stock : 100,
+                'max_stock'         => $lineMaxStock,
                 'image'             => $item['image'] ?? '',
                 'size_code'         => $item['size_code']  ?? '',
                 'size_label'        => $item['size_label'] ?? '',

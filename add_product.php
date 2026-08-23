@@ -11,6 +11,7 @@ if (isset($_POST['add_product'])) {
     $price       = round((float)($_POST['price'] ?? 0), 2);
     $cost_price  = round((float)($_POST['cost_price'] ?? 0), 2);
     $category    = $_POST['category']    ?? '';
+    $product_type = trim($_POST['product_type'] ?? 'recipe');
     $is_avail    = isset($_POST['is_available']) ? 1 : 0;
     $badge_text  = substr(trim($_POST['badge_text'] ?? ''), 0, 40) ?: null;
     $promo_percent = max(0, min(100, (int)($_POST['promo_percent'] ?? 0)));
@@ -48,8 +49,8 @@ if (isset($_POST['add_product'])) {
             if ($stmt->execute()) {
                 $new_id = $stmt->insert_id;
 
-                // ── Save Recipe / Bill of Materials (BOM) ──
-                if (!empty($_POST['recipe_ingredient_id']) && is_array($_POST['recipe_ingredient_id'])) {
+                // ── Save Recipe / Bill of Materials (BOM) for Made-to-Order Drinks only ──
+                if ($product_type !== 'direct_drink' && !empty($_POST['recipe_ingredient_id']) && is_array($_POST['recipe_ingredient_id'])) {
                     $insRec = $conn->prepare("INSERT INTO product_recipes (product_id, item_id, quantity_required, unit, notes) VALUES (?, ?, ?, ?, ?)");
                     $ingIds  = $_POST['recipe_ingredient_id'];
                     $ingQtys = $_POST['recipe_amount_used'] ?? [];
@@ -109,6 +110,20 @@ $stockRes = $conn->query("SELECT item_id AS ingredient_id, item_name AS ingredie
 if ($stockRes) {
     while ($si = $stockRes->fetch_assoc()) {
         $allIngredients[] = $si;
+    }
+}
+
+$directDrinkList = [];
+foreach ($allIngredients as $ing) {
+    if (($ing['item_type'] ?? '') === 'direct_drink' || ($ing['category'] ?? '') === 'Direct Drinks') {
+        $directDrinkList[] = [
+            'id'       => (int)$ing['ingredient_id'],
+            'name'     => $ing['ingredient_name'],
+            'qty'      => (float)$ing['stock_quantity'],
+            'unit'     => $ing['unit'] ?: 'cans',
+            'cost'     => (float)$ing['cost_per_unit'],
+            'category' => $ing['category'] ?? ''
+        ];
     }
 }
 
@@ -887,11 +902,34 @@ html[data-theme="light"] .recipe-select option {
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-    font-family: Poppins, sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    font-family: 'Kantumruy Pro', Poppins, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0d1117;
+    color: #1e293b;
     min-height: 100vh;
-    font-size: 14px;
+    font-size: 13.5px;
+}
+
+/* ── MODAL DIALOG CONTAINER ── */
+.modal-dialog-box {
+    background: #ffffff !important;
+    border-radius: 24px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45) !important;
+    color: #1e293b !important;
+    overflow: hidden !important;
+    transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.modal-dialog-box.direct-drink-mode {
+    max-width: 860px !important;
+}
+
+/* ── MODAL HEADER ── */
+.modal-hdr-dark {
+    background: #141724 !important;
+    padding: 18px 26px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 /* ── 3-COLUMN RESPONSIVE LAYOUT ── */
@@ -900,238 +938,396 @@ body {
     margin: 0 auto;
     padding: 0;
     display: grid;
-    grid-template-columns: 240px 300px 1fr;
-    gap: 22px;
-    align-items: start;
+    grid-template-columns: 230px 310px 1fr;
+    gap: 18px;
+    align-items: stretch;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @media (min-width: 1280px) {
     .page-wrap {
-        grid-template-columns: 250px 310px 1fr;
+        grid-template-columns: 240px 330px 1fr;
     }
 }
 @media (max-width: 1080px) {
     .page-wrap { grid-template-columns: 1fr; }
 }
-
-.recipe-table select {
-    min-width: 240px;
+.page-wrap.direct-drink-mode {
+    grid-template-columns: 260px minmax(360px, 480px);
+    max-width: 820px;
+    margin: 0 auto;
+    justify-content: center;
+}
+.page-wrap.direct-drink-mode #recipeColumnWrap,
+.page-wrap.direct-drink-mode .recipe-column-wrap {
+    display: none !important;
 }
 
-@keyframes scaleUp {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+/* ── WHITE SECTION CARDS ── */
+.section-card {
+    background: #ffffff !important;
+    border: 1.5px solid #eef1f6 !important;
+    border-radius: 20px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
 }
-.animate-scaleUp { animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.section-head {
+    padding: 14px 18px !important;
+    border-bottom: 1px solid #f1f4f9 !important;
+    background: #ffffff !important;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.section-head-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-icon-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    background: #eff2fe;
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+}
+.section-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+}
 
-/* ── IMAGE PANEL ── */
-.image-panel {
-    display: flex; flex-direction: column; gap: 10px;
+/* ── IMAGE DROPZONE ── */
+.no-image {
+    min-height: 230px;
+    width: 100%;
+    border-radius: 18px;
+    background: #fafbfc;
+    border: 2px dashed #dbe2ea;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all .2s ease;
+    padding: 20px 14px;
+    text-align: center;
+}
+.no-image:hover, .no-image.drag-over {
+    border-color: #6366f1;
+    background: #f5f7ff;
+}
+.img-cloud-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: #eff2fe;
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.12);
 }
 .img-preview-wrap {
-    height: 220px;
+    height: 230px;
     width: 100%;
-    border-radius: var(--radius);
+    border-radius: 18px;
     overflow: hidden;
-    background: #141414;
-    border: 1px solid var(--border);
+    background: #fafbfc;
+    border: 1.5px solid #eef1f6;
     position: relative;
     cursor: pointer;
 }
 .img-preview-wrap img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform .3s;
-}
-.img-preview-wrap:hover img { transform: scale(1.03); }
-.img-overlay {
-    position: absolute; inset: 0;
-    background: rgba(0,0,0,.55);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 8px;
-    opacity: 0; transition: opacity .25s;
-    color: #fff; font-size: 13px; font-weight: 600;
-}
-.img-overlay i { font-size: 24px; color: var(--accent); }
-.img-preview-wrap:hover .img-overlay { opacity: 1; }
-.img-preview-wrap.drag-over { border-color: var(--accent); }
-.img-preview-wrap.drag-over .img-overlay { opacity: 1; }
-
-.no-image {
-    height: 220px;
     width: 100%;
-    border-radius: var(--radius);
-    background: #141414;
-    border: 2px dashed #2a2a2a;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 8px;
-    color: var(--muted); font-size: 13px;
-    cursor: pointer; transition: border-color .2s;
+    height: 100%;
+    object-fit: contain;
+    display: block;
 }
-.no-image:hover, .no-image.drag-over { border-color: var(--accent); color: var(--accent); }
-.no-image i { font-size: 28px; }
-.img-file-info {
-    font-size: 11px; color: var(--muted); text-align: center;
-    padding: 6px 10px;
-    background: #111; border: 1px solid #1e1e1e;
-    border-radius: 10px;
+.img-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity .2s ease;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
 }
-.img-file-info span { color: var(--accent); font-weight: 500; }
+.img-preview-wrap:hover .img-overlay { opacity: 1; }
+.img-file-status {
+    background: #f1f4f9;
+    border-radius: 9999px;
+    padding: 7px 14px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 500;
+}
 
-/* ── FORM PANEL ── */
-.form-panel { display: flex; flex-direction: column; gap: 18px; }
-
-.section-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: visible !important;
+/* ── PRODUCT TYPE SWITCHER ── */
+.pt-segment {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    background: #f1f4f9;
+    padding: 5px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 2px;
+}
+.pt-btn {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: transparent;
+    border: 1.5px solid transparent;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
     position: relative;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    transition: transform 0.25s ease, border-color 0.25s ease;
+    user-select: none;
+    text-align: center;
 }
-.section-card:hover {
-    border-color: rgba(209,144,75,0.3);
+.pt-btn .pt-icon {
+    font-size: 14px;
+    display: inline-block;
 }
-.section-head {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    position: relative;
-    background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+.pt-btn .pt-icon.tilted {
+    transform: rotate(-35deg);
 }
-.section-head h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.section-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.pt-btn .pt-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.pt-btn:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.04);
+    color: #334155;
+}
+.pt-btn.active {
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+    border-color: #4f46e5 !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
+}
+.pt-btn.active .pt-icon,
+.pt-btn.active .pt-title {
+    color: #ffffff !important;
+}
 
-/* ── FIELDS ── */
-.field { display: flex; flex-direction: column; gap: 6px; }
+/* ── INPUT FIELDS ── */
+.field { display: flex; flex-direction: column; gap: 5px; }
 label.flabel {
-    font-size: 12px; font-weight: 500; color: #c0a070; letter-spacing: .2px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    letter-spacing: 0.1px;
 }
+.flabel .req { color: #ef4444; }
 .input-wrap { position: relative; }
 .input-wrap .prefix {
     position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
-    color: var(--muted); font-size: 14px; pointer-events: none;
+    color: #94a3b8; font-size: 14px; font-weight: 600; pointer-events: none;
 }
 input[type=text], input[type=number], textarea, select {
     width: 100%;
     padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: #0f0f0f;
-    color: var(--text);
-    font-family: Poppins, sans-serif;
+    border-radius: 12px;
+    border: 1.5px solid #e2e8f0;
+    background: #ffffff;
+    color: #1e293b;
+    font-family: inherit;
     font-size: 13px;
     transition: border-color .18s, box-shadow .18s;
     outline: none;
 }
-.input-wrap input[type=number] { padding-left: 30px; }
+.input-wrap input[type=number] { padding-left: 28px; }
 input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(209,144,75,.15);
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
+input::placeholder { color: #94a3b8; }
 
 select.cat-select {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: #0f0f12 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%23d1904b' viewBox='0 0 16 16'><path d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/></svg>") no-repeat calc(100% - 14px) center;
-    color: var(--text, #f0f0f0);
-    font-family: Poppins, sans-serif;
-    font-size: 13px;
     appearance: none;
     -webkit-appearance: none;
     cursor: pointer;
-    transition: all .2s ease;
-}
-select.cat-select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(209,144,75,0.2);
-}
-select.cat-select option {
-    background: #18181c;
-    color: #ffffff;
-    padding: 8px;
+    background: #ffffff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'><path d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/></svg>") no-repeat calc(100% - 14px) center;
 }
 
 /* ── TOGGLE SWITCH ── */
 .toggle-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 4px 0;
+    padding: 2px 0;
 }
-.toggle-info h4 { font-size: 13px; font-weight: 600; color: #fff; }
-.toggle-info p { font-size: 11px; color: var(--muted); }
-
+.toggle-info h4 { font-size: 12.5px; font-weight: 700; color: #1e293b; }
+.toggle-info p { font-size: 11px; color: #94a3b8; margin-top: 1px; }
 .toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 44px;
-    height: 24px;
+    position: relative; display: inline-block; width: 44px; height: 24px;
 }
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
 .toggle-track {
     position: absolute; cursor: pointer; inset: 0;
-    background-color: #24242b; border: 1px solid #333;
-    border-radius: 24px; transition: .25s;
+    background-color: #cbd5e1; border-radius: 9999px; transition: .25s;
 }
 .toggle-track::before {
-    position: absolute; content: ""; height: 16px; width: 16px;
-    left: 3px; bottom: 3px; background-color: #777;
+    position: absolute; content: ""; height: 18px; width: 18px;
+    left: 3px; bottom: 3px; background-color: #ffffff;
     border-radius: 50%; transition: .25s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-.toggle-switch input:checked + .toggle-track { background-color: rgba(62,207,112,.2); border-color: var(--success); }
-.toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); background-color: var(--success); }
+.toggle-switch input:checked + .toggle-track { background-color: #10b981; }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(20px); }
 
-/* ── SAVE BUTTON ── */
-.btn-save {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #000; font-weight: 700; font-size: 13px;
-    padding: 12px 20px; border-radius: 12px; border: none;
-    cursor: pointer; transition: filter .2s, transform .2s;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    width: 100%;
+/* ── BOM CHIP BUTTONS ── */
+.btn-chip-pkg {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border-radius: 9999px; background: #fef3c7; border: 1px solid #fde68a;
+    color: #d97706; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all .2s ease;
 }
-.btn-save:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.btn-chip-pkg:hover { background: #fde68a; }
+.btn-chip-ing {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border-radius: 9999px; background: #ede9fe; border: 1px solid #ddd6fe;
+    color: #6366f1; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all .2s ease;
+}
+.btn-chip-ing:hover { background: #ddd6fe; }
 
-/* ── Recipe Table & Chips ── */
-.recipe-row {
-    transition: background-color 0.15s ease;
+/* ── RECIPE TABLE ── */
+.recipe-table-wrap {
+    border: 1px solid #e2e8f0; border-radius: 16px; background: #f8fafc; overflow: hidden;
 }
-.recipe-row:hover {
-    background-color: rgba(209, 144, 75, 0.08) !important;
+.recipe-thead {
+    background: #f8fafc; color: #64748b; font-size: 10.5px; font-weight: 700;
 }
-.unit-label-pill {
-    padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
-    background: #141418; border: 1px solid #282834; color: #d1904b;
-}
-.unit-price-label {
-    color: var(--text);
-    font-weight: 600;
-}
-.unit-name-label {
-    color: #888;
-}
-.selling-price-disp {
-    color: var(--text);
-}
-.btn-add-ing {
-    display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
-    border-radius: 10px; border: 1px dashed rgba(209,144,75,0.5);
-    background: rgba(209,144,75,0.06); color: #d1904b; font-size: 12px; font-weight: 600;
-    transition: all .2s; cursor: pointer;
-}
-.btn-add-ing:hover {
-    background: rgba(209,144,75,0.15); border-color: #d1904b;
+.recipe-tbody { background: #ffffff; }
+.no-recipe-box {
+    padding: 32px 16px; text-align: center;
 }
 
-/* ── ALERTS ── */
-.alert {
-    padding: 12px 16px; border-radius: 10px; font-size: 13px;
-    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+/* ── RECIPE SUMMARY BAR ── */
+.recipe-summary-box {
+    background: #0f1422;
+    border-radius: 16px;
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #ffffff;
 }
-.alert-danger { background: rgba(255,77,77,.12); color: var(--danger); border: 1px solid rgba(255,77,77,.25); }
+.summary-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+.selling-price-disp { color: #ffffff; }
+
+/* ── DIRECT DRINK INFO CARD ── */
+.dd-info-card {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 14px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 11.5px;
+    color: #0369a1;
+    line-height: 1.4;
+}
+
+/* ── MODAL FOOTER BAR ── */
+.modal-footer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    margin-top: 6px;
+    border-top: 1px solid #f1f4f9;
+}
+.btn-cancel-link {
+    color: #64748b;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    transition: all .2s;
+    text-decoration: none;
+}
+.btn-cancel-link:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+}
+.btn-save-draft {
+    background: #f1f4f9;
+    color: #475569;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all .2s;
+}
+.btn-save-draft:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+.btn-submit-primary {
+    background: #4f46e5;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 11px 24px;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+    transition: all .2s;
+}
+.btn-submit-primary:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.45);
+}
+
+@keyframes scaleUp {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+.animate-scaleUp { animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 </style>
 <link rel="stylesheet" href="assets/css/product_cropper.css">
 </head>
@@ -1141,32 +1337,35 @@ select.cat-select option {
 <main class="app-main flex-1 h-full overflow-y-auto p-4 md:p-6 relative">
 
 <!-- ADD PRODUCT MODAL BACKDROP -->
-<div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-md overflow-y-auto">
-    <!-- MODAL DIALOG CONTAINER (Expanded horizontal width for Recipe BOM) -->
-    <div class="relative w-[96vw] max-w-[1380px] bg-[#121215] border border-[#24242b] rounded-2xl shadow-2xl flex flex-col text-white my-auto animate-scaleUp" style="overflow: visible !important;">
+<div class="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
+    <!-- MODAL DIALOG CONTAINER -->
+    <div id="addModalDialog" class="modal-dialog-box relative w-[96vw] max-w-[1380px] bg-white rounded-[20px] shadow-2xl flex flex-col my-auto animate-scaleUp">
         
         <!-- MODAL HEADER -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-[#24242b] bg-[#18181c]/90 backdrop-blur-md shrink-0 rounded-t-2xl">
+        <div class="modal-hdr-dark shrink-0">
             <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-[#d1904b]/15 border border-[#d1904b]/30 flex items-center justify-center text-[#d1904b]">
-                    <i class="fa-solid fa-plus-circle"></i>
+                <div class="w-10 h-10 rounded-xl bg-[#232738] flex items-center justify-center text-white text-base">
+                    <i class="fa-solid fa-plus"></i>
                 </div>
                 <div>
-                    <h2 class="text-base md:text-lg font-bold text-white leading-tight">
-                        Add New Product
+                    <h2 class="text-base font-bold text-white leading-tight">
+                        បន្ថែមមុខទំនិញថ្មី (Add New Product)
                     </h2>
+                    <p class="text-xs text-[#8c93a8] font-normal mt-0.5">
+                        កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)
+                    </p>
                 </div>
             </div>
             
-            <a href="products.php" class="w-9 h-9 rounded-xl bg-[#22222a] text-[#888] hover:text-white hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Close Modal (Esc)">
-                <i class="fa-solid fa-xmark text-lg"></i>
+            <a href="products.php" class="w-9 h-9 rounded-xl bg-[#232738] text-[#8c93a8] hover:text-white hover:bg-[#2d3246] flex items-center justify-center transition-all" title="Close Modal (Esc)">
+                <i class="fa-solid fa-xmark text-sm"></i>
             </a>
         </div>
 
         <!-- MODAL BODY -->
-        <div class="p-5 md:p-6" style="overflow: visible !important;">
+        <div class="p-5 md:p-6 bg-white" style="overflow: visible !important;">
             <?php if ($error): ?>
-            <div class="alert alert-danger">
+            <div class="alert alert-danger mb-4 p-3.5 rounded-xl bg-red-50 text-red-600 border border-red-200 text-xs flex items-center gap-2">
                 <i class="fa-solid fa-circle-exclamation"></i>
                 <?= htmlspecialchars($error) ?>
             </div>
@@ -1176,143 +1375,221 @@ select.cat-select option {
                 <input type="hidden" name="add_product" value="1">
                 <input type="file" name="image" id="f_img_input" accept="image/*" style="display:none">
                 <input type="hidden" name="cost_price" id="f_cost_price" value="0.00">
+                <input type="hidden" name="product_type" id="product_type_input" value="recipe">
 
-                <div class="page-wrap">
+                <div class="page-wrap" id="addPageWrap">
                     
                     <!-- ════ COLUMN 1: PRODUCT IMAGE ════ -->
                     <div class="section-card">
                         <div class="section-head">
-                            <h3><i class="fa-solid fa-image text-[#d1904b]"></i> Product Image</h3>
+                            <div class="section-head-title">
+                                <div class="section-icon-badge"><i class="fa-regular fa-image"></i></div>
+                                <span>រូបភាពទំនិញ (Product Image)</span>
+                            </div>
                         </div>
-                        <div class="section-body flex flex-col gap-3">
+                        <div class="section-body flex flex-col justify-between">
                             <div class="image-panel">
                                 <div class="no-image" id="noImgBox" onclick="document.getElementById('f_img_input').click()">
-                                    <i class="fa-solid fa-cloud-arrow-up text-3xl mb-2 text-[#d1904b]"></i>
-                                    <span class="text-xs font-semibold">Click or drag to upload image</span>
+                                    <div class="img-cloud-circle">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    </div>
+                                    <span class="font-bold text-slate-700 text-xs">ចុច ឬទម្លាក់រូបភាពនៅទីនេះ</span>
+                                    <span class="text-[11px] text-slate-400">PNG, JPG ឬ WEBP (អតិបរមា 2MB)</span>
                                 </div>
                                 <div class="img-preview-wrap" id="imgPreviewWrap" style="display:none" onclick="document.getElementById('f_img_input').click()">
                                     <img id="imgPreview" src="" alt="Preview">
                                     <div class="img-overlay">
-                                        <i class="fa-solid fa-camera text-xl"></i>
-                                        <span>Change Image</span>
+                                        <i class="fa-solid fa-camera text-xl mb-1"></i>
+                                        <span>ប្តូររូបភាព (Change Image)</span>
                                     </div>
                                 </div>
-                                <div class="img-file-info text-center" id="fileInfo">
-                                    <span id="imgStatusText" class="text-[11px] text-[#888]">No image selected</span>
-                                </div>
+                            </div>
+                            <div class="img-file-status" id="fileInfo">
+                                <span id="imgStatusText">រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- ════ COLUMN 2: PRODUCT DETAILS ════ -->
-                    <div class="flex flex-col gap-4">
-                        <div class="section-card">
-                            <div class="section-head">
-                                <h3><i class="fa-solid fa-file-pen text-[#d1904b]"></i> Product Details</h3>
+                    <div class="section-card">
+                        <div class="section-head">
+                            <div class="section-head-title">
+                                <div class="section-icon-badge"><i class="fa-solid fa-sliders"></i></div>
+                                <span>ព័ត៌មានទំនិញ (Product Details)</span>
                             </div>
-                            <div class="section-body flex flex-col gap-3.5">
-                                <div class="field">
-                                    <label class="flabel" for="f_name">Product Name *</label>
-                                    <input type="text" name="name" id="f_name" value="" placeholder="e.g. Oolong Macchiato" required>
+                        </div>
+                        <div class="section-body flex flex-col gap-3.5">
+                            
+                            <!-- PRODUCT TYPE SELECTOR -->
+                            <div class="field">
+                                <label class="flabel">ប្រភេទផលិតកម្ម (PRODUCT TYPE) <span class="req">*</span></label>
+                                <div class="pt-segment">
+                                    <button type="button" class="pt-btn active" id="ptBtnRecipe" onclick="setProductType('recipe')">
+                                        <i class="fa-solid fa-mug-hot pt-icon"></i>
+                                        <span class="pt-title">កែច្នៃផ្ទាល់</span>
+                                    </button>
+                                    <button type="button" class="pt-btn" id="ptBtnDirect" onclick="setProductType('direct_drink')">
+                                        <i class="fa-solid fa-box-archive pt-icon"></i>
+                                        <span class="pt-title">ទំនិញស្រាប់</span>
+                                    </button>
                                 </div>
+                            </div>
 
-                                <!-- CATEGORY -->
-                                <div class="field">
-                                    <label class="flabel" for="f_cat">Category *</label>
-                                    <select name="category" id="f_cat" class="cat-select" required>
-                                        <option value="">Select Category…</option>
-                                        <?php foreach ($cats as $slug => $label): ?>
-                                        <option value="<?= htmlspecialchars($slug) ?>">
-                                            <?= htmlspecialchars($label) ?>
+                            <!-- Direct Drink Info Notice -->
+                            <div id="directDrinkInfoCard" class="dd-info-card" style="display:none;">
+                                <i class="fa-solid fa-circle-check text-base text-indigo-600 mt-0.5 shrink-0"></i>
+                                <div>
+                                    <strong class="text-indigo-900 block font-semibold text-xs">ទំនិញភេសជ្ជៈស្រាប់ (Direct Drink Stock)</strong>
+                                    <span class="text-[11px] text-indigo-700">កាត់ស្តុកផ្ទាល់តាមចំនួនកំប៉ុង/ដប ដោយមិនចាំបាច់កំណត់រូបមន្តគ្រឿងផ្សំឡើយ។</span>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="flabel" for="f_name">ឈ្មោះទំនិញ (PRODUCT NAME) <span class="req">*</span></label>
+
+                                <?php if (!empty($directDrinkList)): ?>
+                                <!-- Direct Drink Quick Selector (Only shown for Direct Drink product type) -->
+                                <div id="directDrinkPickerWrap" style="display:none;">
+                                    <select id="directDrinkSelect" onchange="onSelectDirectDrink(this)" class="w-full text-xs font-semibold p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 outline-none focus:border-indigo-500">
+                                        <option value="">-- ជ្រើសរើសទំនិញពីស្តុក (Select Stock Drink) --</option>
+                                        <?php foreach ($directDrinkList as $dd): ?>
+                                         <option value="<?= htmlspecialchars($dd['name']) ?>" 
+                                                data-cost="<?= $dd['cost'] ?>" 
+                                                data-qty="<?= (int)$dd['qty'] ?>" 
+                                                data-unit="<?= htmlspecialchars($dd['unit']) ?>">
+                                            <?= htmlspecialchars($dd['name']) ?>
                                         </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+                                <?php endif; ?>
 
-                                <!-- SELLING PRICE -->
+                                <div class="relative" id="recipeNameWrap">
+                                    <input type="text" name="name" id="f_name" value="" placeholder="ឧ. Oolong Macchiato ឬ Bird's Nest Latte" autocomplete="off" required oninput="checkDirectStockMatch(this.value)">
+                                </div>
+                            </div>
+
+                            <!-- CATEGORY -->
+                            <div class="field">
+                                <label class="flabel" for="f_cat">ក្រុមប្រភេទ (CATEGORY) <span class="req">*</span></label>
+                                <select name="category" id="f_cat" class="cat-select" required>
+                                    <option value="">Select Category…</option>
+                                    <?php foreach ($cats as $slug => $label): ?>
+                                    <option value="<?= htmlspecialchars($slug) ?>">
+                                        <?= htmlspecialchars($label) ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <!-- MADE-TO-ORDER SELLING PRICE FIELD -->
+                            <div class="field" id="recipePriceWrap">
+                                <label class="flabel" for="f_price">តម្លៃលក់ (SELLING PRICE) <span class="req">*</span></label>
+                                <div class="input-wrap">
+                                    <span class="prefix">$</span>
+                                    <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
+                                        required class="has-prefix font-bold text-slate-800"
+                                        placeholder="0.00"
+                                        oninput="syncSellingPrice(this.value)">
+                                </div>
+                            </div>
+
+                            <!-- DIRECT DRINK 2-COLUMN PRICES ROW -->
+                            <div id="directPricesRow" class="grid grid-cols-2 gap-3.5" style="display:none;">
                                 <div class="field">
-                                    <label class="flabel" for="f_price">Selling Price *</label>
+                                    <label class="flabel" for="f_price_dd">តម្លៃលក់ (Selling Price) <span class="req">*</span></label>
                                     <div class="input-wrap">
                                         <span class="prefix">$</span>
-                                        <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
-                                            required class="has-prefix" placeholder="0.00">
+                                        <input type="number" id="f_price_dd" step="0.01" min="0" max="9999.99" class="has-prefix font-bold text-slate-800" placeholder="0.00" oninput="syncSellingPrice(this.value)">
                                     </div>
                                 </div>
-
-                                <!-- AVAILABILITY -->
                                 <div class="field">
-                                    <label class="flabel" for="availToggle">Availability</label>
-                                    <div class="toggle-row">
-                                        <div class="toggle-info">
-                                            <h4>Show on menu</h4>
-                                            <p class="text-[11px] text-[#777]">Toggle off to hide this product.</p>
-                                        </div>
-                                        <label class="toggle-switch">
-                                            <input type="checkbox" name="is_available" id="availToggle" value="1" checked>
-                                            <span class="toggle-track"></span>
-                                        </label>
+                                    <label class="flabel" for="f_direct_cost">ថ្លៃដើមទិញចូល (Purchase Cost) <span class="req">*</span></label>
+                                    <div class="input-wrap">
+                                        <span class="prefix">$</span>
+                                        <input type="number" id="f_direct_cost" step="0.01" min="0" max="9999.99" class="has-prefix font-bold text-slate-800" placeholder="0.00" oninput="onDirectCostChange(this.value)">
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <button type="submit" class="btn-save">
-                            <i class="fa-solid fa-plus"></i> Add Product
-                        </button>
+                            <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
+                            <div id="directMarginCard" class="w-full bg-[#ecfdf5] border border-[#a7f3d0] rounded-xl px-4 py-3 flex items-center justify-between" style="display:none;">
+                                <span class="text-xs font-bold text-[#065f46]">ចំណេញដុល (Profit Margin):</span>
+                                <span id="directMarginDisp" class="text-sm font-black text-[#059669]">+$0.00 (+0.0%)</span>
+                            </div>
+
+                            <!-- AVAILABILITY -->
+                            <div class="field mt-1">
+                                <div class="toggle-row">
+                                    <div class="toggle-info">
+                                        <h4 class="font-bold text-slate-800 text-xs">បង្ហាញលើម៉ឺនុយ (Show on Menu)</h4>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="is_available" id="availToggle" value="1" checked>
+                                        <span class="toggle-track"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ════ COLUMN 3: RECIPE & INVENTORY (BILL OF MATERIALS - BOM) ════ -->
-                    <div class="section-card flex-1">
+                    <div class="section-card flex-1 recipe-column-wrap" id="recipeColumnWrap">
                         <div class="section-head">
-                            <h3><i class="fa-solid fa-mortar-pestle text-[#d1904b]"></i> Recipe & Ingredients (BOM)</h3>
+                            <div class="section-head-title">
+                                <div class="section-icon-badge"><i class="fa-solid fa-flask"></i></div>
+                                <span>រូបមន្ត & គ្រឿងផ្សំ (BOM)</span>
+                            </div>
                             <div class="flex items-center gap-2">
-                                <button type="button" onclick="addPackagingSetRow()" class="btn-add-ing border border-[#d1904b]/40 text-[#d1904b] bg-[#d1904b]/10 hover:bg-[#d1904b]/20" title="Add default packaging set (Cup + Lid + Straw + Sleeve)">
-                                    <i class="fa-solid fa-box-open text-xs"></i> + ឈុតវេចខ្ចប់ (Packaging Set)
+                                <button type="button" onclick="addPackagingSetRow()" class="btn-chip-pkg" title="Add default packaging set (Cup + Lid + Straw + Sleeve)">
+                                    <i class="fa-solid fa-box-open text-xs"></i> + ឈុតវេចខ្ចប់
                                 </button>
-                                <button type="button" onclick="addRecipeRow()" class="btn-add-ing">
-                                    <i class="fa-solid fa-plus text-xs"></i> Add Ingredient
+                                <button type="button" onclick="addRecipeRow()" class="btn-chip-ing">
+                                    <i class="fa-solid fa-plus text-xs"></i> + ថែមគ្រឿងផ្សំ
                                 </button>
                             </div>
                         </div>
-                        <div class="section-body flex flex-col gap-4">
+                        <div class="section-body flex flex-col justify-between">
                             
                             <!-- Recipe Table -->
-                            <div class="recipe-table-wrap overflow-x-auto rounded-xl">
+                            <div class="recipe-table-wrap overflow-x-auto">
                                 <table class="w-full text-left text-xs recipe-table">
-                                    <thead class="recipe-thead uppercase tracking-wider font-semibold">
+                                    <thead class="recipe-thead uppercase tracking-wider">
                                         <tr>
-                                            <th class="py-2.5 px-3">Raw Ingredient</th>
-                                            <th class="py-2.5 px-2 text-center w-28">Qty Required</th>
-                                            <th class="py-2.5 px-2 text-right">Unit Cost</th>
-                                            <th class="py-2.5 px-2 text-right">Total Cost</th>
+                                            <th class="py-2.5 px-3">គ្រឿងផ្សំ (RAW MATERIAL)</th>
+                                            <th class="py-2.5 px-2 text-center w-28">ចំនួន</th>
+                                            <th class="py-2.5 px-2 text-right">តម្លៃរាយ</th>
+                                            <th class="py-2.5 px-2 text-right">សរុប</th>
                                             <th class="py-2.5 px-2 text-center w-10"></th>
                                         </tr>
                                     </thead>
-                                    <tbody id="recipeRowsContainer" class="recipe-tbody divide-y">
+                                    <tbody id="recipeRowsContainer" class="recipe-tbody divide-y divide-slate-100">
                                     </tbody>
                                 </table>
 
                                 <!-- Empty State -->
-                                <div id="noRecipeMsg" class="no-recipe-box flex flex-col items-center justify-center py-6 text-center">
-                                    <i class="fa-solid fa-mortar-pestle text-2xl text-[#d1904b] mb-1 opacity-70"></i>
-                                    <p class="no-recipe-title text-xs font-semibold">No Recipe Ingredients Linked</p>
-                                    <p class="no-recipe-sub text-[11px] max-w-xs mt-0.5">Click "Add Ingredient" to connect raw materials.</p>
+                                <div id="noRecipeMsg" class="no-recipe-box flex flex-col items-center justify-center">
+                                    <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+                                        <i class="fa-solid fa-mortar-pestle text-xl"></i>
+                                    </div>
+                                    <p class="text-xs font-bold text-slate-700">មិនទាន់មានគ្រឿងផ្សំនៅឡើយ</p>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">ចុច "+ ថែមគ្រឿងផ្សំ" ដើម្បីគណនាតម្លៃដើមផលិតផល (COGS)</p>
                                 </div>
                             </div>
 
                             <!-- Live Recipe COGS & Gross Profit Calculator -->
-                            <div class="recipe-summary-box p-3.5 rounded-xl text-xs flex items-center justify-between">
+                            <div class="recipe-summary-box">
                                 <div class="space-y-0.5">
-                                    <div class="text-[10px] uppercase font-bold summary-label">Estimated Recipe Cost (COGS)</div>
-                                    <div class="text-lg font-black text-[#d1904b]">$<span id="totalRecipeCogs">0.00</span></div>
+                                    <div class="summary-label">ថ្លៃដើម (COGS)</div>
+                                    <div class="text-lg font-black text-[#f59e0b]">$<span id="totalRecipeCogs">0.00</span></div>
                                 </div>
                                 <div class="space-y-0.5 text-center">
-                                    <div class="text-[10px] uppercase font-bold summary-label">Selling Price</div>
-                                    <div class="text-lg font-black selling-price-disp">$<span id="dispSellingPrice">0.00</span></div>
+                                    <div class="summary-label">តម្លៃលក់</div>
+                                    <div class="text-lg font-black text-white">$<span id="dispSellingPrice">0.00</span></div>
                                 </div>
                                 <div class="space-y-0.5 text-right">
-                                    <div class="text-[10px] uppercase font-bold summary-label">Gross Profit Margin</div>
-                                    <div id="grossMarginWrap" class="text-lg font-black text-[#3ecf70]">
+                                    <div class="summary-label">ប្រាក់ចំណេញ (MARGIN)</div>
+                                    <div id="grossMarginWrap" class="text-lg font-black text-[#10b981]">
                                         <span id="grossMarginDol">$0.00</span>
                                     </div>
                                 </div>
@@ -1322,6 +1599,21 @@ select.cat-select option {
                     </div>
 
                 </div><!-- /.page-wrap -->
+
+                <!-- MODAL BOTTOM ACTION BAR -->
+                <div class="modal-footer-bar">
+                    <a href="products.php" class="btn-cancel-link">
+                        បោះបង់ (Cancel)
+                    </a>
+                    <div class="flex items-center gap-2.5">
+                        <button type="button" onclick="window.location.href='products.php'" class="btn-save-draft">
+                            រក្សាទុកជាព្រាង (Save Draft)
+                        </button>
+                        <button type="submit" class="btn-submit-primary">
+                            <i class="fa-solid fa-check"></i> រក្សាទុកទំនិញ (Add Product)
+                        </button>
+                    </div>
+                </div>
             </form>
         </div><!-- /.modal-body -->
     </div><!-- /.modal-dialog -->
@@ -1961,6 +2253,196 @@ refreshCrdDisabledStates();
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         window.location.href = 'products.php';
+    }
+});
+
+// ── Direct Stock Link & Product Type Switching ──
+const directDrinksMap = <?= json_encode($directDrinkList, JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+
+function setProductType(type) {
+    const isDirect = (type === 'direct_drink');
+    const input = document.getElementById('product_type_input');
+    if (input) input.value = isDirect ? 'direct_drink' : 'recipe';
+
+    const btnRecipe = document.getElementById('ptBtnRecipe');
+    const btnDirect = document.getElementById('ptBtnDirect');
+    if (btnRecipe) btnRecipe.classList.toggle('active', !isDirect);
+    if (btnDirect) btnDirect.classList.toggle('active', isDirect);
+
+    const modalDialog = document.getElementById('addModalDialog');
+    const pageWrap = document.getElementById('addPageWrap');
+    const recipeCol = document.getElementById('recipeColumnWrap');
+    const ddInfo = document.getElementById('directDrinkInfoCard');
+    const ddPricesRow = document.getElementById('directPricesRow');
+    const recipePriceWrap = document.getElementById('recipePriceWrap');
+    const ddMarginCard = document.getElementById('directMarginCard');
+    const ddPicker = document.getElementById('directDrinkPickerWrap');
+
+    if (modalDialog) modalDialog.classList.toggle('direct-drink-mode', isDirect);
+    if (pageWrap) pageWrap.classList.toggle('direct-drink-mode', isDirect);
+
+    if (recipeCol) {
+        recipeCol.style.display = isDirect ? 'none' : '';
+        // Toggle required on recipe fields
+        recipeCol.querySelectorAll('select, input').forEach(el => {
+            if (isDirect) {
+                if (el.hasAttribute('required')) {
+                    el.setAttribute('data-was-required', 'true');
+                    el.removeAttribute('required');
+                }
+            } else {
+                if (el.getAttribute('data-was-required') === 'true') {
+                    el.setAttribute('required', 'required');
+                }
+            }
+        });
+    }
+
+    if (ddInfo) ddInfo.style.display = isDirect ? 'flex' : 'none';
+    if (ddPricesRow) ddPricesRow.style.display = isDirect ? 'grid' : 'none';
+    if (recipePriceWrap) recipePriceWrap.style.display = isDirect ? 'none' : 'block';
+    if (ddMarginCard) ddMarginCard.style.display = isDirect ? 'flex' : 'none';
+    
+    // Show ONLY 1 box for product name: dropdown in Direct Drink, text input in Made-to-Order
+    const nameWrap = document.getElementById('recipeNameWrap');
+    if (ddPicker) ddPicker.style.display = isDirect ? 'block' : 'none';
+    if (nameWrap) nameWrap.style.display = isDirect ? 'none' : 'block';
+
+    if (isDirect) {
+        const costInp = document.getElementById('f_direct_cost');
+        if (costInp && costInp.value) {
+            const hCost = document.getElementById('f_cost_price');
+            if (hCost) hCost.value = costInp.value;
+        }
+        recalcDirectMargin();
+    } else {
+        calculateTotalRecipeCost();
+    }
+}
+
+function syncSellingPrice(val) {
+    const fPrice = document.getElementById('f_price');
+    const fPriceDD = document.getElementById('f_price_dd');
+    if (fPrice && fPrice.value !== val) fPrice.value = val;
+    if (fPriceDD && fPriceDD.value !== val) fPriceDD.value = val;
+    const disp = document.getElementById('dispSellingPrice');
+    if (disp) disp.textContent = parseFloat(val || 0).toFixed(2);
+    calculateTotalRecipeCost();
+    recalcDirectMargin();
+}
+
+function onDirectCostChange(val) {
+    const cost = parseFloat(val || 0);
+    const hiddenCost = document.getElementById('f_cost_price');
+    if (hiddenCost) hiddenCost.value = isNaN(cost) ? '0.00' : cost.toFixed(2);
+    recalcDirectMargin();
+}
+
+function recalcDirectMargin() {
+    const sell = parseFloat(document.getElementById('f_price')?.value || document.getElementById('f_price_dd')?.value || 0);
+    const cost = parseFloat(document.getElementById('f_direct_cost')?.value || 0);
+    const marginDisp = document.getElementById('directMarginDisp');
+    if (!marginDisp) return;
+    const margin = sell - cost;
+    const pct = sell > 0 ? ((margin / sell) * 100).toFixed(1) : '0.0';
+    const sign = margin >= 0 ? '+' : '';
+    marginDisp.textContent = `${sign}$${margin.toFixed(2)} (${sign}${pct}%)`;
+    marginDisp.className = margin >= 0 ? 'text-sm font-black text-[#059669]' : 'text-sm font-black text-[#dc2626]';
+}
+
+function toggleDirectDrinkPicker() {
+    const wrap = document.getElementById('directDrinkPickerWrap');
+    if (!wrap) return;
+    const isShown = (wrap.style.display !== 'none');
+    wrap.style.display = isShown ? 'none' : 'block';
+    if (!isShown) {
+        document.getElementById('directDrinkSelect')?.focus();
+    }
+}
+
+function onSelectDirectDrink(sel) {
+    if (!sel || !sel.value) return;
+    const val = sel.value;
+    const opt = sel.options[sel.selectedIndex];
+    const inp = document.getElementById('f_name');
+    if (inp) {
+        inp.value = val;
+        checkDirectStockMatch(val);
+    }
+    
+    // Automatically switch to Direct Drink type & hide recipe section
+    setProductType('direct_drink');
+
+    // Auto fill cost price if available
+    const cost = parseFloat(opt.dataset.cost || 0);
+    const costInp = document.getElementById('f_cost_price');
+    const directCostInp = document.getElementById('f_direct_cost');
+    if (cost > 0) {
+        if (costInp) costInp.value = cost.toFixed(2);
+        if (directCostInp) directCostInp.value = cost.toFixed(2);
+        recalcDirectMargin();
+    }
+
+    // Auto select Soft Drink or Drinks category if empty
+    const catSel = document.getElementById('f_cat');
+    if (catSel && (!catSel.value || catSel.value === 'coffee' || catSel.value === 'tea')) {
+        for (let i = 0; i < catSel.options.length; i++) {
+            const oText = catSel.options[i].text.toLowerCase();
+            const oVal = catSel.options[i].value.toLowerCase();
+            if (oVal.includes('soft') || oText.includes('soft') || oVal.includes('direct') || oText.includes('drink')) {
+                catSel.selectedIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+function checkDirectStockMatch(val) {
+    const hint = document.getElementById('directStockBadgeHint');
+    const hintText = document.getElementById('directStockHintText');
+    
+    if (!val || !val.trim()) {
+        if (hint) hint.style.display = 'none';
+        return;
+    }
+    
+    const cleanV = val.trim().toLowerCase().replace(/\s+/g, '');
+    const match = directDrinksMap.find(d => {
+        const cleanD = d.name.toLowerCase().replace(/\s+/g, '');
+        return cleanD === cleanV || cleanV.includes(cleanD) || cleanD.includes(cleanV);
+    });
+    
+    if (match) {
+        if (hint && hintText) {
+            hint.style.display = 'flex';
+            hintText.innerHTML = `<i class="fa-solid fa-circle-check text-sky-500"></i> Auto-linked with Stock Drink: <strong>${match.name}</strong> (${parseInt(match.qty, 10)} ${match.unit || 'cans'} in inventory)`;
+        }
+        // Auto fill cost if not set
+        const directCostInp = document.getElementById('f_direct_cost');
+        if (directCostInp && (!directCostInp.value || parseFloat(directCostInp.value) === 0) && match.cost > 0) {
+            directCostInp.value = parseFloat(match.cost).toFixed(2);
+            document.getElementById('f_cost_price').value = parseFloat(match.cost).toFixed(2);
+            recalcDirectMargin();
+        }
+    } else {
+        if (hint) hint.style.display = 'none';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const fName = document.getElementById('f_name');
+    if (fName && fName.value) checkDirectStockMatch(fName.value);
+
+    // Auto switch type when category changes to a direct drink category
+    const catSel = document.getElementById('f_cat');
+    if (catSel) {
+        catSel.addEventListener('change', function() {
+            const val = this.value.toLowerCase();
+            const txt = this.options[this.selectedIndex]?.text.toLowerCase() || '';
+            if (val.includes('soft') || txt.includes('soft') || val.includes('direct') || txt.includes('direct') || val.includes('bottle') || val.includes('can') || val.includes('snack')) {
+                setProductType('direct_drink');
+            }
+        });
     }
 });
 </script>

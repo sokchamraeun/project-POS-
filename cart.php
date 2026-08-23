@@ -156,11 +156,6 @@ if (isset($_POST['ajax_edit_item'])) {
     $i = intval($_POST['index'] ?? -1);
     if (isset($_SESSION['cart'][$i])) {
         $qty = max(1, min(100, intval($_POST['qty'] ?? $_SESSION['cart'][$i]['qty'] ?? 1)));
-        $pId = (int)($_SESSION['cart'][$i]['product_id'] ?? 0);
-        $max_stock = function_exists('getProductMaxStock') ? getProductMaxStock($conn, $pId) : null;
-        if ($max_stock !== null && $qty > $max_stock) {
-            $qty = max(1, $max_stock);
-        }
         $_SESSION['cart'][$i]['qty'] = $qty;
 
         if (isset($_POST['sweetness'])) {
@@ -176,6 +171,10 @@ if (isset($_POST['ajax_edit_item'])) {
             if (in_array($ice, $valid_ice, true)) {
                 $_SESSION['cart'][$i]['ice'] = $ice;
             }
+        }
+
+        if (function_exists('reconcile_cart_stock')) {
+            reconcile_cart_stock($conn, $_SESSION['cart']);
         }
     }
 
@@ -209,12 +208,10 @@ if (isset($_POST['ajax_update'])) {
     $qty = max(1, min(100, intval($_POST['qty'])));
 
     if (isset($_SESSION['cart'][$i])) {
-        $pId = (int)($_SESSION['cart'][$i]['product_id'] ?? 0);
-        $max_stock = getProductMaxStock($conn, $pId);
-        if ($max_stock !== null && $qty > $max_stock) {
-            $qty = max(1, $max_stock);
-        }
         $_SESSION['cart'][$i]['qty'] = $qty;
+        if (function_exists('reconcile_cart_stock')) {
+            reconcile_cart_stock($conn, $_SESSION['cart']);
+        }
     }
 
     $subtotal = 0;

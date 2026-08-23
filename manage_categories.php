@@ -212,29 +212,35 @@ body, input, select, textarea, button {
     --radius:14px; --transition:all .22s cubic-bezier(.4,0,.2,1);
 }
 [data-theme="light"] {
-    --bg:#F0F2F5; --bg-card:#FFFFFF; --bg-card-hover:#F5F7FA; --bg-input:#F9FAFB;
-    --border:#E5E7EB; --border-hover:#D1D5DB;
-    --text:#111827; --text-muted:#6B7280; --text-light:#111827;
-    --shadow-sm:0 2px 8px rgba(0,0,0,.06); --shadow-md:0 4px 20px rgba(0,0,0,.08);
+    --bg:#f8fafc; --bg-card:#FFFFFF; --bg-card-hover:#F8FAFC; --bg-input:#FFFFFF;
+    --border:#E2E8F0; --border-hover:#CBD5E1;
+    --text:#0f172a; --text-muted:#64748b; --text-light:#0f172a;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05); --shadow-md:0 4px 16px rgba(0,0,0,.06);
 }
 
+body,
+.app-layout,
+.app-main,
 [data-theme="light"] body,
 [data-theme="light"] .app-layout,
 [data-theme="light"] .app-main {
-    background-color: #F0F2F5 !important;
-    color: #111827 !important;
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
 }
 
+.topbar,
 [data-theme="light"] .topbar {
-    background: #FFFFFF !important;
-    border-bottom-color: #E5E7EB !important;
+    background: transparent !important;
+    border-bottom: none !important;
 }
 
+.brand-title,
 [data-theme="light"] .brand-title {
-    color: #111827 !important;
+    color: #0f172a !important;
 }
+.brand-sub,
 [data-theme="light"] .brand-sub {
-    color: #6B7280 !important;
+    color: #64748b !important;
 }
 [data-theme="light"] .btn-nav {
     background: #FFFFFF !important;
@@ -245,8 +251,8 @@ body, input, select, textarea, button {
 /* Stat Cards in Light Mode */
 [data-theme="light"] .vo-stat-box {
     background: #FFFFFF !important;
-    border-color: #E5E7EB !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.05) !important;
+    border-color: #E2E8F0 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
 }
 [data-theme="light"] .vo-stat-box:hover {
     border-color: #D1D5DB !important;
@@ -413,15 +419,13 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 
 /* TOPBAR */
 .topbar {
-    position:sticky; top:0; z-index:200;
-    display:flex; align-items:center; gap:10px; padding:10px 24px;
-    background:rgba(11,11,11,.97); backdrop-filter:blur(20px);
-    border-bottom:1px solid var(--border); flex-wrap:wrap;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 0 12px 0;
+    background:transparent;
+    border-bottom:none; flex-wrap:wrap;
 }
-.brand-icon  { width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,var(--accent-dark),var(--accent)); display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; flex-shrink:0; }
 .brand-text  { display:flex; flex-direction:column; line-height:1.2; }
-.brand-title { font-size:15px; font-weight:700; color:var(--text-light); }
-.brand-sub   { font-size:10px; color:var(--text-muted); }
+.brand-title { font-size:22px; font-weight:800; color:var(--text-light); }
+.brand-sub   { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
 .topbar-sep  { width:1px; height:22px; background:var(--border); flex-shrink:0; }
 .topbar-right { display:flex; align-items:center; gap:6px; margin-left:auto; flex-wrap:wrap; }
 
@@ -434,7 +438,7 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 .btn-nav:hover { border-color:var(--accent); color:var(--accent); }
 .btn-nav.icon-only { padding:7px 10px; }
 
-.wrap { max-width:100%; margin:18px auto 60px; padding:0 24px; display:flex; flex-direction:column; gap:20px; }
+.wrap { max-width:100%; margin:0 0 40px 0; padding:0; display:flex; flex-direction:column; gap:16px; }
 .flash { padding:12px 18px; border-radius:12px; font-size:13.5px; font-weight:500; margin-bottom:18px; }
 .flash.success { background:rgba(85,224,135,.15); color:#55e087; border:1px solid rgba(85,224,135,.3); }
 .flash.error   { background:rgba(255,95,95,.15);  color:#ff5f5f; border:1px solid rgba(255,95,95,.3); }
@@ -1185,11 +1189,8 @@ body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text)
 <main class="app-main flex-1 h-full overflow-y-auto p-6" style="flex:1; height:100%; overflow-y:auto;">
 
 <div class="topbar">
-    <button type="button" onclick="toggleSidebar()" class="btn-nav icon-only sidebar-toggle-btn" title="Toggle Navigation Sidebar">
-        <i class="fa-solid fa-bars"></i>
-    </button>
     <div class="brand-text">
-        <span class="brand-title"><?= __('manage_categories', 'Manage Categories') ?></span>
+        <h1 class="brand-title" style="margin:0; font-size:22px; font-weight:800;"><?= __('manage_categories', 'Manage Categories') ?></h1>
         <span class="brand-sub">Bird's Nest Coffee &rsaquo; <?= __('catalog', 'Catalog') ?></span>
     </div>
     <div class="topbar-right">

@@ -2869,12 +2869,6 @@ function showClockToast(msg, isErr) {
         <?= $isKm ? 'បញ្ជីការកុម្ម៉ង់' : __('nav_orders', 'Orders') ?>
       </h1>
     </div>
-    
-    <a href="daily_report_xlsx.php?date=<?= date('Y-m-d') ?>" 
-       class="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs md:text-sm rounded-xl border border-slate-200 shadow-sm transition hover:shadow cursor-pointer">
-      <i class="fa-solid fa-download text-slate-400 text-xs"></i>
-      <span><?= $isKm ? 'ទាញយក Excel' : 'Export Excel' ?></span>
-    </a>
   </div>
 
   <!-- TOP 2 METRIC CARDS (MEDIUM SIZE) -->
@@ -2892,19 +2886,14 @@ function showClockToast(msg, isErr) {
     </div>
 
     <!-- 2. Today's Total Revenue Card -->
-    <div class="bg-white border border-slate-200/80 rounded-2xl px-5 py-3.5 shadow-sm flex items-center justify-between gap-4 transition hover:shadow-md">
-      <div class="flex items-center gap-4 min-w-0">
-        <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0">
-          <i class="fa-solid fa-dollar-sign font-bold"></i>
-        </div>
-        <div class="flex flex-col min-w-0">
-          <span class="text-xs font-semibold text-slate-500 truncate"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
-          <span class="text-xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-total-price">$0.00</span>
-        </div>
+    <div class="bg-white border border-slate-200/80 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
+      <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0">
+        <i class="fa-solid fa-dollar-sign font-bold"></i>
       </div>
-      <span class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg flex items-center gap-1.5 flex-shrink-0">
-        <i class="fa-solid fa-arrow-trend-up text-[10px]"></i> +12%
-      </span>
+      <div class="flex flex-col min-w-0">
+        <span class="text-xs font-semibold text-slate-500 truncate"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
+        <span class="text-xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-total-price">$0.00</span>
+      </div>
     </div>
 
   </div>
