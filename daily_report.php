@@ -1457,19 +1457,14 @@ if ($_is_mgr) {
                         <i class="fa-solid fa-print text-slate-400 text-xs"></i>
                         <span><?= $isKm ? 'បោះពុម្ព' : 'Print' ?></span>
                     </button>
-                    <a href="daily_report_xlsx.php?from_date=<?= urlencode($fromDate) ?>&to_date=<?= urlencode($toDate) ?>&user_id=<?= urlencode($filterUser) ?>" 
-                       class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm font-bold rounded-xl shadow-sm transition cursor-pointer">
-                        <i class="fa-solid fa-download text-xs"></i>
-                        <span>Export Excel</span>
-                    </a>
                 </div>
             </div>
 
             <!-- FILTER CARD -->
             <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-5 flex-shrink-0 print-hide">
                 <form method="GET" action="daily_report.php" id="salesReportFilterForm" class="flex flex-col gap-3.5">
-                    <!-- Row 1: 6 Filter Columns -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <!-- Row 1: 5 Filter Columns -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                         <!-- 1. Start Date -->
                         <div class="flex flex-col gap-1">
                             <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date' ?></label>
@@ -1488,21 +1483,7 @@ if ($_is_mgr) {
                             </div>
                         </div>
 
-                        <!-- 3. Time Shift -->
-                        <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ជ្រើសរើសម៉ោង' : 'Select Time' ?></label>
-                            <div class="relative">
-                                <select name="time_shift" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
-                                    <option value="" <?= $timeShift === '' ? 'selected' : '' ?>>-- <?= $isKm ? 'គ្រប់ម៉ោង' : 'All Shifts' ?> --</option>
-                                    <option value="morning" <?= $timeShift === 'morning' ? 'selected' : '' ?>><?= $isKm ? 'ព្រឹក (06:00 - 12:00)' : 'Morning (06:00 - 12:00)' ?></option>
-                                    <option value="afternoon" <?= $timeShift === 'afternoon' ? 'selected' : '' ?>><?= $isKm ? 'រសៀល (12:00 - 18:00)' : 'Afternoon (12:00 - 18:00)' ?></option>
-                                    <option value="evening" <?= $timeShift === 'evening' ? 'selected' : '' ?>><?= $isKm ? 'យប់ (18:00 - 23:00)' : 'Evening (18:00 - 23:00)' ?></option>
-                                </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
-                            </div>
-                        </div>
-
-                        <!-- 4. Quick Range -->
+                        <!-- 3. Quick Range -->
                         <div class="flex flex-col gap-1">
                             <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
                             <div class="relative">
@@ -1519,7 +1500,7 @@ if ($_is_mgr) {
                             </div>
                         </div>
 
-                        <!-- 5. Staff -->
+                        <!-- 4. Staff -->
                         <div class="flex flex-col gap-1">
                             <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
                             <div class="relative">
@@ -1535,7 +1516,7 @@ if ($_is_mgr) {
                             </div>
                         </div>
 
-                        <!-- 6. Payment Method -->
+                        <!-- 5. Payment Method -->
                         <div class="flex flex-col gap-1">
                             <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'វិធីទូទាត់' : 'Payment Method' ?></label>
                             <div class="relative">

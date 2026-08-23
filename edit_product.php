@@ -485,7 +485,8 @@ html[data-theme="light"] select.cat-select,
 html:not([data-theme="dark"]) select.cat-select {
     background-color: #f4efe9 !important;
     color: #1a1410 !important;
-    border-color: #d1904b !important;
+    border-color: #d0c5b5 !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235a4a3a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
 }
 html[data-theme="light"] select option,
 html:not([data-theme="dark"]) select option {
@@ -1245,30 +1246,99 @@ label.flabel {
     position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
     color: #94a3b8; font-size: 14px; font-weight: 600; pointer-events: none;
 }
-input[type=text], input[type=number], textarea, select {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1.5px solid #e2e8f0;
-    background: #ffffff;
-    color: #1e293b;
-    font-family: inherit;
-    font-size: 13px;
-    transition: border-color .18s, box-shadow .18s;
-    outline: none;
+.field input[type=text],
+.field input[type=number],
+.field select,
+.input-wrap input,
+#f_name,
+#f_cat,
+#f_price,
+#f_price_dd,
+#f_direct_cost {
+    display: block !important;
+    width: 100% !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border-radius: 14px !important;
+    border: 1.5px solid #e0d4c4 !important;
+    background-color: #ede8e0 !important;
+    color: #1a1410 !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    outline: none !important;
+    box-sizing: border-box !important;
 }
-.input-wrap input[type=number] { padding-left: 28px; }
-input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus {
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+textarea {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 80px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border-radius: 14px !important;
+    border: 1.5px solid #e0d4c4 !important;
+    background-color: #ede8e0 !important;
+    color: #1a1410 !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    outline: none !important;
+    box-sizing: border-box !important;
 }
-input::placeholder { color: #94a3b8; }
+.input-wrap input[type=number] { padding-left: 32px !important; }
+.input-wrap .prefix {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: #8c827a; font-size: 15px; font-weight: 700; pointer-events: none; z-index: 2;
+}
+.field input:focus, .field select:focus, textarea:focus, .input-wrap input:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14) !important;
+}
+input::placeholder, textarea::placeholder { color: #8c827a !important; opacity: 0.8; }
 
-select.cat-select {
-    appearance: none;
-    -webkit-appearance: none;
-    cursor: pointer;
-    background: #ffffff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'><path d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/></svg>") no-repeat calc(100% - 14px) center;
+#f_cat, select.cat-select {
+    display: block !important;
+    width: 100% !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 12px 44px 12px 16px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border-radius: 14px !important;
+    border: 1.5px solid #e0d4c4 !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    cursor: pointer !important;
+    line-height: 1.5 !important;
+    background-color: #ede8e0 !important;
+    color: #1a1410 !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a4a3a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: calc(100% - 16px) center !important;
+    background-size: 16px 16px !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    box-sizing: border-box !important;
+}
+
+/* Dark mode overrides */
+html:not([data-theme="light"]) .field input[type=text],
+html:not([data-theme="light"]) .field input[type=number],
+html:not([data-theme="light"]) .field select,
+html:not([data-theme="light"]) .field textarea,
+html:not([data-theme="light"]) .input-wrap input,
+html:not([data-theme="light"]) #f_name,
+html:not([data-theme="light"]) #f_cat,
+html:not([data-theme="light"]) #f_price,
+html:not([data-theme="light"]) #f_price_dd,
+html:not([data-theme="light"]) #f_direct_cost {
+    background-color: #141418 !important;
+    border-color: #2b2b36 !important;
+    color: #f0f0f0 !important;
+}
+html:not([data-theme="light"]) #f_cat,
+html:not([data-theme="light"]) select.cat-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
 }
 
 /* ── TOGGLE SWITCH ── */

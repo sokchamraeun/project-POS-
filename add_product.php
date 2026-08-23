@@ -1,6 +1,8 @@
 <?php
 require 'admin_only.php';
 require 'config.php';
+require_once __DIR__ . '/lang.php';
+$isKm = (current_lang() === 'km');
 
 $error   = '';
 $success = false;
@@ -414,14 +416,21 @@ body, input, select, textarea, button {
 [data-theme="light"] input[type=text],
 [data-theme="light"] input[type=number],
 [data-theme="light"] textarea,
-[data-theme="light"] select,
-[data-theme="light"] select.cat-select {
+[data-theme="light"] select {
     background-color: #ede8e0 !important;
     border-color: #e0d4c4 !important;
     color: #1a1410 !important;
 }
 
-[data-theme="light"] select.cat-select option {
+[data-theme="light"] select.cat-select {
+    background-color: #ede8e0 !important;
+    border-color: #e0d4c4 !important;
+    color: #1a1410 !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235a4a3a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+}
+
+[data-theme="light"] select.cat-select option,
+[data-theme="light"] select option {
     background-color: #ffffff !important;
     color: #1a1410 !important;
 }
@@ -925,11 +934,12 @@ body {
 
 /* ── MODAL HEADER ── */
 .modal-hdr-dark {
-    background: #141724 !important;
-    padding: 18px 26px;
+    background: #ffffff !important;
+    padding: 18px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-bottom: 1px solid #f1f5f9;
 }
 
 /* ── 3-COLUMN RESPONSIVE LAYOUT ── */
@@ -1154,30 +1164,79 @@ label.flabel {
     position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
     color: #94a3b8; font-size: 14px; font-weight: 600; pointer-events: none;
 }
-input[type=text], input[type=number], textarea, select {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1.5px solid #e2e8f0;
-    background: #ffffff;
-    color: #1e293b;
-    font-family: inherit;
-    font-size: 13px;
-    transition: border-color .18s, box-shadow .18s;
-    outline: none;
+.field input[type=text],
+.field input[type=number],
+.field select,
+.input-wrap input,
+#f_name,
+#f_cat,
+#f_price,
+#f_price_dd,
+#f_direct_cost {
+    display: block !important;
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    border-radius: 12px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    outline: none !important;
+    box-sizing: border-box !important;
 }
-.input-wrap input[type=number] { padding-left: 28px; }
-input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus {
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+textarea {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 80px !important;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    border-radius: 12px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    outline: none !important;
+    box-sizing: border-box !important;
 }
-input::placeholder { color: #94a3b8; }
+.input-wrap input[type=number] { padding-left: 28px !important; }
+.input-wrap .prefix {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: #94a3b8; font-size: 14px; font-weight: 600; pointer-events: none; z-index: 2;
+}
+.field input:focus, .field select:focus, textarea:focus, .input-wrap input:focus {
+    border-color: #4f46e5 !important;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12) !important;
+}
+input::placeholder, textarea::placeholder { color: #94a3b8 !important; opacity: 0.8; }
 
-select.cat-select {
-    appearance: none;
-    -webkit-appearance: none;
-    cursor: pointer;
-    background: #ffffff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'><path d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/></svg>") no-repeat calc(100% - 14px) center;
+#f_cat, select.cat-select {
+    display: block !important;
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 10px 36px 10px 14px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    border-radius: 12px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    cursor: pointer !important;
+    line-height: 1.5 !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: calc(100% - 14px) center !important;
+    background-size: 14px 14px !important;
+    transition: border-color .18s, box-shadow .18s !important;
+    box-sizing: border-box !important;
 }
 
 /* ── TOGGLE SWITCH ── */
@@ -1232,37 +1291,71 @@ select.cat-select {
     padding: 32px 16px; text-align: center;
 }
 
-/* ── RECIPE SUMMARY BAR ── */
+/* ── RECIPE SUMMARY BAR (3-CARD STAT STRIP) ── */
 .recipe-summary-box {
-    background: #0f1422;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 8px;
     border-radius: 16px;
-    padding: 14px 22px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: #ffffff;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    color: #1e293b;
+    margin-top: auto;
 }
+.recipe-summary-item {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.recipe-summary-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+}
+.sum-cogs {
+    border: 1px solid #fde68a;
+    background: linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
+}
+.sum-cogs .summary-label { color: #b45309; }
+.sum-cogs .summary-label i { color: #f59e0b; }
+.sum-cogs .summary-val { color: #d97706; }
+
+.sum-sell {
+    border: 1px solid #e0e7ff;
+    background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+}
+.sum-sell .summary-label { color: #4338ca; }
+.sum-sell .summary-label i { color: #6366f1; }
+.sum-sell .summary-val { color: #4f46e5; }
+
+.sum-margin {
+    border: 1px solid #a7f3d0;
+    background: linear-gradient(180deg, #f6fdf9 0%, #ffffff 100%);
+}
+.sum-margin .summary-label { color: #047857; }
+.sum-margin .summary-label i { color: #10b981; }
+.sum-margin .summary-val { color: #059669; }
+
 .summary-label {
     font-size: 10px;
     font-weight: 700;
-    color: #94a3b8;
-    letter-spacing: 0.3px;
     text-transform: uppercase;
-}
-.selling-price-disp { color: #ffffff; }
-
-/* ── DIRECT DRINK INFO CARD ── */
-.dd-info-card {
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
-    border-radius: 14px;
-    padding: 10px 14px;
+    letter-spacing: 0.3px;
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-size: 11.5px;
-    color: #0369a1;
-    line-height: 1.4;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.summary-val {
+    font-size: 17px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.2px;
 }
 
 /* ── MODAL FOOTER BAR ── */
@@ -1286,21 +1379,6 @@ select.cat-select {
 .btn-cancel-link:hover {
     color: #0f172a;
     background: #f1f5f9;
-}
-.btn-save-draft {
-    background: #f1f4f9;
-    color: #475569;
-    font-weight: 700;
-    font-size: 13px;
-    padding: 10px 18px;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    cursor: pointer;
-    transition: all .2s;
-}
-.btn-save-draft:hover {
-    background: #e2e8f0;
-    color: #1e293b;
 }
 .btn-submit-primary {
     background: #4f46e5;
@@ -1344,20 +1422,20 @@ select.cat-select {
         <!-- MODAL HEADER -->
         <div class="modal-hdr-dark shrink-0">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-[#232738] flex items-center justify-center text-white text-base">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md shadow-indigo-500/25 flex items-center justify-center text-white text-base">
                     <i class="fa-solid fa-plus"></i>
                 </div>
                 <div>
-                    <h2 class="text-base font-bold text-white leading-tight">
-                        បន្ថែមមុខទំនិញថ្មី (Add New Product)
+                    <h2 class="text-base font-extrabold text-slate-900 leading-tight">
+                        <?= $isKm ? 'បន្ថែមមុខទំនិញថ្មី' : 'Add New Product' ?>
                     </h2>
-                    <p class="text-xs text-[#8c93a8] font-normal mt-0.5">
-                        កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)
+                    <p class="text-xs text-slate-500 font-medium mt-0.5">
+                        <?= $isKm ? 'កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)' : 'Configure product image, details and recipe (BOM)' ?>
                     </p>
                 </div>
             </div>
             
-            <a href="products.php" class="w-9 h-9 rounded-xl bg-[#232738] text-[#8c93a8] hover:text-white hover:bg-[#2d3246] flex items-center justify-center transition-all" title="Close Modal (Esc)">
+            <a href="products.php" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-200 flex items-center justify-center transition-all" title="<?= $isKm ? 'បិទ (Esc)' : 'Close Modal (Esc)' ?>">
                 <i class="fa-solid fa-xmark text-sm"></i>
             </a>
         </div>
@@ -1384,7 +1462,7 @@ select.cat-select {
                         <div class="section-head">
                             <div class="section-head-title">
                                 <div class="section-icon-badge"><i class="fa-regular fa-image"></i></div>
-                                <span>រូបភាពទំនិញ (Product Image)</span>
+                                <span><?= $isKm ? 'រូបភាពទំនិញ' : 'Product Image' ?></span>
                             </div>
                         </div>
                         <div class="section-body flex flex-col justify-between">
@@ -1393,19 +1471,19 @@ select.cat-select {
                                     <div class="img-cloud-circle">
                                         <i class="fa-solid fa-cloud-arrow-up"></i>
                                     </div>
-                                    <span class="font-bold text-slate-700 text-xs">ចុច ឬទម្លាក់រូបភាពនៅទីនេះ</span>
-                                    <span class="text-[11px] text-slate-400">PNG, JPG ឬ WEBP (អតិបរមា 2MB)</span>
+                                    <span class="font-bold text-slate-700 text-xs"><?= $isKm ? 'ចុច ឬទម្លាក់រូបភាពនៅទីនេះ' : 'Click or drop image here' ?></span>
+                                    <span class="text-[11px] text-slate-400"><?= $isKm ? 'PNG, JPG ឬ WEBP (អតិបរមា 2MB)' : 'PNG, JPG or WEBP (Max 2MB)' ?></span>
                                 </div>
                                 <div class="img-preview-wrap" id="imgPreviewWrap" style="display:none" onclick="document.getElementById('f_img_input').click()">
                                     <img id="imgPreview" src="" alt="Preview">
                                     <div class="img-overlay">
                                         <i class="fa-solid fa-camera text-xl mb-1"></i>
-                                        <span>ប្តូររូបភាព (Change Image)</span>
+                                        <span><?= $isKm ? 'ប្តូររូបភាព' : 'Change Image' ?></span>
                                     </div>
                                 </div>
                             </div>
                             <div class="img-file-status" id="fileInfo">
-                                <span id="imgStatusText">រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ</span>
+                                <span id="imgStatusText"><?= $isKm ? 'រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ' : 'Current image — Click above to change' ?></span>
                             </div>
                         </div>
                     </div>
@@ -1415,43 +1493,34 @@ select.cat-select {
                         <div class="section-head">
                             <div class="section-head-title">
                                 <div class="section-icon-badge"><i class="fa-solid fa-sliders"></i></div>
-                                <span>ព័ត៌មានទំនិញ (Product Details)</span>
+                                <span><?= $isKm ? 'ព័ត៌មានទំនិញ' : 'Product Details' ?></span>
                             </div>
                         </div>
                         <div class="section-body flex flex-col gap-3.5">
                             
                             <!-- PRODUCT TYPE SELECTOR -->
                             <div class="field">
-                                <label class="flabel">ប្រភេទផលិតកម្ម (PRODUCT TYPE) <span class="req">*</span></label>
+                                <label class="flabel"><?= $isKm ? 'ប្រភេទផលិតកម្ម' : 'Product Type' ?> <span class="req">*</span></label>
                                 <div class="pt-segment">
                                     <button type="button" class="pt-btn active" id="ptBtnRecipe" onclick="setProductType('recipe')">
                                         <i class="fa-solid fa-mug-hot pt-icon"></i>
-                                        <span class="pt-title">កែច្នៃផ្ទាល់</span>
+                                        <span class="pt-title"><?= $isKm ? 'កែច្នៃផ្ទាល់' : 'Made-to-Order' ?></span>
                                     </button>
                                     <button type="button" class="pt-btn" id="ptBtnDirect" onclick="setProductType('direct_drink')">
                                         <i class="fa-solid fa-box-archive pt-icon"></i>
-                                        <span class="pt-title">ទំនិញស្រាប់</span>
+                                        <span class="pt-title"><?= $isKm ? 'ទំនិញស្រាប់' : 'Direct Stock' ?></span>
                                     </button>
-                                </div>
-                            </div>
-
-                            <!-- Direct Drink Info Notice -->
-                            <div id="directDrinkInfoCard" class="dd-info-card" style="display:none;">
-                                <i class="fa-solid fa-circle-check text-base text-indigo-600 mt-0.5 shrink-0"></i>
-                                <div>
-                                    <strong class="text-indigo-900 block font-semibold text-xs">ទំនិញភេសជ្ជៈស្រាប់ (Direct Drink Stock)</strong>
-                                    <span class="text-[11px] text-indigo-700">កាត់ស្តុកផ្ទាល់តាមចំនួនកំប៉ុង/ដប ដោយមិនចាំបាច់កំណត់រូបមន្តគ្រឿងផ្សំឡើយ។</span>
                                 </div>
                             </div>
 
                             <div class="field">
-                                <label class="flabel" for="f_name">ឈ្មោះទំនិញ (PRODUCT NAME) <span class="req">*</span></label>
+                                <label class="flabel" for="f_name"><?= $isKm ? 'ឈ្មោះទំនិញ' : 'Product Name' ?> <span class="req">*</span></label>
 
                                 <?php if (!empty($directDrinkList)): ?>
                                 <!-- Direct Drink Quick Selector (Only shown for Direct Drink product type) -->
                                 <div id="directDrinkPickerWrap" style="display:none;">
                                     <select id="directDrinkSelect" onchange="onSelectDirectDrink(this)" class="w-full text-xs font-semibold p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 outline-none focus:border-indigo-500">
-                                        <option value="">-- ជ្រើសរើសទំនិញពីស្តុក (Select Stock Drink) --</option>
+                                        <option value=""><?= $isKm ? '-- ជ្រើសរើសទំនិញពីស្តុក --' : '-- Select Stock Drink --' ?></option>
                                         <?php foreach ($directDrinkList as $dd): ?>
                                          <option value="<?= htmlspecialchars($dd['name']) ?>" 
                                                 data-cost="<?= $dd['cost'] ?>" 
@@ -1465,15 +1534,15 @@ select.cat-select {
                                 <?php endif; ?>
 
                                 <div class="relative" id="recipeNameWrap">
-                                    <input type="text" name="name" id="f_name" value="" placeholder="ឧ. Oolong Macchiato ឬ Bird's Nest Latte" autocomplete="off" required oninput="checkDirectStockMatch(this.value)">
+                                    <input type="text" name="name" id="f_name" value="" placeholder="<?= $isKm ? "ឧ. Oolong Macchiato ឬ Bird's Nest Latte" : "e.g. Oolong Macchiato or Bird's Nest Latte" ?>" autocomplete="off" required oninput="checkDirectStockMatch(this.value)">
                                 </div>
                             </div>
 
                             <!-- CATEGORY -->
                             <div class="field">
-                                <label class="flabel" for="f_cat">ក្រុមប្រភេទ (CATEGORY) <span class="req">*</span></label>
+                                <label class="flabel" for="f_cat"><?= $isKm ? 'ក្រុមប្រភេទ' : 'Category' ?> <span class="req">*</span></label>
                                 <select name="category" id="f_cat" class="cat-select" required>
-                                    <option value="">Select Category…</option>
+                                    <option value=""><?= $isKm ? 'ជ្រើសរើសក្រុមប្រភេទ…' : 'Select Category…' ?></option>
                                     <?php foreach ($cats as $slug => $label): ?>
                                     <option value="<?= htmlspecialchars($slug) ?>">
                                         <?= htmlspecialchars($label) ?>
@@ -1484,7 +1553,7 @@ select.cat-select {
 
                             <!-- MADE-TO-ORDER SELLING PRICE FIELD -->
                             <div class="field" id="recipePriceWrap">
-                                <label class="flabel" for="f_price">តម្លៃលក់ (SELLING PRICE) <span class="req">*</span></label>
+                                <label class="flabel" for="f_price"><?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?> <span class="req">*</span></label>
                                 <div class="input-wrap">
                                     <span class="prefix">$</span>
                                     <input type="number" id="f_price" name="price" step="0.01" min="0" max="9999.99"
@@ -1497,14 +1566,14 @@ select.cat-select {
                             <!-- DIRECT DRINK 2-COLUMN PRICES ROW -->
                             <div id="directPricesRow" class="grid grid-cols-2 gap-3.5" style="display:none;">
                                 <div class="field">
-                                    <label class="flabel" for="f_price_dd">តម្លៃលក់ (Selling Price) <span class="req">*</span></label>
+                                    <label class="flabel" for="f_price_dd"><?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?> <span class="req">*</span></label>
                                     <div class="input-wrap">
                                         <span class="prefix">$</span>
                                         <input type="number" id="f_price_dd" step="0.01" min="0" max="9999.99" class="has-prefix font-bold text-slate-800" placeholder="0.00" oninput="syncSellingPrice(this.value)">
                                     </div>
                                 </div>
                                 <div class="field">
-                                    <label class="flabel" for="f_direct_cost">ថ្លៃដើមទិញចូល (Purchase Cost) <span class="req">*</span></label>
+                                    <label class="flabel" for="f_direct_cost"><?= $isKm ? 'ថ្លៃដើមទិញចូល' : 'Purchase Cost' ?> <span class="req">*</span></label>
                                     <div class="input-wrap">
                                         <span class="prefix">$</span>
                                         <input type="number" id="f_direct_cost" step="0.01" min="0" max="9999.99" class="has-prefix font-bold text-slate-800" placeholder="0.00" oninput="onDirectCostChange(this.value)">
@@ -1514,7 +1583,7 @@ select.cat-select {
 
                             <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
                             <div id="directMarginCard" class="w-full bg-[#ecfdf5] border border-[#a7f3d0] rounded-xl px-4 py-3 flex items-center justify-between" style="display:none;">
-                                <span class="text-xs font-bold text-[#065f46]">ចំណេញដុល (Profit Margin):</span>
+                                <span class="text-xs font-bold text-[#065f46]"><?= $isKm ? 'ចំណេញដុល:' : 'Profit Margin:' ?></span>
                                 <span id="directMarginDisp" class="text-sm font-black text-[#059669]">+$0.00 (+0.0%)</span>
                             </div>
 
@@ -1522,7 +1591,7 @@ select.cat-select {
                             <div class="field mt-1">
                                 <div class="toggle-row">
                                     <div class="toggle-info">
-                                        <h4 class="font-bold text-slate-800 text-xs">បង្ហាញលើម៉ឺនុយ (Show on Menu)</h4>
+                                        <h4 class="font-bold text-slate-800 text-xs"><?= $isKm ? 'បង្ហាញលើម៉ឺនុយ' : 'Show on Menu' ?></h4>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" name="is_available" id="availToggle" value="1" checked>
@@ -1538,14 +1607,14 @@ select.cat-select {
                         <div class="section-head">
                             <div class="section-head-title">
                                 <div class="section-icon-badge"><i class="fa-solid fa-flask"></i></div>
-                                <span>រូបមន្ត & គ្រឿងផ្សំ (BOM)</span>
+                                <span><?= $isKm ? 'រូបមន្ត & គ្រឿងផ្សំ (BOM)' : 'Recipe & Ingredients (BOM)' ?></span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button type="button" onclick="addPackagingSetRow()" class="btn-chip-pkg" title="Add default packaging set (Cup + Lid + Straw + Sleeve)">
-                                    <i class="fa-solid fa-box-open text-xs"></i> + ឈុតវេចខ្ចប់
+                                <button type="button" onclick="addPackagingSetRow()" class="btn-chip-pkg" title="<?= $isKm ? 'បញ្ចូលឈុតវេចខ្ចប់លំនាំដើម' : 'Add default packaging set' ?>">
+                                    <i class="fa-solid fa-box-open text-xs"></i> <?= $isKm ? '+ ឈុតវេចខ្ចប់' : '+ Packaging Set' ?>
                                 </button>
                                 <button type="button" onclick="addRecipeRow()" class="btn-chip-ing">
-                                    <i class="fa-solid fa-plus text-xs"></i> + ថែមគ្រឿងផ្សំ
+                                    <i class="fa-solid fa-plus text-xs"></i> <?= $isKm ? '+ ថែមគ្រឿងផ្សំ' : '+ Add Ingredient' ?>
                                 </button>
                             </div>
                         </div>
@@ -1556,10 +1625,10 @@ select.cat-select {
                                 <table class="w-full text-left text-xs recipe-table">
                                     <thead class="recipe-thead uppercase tracking-wider">
                                         <tr>
-                                            <th class="py-2.5 px-3">គ្រឿងផ្សំ (RAW MATERIAL)</th>
-                                            <th class="py-2.5 px-2 text-center w-28">ចំនួន</th>
-                                            <th class="py-2.5 px-2 text-right">តម្លៃរាយ</th>
-                                            <th class="py-2.5 px-2 text-right">សរុប</th>
+                                            <th class="py-2.5 px-3"><?= $isKm ? 'គ្រឿងផ្សំ' : 'Raw Material' ?></th>
+                                            <th class="py-2.5 px-2 text-center w-28"><?= $isKm ? 'ចំនួន' : 'Qty' ?></th>
+                                            <th class="py-2.5 px-2 text-right"><?= $isKm ? 'តម្លៃរាយ' : 'Unit Cost' ?></th>
+                                            <th class="py-2.5 px-2 text-right"><?= $isKm ? 'សរុប' : 'Total' ?></th>
                                             <th class="py-2.5 px-2 text-center w-10"></th>
                                         </tr>
                                     </thead>
@@ -1572,24 +1641,24 @@ select.cat-select {
                                     <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
                                         <i class="fa-solid fa-mortar-pestle text-xl"></i>
                                     </div>
-                                    <p class="text-xs font-bold text-slate-700">មិនទាន់មានគ្រឿងផ្សំនៅឡើយ</p>
-                                    <p class="text-[11px] text-slate-400 mt-0.5">ចុច "+ ថែមគ្រឿងផ្សំ" ដើម្បីគណនាតម្លៃដើមផលិតផល (COGS)</p>
+                                    <p class="text-xs font-bold text-slate-700"><?= $isKm ? 'មិនទាន់មានគ្រឿងផ្សំនៅឡើយ' : 'No ingredients added yet' ?></p>
+                                    <p class="text-[11px] text-slate-400 mt-0.5"><?= $isKm ? 'ចុច "+ ថែមគ្រឿងផ្សំ" ដើម្បីគណនាតម្លៃដើមផលិតផល (COGS)' : 'Click "+ Add Ingredient" to calculate recipe COGS' ?></p>
                                 </div>
                             </div>
 
                             <!-- Live Recipe COGS & Gross Profit Calculator -->
                             <div class="recipe-summary-box">
-                                <div class="space-y-0.5">
-                                    <div class="summary-label">ថ្លៃដើម (COGS)</div>
-                                    <div class="text-lg font-black text-[#f59e0b]">$<span id="totalRecipeCogs">0.00</span></div>
+                                <div class="recipe-summary-item sum-cogs">
+                                    <div class="summary-label"><i class="fa-solid fa-coins"></i> <?= $isKm ? 'ថ្លៃដើម (COGS)' : 'Cost (COGS)' ?></div>
+                                    <div class="summary-val">$<span id="totalRecipeCogs">0.00</span></div>
                                 </div>
-                                <div class="space-y-0.5 text-center">
-                                    <div class="summary-label">តម្លៃលក់</div>
-                                    <div class="text-lg font-black text-white">$<span id="dispSellingPrice">0.00</span></div>
+                                <div class="recipe-summary-item sum-sell">
+                                    <div class="summary-label"><i class="fa-solid fa-tag"></i> <?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?></div>
+                                    <div class="summary-val">$<span id="dispSellingPrice">0.00</span></div>
                                 </div>
-                                <div class="space-y-0.5 text-right">
-                                    <div class="summary-label">ប្រាក់ចំណេញ (MARGIN)</div>
-                                    <div id="grossMarginWrap" class="text-lg font-black text-[#10b981]">
+                                <div class="recipe-summary-item sum-margin">
+                                    <div class="summary-label"><i class="fa-solid fa-chart-line"></i> <?= $isKm ? 'ប្រាក់ចំណេញ' : 'Profit Margin' ?></div>
+                                    <div class="summary-val" id="grossMarginWrap">
                                         <span id="grossMarginDol">$0.00</span>
                                     </div>
                                 </div>
@@ -1603,14 +1672,11 @@ select.cat-select {
                 <!-- MODAL BOTTOM ACTION BAR -->
                 <div class="modal-footer-bar">
                     <a href="products.php" class="btn-cancel-link">
-                        បោះបង់ (Cancel)
+                        <?= $isKm ? 'បោះបង់' : 'Cancel' ?>
                     </a>
                     <div class="flex items-center gap-2.5">
-                        <button type="button" onclick="window.location.href='products.php'" class="btn-save-draft">
-                            រក្សាទុកជាព្រាង (Save Draft)
-                        </button>
                         <button type="submit" class="btn-submit-primary">
-                            <i class="fa-solid fa-check"></i> រក្សាទុកទំនិញ (Add Product)
+                            <i class="fa-solid fa-check"></i> <?= $isKm ? 'រក្សាទុកទំនិញ' : 'Add Product' ?>
                         </button>
                     </div>
                 </div>
@@ -1701,6 +1767,7 @@ if (fPrice) {
 }
 
 // ── Inline Recipe Rows Manager ──
+window.IS_KM = <?= $isKm ? 'true' : 'false' ?>;
 const allIngredients = <?= json_encode($allIngredients) ?>;
 
 function buildIngredientOptionsHtml(ingId = '') {
@@ -1719,10 +1786,10 @@ function buildIngredientOptionsHtml(ingId = '') {
         }
     });
 
-    let html = '<option value="">Select ingredient / stock drink…</option>';
+    let html = '<option value="">' + (window.IS_KM ? 'ជ្រើសរើសគ្រឿងផ្សំ / ទំនិញស្តុក…' : 'Select ingredient / stock drink…') + '</option>';
 
     if (rawIngs.length > 0) {
-        html += '<optgroup label="🥛 Ingredients / Raw Materials">';
+        html += '<optgroup label="' + (window.IS_KM ? '🥛 គ្រឿងផ្សំ / វត្ថុធាតុដើម' : '🥛 Ingredients / Raw Materials') + '">';
         rawIngs.forEach(i => {
             const sel = (i.ingredient_id == ingId) ? 'selected' : '';
             const cpu = parseFloat(i.cost_per_unit || 0);
@@ -1732,7 +1799,7 @@ function buildIngredientOptionsHtml(ingId = '') {
     }
 
     if (pkgIngs.length > 0) {
-        html += '<optgroup label="📦 Packaging / Cups & Sets">';
+        html += '<optgroup label="' + (window.IS_KM ? '📦 ការវេចខ្ចប់ / កែវ & ឈុត' : '📦 Packaging / Cups & Sets') + '">';
         pkgIngs.forEach(i => {
             const sel = (i.ingredient_id == ingId) ? 'selected' : '';
             const cpu = parseFloat(i.cost_per_unit || 0);
@@ -1742,7 +1809,7 @@ function buildIngredientOptionsHtml(ingId = '') {
     }
 
     if (drinkStock.length > 0) {
-        html += '<optgroup label="🥫 Drink Stock (Cans & Bottles)">';
+        html += '<optgroup label="' + (window.IS_KM ? '🥫 ស្តុកភេសជ្ជៈ (កំប៉ុង & ដប)' : '🥫 Drink Stock (Cans & Bottles)') + '">';
         drinkStock.forEach(i => {
             const sel = (i.ingredient_id == ingId) ? 'selected' : '';
             const cpu = parseFloat(i.cost_per_unit || 0);
@@ -1785,7 +1852,7 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
         else if (isPkgSel) btnIcon = '<i class="fa-solid fa-box-open text-sky-400"></i>';
         else btnIcon = '<i class="fa-solid fa-seedling text-emerald-400"></i>';
     }
-    const btnText = selectedItem ? escapeHtml(selectedItem.ingredient_name) : 'Select ingredient / stock drink…';
+    const btnText = selectedItem ? escapeHtml(selectedItem.ingredient_name) : (window.IS_KM ? 'ជ្រើសរើសគ្រឿងផ្សំ / ទំនិញស្តុក…' : 'Select ingredient / stock drink…');
 
     let html = `<div class="crd-wrap">
         <button type="button" class="crd-btn" onclick="toggleCrd(this, event)">
@@ -1795,17 +1862,17 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
         <div class="crd-popover">
             <div class="crd-categories">
                 <div class="crd-cat-item ${defaultCat === 'ingredient' ? 'active' : ''}" data-cat="ingredient" onmouseenter="crdSwitchCat(this, 'ingredient')">
-                    <span class="crd-cat-title"><i class="fa-solid fa-seedling text-emerald-400 mr-1.5"></i> Ingredients</span>
+                    <span class="crd-cat-title"><i class="fa-solid fa-seedling text-emerald-400 mr-1.5"></i> ${window.IS_KM ? 'គ្រឿងផ្សំ' : 'Ingredients'}</span>
                     <span class="crd-cat-count">${rawIngs.length}</span>
                     <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
                 </div>
                 <div class="crd-cat-item ${defaultCat === 'packaging' ? 'active' : ''}" data-cat="packaging" onmouseenter="crdSwitchCat(this, 'packaging')">
-                    <span class="crd-cat-title"><i class="fa-solid fa-box-open text-sky-400 mr-1.5"></i> Packaging</span>
+                    <span class="crd-cat-title"><i class="fa-solid fa-box-open text-sky-400 mr-1.5"></i> ${window.IS_KM ? 'ការវេចខ្ចប់' : 'Packaging'}</span>
                     <span class="crd-cat-count">${pkgIngs.length}</span>
                     <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
                 </div>
                 <div class="crd-cat-item ${defaultCat === 'direct_drink' ? 'active' : ''}" data-cat="direct_drink" onmouseenter="crdSwitchCat(this, 'direct_drink')">
-                    <span class="crd-cat-title"><i class="fa-solid fa-wine-bottle text-amber-400 mr-1.5"></i> Drink Stock</span>
+                    <span class="crd-cat-title"><i class="fa-solid fa-wine-bottle text-amber-400 mr-1.5"></i> ${window.IS_KM ? 'ស្តុកភេសជ្ជៈ' : 'Drink Stock'}</span>
                     <span class="crd-cat-count">${drinkStock.length}</span>
                     <i class="fa-solid fa-chevron-right crd-cat-arrow ml-1"></i>
                 </div>
@@ -1814,7 +1881,7 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
                 <div class="crd-panel crd-panel-ingredient ${defaultCat === 'ingredient' ? 'active' : ''}">`;
 
     if (rawIngs.length === 0) {
-        html += `<div class="crd-empty-msg">No ingredients found</div>`;
+        html += `<div class="crd-empty-msg">${window.IS_KM ? 'រកមិនឃើញគ្រឿងផ្សំទេ' : 'No ingredients found'}</div>`;
     } else {
         rawIngs.forEach(ri => {
             const sel = (String(ri.ingredient_id) === String(ingId)) ? 'selected' : '';
@@ -1831,7 +1898,7 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
                 <div class="crd-panel crd-panel-packaging ${defaultCat === 'packaging' ? 'active' : ''}">`;
 
     if (pkgIngs.length === 0) {
-        html += `<div class="crd-empty-msg">No packaging items found</div>`;
+        html += `<div class="crd-empty-msg">${window.IS_KM ? 'រកមិនឃើញសម្ភារៈវេចខ្ចប់ទេ' : 'No packaging items found'}</div>`;
     } else {
         pkgIngs.forEach(pi => {
             const sel = (String(pi.ingredient_id) === String(ingId)) ? 'selected' : '';
@@ -1848,7 +1915,7 @@ function buildCustomRecipeDropdownHtml(ingId = '') {
                 <div class="crd-panel crd-panel-direct_drink ${defaultCat === 'direct_drink' ? 'active' : ''}">`;
 
     if (drinkStock.length === 0) {
-        html += `<div class="crd-empty-msg">No drink stock found</div>`;
+        html += `<div class="crd-empty-msg">${window.IS_KM ? 'រកមិនឃើញស្តុកភេសជ្ជៈទេ' : 'No drink stock found'}</div>`;
     } else {
         drinkStock.forEach(ds => {
             const sel = (String(ds.ingredient_id) === String(ingId)) ? 'selected' : '';
@@ -1917,7 +1984,7 @@ function refreshCrdDisabledStates() {
             const itemId = String(itemEl.getAttribute('data-id'));
             if (selectedIds.has(itemId) && itemId !== currentId) {
                 itemEl.classList.add('disabled-in-recipe');
-                itemEl.setAttribute('title', 'Already added to recipe');
+                itemEl.setAttribute('title', window.IS_KM ? 'បានបន្ថែមក្នុងរូបមន្តរួចហើយ' : 'Already added to recipe');
             } else {
                 itemEl.classList.remove('disabled-in-recipe');
                 itemEl.removeAttribute('title');
@@ -1942,7 +2009,7 @@ function addPackagingSetRow() {
     if (existingRow) {
         existingRow.classList.add('highlight-duplicate');
         setTimeout(() => existingRow.classList.remove('highlight-duplicate'), 1200);
-        showToast('Packaging Set is already added to this recipe (1 set per drink).', 'info');
+        showToast(window.IS_KM ? 'ឈុតវេចខ្ចប់ត្រូវបានបញ្ចូលក្នុងរូបមន្តរួចហើយ (១ ឈុត ក្នុង ១ កែវ)' : 'Packaging Set is already added to this recipe (1 set per drink).', 'info');
         return;
     }
 
@@ -1992,7 +2059,7 @@ function crdSelectItem(itemEl, e) {
     const itemId = itemEl.getAttribute('data-id');
 
     if (itemEl.classList.contains('disabled-in-recipe')) {
-        showToast(`"${itemName}" is already added to this recipe!`, 'warning');
+        showToast(window.IS_KM ? `"${itemName}" ត្រូវបានបន្ថែមក្នុងរូបមន្តរួចហើយ!` : `"${itemName}" is already added to this recipe!`, 'warning');
         return;
     }
 
@@ -2016,7 +2083,7 @@ function crdSelectItem(itemEl, e) {
     });
 
     if (isDuplicate) {
-        showToast(`"${itemName}" is already added in another row!`, 'error');
+        showToast(window.IS_KM ? `"${itemName}" ត្រូវបានជ្រើសរើសក្នុងជួរផ្សេងរួចហើយ!` : `"${itemName}" is already added in another row!`, 'error');
         pop.classList.remove('open');
         return;
     }
@@ -2077,7 +2144,7 @@ function addRecipeRow(ingId = '', amt = '') {
         if (available) {
             targetIngId = available.ingredient_id;
         } else {
-            showToast('All available ingredients have already been added to the recipe.', 'warning');
+            showToast(window.IS_KM ? 'គ្រឿងផ្សំដែលមានទាំងអស់ត្រូវបានបញ្ចូលរួចរាល់ហើយ។' : 'All available ingredients have already been added to the recipe.', 'warning');
             return;
         }
     }
@@ -2117,7 +2184,7 @@ function addRecipeRow(ingId = '', amt = '') {
             $<span class="row-total-label">0.00</span>
         </td>
         <td class="py-2 px-2 text-center">
-            <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe(); refreshCrdDisabledStates();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Remove ingredient">
+            <button type="button" onclick="this.closest('.recipe-row').remove(); calculateTotalRecipeCost(); checkEmptyRecipe(); refreshCrdDisabledStates();" class="text-[#888] hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="${window.IS_KM ? 'លុបគ្រឿងផ្សំ' : 'Remove ingredient'}">
                 <i class="fa-solid fa-trash-can text-xs"></i>
             </button>
         </td>
@@ -2415,7 +2482,9 @@ function checkDirectStockMatch(val) {
     if (match) {
         if (hint && hintText) {
             hint.style.display = 'flex';
-            hintText.innerHTML = `<i class="fa-solid fa-circle-check text-sky-500"></i> Auto-linked with Stock Drink: <strong>${match.name}</strong> (${parseInt(match.qty, 10)} ${match.unit || 'cans'} in inventory)`;
+            hintText.innerHTML = '<i class="fa-solid fa-circle-check text-sky-500"></i> ' +
+                (window.IS_KM ? 'ភ្ជាប់ស្វ័យប្រវត្តជាមួយទំនិញស្តុក: ' : 'Auto-linked with Stock Drink: ') +
+                '<strong>' + match.name + '</strong> (' + parseInt(match.qty, 10) + ' ' + (match.unit || (window.IS_KM ? 'កំប៉ុង' : 'cans')) + (window.IS_KM ? ' ក្នុងស្តុក)' : ' in inventory)');
         }
         // Auto fill cost if not set
         const directCostInp = document.getElementById('f_direct_cost');

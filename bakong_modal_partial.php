@@ -342,15 +342,6 @@ function confirmBakongManual(orderId) {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
     }
 
-    // Pre-open receipt window immediately on user click
-    var popupWin = null;
-    try {
-        popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
-        if (popupWin) {
-            try { popupWin.focus(); } catch(e) {}
-        }
-    } catch(e) {}
-
     var formData = new FormData();
     formData.append('order_id', orderId);
     formData.append('action', 'manual_confirm');
@@ -358,17 +349,8 @@ function confirmBakongManual(orderId) {
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res && res.paid) {
-                if (popupWin) {
-                    try {
-                        popupWin.location.href = 'receipt_print.php?order_id=' + Number(orderId);
-                        popupWin.focus();
-                    } catch(e) {}
-                }
-                handlePaymentSuccess(orderId, popupWin);
+                handlePaymentSuccess(orderId);
             } else {
-                if (popupWin) {
-                    try { popupWin.close(); } catch(e) {}
-                }
                 alert(res.error || 'Payment confirmation failed');
                 if (btn) {
                     btn.disabled = false;
@@ -377,9 +359,6 @@ function confirmBakongManual(orderId) {
             }
         })
         .catch(function(e) {
-            if (popupWin) {
-                try { popupWin.close(); } catch(e) {}
-            }
             alert('Network error while confirming payment.');
             if (btn) {
                 btn.disabled = false;

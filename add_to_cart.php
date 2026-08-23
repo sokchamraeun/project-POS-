@@ -83,7 +83,11 @@ try {
         if ($total_requested > $max_stock) {
             $remaining_avail = max(0, $max_stock - $current_in_cart);
             if ($remaining_avail <= 0) {
-                json_out(false, "Cannot add '{$p['name']}': All available stock ({$max_stock} units) is already in your cart.", 0, null, 400);
+                if ($max_stock === 0 && !is_direct_drink_product($p)) {
+                    json_out(false, "Cannot add '{$p['name']}': No recipe has been configured for this product.", 0, null, 400);
+                } else {
+                    json_out(false, "Cannot add '{$p['name']}': All available stock ({$max_stock} units) is already in your cart.", 0, null, 400);
+                }
             } else {
                 json_out(false, "Cannot add {$qty}x '{$p['name']}': Only {$remaining_avail} more available in stock ({$max_stock} total in stock, {$current_in_cart} already in cart).", 0, null, 400);
             }

@@ -142,9 +142,17 @@ if ($bs && $r = mysqli_fetch_assoc($bs)) $bestSellerName = $r['product_name'];
 
 /* ── TOP SELLERS ── */
 $top_sellers = [];
-$ts_result = mysqli_query($conn, "SELECT p.*, COALESCE(SUM(oi.quantity),0) AS total_sold FROM products p LEFT JOIN product_recipes r ON p.product_id = r.product_id LEFT JOIN order_items oi ON p.product_id = oi.product_id WHERE p.is_available = 1 GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 6");
-while ($ts_row = mysqli_fetch_assoc($ts_result)) {
-    if ((int)$ts_row['total_sold'] > 0) $top_sellers[] = $ts_row;
+$ts_result = mysqli_query($conn, "SELECT p.*, COUNT(r.recipe_id) AS recipe_count, COALESCE(SUM(oi.quantity),0) AS total_sold FROM products p LEFT JOIN product_recipes r ON p.product_id = r.product_id LEFT JOIN order_items oi ON p.product_id = oi.product_id WHERE p.is_available = 1 GROUP BY p.product_id ORDER BY total_sold DESC LIMIT 12");
+if ($ts_result) {
+    while ($ts_row = mysqli_fetch_assoc($ts_result)) {
+        if ((int)$ts_row['total_sold'] > 0) {
+            if (!is_direct_drink_product($ts_row) && (int)($ts_row['recipe_count'] ?? 0) === 0) {
+                continue;
+            }
+            $top_sellers[] = $ts_row;
+            if (count($top_sellers) >= 6) break;
+        }
+    }
 }
 
 /* ── FETCH ALL PRODUCTS (ONLY PRODUCTS WITH LINKED RECIPES) ── */
@@ -191,6 +199,14 @@ $live_stock_statuses = evaluate_products_stock($conn, $_SESSION['cart'] ?? []);
 
 while ($row = mysqli_fetch_assoc($result)) {
     $pId = (int)$row['product_id'];
+    $recipeCnt = (int)($row['recipe_count'] ?? 0);
+    $isDirect = is_direct_drink_product($row);
+
+    // Make-to-order products require at least one linked recipe to be shown in the menu page
+    if (!$isDirect && $recipeCnt === 0) {
+        continue;
+    }
+
     if (isset($live_stock_statuses[$pId])) {
         $st = $live_stock_statuses[$pId];
         $row['live_status'] = $st['status'];
@@ -4247,7 +4263,7 @@ function closeCashPaymentModal() {
       ? ('អ្នកមានការកុម្ម៉ង់បាគង #' + cpmState.activeBakongOrderId + ' កំពុងដំណើរការ។ តើអ្នកចង់បោះបង់ការកុម្ម៉ង់នេះ ហើយត្រឡប់ទៅកាន់កន្ត្រកវិញទេ?')
       : ('You have an active Bakong QR order #' + cpmState.activeBakongOrderId + '. Do you want to cancel this order and return to cart?');
     if (confirm(confirmMsg)) {
-      cpmCancelActiveBakongOrder();
+      cpmCancelActiveBakongOrder(true);
       modal.style.display = 'none';
     }
     return;
@@ -4580,16 +4596,6 @@ function cpmApplyBakongPayment() {
     applyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-base"></i> Generating KHQR...';
   }
 
-  // Pre-open receipt window on user click so browser NEVER blocks popup upon automatic or manual confirmation
-  try {
-    if (!cpmState.receiptWindow || cpmState.receiptWindow.closed) {
-      cpmState.receiptWindow = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
-      if (cpmState.receiptWindow) {
-        cpmState.receiptWindow.document.write('<!DOCTYPE html><html><head><title>Bakong KHQR Payment</title><style>body{font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#f8fafc;text-align:center;padding:20px;box-sizing:border-box;}.spinner{width:40px;height:40px;border:3px solid rgba(225,29,72,0.25);border-top-color:#e11d48;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:14px;}@keyframes spin{to{transform:rotate(360deg)}}h3{margin:0 0 6px;font-size:16px;font-weight:700;color:#fff;}p{margin:0;font-size:12px;color:#94a3b8;}</style></head><body><div class="spinner"></div><h3>Waiting for Bakong KHQR Payment...</h3><p>Receipt will automatically load &amp; print as soon as payment is verified.</p></body></html>');
-      }
-    }
-  } catch(e) {}
-
   var formData = new FormData(form);
   formData.append('payment_methods[]', 'bakong');
   formData.append('payment_amounts[]', totalVal);
@@ -4757,18 +4763,6 @@ function cpmManualConfirmBakong() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
   }
 
-  // Use already pre-opened window or open one now on click
-  var popupWin = (cpmState.receiptWindow && !cpmState.receiptWindow.closed) ? cpmState.receiptWindow : null;
-  if (!popupWin) {
-    try {
-      popupWin = window.open('about:blank', 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
-      cpmState.receiptWindow = popupWin;
-      if (popupWin) {
-        try { popupWin.focus(); } catch(e) {}
-      }
-    } catch(e) {}
-  }
-
   var formData = new FormData();
   formData.append('order_id', orderId);
   formData.append('action', 'manual_confirm');
@@ -4777,12 +4771,8 @@ function cpmManualConfirmBakong() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res && res.paid) {
-        cpmHandleBakongPaymentSuccess(orderId, popupWin);
+        cpmHandleBakongPaymentSuccess(orderId);
       } else {
-        if (popupWin) {
-          try { popupWin.close(); } catch(e) {}
-          cpmState.receiptWindow = null;
-        }
         alert(res && res.error ? res.error : 'Payment confirmation failed');
         if (btn) {
           btn.disabled = false;
@@ -4791,10 +4781,6 @@ function cpmManualConfirmBakong() {
       }
     })
     .catch(function() {
-      if (popupWin) {
-        try { popupWin.close(); } catch(e) {}
-        cpmState.receiptWindow = null;
-      }
       alert('Network error while confirming payment.');
       if (btn) {
         btn.disabled = false;
@@ -4858,12 +4844,17 @@ function cpmHandleBakongPaymentSuccess(orderId, existingWin) {
   cpmState.receiptWindow = null;
 }
 
-function cpmCancelActiveBakongOrder() {
+function cpmCancelActiveBakongOrder(skipConfirm) {
   var orderId = cpmState.activeBakongOrderId;
   if (!orderId) return;
 
-  if (!confirm('Do you want to cancel this Bakong payment and return items to cart?')) {
-    return;
+  if (!skipConfirm) {
+    var confirmMsg = window.CPM_IS_KM 
+      ? ('អ្នកមានការកុម្ម៉ង់បាគង #' + orderId + ' កំពុងដំណើរការ។ តើអ្នកចង់បោះបង់ការកុម្ម៉ង់នេះ ហើយត្រឡប់ទៅកាន់កន្ត្រកវិញទេ?')
+      : ('Do you want to cancel this Bakong payment and return items to cart?');
+    if (!confirm(confirmMsg)) {
+      return;
+    }
   }
 
   cpmStopBakongPolling();

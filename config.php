@@ -276,7 +276,8 @@ if (!function_exists('current_user_photo')) {
  */
 if (!function_exists('paid_orders_where')) {
     function paid_orders_where(string $alias = ''): string {
-        return "1=1";
+        $p = $alias !== '' ? $alias . '.' : '';
+        return "{$p}order_id NOT IN (SELECT op_pending.order_id FROM order_payments op_pending WHERE op_pending.payment_status = 'pending')";
     }
 }
 
@@ -289,6 +290,27 @@ if (!function_exists('business_date_today')) {
         $now = new DateTime();
         if ((int)$now->format('H') < 6) { $now->modify('-1 day'); }
         return $now->format('Y-m-d');
+    }
+}
+
+/**
+ * Determines whether a product is a direct/packaged item (soft drink, bottle, can, water)
+ * or a make-to-order beverage that requires recipe ingredients (BOM).
+ */
+if (!function_exists('is_direct_drink_product')) {
+    function is_direct_drink_product(array $product): bool {
+        if (!empty($product['product_type']) && $product['product_type'] === 'direct_drink') {
+            return true;
+        }
+        $cat = strtolower($product['category'] ?? '');
+        $name = strtolower($product['name'] ?? '');
+        $directKeywords = ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'carabao', 'pocari', 'fanta', 'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 'drink'];
+        foreach ($directKeywords as $kw) {
+            if (str_contains($cat, $kw) || str_contains($name, $kw)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -318,27 +340,33 @@ if (!function_exists('getProductMaxStock')) {
             }
         }
 
-        // 2. Direct Drink Fallback: Check direct drink stock match by name
-        $pStmt = $conn->prepare("SELECT name FROM products WHERE product_id = ?");
+        // 2. Check if product is direct drink or made-to-order
+        $pStmt = $conn->prepare("SELECT product_id, name, category, price FROM products WHERE product_id = ?");
         if ($pStmt) {
             $pStmt->bind_param("i", $productId);
             $pStmt->execute();
             $pRow = $pStmt->get_result()->fetch_assoc();
             $pStmt->close();
 
-            if ($pRow && !empty($pRow['name'])) {
-                $pName = trim($pRow['name']);
-                $dStmt = $conn->prepare("SELECT quantity FROM stock_items WHERE item_type = 'direct_drink' AND is_active = 1 AND (LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) OR item_name LIKE ? OR ? LIKE CONCAT('%', item_name, '%')) LIMIT 1");
-                if ($dStmt) {
-                    $wildName = "%{$pName}%";
-                    $dStmt->bind_param("sss", $pName, $wildName, $pName);
-                    $dStmt->execute();
-                    $dRow = $dStmt->get_result()->fetch_assoc();
-                    $dStmt->close();
+            if ($pRow) {
+                if (is_direct_drink_product($pRow)) {
+                    $pName = trim($pRow['name'] ?? '');
+                    $dStmt = $conn->prepare("SELECT quantity FROM stock_items WHERE item_type = 'direct_drink' AND is_active = 1 AND (LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) OR item_name LIKE ? OR ? LIKE CONCAT('%', item_name, '%')) LIMIT 1");
+                    if ($dStmt) {
+                        $wildName = "%{$pName}%";
+                        $dStmt->bind_param("sss", $pName, $wildName, $pName);
+                        $dStmt->execute();
+                        $dRow = $dStmt->get_result()->fetch_assoc();
+                        $dStmt->close();
 
-                    if ($dRow && isset($dRow['quantity'])) {
-                        return max(0, (int)floor((float)$dRow['quantity']));
+                        if ($dRow && isset($dRow['quantity'])) {
+                            return max(0, (int)floor((float)$dRow['quantity']));
+                        }
                     }
+                    return null;
+                } else {
+                    // Make-to-order product with NO recipe: cannot order (0 servings)
+                    return 0;
                 }
             }
         }
@@ -461,7 +489,8 @@ if (!function_exists('evaluate_products_stock')) {
                     }
                 }
 
-                if (!$has_physical_recipe) {
+                $isDirect = is_direct_drink_product($p);
+                if (!$has_physical_recipe && $isDirect) {
                     foreach ($stock_items as $sItem) {
                         if ($sItem['item_type'] === 'direct_drink') {
                             $cleanS = strtolower(str_replace(' ', '', $sItem['name']));
@@ -485,7 +514,11 @@ if (!function_exists('evaluate_products_stock')) {
                 $status = 'in_stock';
                 $reason = '';
 
-                if ((int)$p['is_available'] === 0) {
+                if (!$has_physical_recipe && !$isDirect) {
+                    $status = 'out_of_stock';
+                    $reason = 'No recipe linked';
+                    $max_servings = 0;
+                } elseif ((int)$p['is_available'] === 0) {
                     $status = 'out_of_stock';
                     $reason = 'Item marked unavailable';
                 } elseif (!empty($missing) || ($max_servings !== null && $max_servings <= 0)) {
@@ -592,15 +625,20 @@ if (!function_exists('reconcile_cart_stock')) {
                     }
                 }
             } else {
+                $isDirectMatch = false;
                 foreach ($stock_remaining as $sId => $sData) {
                     if ($sData['item_type'] === 'direct_drink') {
                         $cleanS = strtolower(str_replace(' ', '', $sData['name']));
                         $cleanP = strtolower(str_replace(' ', '', $pName));
                         if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
+                            $isDirectMatch = true;
                             $max_possible_servings = min($max_possible_servings, max(0, (int)floor($sData['qty'])));
                             break;
                         }
                     }
+                }
+                if (!$isDirectMatch) {
+                    $max_possible_servings = 0;
                 }
             }
 

@@ -13,12 +13,12 @@ $isKm = (current_lang() === 'km');
 $_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 
 // ── Date Filters Setup ──
-$today = date('Y-m-d');
-$currentYear = date('Y');
+$today = business_date_today();
+$currentYear = date('Y', strtotime($today));
 $quickRange = $_GET['quick_range'] ?? 'month';
 $selectedMonth = $_GET['month_select'] ?? '';
-$fromDate = $_GET['from_date'] ?? $_GET['date_from'] ?? '';
-$toDate   = $_GET['to_date']   ?? $_GET['date_to']   ?? '';
+$fromDate = trim($_GET['from_date'] ?? $_GET['date_from'] ?? $_GET['from'] ?? '');
+$toDate   = trim($_GET['to_date']   ?? $_GET['date_to']   ?? $_GET['to']   ?? '');
 
 // If a specific month is chosen, override fromDate & toDate
 if (!empty($selectedMonth) && preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
@@ -29,19 +29,19 @@ if (!empty($selectedMonth) && preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
         $fromDate = $today;
         $toDate   = $today;
     } elseif ($quickRange === 'yesterday') {
-        $fromDate = date('Y-m-d', strtotime('-1 day'));
-        $toDate   = date('Y-m-d', strtotime('-1 day'));
+        $fromDate = date('Y-m-d', strtotime($today . ' -1 day'));
+        $toDate   = date('Y-m-d', strtotime($today . ' -1 day'));
     } elseif ($quickRange === 'week' || $quickRange === 'this_week') {
-        $fromDate = date('Y-m-d', strtotime('monday this week'));
-        $toDate   = date('Y-m-d', strtotime('sunday this week'));
+        $fromDate = date('Y-m-d', strtotime('monday this week', strtotime($today)));
+        $toDate   = date('Y-m-d', strtotime('sunday this week', strtotime($today)));
     } elseif ($quickRange === 'year' || $quickRange === 'this_year') {
-        $fromDate = date('Y-01-01');
-        $toDate   = date('Y-12-31');
+        $fromDate = date('Y-01-01', strtotime($today));
+        $toDate   = date('Y-12-31', strtotime($today));
     } elseif ($quickRange === 'all') {
         $fromDate = '2020-01-01';
-        $toDate   = date('Y-m-d', strtotime('+1 day'));
+        $toDate   = date('Y-m-d', strtotime($today . ' +1 day'));
     } else { // default 'month'
-        $fromDate = date('Y-m-01');
+        $fromDate = date('Y-m-01', strtotime($today));
         $toDate   = $today;
         $quickRange = 'month';
     }
@@ -522,7 +522,7 @@ function handleMonthSelect(val) {
 
 function handleQuickRangeChange(val) {
     if (!val) return;
-    const today = new Date();
+    const today = new Date('<?= $today ?>T12:00:00');
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');

@@ -2721,50 +2721,70 @@ body.select-mode .direct-stock-card-badge {
 
 /* Modal Header */
 .ep-modal-header {
-    background: #141724 !important;
-    padding: 18px 26px;
+    background: #ffffff !important;
+    padding: 18px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: none;
+    border-bottom: 1px solid #f1f5f9;
 }
 .ep-header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
 }
 .ep-header-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: #232738;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    flex-shrink: 0;
 }
 .ep-header-title {
-    font-size: 15.5px;
-    font-weight: 700;
-    color: #ffffff;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
     margin: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    line-height: 1.3;
 }
-.ep-header-title span {
-    color: #818cf8;
+.ep-header-prod-badge {
+    color: #4f46e5;
+    background: #eff2fe;
+    border: 1px solid #e0e7ff;
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    vertical-align: middle;
 }
 .ep-header-sub {
-    font-size: 11.5px;
-    color: #8c93a8;
-    margin-top: 1px;
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+    font-weight: 500;
 }
 .ep-header-close {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: #232738;
-    color: #8c93a8;
-    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -2773,8 +2793,10 @@ body.select-mode .direct-stock-card-badge {
     transition: all 0.2s ease;
 }
 .ep-header-close:hover {
-    background: #2d3246;
-    color: #ffffff;
+    background: #fee2e2;
+    color: #ef4444;
+    border-color: #fecaca;
+    transform: rotate(90deg);
 }
 
 /* Modal Body */
@@ -3180,27 +3202,87 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
 
 /* Summary Box */
 .ep-summary-box {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 22px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 8px;
     border-radius: 16px;
-    background: #0f1422;
-    color: #ffffff;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    color: #1e293b;
     margin-top: auto;
 }
+.ep-summary-item {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ep-summary-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+}
+.ep-sum-cogs {
+    border: 1px solid #fde68a;
+    background: linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
+}
+.ep-sum-cogs .ep-summary-label {
+    color: #b45309;
+}
+.ep-sum-cogs .ep-summary-label i {
+    color: #f59e0b;
+}
+.ep-sum-cogs .ep-summary-val {
+    color: #d97706;
+}
+
+.ep-sum-sell {
+    border: 1px solid #e0e7ff;
+    background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+}
+.ep-sum-sell .ep-summary-label {
+    color: #4338ca;
+}
+.ep-sum-sell .ep-summary-label i {
+    color: #6366f1;
+}
+.ep-sum-sell .ep-summary-val {
+    color: #4f46e5;
+}
+
+.ep-sum-margin {
+    border: 1px solid #a7f3d0;
+    background: linear-gradient(180deg, #f6fdf9 0%, #ffffff 100%);
+}
+.ep-sum-margin .ep-summary-label {
+    color: #047857;
+}
+.ep-sum-margin .ep-summary-label i {
+    color: #10b981;
+}
+.ep-sum-margin .ep-summary-val {
+    color: #059669;
+}
+
 .ep-summary-label {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    color: #94a3b8;
     letter-spacing: 0.3px;
-    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
 }
 .ep-summary-val {
-    font-size: 18px;
-    font-weight: 900;
+    font-size: 17px;
+    font-weight: 800;
     line-height: 1.2;
+    letter-spacing: -0.2px;
 }
 
 /* Save Button */
@@ -3542,11 +3624,11 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
             <div class="ep-header-left">
                 <div class="ep-header-icon"><i class="fa-solid fa-pen-to-square"></i></div>
                 <div>
-                    <h3 class="ep-header-title">កែប្រែមុខទំនិញ (Edit Product) <span id="epHeaderProdName">Product</span></h3>
-                    <div class="ep-header-sub">កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)</div>
+                    <h3 class="ep-header-title"><?= $isKm ? 'កែប្រែមុខទំនិញ' : 'Edit Product' ?> <span id="epHeaderProdName" class="ep-header-prod-badge"><?= $isKm ? 'ទំនិញ' : 'Product' ?></span></h3>
+                    <div class="ep-header-sub"><?= $isKm ? 'កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)' : 'Configure product image, details and recipe (BOM)' ?></div>
                 </div>
             </div>
-            <button type="button" class="ep-header-close" onclick="closeEditProductModal()" title="Close (Esc)">
+            <button type="button" class="ep-header-close" onclick="closeEditProductModal()" title="<?= $isKm ? 'បិទ (Esc)' : 'Close (Esc)' ?>">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
@@ -3564,14 +3646,14 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <div class="ep-section-hdr">
                         <div class="ep-section-title-wrap">
                             <div class="ep-icon-badge"><i class="fa-regular fa-image"></i></div>
-                            <span>រូបភាពទំនិញ (Product Image)</span>
+                            <span><?= $isKm ? 'រូបភាពទំនិញ' : 'Product Image' ?></span>
                         </div>
                     </div>
-                    <div class="ep-img-preview-wrap" onclick="document.getElementById('epImageInput').click()" title="Click to upload/change image">
+                    <div class="ep-img-preview-wrap" onclick="document.getElementById('epImageInput').click()" title="<?= $isKm ? 'ចុចដើម្បីប្តូររូបភាព' : 'Click to upload/change image' ?>">
                         <img id="epImgPreview" src="uploads/no-image.png" alt="Preview">
                     </div>
                     <input type="file" id="epImageInput" name="image" accept="image/*" style="display:none;" onchange="previewEpImage(this)">
-                    <div class="ep-img-subtext">រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ</div>
+                    <div class="ep-img-subtext"><?= $isKm ? 'រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ' : 'Current image — Click above to change' ?></div>
                 </div>
 
                 <!-- Column 2: Product Details -->
@@ -3579,53 +3661,44 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <div class="ep-section-hdr">
                         <div class="ep-section-title-wrap">
                             <div class="ep-icon-badge"><i class="fa-regular fa-file-lines"></i></div>
-                            <span>ព័ត៌មានទំនិញ (Product Details)</span>
+                            <span><?= $isKm ? 'ព័ត៌មានទំនិញ' : 'Product Details' ?></span>
                         </div>
                     </div>
                     
                     <!-- Product Type Segment -->
                     <div class="ep-field">
-                        <label class="ep-label">ប្រភេទផលិតកម្ម (PRODUCT TYPE) <span style="color:#ef4444;">*</span></label>
+                        <label class="ep-label"><?= $isKm ? 'ប្រភេទផលិតកម្ម' : 'Product Type' ?> <span style="color:#ef4444;">*</span></label>
                         <div class="ep-type-segment">
                             <button type="button" class="ep-type-btn active" id="epTypeRecipe" onclick="setEpProductType('recipe')">
                                 <i class="fa-solid fa-mug-hot ep-type-icon"></i>
-                                <span class="ep-type-title">កែច្នៃផ្ទាល់</span>
+                                <span class="ep-type-title"><?= $isKm ? 'កែច្នៃផ្ទាល់' : 'Made-to-Order' ?></span>
                             </button>
                             <button type="button" class="ep-type-btn" id="epTypeDirect" onclick="setEpProductType('direct_drink')">
                                 <i class="fa-solid fa-box-archive ep-type-icon"></i>
-                                <span class="ep-type-title">ទំនិញស្រាប់</span>
+                                <span class="ep-type-title"><?= $isKm ? 'ទំនិញស្រាប់' : 'Direct Stock' ?></span>
                             </button>
                         </div>
                         <input type="hidden" name="product_type" id="epProductType" value="recipe">
                     </div>
 
-                    <!-- Direct Drink Info Notice -->
-                    <div id="epDirectInfoCard" class="ep-dd-card" style="display:none;">
-                        <i class="fa-solid fa-circle-check text-indigo-600 mt-0.5 shrink-0"></i>
-                        <div>
-                            <strong class="block font-semibold text-indigo-900">ទំនិញភេសជ្ជៈស្រាប់ (Direct Drink Stock)</strong>
-                            <span class="text-indigo-700">កាត់ស្តុកផ្ទាល់តាមចំនួនកំប៉ុង/ដប ដោយមិនចាំបាច់កំណត់រូបមន្តគ្រឿងផ្សំឡើយ។</span>
-                        </div>
-                    </div>
-
                     <div class="ep-field">
-                        <label class="ep-label" for="epName">ឈ្មោះទំនិញ (PRODUCT NAME) <span style="color:#ef4444;">*</span></label>
+                        <label class="ep-label" for="epName"><?= $isKm ? 'ឈ្មោះទំនិញ' : 'Product Name' ?> <span style="color:#ef4444;">*</span></label>
                         <div id="epDirectPickerWrap" style="display:none;">
                             <select id="epDirectSelect" onchange="onSelectEpDirectDrink(this)" class="ep-select" style="font-weight:600;color:#1e293b;">
-                                <option value="">-- ជ្រើសរើសទំនិញពីស្តុក (Select Stock Drink) --</option>
+                                <option value=""><?= $isKm ? '-- ជ្រើសរើសទំនិញពីស្តុក --' : '-- Select Stock Drink --' ?></option>
                             </select>
                         </div>
                         <div id="epRecipeNameWrap">
-                            <input type="text" id="epName" name="name" class="ep-input" placeholder="ឧ. Oolong Macchiato ឬ Bird's Nest Latte" required oninput="document.getElementById('epHeaderProdName').textContent = this.value || 'Product'">
+                            <input type="text" id="epName" name="name" class="ep-input" placeholder="<?= $isKm ? "ឧ. Oolong Macchiato ឬ Bird's Nest Latte" : "e.g. Oolong Macchiato or Bird's Nest Latte" ?>" required oninput="document.getElementById('epHeaderProdName').textContent = this.value || (window.IS_KM ? 'ទំនិញ' : 'Product')">
                         </div>
                     </div>
                     <div class="ep-field">
-                        <label class="ep-label" for="epCategory">ក្រុមប្រភេទ (CATEGORY) <span style="color:#ef4444;">*</span></label>
+                        <label class="ep-label" for="epCategory"><?= $isKm ? 'ក្រុមប្រភេទ' : 'Category' ?> <span style="color:#ef4444;">*</span></label>
                         <select id="epCategory" name="category" class="ep-select cat-select" required></select>
                     </div>
                     <!-- MADE-TO-ORDER SELLING PRICE FIELD -->
                     <div class="ep-field" id="epRecipePriceWrap">
-                        <label class="ep-label" for="epPrice">តម្លៃលក់ (SELLING PRICE) <span style="color:#ef4444;">*</span></label>
+                        <label class="ep-label" for="epPrice"><?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?> <span style="color:#ef4444;">*</span></label>
                         <div class="ep-price-wrap">
                             <span class="ep-dollar">$</span>
                             <input type="number" step="0.01" min="0" id="epPrice" name="price" class="ep-input" placeholder="0.00" required oninput="syncEpSellingPrice(this.value)">
@@ -3635,14 +3708,14 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <!-- DIRECT DRINK 2-COLUMN PRICES ROW -->
                     <div id="epDirectPricesRow" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;display:none;">
                         <div class="ep-field">
-                            <label class="ep-label" for="epPriceDD">តម្លៃលក់ (SELLING PRICE) <span style="color:#ef4444;">*</span></label>
+                            <label class="ep-label" for="epPriceDD"><?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?> <span style="color:#ef4444;">*</span></label>
                             <div class="ep-price-wrap">
                                 <span class="ep-dollar">$</span>
                                 <input type="number" step="0.01" min="0" id="epPriceDD" class="ep-input" placeholder="0.00" oninput="syncEpSellingPrice(this.value)">
                             </div>
                         </div>
                         <div class="ep-field">
-                            <label class="ep-label" for="epDirectCost">ថ្លៃដើមទិញចូល (PURCHASE COST) <span style="color:#ef4444;">*</span></label>
+                            <label class="ep-label" for="epDirectCost"><?= $isKm ? 'ថ្លៃដើមទិញចូល' : 'Purchase Cost' ?> <span style="color:#ef4444;">*</span></label>
                             <div class="ep-price-wrap">
                                 <span class="ep-dollar">$</span>
                                 <input type="number" step="0.01" min="0" id="epDirectCost" name="cost_price" class="ep-input" placeholder="0.00" oninput="onEpDirectCostChange(this.value)">
@@ -3652,14 +3725,14 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
 
                     <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
                     <div id="epDirectMarginCard" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:10px 16px;display:none;align-items:center;justify-content:space-between;">
-                        <span style="font-size:12px;font-weight:700;color:#065f46;">ចំណេញដុល (Profit Margin):</span>
+                        <span style="font-size:12px;font-weight:700;color:#065f46;"><?= $isKm ? 'ចំណេញដុល:' : 'Profit Margin:' ?></span>
                         <span id="epDirectMargin" style="font-size:13.5px;font-weight:800;color:#059669;">+$0.00 (+0.0%)</span>
                     </div>
 
                     <div class="ep-field">
                         <div class="ep-status-row">
                             <div>
-                                <strong style="font-size:12.5px;color:#1e293b;display:block;">បង្ហាញលើម៉ឺនុយ (Show on Menu)</strong>
+                                <strong style="font-size:12.5px;color:#1e293b;display:block;"><?= $isKm ? 'បង្ហាញលើម៉ឺនុយ' : 'Show on Menu' ?></strong>
                             </div>
                             <label class="ep-switch">
                                 <input type="checkbox" id="epAvailable" name="is_available" value="1">
@@ -3674,14 +3747,14 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <div class="ep-section-hdr">
                         <div class="ep-section-title-wrap">
                             <div class="ep-icon-badge"><i class="fa-solid fa-flask"></i></div>
-                            <span>រូបមន្ត & គ្រឿងផ្សំ (BOM)</span>
+                            <span><?= $isKm ? 'រូបមន្ត & គ្រឿងផ្សំ (BOM)' : 'Recipe & Ingredients (BOM)' ?></span>
                         </div>
                         <div class="ep-hdr-btn-group">
                             <button type="button" class="ep-hdr-btn-pkg" onclick="addEpPackagingSet()">
-                                <i class="fa-solid fa-box-open text-xs"></i> + ឈុតវេចខ្ចប់
+                                <i class="fa-solid fa-box-open text-xs"></i> <?= $isKm ? '+ ឈុតវេចខ្ចប់' : '+ Packaging Set' ?>
                             </button>
                             <button type="button" class="ep-hdr-btn-ing" onclick="addEpIngredientRow()">
-                                <i class="fa-solid fa-plus text-xs"></i> + ថែមគ្រឿងផ្សំ
+                                <i class="fa-solid fa-plus text-xs"></i> <?= $isKm ? '+ ថែមគ្រឿងផ្សំ' : '+ Add Ingredient' ?>
                             </button>
                         </div>
                     </div>
@@ -3689,10 +3762,10 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <!-- Table Header & Wrapper -->
                     <div class="ep-recipe-table-wrap">
                         <div class="ep-table-header">
-                            <div>គ្រឿងផ្សំ (RAW MATERIAL)</div>
-                            <div style="text-align:center;">ចំនួន</div>
-                            <div style="text-align:center;">តម្លៃរាយ</div>
-                            <div style="text-align:right;">សរុប</div>
+                            <div><?= $isKm ? 'គ្រឿងផ្សំ' : 'Raw Material' ?></div>
+                            <div style="text-align:center;"><?= $isKm ? 'ចំនួន' : 'Qty' ?></div>
+                            <div style="text-align:center;"><?= $isKm ? 'តម្លៃរាយ' : 'Unit Cost' ?></div>
+                            <div style="text-align:right;"><?= $isKm ? 'សរុប' : 'Total' ?></div>
                             <div></div>
                         </div>
 
@@ -3704,17 +3777,17 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
 
                     <!-- Summary Box -->
                     <div class="ep-summary-box">
-                        <div>
-                            <div class="ep-summary-label">ថ្លៃដើម (COGS)</div>
-                            <div class="ep-summary-val" id="epCogsVal" style="color: #f59e0b;">$0.00</div>
+                        <div class="ep-summary-item ep-sum-cogs">
+                            <div class="ep-summary-label"><i class="fa-solid fa-coins"></i> <?= $isKm ? 'ថ្លៃដើម (COGS)' : 'Cost (COGS)' ?></div>
+                            <div class="ep-summary-val" id="epCogsVal">$0.00</div>
                         </div>
-                        <div>
-                            <div class="ep-summary-label">តម្លៃលក់</div>
-                            <div class="ep-summary-val" id="epSellVal" style="color: #ffffff;">$0.00</div>
+                        <div class="ep-summary-item ep-sum-sell">
+                            <div class="ep-summary-label"><i class="fa-solid fa-tag"></i> <?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?></div>
+                            <div class="ep-summary-val" id="epSellVal">$0.00</div>
                         </div>
-                        <div>
-                            <div class="ep-summary-label">ប្រាក់ចំណេញ (MARGIN)</div>
-                            <div class="ep-summary-val" id="epMarginVal" style="color: #10b981;">$0.00</div>
+                        <div class="ep-summary-item ep-sum-margin">
+                            <div class="ep-summary-label"><i class="fa-solid fa-chart-line"></i> <?= $isKm ? 'ប្រាក់ចំណេញ' : 'Profit Margin' ?></div>
+                            <div class="ep-summary-val" id="epMarginVal">$0.00</div>
                         </div>
                     </div>
                 </div>
@@ -3723,14 +3796,11 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
             <!-- Modal Footer Action Bar -->
             <div class="ep-footer-bar">
                 <button type="button" class="ep-cancel-btn" onclick="closeEditProductModal()">
-                    បោះបង់ (Cancel)
+                    <?= $isKm ? 'បោះបង់' : 'Cancel' ?>
                 </button>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <button type="button" class="ep-draft-btn" onclick="closeEditProductModal()">
-                        រក្សាទុកជាព្រាង (Save Draft)
-                    </button>
                     <button type="submit" class="ep-save-btn" id="epSaveBtn">
-                        <i class="fa-solid fa-check"></i> រក្សាទុកការផ្លាស់ប្តូរ (Save Changes)
+                        <i class="fa-solid fa-check"></i> <?= $isKm ? 'រក្សាទុកការផ្លាស់ប្តូរ' : 'Save Changes' ?>
                     </button>
                 </div>
             </div>
@@ -3775,6 +3845,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
 
 <script>
 window.CAT_NAMES = <?= json_encode($catNames, JSON_UNESCAPED_UNICODE) ?>;
+window.IS_KM = <?= $isKm ? 'true' : 'false' ?>;
 // ── Card data ──
 let allCards    = Array.from(document.querySelectorAll('.product-card'));
 let activeFilter       = 'all';
@@ -4574,10 +4645,10 @@ function openEditProductModal(id, e) {
 
     // Reset form
     document.getElementById('editProductForm').reset();
-    document.getElementById('epRecipeRows').innerHTML = '<div style="text-align:center;padding:16px;color:#888;font-size:12px;"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Loading product data…</div>';
+    document.getElementById('epRecipeRows').innerHTML = '<div style="text-align:center;padding:16px;color:#888;font-size:12px;"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i> ' + (window.IS_KM ? 'កំពុងទាញយកទិន្នន័យ…' : 'Loading product data…') + '</div>';
     document.getElementById('epImgPreview').src = 'uploads/no-image.png';
     document.getElementById('epProductId').value = id;
-    document.getElementById('epHeaderProdName').textContent = 'Loading…';
+    document.getElementById('epHeaderProdName').textContent = window.IS_KM ? 'កំពុងផ្ទុក…' : 'Loading…';
     document.getElementById('epCogsVal').textContent = '$0.00';
     document.getElementById('epSellVal').textContent = '$0.00';
     document.getElementById('epMarginVal').textContent = '$0.00';
@@ -4592,7 +4663,7 @@ function openEditProductModal(id, e) {
         .then(data => {
             if (!data.ok) {
                 closeEditProductModal();
-                showToast(data.error || 'Failed to load product data', 'error');
+                showToast(data.error || (window.IS_KM ? 'បរាជ័យក្នុងការទាញយកទិន្នន័យទំនិញ' : 'Failed to load product data'), 'error');
                 return;
             }
             epStockItems = data.stock_items || [];
@@ -4601,7 +4672,7 @@ function openEditProductModal(id, e) {
 
             const p = epCurrentProduct;
             document.getElementById('epProductId').value = p.id;
-            document.getElementById('epHeaderProdName').textContent = p.name || 'Product';
+            document.getElementById('epHeaderProdName').textContent = p.name || (window.IS_KM ? 'ទំនិញ' : 'Product');
             document.getElementById('epName').value = p.name || '';
             document.getElementById('epPrice').value = parseFloat(p.price || 0).toFixed(2);
             document.getElementById('epAvailable').checked = (parseInt(p.is_available) === 1);
@@ -4621,7 +4692,7 @@ function openEditProductModal(id, e) {
             // Populate direct stock drinks dropdown
             const directSel = document.getElementById('epDirectSelect');
             if (directSel) {
-                directSel.innerHTML = '<option value="">-- ជ្រើសរើសទំនិញពីស្តុក (Select Stock Drink) --</option>';
+                directSel.innerHTML = '<option value="">' + (window.IS_KM ? '-- ជ្រើសរើសទំនិញពីស្តុក --' : '-- Select Stock Drink --') + '</option>';
                 let matched = false;
                 epStockItems.forEach(item => {
                     const isDrink = ((item.item_type === 'direct_drink') || (item.category === 'Direct Drinks'));
@@ -4657,7 +4728,11 @@ function openEditProductModal(id, e) {
                     addEpIngredientRow(rec);
                 });
             } else {
-                rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ ឈុតវេចខ្ចប់</strong> above.</div>';
+                rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">' +
+                    (window.IS_KM
+                        ? 'មិនទាន់មានគ្រឿងផ្សំនៅឡើយទេ។ ចុច <strong>+ ថែមគ្រឿងផ្សំ</strong> ឬ <strong>+ ឈុតវេចខ្ចប់</strong> ខាងលើ។'
+                        : 'No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ Packaging Set</strong> above.') +
+                '</div>';
             }
 
             // Set direct cost price value
@@ -4687,7 +4762,7 @@ function openEditProductModal(id, e) {
         .catch(err => {
             console.error(err);
             closeEditProductModal();
-            showToast('Error loading product details', 'error');
+            showToast(window.IS_KM ? 'កំហុសក្នុងការទាញយកព័ត៌មានទំនិញ' : 'Error loading product details', 'error');
         });
 }
 
@@ -4704,7 +4779,6 @@ function setEpProductType(type) {
     const dialog = document.querySelector('.ep-modal-dialog');
     const grid = document.querySelector('.ep-grid-3col');
     const recipeCol = document.querySelector('.ep-col-recipe');
-    const ddCard = document.getElementById('epDirectInfoCard');
     const ddPricesRow = document.getElementById('epDirectPricesRow');
     const recipePriceWrap = document.getElementById('epRecipePriceWrap');
     const ddMarginCard = document.getElementById('epDirectMarginCard');
@@ -4729,7 +4803,6 @@ function setEpProductType(type) {
         });
     }
 
-    if (ddCard) ddCard.style.display = isDirect ? 'flex' : 'none';
     if (ddPricesRow) ddPricesRow.style.display = isDirect ? 'grid' : 'none';
     if (recipePriceWrap) recipePriceWrap.style.display = isDirect ? 'none' : 'block';
     if (ddMarginCard) ddMarginCard.style.display = isDirect ? 'flex' : 'none';
@@ -4820,7 +4893,7 @@ function onSelectEpDirectDrink(sel) {
 }
 
 function onEpNameInput(val) {
-    document.getElementById('epHeaderProdName').textContent = val || 'Product';
+    document.getElementById('epHeaderProdName').textContent = val || (window.IS_KM ? 'ទំនិញ' : 'Product');
     checkEpDirectStockMatch(val);
 }
 
@@ -4844,7 +4917,9 @@ function checkEpDirectStockMatch(val) {
     
     if (match) {
         hint.style.display = 'flex';
-        hintText.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#0284c7;"></i> Auto-linked with Stock Drink: <strong>${match.item_name}</strong> (${parseInt(match.quantity || 0, 10)} ${match.unit || 'cans'} in inventory)`;
+        hintText.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#0284c7;"></i> ' + 
+            (window.IS_KM ? 'ភ្ជាប់ស្វ័យប្រវត្តជាមួយទំនិញស្តុក: ' : 'Auto-linked with Stock Drink: ') + 
+            '<strong>' + match.item_name + '</strong> (' + parseInt(match.quantity || 0, 10) + ' ' + (match.unit || (window.IS_KM ? 'កំប៉ុង' : 'cans')) + (window.IS_KM ? ' ក្នុងស្តុក)' : ' in inventory)');
     } else {
         hint.style.display = 'none';
     }
@@ -4901,10 +4976,10 @@ function renderStockOptions(selectedId = null) {
         else raw.push(item);
     });
 
-    let html = '<option value="">Select ingredient / stock drink…</option>';
+    let html = '<option value="">' + (window.IS_KM ? 'ជ្រើសរើសគ្រឿងផ្សំ / ទំនិញស្តុក…' : 'Select ingredient / stock drink…') + '</option>';
 
     if (raw.length > 0) {
-        html += '<optgroup label="🥛 Ingredients / Raw Materials">';
+        html += '<optgroup label="' + (window.IS_KM ? '🥛 គ្រឿងផ្សំ / វត្ថុធាតុដើម' : '🥛 Ingredients / Raw Materials') + '">';
         raw.forEach(i => {
             const sel = (String(i.item_id) === String(selectedId)) ? 'selected' : '';
             html += `<option value="${i.item_id}" data-unit="${i.unit || 'unit'}" data-cpu="${i.cost_per_unit || 0}" ${sel}>${i.item_name}</option>`;
@@ -4913,7 +4988,7 @@ function renderStockOptions(selectedId = null) {
     }
 
     if (pkg.length > 0) {
-        html += '<optgroup label="📦 Packaging / Cups & Sets">';
+        html += '<optgroup label="' + (window.IS_KM ? '📦 ការវេចខ្ចប់ / កែវ & ឈុត' : '📦 Packaging / Cups & Sets') + '">';
         pkg.forEach(i => {
             const sel = (String(i.item_id) === String(selectedId)) ? 'selected' : '';
             html += `<option value="${i.item_id}" data-unit="${i.unit || 'pcs'}" data-cpu="${i.cost_per_unit || 0}" ${sel}>${i.item_name}</option>`;
@@ -4922,7 +4997,7 @@ function renderStockOptions(selectedId = null) {
     }
 
     if (drk.length > 0) {
-        html += '<optgroup label="🥫 Drink Stock (Cans & Bottles)">';
+        html += '<optgroup label="' + (window.IS_KM ? '🥫 ស្តុកភេសជ្ជៈ (កំប៉ុង & ដប)' : '🥫 Drink Stock (Cans & Bottles)') + '">';
         drk.forEach(i => {
             const sel = (String(i.item_id) === String(selectedId)) ? 'selected' : '';
             html += `<option value="${i.item_id}" data-unit="${i.unit || 'can'}" data-cpu="${i.cost_per_unit || 0}" ${sel}>${i.item_name}</option>`;
@@ -4957,7 +5032,7 @@ function addEpIngredientRow(item = {}) {
         </div>
         <div class="ep-row-unit-cost">$${cpu.toFixed(2)}/${unit}</div>
         <div class="ep-row-total-cost">$${total.toFixed(2)}</div>
-        <button type="button" class="ep-row-del-btn" onclick="removeEpRow(this)" title="Delete ingredient">
+        <button type="button" class="ep-row-del-btn" onclick="removeEpRow(this)" title="${window.IS_KM ? 'លុបគ្រឿងផ្សំ' : 'Delete ingredient'}">
             <i class="fa-regular fa-trash-can"></i>
         </button>
     `;
@@ -4996,7 +5071,7 @@ function addEpPackagingSet() {
         }
     });
 
-    showToast('Added packaging items!');
+    showToast(window.IS_KM ? 'បានបញ្ចូលឈុតវេចខ្ចប់!' : 'Added packaging items!');
 }
 
 function onEpIngSelect(selectEl) {
@@ -5044,7 +5119,11 @@ function removeEpRow(btn) {
         row.remove();
         const rowsContainer = document.getElementById('epRecipeRows');
         if (rowsContainer && rowsContainer.children.length === 0) {
-            rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ ឈុតវេចខ្ចប់</strong> above.</div>';
+            rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">' +
+                (window.IS_KM
+                    ? 'មិនទាន់មានគ្រឿងផ្សំនៅឡើយទេ។ ចុច <strong>+ ថែមគ្រឿងផ្សំ</strong> ឬ <strong>+ ឈុតវេចខ្ចប់</strong> ខាងលើ។'
+                    : 'No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ Packaging Set</strong> above.') +
+            '</div>';
         }
         recalcEpTotals();
     }, 200);
@@ -5088,7 +5167,7 @@ async function submitEpForm(e) {
     const origBtnHtml = saveBtn.innerHTML;
 
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Saving changes…';
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> ' + (window.IS_KM ? 'កំពុងរក្សាទុក…' : 'Saving changes…');
 
     try {
         const formData = new FormData(form);
@@ -5104,7 +5183,7 @@ async function submitEpForm(e) {
 
         if (data.ok) {
             closeEditProductModal();
-            showToast(data.message || 'Product & recipe updated successfully!', 'success');
+            showToast(data.message || (window.IS_KM ? 'បានកែប្រែផលិតផល និងរូបមន្តដោយជោគជ័យ!' : 'Product & recipe updated successfully!'), 'success');
 
             // Update product card in DOM instantly
             const p = data.product;

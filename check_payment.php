@@ -30,6 +30,17 @@ function _settle_bakong_order(mysqli $conn, array $order, int $order_id): void {
             $stmt_payment->execute();
         }
 
+        // Advance order status from PendingPayment to Preparing
+        $stmt_order = $conn->prepare("
+            UPDATE orders
+            SET status = 'Preparing', is_open = 0
+            WHERE order_id = ? AND status = 'PendingPayment'
+        ");
+        if ($stmt_order) {
+            $stmt_order->bind_param("i", $order_id);
+            $stmt_order->execute();
+        }
+
         $conn->commit();
 
         // Optional local kitchen/display notification

@@ -69,8 +69,8 @@ if ($date_start === $date_end) {
 }
 
 $dash_qr = ($_quick_range === 'this_week') ? 'week' : (($_quick_range === 'this_month') ? 'month' : (($_quick_range === 'this_year') ? 'year' : $_quick_range));
-$report_link = "report.php?quick_range=" . urlencode($dash_qr) . "&from=" . urlencode($date_start) . "&to=" . urlencode($date_end) . ($filter_user > 0 ? "&user_id=" . $filter_user : "");
-$daily_report_link = "daily_report.php?quick_range=" . urlencode($dash_qr) . "&from=" . urlencode($date_start) . "&to=" . urlencode($date_end) . ($filter_user > 0 ? "&user_id=" . $filter_user : "");
+$report_link = "report.php?quick_range=" . urlencode($dash_qr) . "&from_date=" . urlencode($date_start) . "&to_date=" . urlencode($date_end) . ($filter_user > 0 ? "&user_id=" . $filter_user : "");
+$daily_report_link = "daily_report.php?quick_range=" . urlencode($dash_qr) . "&from_date=" . urlencode($date_start) . "&to_date=" . urlencode($date_end) . ($filter_user > 0 ? "&user_id=" . $filter_user : "");
 
 // ── 1. KPI Queries ──
 // Total Sales
