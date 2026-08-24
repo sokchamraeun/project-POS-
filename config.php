@@ -340,12 +340,75 @@ if (!function_exists('is_direct_drink_product')) {
             }
         }
 
-        // If product has 0 recipes and cost_price > 0, treat as direct stock
         if (isset($product['recipe_count']) && (int)$product['recipe_count'] === 0 && (float)($product['cost_price'] ?? 0) > 0) {
             return true;
         }
 
         return false;
+    }
+}
+
+if (!function_exists('is_box_product_name')) {
+    function is_box_product_name(string $name): bool {
+        return (bool)(
+            preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $name) ||
+            preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $name) ||
+            preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $name)
+        );
+    }
+}
+
+if (!function_exists('find_direct_stock_item_for_product')) {
+    function find_direct_stock_item_for_product(mysqli $conn, array $product): ?array {
+        $pName = trim((string)($product['name'] ?? ''));
+        if ($pName === '') return null;
+
+        $cleanBase = trim(preg_replace('/\s*\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Unit|កំប៉ុង|ដប|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', '', $pName));
+        $cleanBase = trim(preg_replace('/\s+(?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)$/ui', '', $cleanBase));
+
+        $isBox = is_box_product_name($pName);
+
+        $stmt = $conn->prepare("SELECT item_id, item_name, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, selling_price_per_unit, selling_price_per_box 
+                                FROM stock_items 
+                                WHERE item_type = 'direct_drink' AND is_active = 1 
+                                  AND (
+                                    LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) 
+                                    OR LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
+                                    OR item_name LIKE ? 
+                                    OR ? LIKE CONCAT('%', item_name, '%')
+                                    OR ? LIKE CONCAT('%', item_name, '%')
+                                  ) 
+                                ORDER BY (LOWER(TRIM(item_name)) = LOWER(TRIM(?))) DESC, LENGTH(item_name) DESC
+                                LIMIT 1");
+        if (!$stmt) return null;
+
+        $wild = "%{$cleanBase}%";
+        $stmt->bind_param("ssssss", $cleanBase, $pName, $wild, $cleanBase, $pName, $cleanBase);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) return null;
+
+        $convRate = (float)($row['conversion_rate'] ?? 24);
+        if ($convRate <= 0) $convRate = 24;
+
+        $stockQty = (float)($row['quantity'] ?? 0);
+        $maxServings = $isBox ? (int)floor($stockQty / $convRate) : (int)floor($stockQty);
+
+        return [
+            'stock_item'           => $row,
+            'item_id'              => (int)$row['item_id'],
+            'item_name'            => $row['item_name'],
+            'is_box'               => $isBox,
+            'conversion_rate'      => $convRate,
+            'available_base_units' => $stockQty,
+            'unit'                 => $row['unit'] ?: 'unit',
+            'purchase_unit'        => $row['purchase_unit'] ?: 'box',
+            'max_servings'         => max(0, $maxServings),
+            'alert_level'          => (float)($row['alert_level'] ?? 0)
+        ];
     }
 }
 
@@ -384,23 +447,13 @@ if (!function_exists('getProductMaxStock')) {
             $pStmt->close();
 
             if ($pRow) {
+                $direct = find_direct_stock_item_for_product($conn, $pRow);
+                if ($direct) {
+                    return (int)$direct['max_servings'];
+                }
                 if (is_direct_drink_product($pRow)) {
-                    $pName = trim($pRow['name'] ?? '');
-                    $dStmt = $conn->prepare("SELECT quantity FROM stock_items WHERE item_type = 'direct_drink' AND is_active = 1 AND (LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) OR item_name LIKE ? OR ? LIKE CONCAT('%', item_name, '%')) LIMIT 1");
-                    if ($dStmt) {
-                        $wildName = "%{$pName}%";
-                        $dStmt->bind_param("sss", $pName, $wildName, $pName);
-                        $dStmt->execute();
-                        $dRow = $dStmt->get_result()->fetch_assoc();
-                        $dStmt->close();
-
-                        if ($dRow && isset($dRow['quantity'])) {
-                            return max(0, (int)floor((float)$dRow['quantity']));
-                        }
-                    }
-                    return null;
+                    return 100;
                 } else {
-                    // Make-to-order product with NO recipe: cannot order (0 servings)
                     return 0;
                 }
             }
@@ -415,64 +468,37 @@ if (!function_exists('getProductMaxStock')) {
  */
 if (!function_exists('evaluate_products_stock')) {
     function evaluate_products_stock(mysqli $conn, array $cart = []): array {
-        $reserved_ingredients = [];
-        $cart_product_qty = [];
+        $reserved_by_item = []; // item_id => total base units in cart
 
-        if (!empty($cart)) {
-            foreach ($cart as $cItem) {
-                $cPid = (int)($cItem['product_id'] ?? 0);
-                $cQty = (int)($cItem['qty'] ?? 1);
-                if ($cPid > 0) {
-                    $cart_product_qty[$cPid] = ($cart_product_qty[$cPid] ?? 0) + $cQty;
-                }
-            }
-
-            if (!empty($cart_product_qty)) {
-                $pids_in = implode(',', array_map('intval', array_keys($cart_product_qty)));
-                $rec_query = $conn->query("
-                    SELECT r.product_id, r.item_id, r.quantity_required, s.item_name, s.category
-                    FROM product_recipes r
-                    JOIN stock_items s ON r.item_id = s.item_id
-                    WHERE r.product_id IN ($pids_in)
-                      AND s.is_active = 1
-                      AND (s.item_name NOT LIKE '%Packaging Set%' AND s.item_name NOT LIKE '%ឈុត%' AND s.category != 'Packaging')
-                ");
-                if ($rec_query) {
-                    while ($row = $rec_query->fetch_assoc()) {
-                        $pId = (int)$row['product_id'];
-                        $itemId = (int)$row['item_id'];
-                        $qtyReq = (float)$row['quantity_required'];
-                        $pQtyInCart = $cart_product_qty[$pId] ?? 0;
-                        $reserved_ingredients[$itemId] = ($reserved_ingredients[$itemId] ?? 0.0) + ($qtyReq * $pQtyInCart);
-                    }
-                }
-            }
-        }
-
+        // 1. Fetch active stock items
         $stock_items = [];
-        $si_res = $conn->query("SELECT item_id, item_name, quantity, alert_level, category, item_type FROM stock_items WHERE is_active = 1");
+        $si_res = $conn->query("SELECT item_id, item_name, quantity, alert_level, category, item_type, unit, purchase_unit, conversion_rate FROM stock_items WHERE is_active = 1");
         if ($si_res) {
             while ($si = $si_res->fetch_assoc()) {
-                $itemId = (int)$si['item_id'];
-                $rawQty = (float)$si['quantity'];
-                $reserved = $reserved_ingredients[$itemId] ?? 0.0;
-                $effQty = max(0.0, $rawQty - $reserved);
-                $stock_items[$itemId] = [
-                    'name'          => $si['item_name'],
-                    'raw_qty'       => $rawQty,
-                    'reserved'      => $reserved,
-                    'effective_qty' => $effQty,
-                    'alert_level'   => (float)$si['alert_level'],
-                    'category'      => $si['category'],
-                    'item_type'     => $si['item_type'],
-                ];
+                $stock_items[(int)$si['item_id']] = $si;
             }
         }
 
+        // 2. Fetch products
+        $products = [];
+        $p_res = $conn->query("SELECT product_id, name, price, category, is_available, has_sizes, cost_price FROM products WHERE is_available = 1");
+        if ($p_res) {
+            while ($p = $p_res->fetch_assoc()) {
+                $products[(int)$p['product_id']] = $p;
+            }
+        }
+
+        // 3. Fetch recipes
         $prod_recipes = [];
-        $r_res = $conn->query("SELECT product_id, item_id, quantity_required FROM product_recipes");
+        $r_res = $conn->query("SELECT r.product_id, r.item_id, r.quantity_required, s.item_name, s.category 
+                              FROM product_recipes r 
+                              JOIN stock_items s ON r.item_id = s.item_id 
+                              WHERE s.is_active = 1");
         if ($r_res) {
             while ($r = $r_res->fetch_assoc()) {
+                if (stripos($r['item_name'], 'packaging set') !== false || str_contains($r['item_name'], 'ឈុត') || $r['category'] === 'Packaging') {
+                    continue;
+                }
                 $prod_recipes[(int)$r['product_id']][] = [
                     'item_id'           => (int)$r['item_id'],
                     'quantity_required' => (float)$r['quantity_required'],
@@ -480,33 +506,52 @@ if (!function_exists('evaluate_products_stock')) {
             }
         }
 
+        // 4. Calculate shared reserved stock from current cart
+        if (!empty($cart)) {
+            foreach ($cart as $cItem) {
+                $cPid = (int)($cItem['product_id'] ?? 0);
+                $cQty = max(1, (int)($cItem['qty'] ?? 1));
+                if ($cPid <= 0) continue;
+
+                $p = $products[$cPid] ?? ['product_id' => $cPid, 'name' => $cItem['product_name'] ?? ''];
+                if (!empty($prod_recipes[$cPid])) {
+                    foreach ($prod_recipes[$cPid] as $rec) {
+                        $itemId = (int)$rec['item_id'];
+                        $qtyReq = (float)$rec['quantity_required'];
+                        $reserved_by_item[$itemId] = ($reserved_by_item[$itemId] ?? 0.0) + ($qtyReq * $cQty);
+                    }
+                } else {
+                    $direct = find_direct_stock_item_for_product($conn, $p);
+                    if ($direct) {
+                        $itemId = (int)$direct['item_id'];
+                        $baseUnits = $direct['is_box'] ? ($cQty * $direct['conversion_rate']) : $cQty;
+                        $reserved_by_item[$itemId] = ($reserved_by_item[$itemId] ?? 0.0) + $baseUnits;
+                    }
+                }
+            }
+        }
+
         $results = [];
-        $p_res = $conn->query("SELECT product_id, name, price, category, is_available, has_sizes FROM products WHERE is_available = 1");
-        if ($p_res) {
-            while ($p = $p_res->fetch_assoc()) {
-                $pId = (int)$p['product_id'];
-                $pName = $p['name'];
-                $recipes = $prod_recipes[$pId] ?? [];
-                $pInCart = $cart_product_qty[$pId] ?? 0;
+        foreach ($products as $pId => $p) {
+            $pName = $p['name'];
+            $recipes = $prod_recipes[$pId] ?? [];
+            $max_servings = null;
+            $missing = [];
+            $low = [];
+            $has_physical_recipe = !empty($recipes);
 
-                $max_servings = null;
-                $missing = [];
-                $low = [];
-                $has_physical_recipe = false;
-
+            if ($has_physical_recipe) {
                 foreach ($recipes as $rec) {
-                    $itemId = $rec['item_id'];
+                    $itemId = (int)$rec['item_id'];
                     $req = (float)$rec['quantity_required'];
                     if ($req <= 0) continue;
-                    
+
                     $si = $stock_items[$itemId] ?? null;
                     if (!$si) continue;
-                    if ($si['category'] === 'Packaging' || str_contains($si['name'], 'Packaging Set') || str_contains($si['name'], 'ឈុត')) {
-                        continue;
-                    }
 
-                    $has_physical_recipe = true;
-                    $effQty = $si['effective_qty'];
+                    $rawQty = (float)$si['quantity'];
+                    $reserved = $reserved_by_item[$itemId] ?? 0.0;
+                    $effQty = max(0.0, $rawQty - $reserved);
                     $servings = (int)floor($effQty / $req);
 
                     if ($max_servings === null || $servings < $max_servings) {
@@ -514,73 +559,88 @@ if (!function_exists('evaluate_products_stock')) {
                     }
 
                     if ($effQty < $req) {
-                        if ($si['raw_qty'] < $req) {
-                            $missing[] = $si['name'];
+                        if ($rawQty < $req) {
+                            $missing[] = $si['item_name'];
                         } else {
-                            $missing[] = $si['name'] . ' (All in cart)';
+                            $missing[] = $si['item_name'] . ' (All in cart)';
                         }
-                    } elseif ($effQty <= $si['alert_level']) {
-                        $low[] = $si['name'];
+                    } elseif ($effQty <= (float)$si['alert_level']) {
+                        $low[] = $si['item_name'];
                     }
                 }
+            } else {
+                $direct = find_direct_stock_item_for_product($conn, $p);
+                if ($direct) {
+                    $itemId = (int)$direct['item_id'];
+                    $si = $stock_items[$itemId] ?? $direct['stock_item'];
+                    $rawQty = (float)$si['quantity'];
+                    $reserved = $reserved_by_item[$itemId] ?? 0.0;
+                    $effQty = max(0.0, $rawQty - $reserved);
+                    $convRate = (float)$direct['conversion_rate'];
+                    if ($convRate <= 0) $convRate = 24;
 
-                $isDirect = is_direct_drink_product($p);
-                if (!$has_physical_recipe && $isDirect) {
-                    foreach ($stock_items as $sItem) {
-                        if ($sItem['item_type'] === 'direct_drink') {
-                            $cleanS = strtolower(str_replace(' ', '', $sItem['name']));
-                            $cleanP = strtolower(str_replace(' ', '', $pName));
-                            if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
-                                $effQty = max(0, (int)floor($sItem['effective_qty'] - $pInCart));
-                                $max_servings = $effQty;
-                                if ($effQty <= 0) {
-                                    if ($sItem['raw_qty'] <= 0) {
-                                        $missing[] = $sItem['name'];
-                                    } else {
-                                        $missing[] = $sItem['name'] . ' (All in cart)';
-                                    }
-                                }
-                                break;
+                    if ($direct['is_box']) {
+                        $max_servings = (int)floor($effQty / $convRate);
+                        if ($max_servings <= 0) {
+                            if ($rawQty < $convRate) {
+                                $missing[] = $si['item_name'] . " (In stock: " . (int)$rawQty . " " . $direct['unit'] . ")";
+                            } else {
+                                $missing[] = $si['item_name'] . ' (All in cart)';
                             }
+                        } elseif ($effQty <= (float)$si['alert_level'] || $max_servings <= 3) {
+                            $low[] = $si['item_name'];
+                        }
+                    } else {
+                        $max_servings = (int)floor($effQty);
+                        if ($max_servings <= 0) {
+                            if ($rawQty <= 0) {
+                                $missing[] = $si['item_name'];
+                            } else {
+                                $missing[] = $si['item_name'] . ' (All in cart)';
+                            }
+                        } elseif ($effQty <= (float)$si['alert_level'] || $max_servings <= 10) {
+                            $low[] = $si['item_name'];
                         }
                     }
-                }
-
-                $status = 'in_stock';
-                $reason = '';
-
-                if (!$has_physical_recipe && !$isDirect) {
-                    $status = 'out_of_stock';
-                    $reason = 'No recipe linked';
+                } elseif (is_direct_drink_product($p)) {
+                    $max_servings = 100;
+                } else {
                     $max_servings = 0;
-                } elseif ((int)$p['is_available'] === 0) {
-                    $status = 'out_of_stock';
-                    $reason = 'Item marked unavailable';
-                } elseif (!empty($missing) || ($max_servings !== null && $max_servings <= 0)) {
-                    $status = 'out_of_stock';
-                    if (!empty($missing)) {
-                        $reason = 'Out of ' . implode(', ', array_unique($missing));
-                    } elseif ($pInCart > 0) {
-                        $reason = 'All available stock is in cart';
-                    } else {
-                        $reason = 'Out of stock';
-                    }
-                } elseif (!empty($low)) {
-                    $status = 'low_stock';
-                    $reason = 'Low on ' . implode(', ', array_unique($low));
                 }
-
-                $results[$pId] = [
-                    'product_id'   => $pId,
-                    'name'         => $pName,
-                    'status'       => $status,
-                    'reason'       => $reason,
-                    'max_servings' => $max_servings,
-                    'in_cart'      => $pInCart,
-                    'is_available' => ($status !== 'out_of_stock'),
-                ];
             }
+
+            $status = 'in_stock';
+            $reason = '';
+
+            if (!$has_physical_recipe && !is_direct_drink_product($p)) {
+                $status = 'out_of_stock';
+                $reason = 'No recipe linked';
+                $max_servings = 0;
+            } elseif ((int)$p['is_available'] === 0) {
+                $status = 'out_of_stock';
+                $reason = 'Item marked unavailable';
+            } elseif (!empty($missing) || ($max_servings !== null && $max_servings <= 0)) {
+                $status = 'out_of_stock';
+                if (!empty($missing)) {
+                    $reason = 'Out of ' . implode(', ', array_unique($missing));
+                } else {
+                    $reason = 'Out of stock';
+                }
+            } elseif (!empty($low)) {
+                $status = 'low_stock';
+                $reason = 'Low on ' . implode(', ', array_unique($low));
+            }
+
+            $results[$pId] = [
+                'product_id'   => $pId,
+                'name'         => $pName,
+                'status'       => $status,
+                'reason'       => $reason,
+                'max_servings' => $max_servings,
+                'is_available' => ($status !== 'out_of_stock'),
+            ];
         }
+
         return $results;
     }
 }
@@ -598,14 +658,17 @@ if (!function_exists('reconcile_cart_stock')) {
 
         // 1. Load active stock inventory
         $stock_remaining = [];
-        $si_res = $conn->query("SELECT item_id, item_name, quantity, item_type, category FROM stock_items WHERE is_active = 1");
+        $si_res = $conn->query("SELECT item_id, item_name, quantity, item_type, category, unit, purchase_unit, conversion_rate FROM stock_items WHERE is_active = 1");
         if ($si_res) {
             while ($si = $si_res->fetch_assoc()) {
                 $stock_remaining[(int)$si['item_id']] = [
-                    'name'      => $si['item_name'],
-                    'qty'       => (float)$si['quantity'],
-                    'item_type' => $si['item_type'],
-                    'category'  => $si['category'],
+                    'name'            => $si['item_name'],
+                    'qty'             => (float)$si['quantity'],
+                    'item_type'       => $si['item_type'],
+                    'category'        => $si['category'],
+                    'unit'            => $si['unit'],
+                    'purchase_unit'   => $si['purchase_unit'],
+                    'conversion_rate' => (float)($si['conversion_rate'] ?: 24),
                 ];
             }
         }
@@ -660,19 +723,23 @@ if (!function_exists('reconcile_cart_stock')) {
                     }
                 }
             } else {
-                $isDirectMatch = false;
-                foreach ($stock_remaining as $sId => $sData) {
-                    if ($sData['item_type'] === 'direct_drink') {
-                        $cleanS = strtolower(str_replace(' ', '', $sData['name']));
-                        $cleanP = strtolower(str_replace(' ', '', $pName));
-                        if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
-                            $isDirectMatch = true;
-                            $max_possible_servings = min($max_possible_servings, max(0, (int)floor($sData['qty'])));
-                            break;
-                        }
+                $pRow = ['product_id' => $pId, 'name' => $pName];
+                $direct = find_direct_stock_item_for_product($conn, $pRow);
+                if ($direct) {
+                    $itemId = $direct['item_id'];
+                    $availBaseUnits = $stock_remaining[$itemId]['qty'] ?? 0.0;
+                    $convRate = (float)$direct['conversion_rate'];
+                    if ($convRate <= 0) $convRate = 24;
+
+                    if ($direct['is_box']) {
+                        $max_possible_servings = (int)floor($availBaseUnits / $convRate);
+                    } else {
+                        $max_possible_servings = (int)floor($availBaseUnits);
                     }
-                }
-                if (!$isDirectMatch) {
+                    $max_possible_servings = max(0, $max_possible_servings);
+                } elseif (is_direct_drink_product($pRow)) {
+                    $max_possible_servings = 100;
+                } else {
                     $max_possible_servings = 0;
                 }
             }
@@ -692,17 +759,17 @@ if (!function_exists('reconcile_cart_stock')) {
                     }
                 }
             } else {
-                foreach ($stock_remaining as $sId => &$sData) {
-                    if ($sData['item_type'] === 'direct_drink') {
-                        $cleanS = strtolower(str_replace(' ', '', $sData['name']));
-                        $cleanP = strtolower(str_replace(' ', '', $pName));
-                        if ($cleanS === $cleanP || str_contains($cleanP, $cleanS) || str_contains($cleanS, $cleanP)) {
-                            $sData['qty'] = max(0.0, $sData['qty'] - $allowedQty);
-                            break;
-                        }
+                $pRow = ['product_id' => $pId, 'name' => $pName];
+                $direct = find_direct_stock_item_for_product($conn, $pRow);
+                if ($direct) {
+                    $itemId = $direct['item_id'];
+                    $convRate = (float)$direct['conversion_rate'];
+                    if ($convRate <= 0) $convRate = 24;
+                    $baseUnitsUsed = $direct['is_box'] ? ($allowedQty * $convRate) : $allowedQty;
+                    if (isset($stock_remaining[$itemId])) {
+                        $stock_remaining[$itemId]['qty'] = max(0.0, $stock_remaining[$itemId]['qty'] - $baseUnitsUsed);
                     }
                 }
-                unset($sData);
             }
         }
         unset($cItem);
@@ -866,6 +933,7 @@ if (!function_exists('get_cart_payload')) {
             'manual_label'   => $manual_label,
             'tax'            => number_format($tax, 2, '.', ''),
             'total'          => number_format($total, 2, '.', ''),
+            'statuses'       => evaluate_products_stock($conn, $cart),
         ];
     }
 }

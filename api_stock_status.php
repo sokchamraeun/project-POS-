@@ -11,6 +11,7 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 
 try {
     $cart = $_SESSION['cart'] ?? [];
+    session_write_close();
     $statuses = evaluate_products_stock($conn, $cart);
 
     // Compute live sidebar alert metrics

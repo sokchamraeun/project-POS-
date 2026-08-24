@@ -2250,7 +2250,7 @@ $defaultMilk = 'Fresh Milk';
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="img-overlay"></div>
-                  <button class="quick-add-btn" style="<?= $isOut ? 'display:none;' : '' ?>" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Add to cart"><i class="fa-solid fa-plus"></i></button>
+                  <button type="button" class="quick-add-btn" style="<?= $isOut ? 'display:none;' : '' ?>" onclick="event.preventDefault(); event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Add to cart"><i class="fa-solid fa-plus"></i></button>
                   <?php if ($isOut): ?>
                   <div class="out-of-stock-overlay absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl z-20 transition-opacity duration-300">
                     <span class="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10.5px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1.5">
@@ -2330,7 +2330,7 @@ $defaultMilk = 'Fresh Milk';
                   <?php $__badge = product_badge_label($p); if ($__badge !== ''): ?><span class="product-badge"><?= e($__badge) ?></span><?php endif; ?>
                   <img src="<?= e($p['image']) ?>" loading="lazy" alt="<?= e($p['name']) ?>" onerror="this.onerror=null; this.src='images/logo.png'; this.style.objectFit='contain'; this.style.padding='16px';">
                   <div class="img-overlay"></div>
-                  <button class="quick-add-btn" style="<?= $isOut ? 'display:none;' : '' ?>" onclick="event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Add to cart"><i class="fa-solid fa-plus"></i></button>
+                  <button type="button" class="quick-add-btn" style="<?= $isOut ? 'display:none;' : '' ?>" onclick="event.preventDefault(); event.stopPropagation(); quickAdd(<?= (int)$p['product_id'] ?>, <?= (float)$p['price'] ?>)" title="Add to cart"><i class="fa-solid fa-plus"></i></button>
                   <?php if ($isOut): ?>
                   <div class="out-of-stock-overlay absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-2.5 rounded-2xl z-20 transition-opacity duration-300">
                     <span class="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10.5px] font-extrabold uppercase tracking-wider shadow-md flex items-center gap-1.5">
@@ -2453,9 +2453,13 @@ $defaultMilk = 'Fresh Milk';
           </div>
           <div class="cp-item-actions" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
             <div style="display:flex; align-items:center; gap:6px;">
+              <?php
+                $itemMaxStock = getProductMaxStock($conn, $pId);
+                $maxStockAttr = ($itemMaxStock !== null) ? max(1, $itemMaxStock) : 100;
+              ?>
               <div class="cp-qty">
                 <button onclick="cpChangeQty(<?= $i ?>, -1)">−</button>
-                <input type="number" id="cp-qty-<?= $i ?>" value="<?= $qty ?>" min="1" onchange="cpSetQty(<?= $i ?>,this.value)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();cpSetQty(<?= $i ?>,this.value);this.blur();}">
+                <input type="number" id="cp-qty-<?= $i ?>" value="<?= $qty ?>" min="1" max="<?= $maxStockAttr ?>" data-max="<?= $maxStockAttr ?>" onchange="cpSetQty(<?= $i ?>,this.value)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){event.preventDefault();cpSetQty(<?= $i ?>,this.value);this.blur();}">
                 <button onclick="cpChangeQty(<?= $i ?>, 1)">+</button>
               </div>
               <button class="cp-remove" onclick="cpRemoveItem(<?= $i ?>)" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
@@ -3839,7 +3843,10 @@ function loadCartPanel() {
 window.loadCartPanel = loadCartPanel;
 
 function renderCartPanel(data) {
+  var prevItemsCount = (window.currentCartItems && Array.isArray(window.currentCartItems)) ? window.currentCartItems.length : 0;
   window.currentCartItems = (data && data.items) ? data.items : [];
+  var newItemsCount = (data && data.items && Array.isArray(data.items)) ? data.items.length : 0;
+  var isNewItemAdded = newItemsCount > prevItemsCount;
 
   // Update header count & badge
   var countEl = document.getElementById('cpCount');
@@ -3855,6 +3862,11 @@ function renderCartPanel(data) {
   var footer   = document.getElementById('cpFooter');
   var clearBtn = document.getElementById('cpClearBtn');
   var body     = document.getElementById('cpBody');
+
+  // Preserve scroll positions before updating innerHTML
+  var prevBodyScroll = body ? body.scrollTop : 0;
+  var prevItemsEl = document.getElementById('cpItems');
+  var prevItemsScroll = prevItemsEl ? prevItemsEl.scrollTop : 0;
 
   if (!data.items || data.items.length === 0) {
     if (body) body.innerHTML = '<div class="cp-empty"><i class="fa-solid fa-mug-hot"></i><p>Cart is empty</p><small>Tap a drink to add it</small></div>';
@@ -3924,11 +3936,11 @@ function renderCartPanel(data) {
       '<div class="cp-item-actions" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">' +
         '<div style="display:flex; align-items:center; gap:6px;">' +
           '<div class="cp-qty">' +
-            '<button onclick="cpChangeQty(' + item.index + ',-1)">−</button>' +
+            '<button type="button" onclick="cpChangeQty(' + item.index + ',-1)">−</button>' +
             '<input type="number" id="cp-qty-' + item.index + '" value="' + item.qty + '" min="1" max="' + (item.max_stock || 100) + '" data-max="' + (item.max_stock || 100) + '" oninput="onCartQtyInput(' + item.index + ', this)" onchange="cpSetQty(' + item.index + ', this.value)" onfocus="this.select()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cpSetQty(' + item.index + ', this.value);this.blur();}">' +
-            '<button onclick="cpChangeQty(' + item.index + ',1)">+</button>' +
+            '<button type="button" onclick="cpChangeQty(' + item.index + ',1)">+</button>' +
           '</div>' +
-          '<button class="cp-remove" onclick="cpRemoveItem(' + item.index + ')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>' +
+          '<button type="button" class="cp-remove" onclick="cpRemoveItem(' + item.index + ')" title="Remove"><i class="fa-solid fa-trash-can"></i></button>' +
         '</div>' +
         itemDiscBtnHtml +
       '</div>' +
@@ -3937,6 +3949,18 @@ function renderCartPanel(data) {
   itemsHtml += '</div>'; // /cpItems
 
   if (body) body.innerHTML = itemsHtml;
+
+  // Restore cart scroll position accurately:
+  var newItemsEl = document.getElementById('cpItems');
+  if (isNewItemAdded) {
+    // Brand new line item appended at bottom: scroll down to show the newly added item
+    if (body) body.scrollTop = body.scrollHeight;
+    if (newItemsEl) newItemsEl.scrollTop = newItemsEl.scrollHeight;
+  } else {
+    // Quantity increment or re-render: preserve exact previous scroll position
+    if (body && prevBodyScroll > 0) body.scrollTop = prevBodyScroll;
+    if (newItemsEl && prevItemsScroll > 0) newItemsEl.scrollTop = prevItemsScroll;
+  }
 
   // Update summary values safely
   var subtotalEl = document.getElementById('cpSubtotal');
@@ -3968,6 +3992,17 @@ function renderCartPanel(data) {
     if (manualRow) manualRow.style.display = 'none';
     if (addDiscBtn) addDiscBtn.style.display = 'none';
   }
+
+  // ── Instant Real-Time Product Card Stock Status Sync ──
+  if (data && data.statuses) {
+    var cards = document.querySelectorAll('.product-card[data-product-id]');
+    cards.forEach(function(card) {
+      var pId = card.dataset.productId;
+      if (data.statuses[pId]) {
+        updateProductCardStockState(card, data.statuses[pId]);
+      }
+    });
+  }
 }
 
 // ── CART ITEM OPERATIONS ──
@@ -3997,7 +4032,15 @@ function cpChangeQty(index, delta) {
   inp.value = qty;
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+qty })
     .then(function(r) { return r.json(); })
-    .then(function() { loadCartPanel(); });
+    .then(function(data) {
+      if (data && data.cart) {
+        renderCartPanel(data.cart);
+      } else {
+        loadCartPanel();
+      }
+      pollProductStockStatuses();
+    })
+    .catch(function() { loadCartPanel(); });
 }
 
 function cpSetQty(index, val) {
@@ -4018,7 +4061,15 @@ function cpSetQty(index, val) {
   }
   fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_update=1&index='+index+'&qty='+raw })
     .then(function(r) { return r.json(); })
-    .then(function() { loadCartPanel(); });
+    .then(function(data) {
+      if (data && data.cart) {
+        renderCartPanel(data.cart);
+      } else {
+        loadCartPanel();
+      }
+      pollProductStockStatuses();
+    })
+    .catch(function() { loadCartPanel(); });
 }
 
 function cpRemoveItem(index) {
@@ -4099,10 +4150,17 @@ function executeCartRemove() {
 
   if (_cartPendingIsClear) {
     fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_clear=1' })
-      .then(function() {
-        loadCartPanel();
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.cart) {
+          renderCartPanel(data.cart);
+        } else {
+          loadCartPanel();
+        }
+        pollProductStockStatuses();
         showToast(window.CPM_IS_KM ? 'បានសម្អាតកន្ត្រករួចរាល់' : 'All items removed from cart', 'success');
-      });
+      })
+      .catch(function() { loadCartPanel(); });
     return;
   }
 
@@ -4117,12 +4175,18 @@ function executeCartRemove() {
     fetch('cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'ajax_remove=1&index='+index })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        loadCartPanel();
+        if (data && data.cart) {
+          renderCartPanel(data.cart);
+        } else {
+          loadCartPanel();
+        }
+        pollProductStockStatuses();
         var msg = window.CPM_IS_KM 
           ? (itemName ? ('បានលុប «' + itemName + '» ចេញពីកន្ត្រក') : 'បានលុបទំនិញចេញពីកន្ត្រក')
           : (itemName ? ('"' + itemName + '" removed from cart') : 'Item removed from cart');
         showToast(msg, 'success');
-      });
+      })
+      .catch(function() { loadCartPanel(); });
   }, 250);
 }
 

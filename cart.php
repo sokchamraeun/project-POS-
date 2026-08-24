@@ -63,10 +63,12 @@ if (isset($_POST['ajax_remove'])) {
     }
     $tax   = $after * (TAX_RATE / 100);
     $total = round($after + $tax, 2);
+    $cart_payload = function_exists('get_cart_payload') ? get_cart_payload($conn) : null;
     session_write_close();
     header('Content-Type: application/json');
     echo json_encode([
         'success'              => true,
+        'cart'                 => $cart_payload,
         'cartCount'            => $total_qty,
         'cartSubtotal'         => number_format($subtotal, 2, '.', ''),
         'buy3_discount'        => number_format($buy3, 2, '.', ''),
@@ -87,9 +89,13 @@ if (isset($_POST['ajax_remove'])) {
 ====================== */
 if (isset($_POST['ajax_clear'])) {
     $_SESSION['cart'] = [];
+    $cart_payload = function_exists('get_cart_payload') ? get_cart_payload($conn) : null;
     session_write_close();
     header('Content-Type: application/json');
-    echo json_encode(['success' => true]);
+    echo json_encode([
+        'success' => true,
+        'cart'    => $cart_payload
+    ]);
     exit;
 }
 
@@ -279,9 +285,12 @@ if (isset($_POST['ajax_update'])) {
         ? (float)($updated_item['price'] ?? 0) * $qty
         : 0;
 
+    $cart_payload = function_exists('get_cart_payload') ? get_cart_payload($conn) : null;
     session_write_close();
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
+        'success'               => true,
+        'cart'                  => $cart_payload,
         'itemLineTotal'         => number_format($item_line_total, 2, '.', ''),
         'cartSubtotal'          => number_format($subtotal, 2, '.', ''),
         'cartTotal'             => number_format($total, 2, '.', ''),
