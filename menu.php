@@ -3360,7 +3360,6 @@ function addToCart() {
         pollProductStockStatuses();
         return; 
       }
-      showToast('Added to cart!', 'success');
       closeModal();
       if (data.cart) {
         renderCartPanel(data.cart);
@@ -3399,11 +3398,6 @@ function quickAdd(productId, price, sourceEl, skipFly) {
         pollProductStockStatuses();
         return; 
       }
-      var isKm = window.CPM_IS_KM;
-      var msg = isKm 
-        ? (prodName ? ('បានបន្ថែម «' + prodName + '» ទៅក្នុងកន្ត្រក') : 'បានបន្ថែមទៅក្នុងកន្ត្រក!')
-        : (prodName ? ('Added "' + prodName + '" to cart!') : 'Added to cart!');
-      showToast(msg, 'success');
       if (data.cart) {
         renderCartPanel(data.cart);
       }

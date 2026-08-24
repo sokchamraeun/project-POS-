@@ -261,7 +261,6 @@ function addToCart() {
             showToast((data && data.message) ? data.message : 'Error adding to cart', 'error');
             return;
         }
-        showToast(data.message || 'Added to cart!', 'success');
         if (typeof closeModal === 'function') closeModal();
         _updateCartCount(data.cart_count);
         if (typeof window.loadCartPanel === 'function') {
@@ -295,7 +294,6 @@ function quickAdd(productId, eventOrPrice) {
             showToast((data && data.message) ? data.message : 'Error adding to cart', 'error');
             return;
         }
-        showToast(data.message || 'Added!', 'success');
         _updateCartCount(data.cart_count);
         if (typeof window.loadCartPanel === 'function') {
             window.loadCartPanel();

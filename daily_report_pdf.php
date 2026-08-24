@@ -128,8 +128,9 @@ if ($table_orders) {
     $cost_map_ref = ingredient_cost_map($conn);
     
     $q_its = $conn->query("
-        SELECT oi.order_id, oi.product_id, oi.milk, oi.quantity
+        SELECT oi.order_id, oi.product_id, oi.milk, oi.quantity, COALESCE(p.cost_price, 0) AS cost_price
         FROM order_items oi
+        LEFT JOIN products p ON p.product_id = oi.product_id
         WHERE oi.order_id IN ($in_ids)
     ");
     $items_by_order = [];
@@ -142,23 +143,57 @@ if ($table_orders) {
     }
     
     $recipes_map = [];
+    if (!empty($pids_map)) {
+        $pids_in = implode(',', array_keys($pids_map));
+        $q_rec = $conn->query("
+            SELECT r.product_id, r.item_id AS ingredient_id, r.quantity_required AS amount_used, s.item_name AS ingredient_name, s.cost_per_unit
+            FROM product_recipes r
+            LEFT JOIN stock_items s ON s.item_id = r.item_id
+            WHERE r.product_id IN ($pids_in)
+        ");
+        if ($q_rec) {
+            while ($rc = $q_rec->fetch_assoc()) {
+                $recipes_map[(int)$rc['product_id']][] = $rc;
+            }
+        }
+    }
 
     foreach ($items_by_order as $oid => $its) {
         $ocost = 0.0;
         foreach ($its as $it) {
             $pid  = (int)$it['product_id'];
             $qty  = max(1, (int)$it['quantity']);
-            $milk = trim((string)$it['milk']);
-            foreach ($recipes_map[$pid] ?? [] as $rc) {
-                $amount = $rc['amount_used'] * $qty;
-                if ($amount <= 0) continue;
-                if (strpos(strtolower(trim($rc['ingredient_name'])), 'milk') !== false) {
-                    $key = strtolower(trim($milk !== '' ? $milk : 'Fresh Milk'));
-                    if (isset($cost_map_ref[$key])) { $ocost += $amount * (float)$cost_map_ref[$key]['unit_cost']; }
-                } else {
-                    $ocost += $amount * (float)($cost_map_ref[$rc['ingredient_id']]['unit_cost'] ?? 0);
+            $milk = trim((string)($it['milk'] ?? ''));
+            $itemCost = 0.0;
+
+            if (!empty($recipes_map[$pid])) {
+                foreach ($recipes_map[$pid] as $rc) {
+                    $amount = (float)$rc['amount_used'] * $qty;
+                    if ($amount <= 0) continue;
+                    if (strpos(strtolower(trim($rc['ingredient_name'] ?? '')), 'milk') !== false) {
+                        $key = strtolower(trim($milk !== '' ? $milk : 'Fresh Milk'));
+                        if (isset($cost_map_ref[$key])) {
+                            $itemCost += $amount * (float)$cost_map_ref[$key]['unit_cost'];
+                        } elseif (!empty($rc['cost_per_unit'])) {
+                            $itemCost += $amount * (float)$rc['cost_per_unit'];
+                        }
+                    } else {
+                        $iid = (int)$rc['ingredient_id'];
+                        if (isset($cost_map_ref[$iid])) {
+                            $itemCost += $amount * (float)$cost_map_ref[$iid]['unit_cost'];
+                        } elseif (!empty($rc['cost_per_unit'])) {
+                            $itemCost += $amount * (float)$rc['cost_per_unit'];
+                        }
+                    }
                 }
             }
+
+            $p_unit_cost = (float)($it['cost_price'] ?? 0);
+            if ($itemCost <= 0 && $p_unit_cost > 0) {
+                $itemCost = $p_unit_cost * $qty;
+            }
+
+            $ocost += $itemCost;
         }
         $cogsByOrder[$oid] = $ocost;
     }
@@ -172,7 +207,7 @@ $sum_profit = 0.0;
 $sum_qty    = 0;
 
 function fmtNum($val) {
-    if ($val == 0) return '0';
+    if ($val == 0) return '0$';
     return ($val == floor($val) ? number_format($val, 0) : number_format($val, 2)) . '$';
 }
 
@@ -289,15 +324,15 @@ if (!empty($_GET['dompdf'])) {
     <table class="report-table">
       <thead>
         <tr>
-          <th style="width:7%;"><?= he($lbl_col_no) ?></th>
-          <th style="width:18%;"><?= he($lbl_col_date) ?></th>
-          <th style="width:14%;"><?= he($lbl_col_cust) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_price) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_profit) ?></th>
-          <th style="width:8%;"><?= he($lbl_col_qty) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_payment) ?></th>
+          <th style="width:8%;"><?= he($lbl_col_no) ?></th>
+          <th style="width:17%;"><?= he($lbl_col_date) ?></th>
+          <th style="width:13%;"><?= he($lbl_col_cust) ?></th>
+          <th style="width:9%;"><?= he($lbl_col_qty) ?></th>
           <th style="width:11%;"><?= he($lbl_col_total) ?></th>
-          <th style="width:12%;"><?= he($lbl_col_place) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_cogs) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_profit) ?></th>
+          <th style="width:10%;"><?= he($lbl_col_payment) ?></th>
+          <th style="width:10%;"><?= he($lbl_col_place) ?></th>
         </tr>
       </thead>
       <tbody>
@@ -308,21 +343,21 @@ if (!empty($_GET['dompdf'])) {
             <td><?= $r['no'] ?></td>
             <td><?= $r['date'] ?></td>
             <td><?= $r['customer'] ?></td>
-            <td><?= $r['price'] ?></td>
-            <td><?= $r['profit'] ?></td>
             <td><?= $r['qty_item'] ?></td>
-            <td><?= $r['payment_method'] ?></td>
             <td><?= $r['total'] ?></td>
+            <td><?= $r['cogs'] ?></td>
+            <td><?= $r['profit'] ?></td>
+            <td><?= $r['payment_method'] ?></td>
             <td><?= $r['place_by'] ?></td>
           </tr>
         <?php endforeach; ?>
           <tr class="total-row">
             <td colspan="3" style="text-align:center; background:#fff;"><?= he($lbl_col_sum) ?></td>
-            <td style="background:#c6efce;"><?= $fmt_sum_gross ?></td>
-            <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
             <td style="background:#c6efce;"><?= $sum_qty ?></td>
-            <td style="background:#fff;"></td>
             <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
+            <td style="background:#c6efce;"><?= $fmt_sum_cogs ?></td>
+            <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
+            <td style="background:#fff;"></td>
             <td style="background:#fff;"></td>
           </tr>
         <?php endif; ?>
@@ -331,8 +366,10 @@ if (!empty($_GET['dompdf'])) {
     <div class="summary-footer">
       <p><?= he($lbl_date_from) ?> <?= he(date('j/n/Y', strtotime($filter_from))) ?> <?= he($lbl_date_to) ?> <?= he(date('j/n/Y', strtotime($filter_to))) ?></p>
       <div class="sum-item"><b class="lbl"><?= $isKm ? 'ការកម៉្មង់សរុប' : 'Total Order' ?></b> : <b><?= count($processed_rows) ?></b></div>
-      <div class="sum-item"><b class="lbl"><?= he($lbl_gross_sales) ?></b> : <b><?= $fmt_sum_gross ?></b></div>
       <div class="sum-item"><b class="lbl"><?= he($lbl_total_items) ?></b> : <b><?= $sum_qty ?></b></div>
+      <div class="sum-item"><b class="lbl"><?= he($lbl_gross_sales) ?></b> : <b><?= $fmt_sum_gross ?></b></div>
+      <div class="sum-item"><b class="lbl"><?= he($lbl_total_cogs) ?></b> : <b><?= $fmt_sum_cogs ?></b></div>
+      <div class="sum-item"><b class="lbl"><?= he($lbl_total_profit) ?></b> : <b><?= $fmt_sum_profit ?></b></div>
       <div class="sum-item"><b class="lbl"><?= he($lbl_net_revenue) ?></b> : <b><?= $fmt_sum_net_khr ?></b></div>
     </div>
     </body>
@@ -489,15 +526,15 @@ if (!empty($_GET['dompdf'])) {
   <table class="report-table">
     <thead>
       <tr>
-        <th style="width:7%;"><?= he($lbl_col_no) ?></th>
-        <th style="width:18%;"><?= he($lbl_col_date) ?></th>
-        <th style="width:14%;"><?= he($lbl_col_cust) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_price) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_profit) ?></th>
-        <th style="width:8%;"><?= he($lbl_col_qty) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_payment) ?></th>
+        <th style="width:8%;"><?= he($lbl_col_no) ?></th>
+        <th style="width:17%;"><?= he($lbl_col_date) ?></th>
+        <th style="width:13%;"><?= he($lbl_col_cust) ?></th>
+        <th style="width:9%;"><?= he($lbl_col_qty) ?></th>
         <th style="width:11%;"><?= he($lbl_col_total) ?></th>
-        <th style="width:12%;"><?= he($lbl_col_place) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_cogs) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_profit) ?></th>
+        <th style="width:10%;"><?= he($lbl_col_payment) ?></th>
+        <th style="width:10%;"><?= he($lbl_col_place) ?></th>
       </tr>
     </thead>
     <tbody>
@@ -508,21 +545,21 @@ if (!empty($_GET['dompdf'])) {
           <td><?= $r['no'] ?></td>
           <td><?= $r['date'] ?></td>
           <td><?= $r['customer'] ?></td>
-          <td><?= $r['price'] ?></td>
-          <td><?= $r['profit'] ?></td>
           <td><?= $r['qty_item'] ?></td>
-          <td><?= $r['payment_method'] ?></td>
           <td><?= $r['total'] ?></td>
+          <td><?= $r['cogs'] ?></td>
+          <td><?= $r['profit'] ?></td>
+          <td><?= $r['payment_method'] ?></td>
           <td><?= $r['place_by'] ?></td>
         </tr>
       <?php endforeach; ?>
         <tr class="total-row">
           <td colspan="3" style="text-align:center; background:#fff;"><?= he($lbl_col_sum) ?></td>
-          <td style="background:#c6efce;"><?= $fmt_sum_gross ?></td>
-          <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
           <td style="background:#c6efce;"><?= $sum_qty ?></td>
-          <td style="background:#fff;"></td>
           <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
+          <td style="background:#c6efce;"><?= $fmt_sum_cogs ?></td>
+          <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
+          <td style="background:#fff;"></td>
           <td style="background:#fff;"></td>
         </tr>
       <?php endif; ?>
@@ -532,8 +569,10 @@ if (!empty($_GET['dompdf'])) {
   <div class="summary-footer">
     <p><?= he($lbl_date_from) ?> <?= he(date('j/n/Y', strtotime($filter_from))) ?> <?= he($lbl_date_to) ?> <?= he(date('j/n/Y', strtotime($filter_to))) ?></p>
     <div class="sum-item"><b class="lbl"><?= $isKm ? 'ការកម៉្មង់សរុប' : 'Total Order' ?></b> : <b><?= count($processed_rows) ?></b></div>
-    <div class="sum-item"><b class="lbl"><?= he($lbl_gross_sales) ?></b> : <b><?= $fmt_sum_gross ?></b></div>
     <div class="sum-item"><b class="lbl"><?= he($lbl_total_items) ?></b> : <b><?= $sum_qty ?></b></div>
+    <div class="sum-item"><b class="lbl"><?= he($lbl_gross_sales) ?></b> : <b><?= $fmt_sum_gross ?></b></div>
+    <div class="sum-item"><b class="lbl"><?= he($lbl_total_cogs) ?></b> : <b><?= $fmt_sum_cogs ?></b></div>
+    <div class="sum-item"><b class="lbl"><?= he($lbl_total_profit) ?></b> : <b><?= $fmt_sum_profit ?></b></div>
     <div class="sum-item"><b class="lbl"><?= he($lbl_net_revenue) ?></b> : <b><?= $fmt_sum_net_khr ?></b></div>
   </div>
 </div>

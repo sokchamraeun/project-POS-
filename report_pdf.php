@@ -114,6 +114,20 @@ if (!empty($orderIds)) {
     }
 
     $recipes = [];
+    if (!empty($productIds)) {
+        $pids_in = implode(',', array_keys($productIds));
+        $q_rec = $conn->query("
+            SELECT r.product_id, r.item_id AS ingredient_id, r.quantity_required AS amount_used, s.item_name AS ingredient_name, s.cost_per_unit
+            FROM product_recipes r
+            LEFT JOIN stock_items s ON s.item_id = r.item_id
+            WHERE r.product_id IN ($pids_in)
+        ");
+        if ($q_rec) {
+            while ($rc = $q_rec->fetch_assoc()) {
+                $recipes[(int)$rc['product_id']][] = $rc;
+            }
+        }
+    }
 
     foreach ($items as $it) {
         $pid      = (int)$it['product_id'];
