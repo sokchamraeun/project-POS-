@@ -66,15 +66,18 @@ $receipt_phone      = $settings_map['receipt_phone']      ?? '+855 12 345 678';
 $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
 ?>
 <!DOCTYPE html>
-<html lang="<?= $isKm ? 'km' : 'en' ?>">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
 <meta charset="UTF-8">
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= $isKm ? 'ការកំណត់ប្រព័ន្ធ & វិក្កយបត្រ — Bird\'s Nest Coffee' : 'Bird\'s Nest Coffee — System & Receipt Settings' ?></title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
 :root {
   --bg:          #0f0f12;
   --panel:       #18181c;
@@ -150,11 +153,17 @@ $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
+body, input, select, textarea, button, table {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Kantumruy Pro', 'Poppins', sans-serif;
+  font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+  font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }
 
 i, .fa, .fa-solid, .fa-regular, .fa-brands, [class*="fa-"] {

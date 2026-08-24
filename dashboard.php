@@ -106,21 +106,25 @@ $q_top = $conn->query("
 $top_item = $q_top ? $q_top->fetch_assoc() : null;
 $top_item_name = $top_item ? $top_item['name'] : ($isKm ? 'Iced Latte' : 'Iced Latte');
 
-// Payment Method Breakdown: Bakong KHQR vs Cash
+// Payment Method Breakdown: Bakong KHQR vs Cash (Quantity of drinks / items)
 $q_pm = $conn->query("
     SELECT 
-        SUM(CASE WHEN LOWER(payment_method) LIKE '%bakong%' OR LOWER(payment_method) LIKE '%khqr%' OR LOWER(payment_method) LIKE '%qr%' THEN 1 ELSE 0 END) AS bakong_cnt,
-        SUM(CASE WHEN LOWER(payment_method) LIKE '%cash%' OR payment_method = '' OR payment_method IS NULL THEN 1 ELSE 0 END) AS cash_cnt,
-        COUNT(*) as total_cnt
+        COALESCE(SUM(CASE WHEN LOWER(o.payment_method) LIKE '%bakong%' OR LOWER(o.payment_method) LIKE '%khqr%' OR LOWER(o.payment_method) LIKE '%qr%' THEN oi.quantity ELSE 0 END), 0) AS bakong_qty,
+        COALESCE(SUM(CASE WHEN LOWER(o.payment_method) LIKE '%cash%' OR o.payment_method = '' OR o.payment_method IS NULL THEN oi.quantity ELSE 0 END), 0) AS cash_qty,
+        COUNT(DISTINCT CASE WHEN LOWER(o.payment_method) LIKE '%bakong%' OR LOWER(o.payment_method) LIKE '%khqr%' OR LOWER(o.payment_method) LIKE '%qr%' THEN o.order_id ELSE NULL END) AS bakong_cnt,
+        COUNT(DISTINCT CASE WHEN LOWER(o.payment_method) LIKE '%cash%' OR o.payment_method = '' OR o.payment_method IS NULL THEN o.order_id ELSE NULL END) AS cash_cnt
     FROM orders o
+    LEFT JOIN order_items oi ON o.order_id = oi.order_id AND oi.product_id <> 0
     WHERE $date_cond_o " . $user_clause_o . " AND " . paid_orders_where('o')
 );
-$r_pm = $q_pm ? $q_pm->fetch_assoc() : ['bakong_cnt' => 0, 'cash_cnt' => 0, 'total_cnt' => 0];
+$r_pm = $q_pm ? $q_pm->fetch_assoc() : ['bakong_qty' => 0, 'cash_qty' => 0, 'bakong_cnt' => 0, 'cash_cnt' => 0];
+$bakong_qty = (int)($r_pm['bakong_qty'] ?? 0);
+$cash_qty   = (int)($r_pm['cash_qty'] ?? 0);
 $bakong_cnt = (int)($r_pm['bakong_cnt'] ?? 0);
 $cash_cnt   = (int)($r_pm['cash_cnt'] ?? 0);
-$pm_total   = $bakong_cnt + $cash_cnt;
+$pm_total   = $bakong_qty + $cash_qty;
 if ($pm_total > 0) {
-    $bakong_pct = round(($bakong_cnt / $pm_total) * 100);
+    $bakong_pct = round(($bakong_qty / $pm_total) * 100);
     $cash_pct   = 100 - $bakong_pct;
 } else {
     $bakong_pct = 0;
@@ -295,11 +299,10 @@ $q_rec = $conn->query("
         o.order_date,
         o.payment_method,
         COALESCE(NULLIF(u.name, ''), u.username, o.prepared_by, 'Staff') AS seller_name,
-        GROUP_CONCAT(CONCAT(oi.quantity, 'x ', p.name) SEPARATOR ', ') AS items_summary
+        COALESCE(SUM(oi.quantity), 0) AS total_items_qty
     FROM orders o
     LEFT JOIN users u ON u.user_id = o.user_id
-    LEFT JOIN order_items oi ON oi.order_id = o.order_id
-    LEFT JOIN products p ON p.product_id = oi.product_id
+    LEFT JOIN order_items oi ON oi.order_id = o.order_id AND oi.product_id <> 0
     WHERE " . paid_orders_where('o') . $user_clause_o . "
     GROUP BY o.order_id, o.total, o.order_date, o.payment_method, u.name, u.username, o.prepared_by
     ORDER BY o.order_date DESC, o.order_id DESC
@@ -313,7 +316,7 @@ if ($q_rec) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= current_lang() ?>">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -324,15 +327,31 @@ if ($q_rec) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
     
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, .app-layout, .app-main {
             background-color: #f8fafc !important;
             background-image: none !important;
             color: #0f172a;
-            font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+        }
+        body, input, select, textarea, button, table {
+            font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        :lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+            font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        }
+        html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+            font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+        }
+        html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+            font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
         }
 
         /* Custom Scrollbar */
@@ -455,20 +474,18 @@ if ($q_rec) {
                     <!-- Left: KHQR -->
                     <div class="flex flex-col items-center">
                         <div class="flex items-baseline gap-1">
-                            <span class="text-xl lg:text-2xl font-black text-rose-600 leading-tight"><?= number_format($bakong_cnt) ?></span>
-                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កុម្ម៉ង់' : 'orders' ?></span>
+                            <span class="text-xl lg:text-2xl font-black text-rose-600 leading-tight"><?= number_format($bakong_qty) ?></span>
+                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កែវ' : 'Qty' ?></span>
                         </div>
-                        <span class="text-[10px] font-extrabold text-rose-600/80 tracking-wider">KHQR (<?= $bakong_pct ?>%)</span>
                     </div>
                     <!-- Divider -->
                     <div class="w-px h-8 bg-slate-100"></div>
                     <!-- Right: CASH -->
                     <div class="flex flex-col items-center">
                         <div class="flex items-baseline gap-1">
-                            <span class="text-xl lg:text-2xl font-black text-emerald-600 leading-tight"><?= number_format($cash_cnt) ?></span>
-                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កុម្ម៉ង់' : 'orders' ?></span>
+                            <span class="text-xl lg:text-2xl font-black text-emerald-600 leading-tight"><?= number_format($cash_qty) ?></span>
+                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កែវ' : 'Qty' ?></span>
                         </div>
-                        <span class="text-[10px] font-extrabold text-emerald-600/80 tracking-wider">CASH (<?= $cash_pct ?>%)</span>
                     </div>
                 </div>
             </a>
@@ -543,7 +560,7 @@ if ($q_rec) {
             <div class="lg:col-span-4 bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col justify-between">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-sm md:text-base font-extrabold text-slate-900"><?= $isKm ? 'ការកុម្ម៉ង់ចុងក្រោយ' : 'Recent Orders' ?></h2>
-                    <a href="report.php" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition cursor-pointer">
+                    <a href="view_order.php" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition cursor-pointer">
                         <?= $isKm ? 'មើលទាំងអស់' : 'View All' ?>
                     </a>
                 </div>
@@ -560,18 +577,19 @@ if ($q_rec) {
                             $r_time    = date('g:i A', strtotime($ro['order_date']));
                             $r_staff   = $ro['seller_name'] ?: 'Staff';
                             $r_total   = '$' . number_format((float)$ro['total'], 2);
-                            $r_summary = !empty($ro['items_summary']) ? $ro['items_summary'] : 'Drinks & Items';
+                            $r_qty     = (int)($ro['total_items_qty'] ?? 0);
+                            $r_summary = $r_qty . 'x item' . ($r_qty > 1 ? 's' : '');
                             
                             $r_pmLower = strtolower($ro['payment_method'] ?? 'cash');
                             $isBakong  = (strpos($r_pmLower, 'bakong') !== false || strpos($r_pmLower, 'khqr') !== false || strpos($r_pmLower, 'qr') !== false);
                         ?>
-                        <div class="py-2.5 flex items-center justify-between gap-3">
+                        <a href="view_order.php" class="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/90 -mx-2 px-2 rounded-xl transition cursor-pointer text-inherit no-underline group">
                             <div class="flex items-center gap-2.5 min-w-0">
-                                <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-black flex items-center justify-center flex-shrink-0">
+                                <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-black flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition">
                                     <?= htmlspecialchars($r_orderNo) ?>
                                 </span>
                                 <div class="flex flex-col min-w-0">
-                                    <span class="text-xs font-bold text-slate-900 truncate"><?= htmlspecialchars($r_summary) ?></span>
+                                    <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-700 transition truncate"><?= htmlspecialchars($r_summary) ?></span>
                                     <span class="text-[10px] text-slate-400 font-medium"><?= htmlspecialchars($r_time) ?> • <?= htmlspecialchars($r_staff) ?></span>
                                 </div>
                             </div>
@@ -583,7 +601,7 @@ if ($q_rec) {
                                 <span class="text-[10px] font-bold text-emerald-600">Cash</span>
                                 <?php endif; ?>
                             </div>
-                        </div>
+                        </a>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>

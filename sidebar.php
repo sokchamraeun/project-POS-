@@ -49,14 +49,18 @@ if (isset($conn) && $conn instanceof mysqli) {
 ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
 /* ══ Master Typography for English & Khmer on All Devices ══ */
 body, input, select, textarea, button, .sidebar, .app-main, .modal-content, table {
-    font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
-:lang(km), [data-lang="km"], html[lang="km"] *:not(.fa):not([class*="fa-"]):not(i) {
-    font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] body, html[lang="km"] input, html[lang="km"] select, html[lang="km"] textarea, html[lang="km"] button, html[lang="km"] .sidebar, html[lang="km"] .app-main, html[lang="km"] .modal-content, html[lang="km"] table {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }
 
 /* ══ Safeguard Font Awesome Icon Fonts ══ */
@@ -167,6 +171,8 @@ html[data-theme="light"] .sidebar *,
     gap: 4px;
 }
 .sidebar .nav-item,
+button.nav-item,
+#reportNavToggle,
 html[data-theme="light"] .sidebar .nav-item,
 [data-theme="light"] .sidebar .nav-item {
     display: flex;
@@ -180,7 +186,10 @@ html[data-theme="light"] .sidebar .nav-item,
     text-decoration: none;
     transition: all 0.18s ease !important;
     border: none !important;
-    background: transparent;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
 }
 .sidebar .nav-item i,
 html[data-theme="light"] .sidebar .nav-item i,
@@ -193,20 +202,32 @@ html[data-theme="light"] .sidebar .nav-item i,
     flex-shrink: 0;
 }
 
-/* Nav Item Hover */
+/* Nav Item Focus & Hover */
+.sidebar .nav-item:focus,
+#reportNavToggle:focus,
+.sidebar button.nav-item:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
 .sidebar .nav-item:hover,
+#reportNavToggle:hover,
+button.nav-item:hover,
 html[data-theme="light"] .sidebar .nav-item:hover,
 [data-theme="light"] .sidebar .nav-item:hover {
     background: rgba(255, 255, 255, 0.07) !important;
     color: #ffffff !important;
 }
-.sidebar .nav-item:hover i {
+.sidebar .nav-item:hover i,
+#reportNavToggle:hover i {
     color: #ffffff !important;
     transform: scale(1.06);
 }
 
 /* Active Nav Item - Solid Emerald Pill */
 .sidebar .nav-item.active,
+#reportNavToggle.active,
+button.nav-item.active,
 html[data-theme="light"] .sidebar .nav-item.active,
 [data-theme="light"] .sidebar .nav-item.active {
     background: #10b981 !important;

@@ -526,7 +526,7 @@ $initStmt = $pdo->query("SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') 
 $stockItems = $initStmt->fetchAll();
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -536,13 +536,19 @@ $stockItems = $initStmt->fetchAll();
     <!-- Google Fonts: Poppins & Kantumruy Pro (Khmer) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+    <!-- Cropper.js & Product Cropper Assets -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+    <link rel="stylesheet" href="assets/css/product_cropper.css">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <script src="assets/js/product_cropper.js"></script>
 
     <!-- Theme Preload -->
     <script>
@@ -556,6 +562,8 @@ $stockItems = $initStmt->fetchAll();
     </script>
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
         :root {
             --bg: #0e0e10;
             --surface: #121215;
@@ -585,8 +593,10 @@ $stockItems = $initStmt->fetchAll();
             --text-muted: #64748b;
         }
 
-        body, input, select, textarea, button {
-            font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        body, input, select, textarea, button, .modal-content, .glass-card, table {
+            font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         body {
@@ -597,8 +607,14 @@ $stockItems = $initStmt->fetchAll();
             overflow: hidden;
         }
 
-        :lang(km), [data-lang="km"], html[lang="km"] * {
-            font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        :lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+            font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        }
+        html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+            font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+        }
+        html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+            font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
         }
 
         .glass-card {
@@ -755,87 +771,80 @@ $stockItems = $initStmt->fetchAll();
             display: flex;
             align-items: center;
             gap: 14px;
+            cursor: pointer;
             transition: all 0.2s ease;
         }
-        .stock-img-upload-box:hover, .stock-img-upload-box:focus-within {
+        .stock-img-upload-box:hover {
             border-color: #d1904b;
-            background-color: #1a1a20;
+            background-color: #1a1a22;
         }
         .stock-img-thumb {
-            width: 52px;
-            height: 52px;
+            width: 54px;
+            height: 54px;
             border-radius: 12px;
-            background-color: #1e1e24;
-            border: 1px solid #2e2e3a;
+            background-color: #1a1a20;
+            border: 1.5px solid #2e2e3a;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
             flex-shrink: 0;
             position: relative;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
         }
         .stock-img-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            display: block;
         }
-        .stock-file-input {
-            background: transparent !important;
-            border: none !important;
-            padding: 0 !important;
-            color: #d1d1db !important;
-            font-size: 12px;
-            cursor: pointer;
-            outline: none !important;
-            box-shadow: none !important;
+        .stock-img-thumb img[src=""],
+        .stock-img-thumb img:not([src]),
+        .stock-img-thumb img.hidden,
+        .stock-img-thumb img[style*="display: none"],
+        .stock-img-thumb img[style*="display:none"] {
+            display: none !important;
         }
-        .stock-file-input::-webkit-file-upload-button,
-        .stock-file-input::file-selector-button {
-            margin-right: 12px;
+        .stock-upload-btn-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             padding: 6px 14px;
-            border-radius: 9px;
-            border: none;
-            font-size: 11.5px;
+            border-radius: 10px;
+            font-size: 12px;
             font-weight: 600;
-            background: rgba(209, 144, 75, 0.18);
-            color: #d1904b;
-            cursor: pointer;
+            background: rgba(209, 144, 75, 0.16);
+            color: #e5a15a;
+            border: 1px solid rgba(209, 144, 75, 0.35);
             transition: all 0.2s ease;
         }
-        .stock-file-input::-webkit-file-upload-button:hover,
-        .stock-file-input::file-selector-button:hover {
-            background: rgba(209, 144, 75, 0.3);
-            color: #e5a15a;
+        .stock-img-upload-box:hover .stock-upload-btn-pill {
+            background: rgba(209, 144, 75, 0.26);
+            color: #f5b774;
+            border-color: #d1904b;
         }
+
         [data-theme="light"] .stock-img-upload-box {
             background-color: #f8fafc !important;
             border-color: #cbd5e1 !important;
         }
-        [data-theme="light"] .stock-img-upload-box:hover,
-        [data-theme="light"] .stock-img-upload-box:focus-within {
-            border-color: #c47c2c !important;
-            background-color: #f1f5f9 !important;
+        [data-theme="light"] .stock-img-upload-box:hover {
+            border-color: #d97706 !important;
+            background-color: #fffbeb !important;
         }
         [data-theme="light"] .stock-img-thumb {
             background-color: #ffffff !important;
-            border-color: #e2e4ea !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
-        [data-theme="light"] .stock-file-input {
-            color: #334155 !important;
-            background-color: transparent !important;
+        [data-theme="light"] .stock-upload-btn-pill {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+            border-color: #fde68a !important;
         }
-        [data-theme="light"] .stock-file-input::-webkit-file-upload-button,
-        [data-theme="light"] .stock-file-input::file-selector-button {
-            background-color: #fef3e2 !important;
-            color: #c47c2c !important;
-            border: 1px solid rgba(196, 124, 44, 0.28) !important;
-        }
-        [data-theme="light"] .stock-file-input::-webkit-file-upload-button:hover,
-        [data-theme="light"] .stock-file-input::file-selector-button:hover {
-            background-color: #fde8cc !important;
-            color: #ad6b22 !important;
+        [data-theme="light"] .stock-img-upload-box:hover .stock-upload-btn-pill {
+            background-color: #fde68a !important;
+            color: #78350f !important;
+            border-color: #f59e0b !important;
         }
 
         [data-theme="light"] .card-num { color: #111827 !important; }
@@ -1408,19 +1417,28 @@ $stockItems = $initStmt->fetchAll();
 
                 <div>
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
-                    <div class="stock-img-upload-box">
-                        <div class="stock-img-thumb">
-                            <img id="addStockImagePreview" src="uploads/no-image.png" class="hidden" alt="Preview">
-                            <i id="addStockImagePlaceholder" class="fa-solid fa-image text-xl text-[#7d7d8e]"></i>
+                    <div class="stock-img-upload-box" onclick="document.getElementById('addStockImageInput').click()" title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាព' : 'Click to choose image' ?>">
+                        <div class="stock-img-thumb" id="addStockThumbBox">
+                            <img id="addStockImagePreview" src="" alt="" style="display:none;" class="w-full h-full object-cover">
+                            <div id="addStockImagePlaceholder" class="flex flex-col items-center justify-center text-amber-500 w-full h-full">
+                                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                            </div>
                         </div>
                         <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2.5">
+                                <span class="stock-upload-btn-pill">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-xs"></i>
+                                    <span><?= current_lang() === 'km' ? 'ជ្រើសរើសរូបភាព' : 'Choose Image' ?></span>
+                                </span>
+                                <span id="addStockFileName" class="text-xs text-slate-500 font-medium truncate"><?= current_lang() === 'km' ? 'មិនទាន់ជ្រើសរើសឯកសារ' : 'No file chosen' ?></span>
+                            </div>
                             <input type="file" 
                                    name="image" 
                                    id="addStockImageInput" 
                                    accept="image/*" 
-                                   onchange="previewStockImage(this, 'addStockImagePreview', 'addStockImagePlaceholder')" 
-                                   class="stock-file-input w-full">
-                            <p class="text-[10px] text-[#7d7d8e] mt-1">PNG, JPG, WebP up to 5MB (Optional)</p>
+                                   onchange="previewStockImage(this, 'addStockImagePreview', 'addStockImagePlaceholder', 'addStockFileName')" 
+                                   style="display:none;">
+                            <p class="text-[11px] text-[#7d7d8e] mt-1.5">PNG, JPG, WebP (Max 5MB) • <?= current_lang() === 'km' ? 'ចុចដើម្បីផ្លាស់ប្តូរ' : 'Click to select' ?></p>
                         </div>
                     </div>
                 </div>
@@ -1657,18 +1675,28 @@ $stockItems = $initStmt->fetchAll();
 
                 <div>
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
-                    <div class="stock-img-upload-box">
-                        <div class="stock-img-thumb">
-                            <img id="editStockImagePreview" src="uploads/no-image.png" alt="Preview" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                    <div class="stock-img-upload-box" onclick="document.getElementById('editStockImageInput').click()" title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាព' : 'Click to change image' ?>">
+                        <div class="stock-img-thumb" id="editStockThumbBox">
+                            <img id="editStockImagePreview" src="" alt="" style="display:none;" class="w-full h-full object-cover" onerror="this.style.display='none'; const ph = document.getElementById('editStockImagePlaceholder'); if(ph) ph.style.display='flex';">
+                            <div id="editStockImagePlaceholder" class="flex flex-col items-center justify-center text-amber-500 w-full h-full">
+                                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                            </div>
                         </div>
                         <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2.5">
+                                <span class="stock-upload-btn-pill">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-xs"></i>
+                                    <span><?= current_lang() === 'km' ? 'ប្តូររូបភាព' : 'Change Image' ?></span>
+                                </span>
+                                <span id="editStockFileName" class="text-xs text-slate-500 font-medium truncate"><?= current_lang() === 'km' ? 'រូបភាពបច្ចុប្បន្ន' : 'Current image' ?></span>
+                            </div>
                             <input type="file" 
                                    name="image" 
                                    id="editStockImageInput" 
                                    accept="image/*" 
-                                   onchange="previewStockImage(this, 'editStockImagePreview', null)" 
-                                   class="stock-file-input w-full">
-                            <p class="text-[10px] text-[#7d7d8e] mt-1">Select a new image to replace current one</p>
+                                   onchange="previewStockImage(this, 'editStockImagePreview', 'editStockImagePlaceholder', 'editStockFileName')" 
+                                   style="display:none;">
+                            <p class="text-[11px] text-[#7d7d8e] mt-1.5">PNG, JPG, WebP (Max 5MB) • <?= current_lang() === 'km' ? 'ចុចដើម្បីផ្លាស់ប្តូរ' : 'Click to select' ?></p>
                         </div>
                     </div>
                 </div>
@@ -2139,22 +2167,60 @@ $stockItems = $initStmt->fetchAll();
             if (currentRVal) rSelect.value = currentRVal;
         }
 
-        // ── Image Preview Helper ──
-        function previewStockImage(input, previewId, placeholderId) {
-            if (input.files && input.files[0]) {
+        // ── Image Preview Helper with Cropper Integration ──
+        function previewStockImage(input, previewId, placeholderId, fileNameId) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            if (file._isCropped) return;
+
+            const preview = document.getElementById(previewId);
+            const placeholder = placeholderId ? document.getElementById(placeholderId) : null;
+
+            if (typeof openProductCropper === 'function') {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const preview = document.getElementById(previewId);
+                    openProductCropper(e.target.result, function(blob, dataUrl, croppedFile) {
+                        croppedFile._isCropped = true;
+                        try {
+                            const dt = new DataTransfer();
+                            dt.items.add(croppedFile);
+                            input.files = dt.files;
+                        } catch(err) { console.warn(err); }
+
+                        if (fileNameId) {
+                            const fnEl = document.getElementById(fileNameId);
+                            if (fnEl) fnEl.textContent = file.name + ' (Cropped)';
+                        }
+                        if (preview) {
+                            preview.src = dataUrl;
+                            preview.style.display = 'block';
+                            preview.classList.remove('hidden');
+                        }
+                        if (placeholder) {
+                            placeholder.style.display = 'none';
+                            placeholder.classList.add('hidden');
+                        }
+                    }, 1);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                if (fileNameId) {
+                    const fnEl = document.getElementById(fileNameId);
+                    if (fnEl) fnEl.textContent = file.name;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
                     if (preview) {
                         preview.src = e.target.result;
+                        preview.style.display = 'block';
                         preview.classList.remove('hidden');
                     }
-                    if (placeholderId) {
-                        const placeholder = document.getElementById(placeholderId);
-                        if (placeholder) placeholder.classList.add('hidden');
+                    if (placeholder) {
+                        placeholder.style.display = 'none';
+                        placeholder.classList.add('hidden');
                     }
                 };
-                reader.readAsDataURL(input.files[0]);
+                reader.readAsDataURL(file);
             }
         }
 
@@ -2164,11 +2230,17 @@ $stockItems = $initStmt->fetchAll();
             const preview = document.getElementById('addStockImagePreview');
             const placeholder = document.getElementById('addStockImagePlaceholder');
             if (preview) {
-                preview.src = 'uploads/no-image.png';
+                preview.src = '';
+                preview.style.display = 'none';
                 preview.classList.add('hidden');
             }
             if (placeholder) {
+                placeholder.style.display = 'flex';
                 placeholder.classList.remove('hidden');
+            }
+            const fnEl = document.getElementById('addStockFileName');
+            if (fnEl) {
+                fnEl.textContent = '<?= current_lang() === "km" ? "មិនទាន់ជ្រើសរើសឯកសារ" : "No file chosen" ?>';
             }
             const fileInput = document.getElementById('addStockImageInput');
             if (fileInput) fileInput.value = '';
@@ -2387,8 +2459,28 @@ $stockItems = $initStmt->fetchAll();
                 document.getElementById('editNotes').value = it.notes || '';
 
                 const editPreview = document.getElementById('editStockImagePreview');
+                const editPlaceholder = document.getElementById('editStockImagePlaceholder');
+                const editFnEl = document.getElementById('editStockFileName');
                 if (editPreview) {
-                    editPreview.src = it.image ? it.image : 'uploads/no-image.png';
+                    if (it.image && it.image.trim() && !it.image.includes('no-image.png')) {
+                        editPreview.src = it.image;
+                        editPreview.style.display = 'block';
+                        editPreview.classList.remove('hidden');
+                        if (editPlaceholder) {
+                            editPlaceholder.style.display = 'none';
+                            editPlaceholder.classList.add('hidden');
+                        }
+                        if (editFnEl) editFnEl.textContent = '<?= current_lang() === "km" ? "រូបភាពបច្ចុប្បន្ន" : "Current image" ?>';
+                    } else {
+                        editPreview.src = '';
+                        editPreview.style.display = 'none';
+                        editPreview.classList.add('hidden');
+                        if (editPlaceholder) {
+                            editPlaceholder.style.display = 'flex';
+                            editPlaceholder.classList.remove('hidden');
+                        }
+                        if (editFnEl) editFnEl.textContent = '<?= current_lang() === "km" ? "មិនទាន់មានរូបភាព" : "No image uploaded" ?>';
+                    }
                 }
                 const editFileInput = document.getElementById('editStockImageInput');
                 if (editFileInput) editFileInput.value = '';

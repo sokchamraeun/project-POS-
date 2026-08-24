@@ -2,6 +2,8 @@
 header('X-Frame-Options: SAMEORIGIN');
 require 'admin_only.php';
 require 'config.php';
+require_once __DIR__ . '/lang.php';
+$isKm = (current_lang() === 'km');
 
 if (empty($_GET['id'])) { header("Location: products.php"); exit; }
 $id = (int)$_GET['id'];
@@ -37,16 +39,24 @@ if (isset($_POST['update_product']) || isset($_POST['ajax'])) {
     $cat_r->bind_param("s", $category); $cat_r->execute();
     $category_id = ($cat_r->get_result()->fetch_assoc())['category_id'] ?? null;
 
-    if ($name === '' || $price < 0 || $category === '') {
-        $error = "Please fill in all required fields.";
+    if ($name === '' || $price <= 0 || $category === '') {
+        if ($price <= 0) {
+            $error = $isKm ? "សូមបញ្ចូលតម្លៃលក់ឲ្យបានត្រឹមត្រូវ (តម្លៃត្រូវធំជាង $0.00)!" : "Selling price is required and must be greater than $0.00!";
+        } else {
+            $error = $isKm ? "សូមបំពេញគ្រប់ព័ត៌មានដែលតម្រូវ។" : "Please fill in all required fields.";
+        }
     } else {
-        // Check for duplicate product name
-        $chk = $conn->prepare("SELECT product_id FROM products WHERE LOWER(TRIM(name)) = LOWER(?) AND product_id != ? LIMIT 1");
+        // Check for duplicate product name (case-insensitive, whitespace-insensitive)
+        $chk = $conn->prepare("SELECT product_id, name FROM products WHERE LOWER(REPLACE(REPLACE(TRIM(name), ' ', ''), '-', '')) = LOWER(REPLACE(REPLACE(TRIM(?), ' ', ''), '-', '')) AND product_id != ? LIMIT 1");
         $chk->bind_param("si", $name, $id);
         $chk->execute();
-        if ($chk->get_result()->fetch_assoc()) {
-            $error = "Another product named \"$name\" already exists on the menu.";
+        $existingProd = $chk->get_result()->fetch_assoc();
+        if ($existingProd) {
+            $error = $isKm 
+                ? "មុខទំនិញឈ្មោះ \"{$existingProd['name']}\" មានរួចហើយនៅលើម៉ឺនុយ! មិនអាចកែប្រែឈ្មោះស្ទួនបានទេ។" 
+                : "Another product named \"{$existingProd['name']}\" already exists on the menu!";
         }
+        $chk->close();
     }
 
     if (!$error && !empty($_FILES['image']['name'])) {
@@ -63,6 +73,12 @@ if (isset($_POST['update_product']) || isset($_POST['ajax'])) {
         } else {
             $error = $uploadRes['error'];
         }
+    } else if (!$error && !empty($_POST['existing_image']) && !str_contains($_POST['existing_image'], 'no-image.png') && $_POST['existing_image'] !== ($product['image'] ?? '')) {
+        $image_path = trim($_POST['existing_image']);
+        $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,image=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
+        $stmt->bind_param("ssddsisisii", $name, $description, $price, $cost_price, $category, $category_id, $image_path, $is_avail, $badge_text, $promo_percent, $id);
+        if ($stmt->execute()) { $success = true; $product['image'] = $image_path; }
+        else $error = "Database error while updating product.";
     } else if (!$error) {
         $stmt = $conn->prepare("UPDATE products SET name=?,description=?,price=?,cost_price=?,category=?,category_id=?,is_available=?,badge_text=?,promo_percent=? WHERE product_id=?");
         $stmt->bind_param("ssddsiisii", $name, $description, $price, $cost_price, $category, $category_id, $is_avail, $badge_text, $promo_percent, $id);
@@ -191,6 +207,22 @@ foreach ($allIngredients as $ing) {
         ];
     }
 }
+
+$allExistingProducts = [];
+$pRes = $conn->prepare("SELECT product_id, name, price FROM products WHERE product_id != ?");
+$pRes->bind_param("i", $id);
+$pRes->execute();
+$pResResult = $pRes->get_result();
+if ($pResResult) {
+    while ($pr = $pResResult->fetch_assoc()) {
+        $allExistingProducts[] = [
+            'id'    => (int)$pr['product_id'],
+            'name'  => $pr['name'],
+            'price' => (float)$pr['price']
+        ];
+    }
+}
+$pRes->close();
 
 if (!function_exists('renderIngredientOptGroups')) {
     function renderIngredientOptGroups($allIngredients, $selectedId = null) {
@@ -397,22 +429,32 @@ $recStmt->execute();
 $productIngredients = $recStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-body, input, select, textarea, button {
-    font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
+body, input, select, textarea, button, .modal-content, table {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
-:lang(km), [data-lang="km"], html[lang="km"] * {
-    font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+}
+html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+    font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
 }
 
 :root {
@@ -1514,6 +1556,7 @@ html:not([data-theme="light"]) select.cat-select {
                     <h2 class="text-base font-bold text-white leading-tight flex items-center gap-1.5">
                         <span>កែប្រែមុខទំនិញ (Edit Product)</span>
                         <span id="nav-name-badge" class="text-indigo-400 font-bold ml-1"><?= htmlspecialchars($product['name']) ?></span>
+                        <span class="text-xs bg-indigo-500/20 text-indigo-300 font-mono font-bold px-2 py-0.5 rounded-full border border-indigo-500/30">ID: #<?= (int)$product['product_id'] ?></span>
                     </h2>
                     <p class="text-xs text-[#8c93a8] font-normal mt-0.5">
                         កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)
@@ -1634,8 +1677,9 @@ html:not([data-theme="light"]) select.cat-select {
                                     <input type="text" id="f_name" name="name" required maxlength="120"
                                         value="<?= htmlspecialchars($product['name']) ?>"
                                         placeholder="ឧ. Vital 500ml"
-                                        autocomplete="off" oninput="checkDirectStockMatch(this.value); const b = document.getElementById('nav-name-badge'); if(b) b.textContent = this.value || 'Product';">
+                                        autocomplete="off" oninput="checkDirectStockMatch(this.value); checkDuplicateProduct(this.value); const b = document.getElementById('nav-name-badge'); if(b) b.textContent = this.value || 'Product';">
                                 </div>
+                                <div id="dupProductAlert" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;color:#991b1b;margin-top:6px;align-items:center;"></div>
                             </div>
 
                             <!-- CATEGORY -->
@@ -1683,7 +1727,7 @@ html:not([data-theme="light"]) select.cat-select {
 
                             <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
                             <div id="directMarginCard" class="w-full bg-[#ecfdf5] border border-[#a7f3d0] rounded-xl px-4 py-3 flex items-center justify-between" style="display:none;">
-                                <span class="text-xs font-bold text-[#065f46]">ចំណេញដុល (Profit Margin):</span>
+                                <span class="text-xs font-bold text-[#065f46]">ចំណេញ (Profit):</span>
                                 <span id="directMarginDisp" class="text-sm font-black text-[#059669]">+$0.00 (+0.0%)</span>
                             </div>
 
@@ -2809,17 +2853,55 @@ function checkDirectStockMatch(val) {
     }
 }
 
+const allExistingProducts = <?= json_encode($allExistingProducts) ?>;
+
+function checkDuplicateProduct(val) {
+    const alertEl = document.getElementById('dupProductAlert');
+    const fName = document.getElementById('f_name');
+    const submitBtn = document.querySelector('button[type="submit"][name="update_product"]');
+    if (!val || !val.trim()) {
+        if (alertEl) alertEl.style.display = 'none';
+        if (fName) { fName.style.borderColor = ''; fName.style.backgroundColor = ''; }
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+    }
+    const clean = val.trim().toLowerCase().replace(/[\s\-_]+/g, '');
+    const found = allExistingProducts.find(p => {
+        const pClean = (p.name || '').trim().toLowerCase().replace(/[\s\-_]+/g, '');
+        return pClean === clean;
+    });
+
+    if (found) {
+        if (alertEl) {
+            alertEl.style.display = 'flex';
+            alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2 text-sm flex-shrink-0"></i> <span>` +
+                (window.IS_KM
+                    ? `មុខទំនិញ <strong>"${found.name}"</strong> (ID: #${found.id}, តម្លៃ: $${parseFloat(found.price).toFixed(2)}) មានរួចហើយនៅលើម៉ឺនុយ! សូមជ្រើសរើសឈ្មោះផ្សេង។`
+                    : `Product <strong>"${found.name}"</strong> (ID: #${found.id}, Price: $${parseFloat(found.price).toFixed(2)}) already exists on menu! Please use a unique name.`) + `</span>`;
+        }
+        if (fName) {
+            fName.style.borderColor = '#ef4444';
+            fName.style.backgroundColor = '#fef2f2';
+        }
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        if (alertEl) alertEl.style.display = 'none';
+        if (fName) { fName.style.borderColor = ''; fName.style.backgroundColor = ''; }
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const fName = document.getElementById('f_name');
-    if (fName && fName.value) checkDirectStockMatch(fName.value);
+    if (fName && fName.value) {
+        checkDirectStockMatch(fName.value);
+        checkDuplicateProduct(fName.value);
+    }
 
-    // Initial check: if product has 0 recipes and is direct drink / soft drink, default to direct_drink
+    // Initial check: if product has 0 recipes, default to direct_drink
     const cleanName = (initialName || '').toLowerCase();
     const cleanCat = (initialCategory || '').toLowerCase();
-    const isDirectByDefault = !initialHasRecipes && (
-        cleanCat.includes('direct') || cleanCat.includes('soft') || cleanCat.includes('bottle') || cleanCat.includes('can') ||
-        cleanName.includes('coca') || cleanName.includes('coke') || cleanName.includes('red bull') || cleanName.includes('sting') || cleanName.includes('ize') || cleanName.includes('water')
-    );
+    const isDirectByDefault = !initialHasRecipes;
 
     if (isDirectByDefault) {
         setProductType('direct_drink');
@@ -2835,6 +2917,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const txt = this.options[this.selectedIndex]?.text.toLowerCase() || '';
             if (val.includes('soft') || txt.includes('soft') || val.includes('direct') || txt.includes('direct') || val.includes('bottle') || val.includes('can') || val.includes('snack')) {
                 setProductType('direct_drink');
+            }
+        });
+    }
+
+    const editForm = document.querySelector('form');
+    if (editForm) {
+        editForm.addEventListener('submit', function(e) {
+            const price = parseFloat(document.getElementById('f_price')?.value || document.getElementById('f_price_dd')?.value || 0);
+            if (isNaN(price) || price <= 0) {
+                e.preventDefault();
+                alert(window.IS_KM 
+                    ? '⚠️ សូមបញ្ចូលតម្លៃលក់ឲ្យបានត្រឹមត្រូវ (តម្លៃត្រូវធំជាង $0.00)!' 
+                    : '⚠️ Selling price is required and must be greater than $0.00!');
+                const targetInp = (document.getElementById('f_product_type')?.value === 'direct_drink') ? document.getElementById('f_price_dd') : document.getElementById('f_price');
+                if (targetInp) targetInp.focus();
+                return false;
             }
         });
     }

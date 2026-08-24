@@ -298,18 +298,53 @@ if (!function_exists('business_date_today')) {
  * or a make-to-order beverage that requires recipe ingredients (BOM).
  */
 if (!function_exists('is_direct_drink_product')) {
-    function is_direct_drink_product(array $product): bool {
+    function is_direct_drink_product(array $product, ?mysqli $db = null): bool {
         if (!empty($product['product_type']) && $product['product_type'] === 'direct_drink') {
             return true;
         }
         $cat = strtolower($product['category'] ?? '');
         $name = strtolower($product['name'] ?? '');
-        $directKeywords = ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'carabao', 'pocari', 'fanta', 'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 'drink'];
+        $directKeywords = [
+            'soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 
+            'red bull', 'redbull', 'bacchus', 'bachas', 'carabao', 'pocari', 'fanta', 
+            'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 
+            'drink', 'soda', 'energy'
+        ];
         foreach ($directKeywords as $kw) {
             if (str_contains($cat, $kw) || str_contains($name, $kw)) {
                 return true;
             }
         }
+
+        // Check if matching direct stock item exists in database
+        global $conn;
+        $connToUse = $db ?? $conn;
+        if ($connToUse instanceof mysqli) {
+            static $directStockNames = null;
+            if ($directStockNames === null) {
+                $directStockNames = [];
+                $sRes = @$connToUse->query("SELECT item_name FROM stock_items WHERE item_type = 'direct_drink' OR category = 'Direct Drinks' OR category = 'Soft Drinks'");
+                if ($sRes) {
+                    while ($sr = $sRes->fetch_assoc()) {
+                        $directStockNames[] = strtolower(str_replace(' ', '', $sr['item_name']));
+                    }
+                }
+            }
+            if (!empty($directStockNames)) {
+                $cleanP = strtolower(str_replace(' ', '', $product['name'] ?? ''));
+                foreach ($directStockNames as $dsName) {
+                    if ($cleanP === $dsName || str_contains($cleanP, $dsName) || str_contains($dsName, $cleanP)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // If product has 0 recipes and cost_price > 0, treat as direct stock
+        if (isset($product['recipe_count']) && (int)$product['recipe_count'] === 0 && (float)($product['cost_price'] ?? 0) > 0) {
+            return true;
+        }
+
         return false;
     }
 }

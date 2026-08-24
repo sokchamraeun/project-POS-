@@ -7,6 +7,8 @@ $isKm = (current_lang() === 'km');
 $error   = '';
 $success = false;
 
+$isAjax = !empty($_POST['ajax']) || !empty($_GET['ajax']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
 if (isset($_POST['add_product'])) {
     $name        = trim($_POST['name']        ?? '');
     $description = trim($_POST['description'] ?? '');
@@ -22,16 +24,24 @@ if (isset($_POST['add_product'])) {
     $cat_r->bind_param("s", $category); $cat_r->execute();
     $category_id = ($cat_r->get_result()->fetch_assoc())['category_id'] ?? null;
 
-    if ($name === '' || $price < 0 || $category === '') {
-        $error = "Please fill in all required fields.";
+    if ($name === '' || $price <= 0 || $category === '') {
+        if ($price <= 0) {
+            $error = $isKm ? "សូមបញ្ចូលតម្លៃលក់ឲ្យបានត្រឹមត្រូវ (តម្លៃត្រូវធំជាង $0.00)!" : "Selling price is required and must be greater than $0.00!";
+        } else {
+            $error = $isKm ? "សូមបំពេញគ្រប់ព័ត៌មានដែលតម្រូវ។" : "Please fill in all required fields.";
+        }
     } else {
-        // Check for duplicate product name
-        $chk = $conn->prepare("SELECT product_id FROM products WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1");
+        // Check for duplicate product name (case-insensitive, whitespace-insensitive)
+        $chk = $conn->prepare("SELECT product_id, name FROM products WHERE LOWER(REPLACE(REPLACE(TRIM(name), ' ', ''), '-', '')) = LOWER(REPLACE(REPLACE(TRIM(?), ' ', ''), '-', '')) LIMIT 1");
         $chk->bind_param("s", $name);
         $chk->execute();
-        if ($chk->get_result()->fetch_assoc()) {
-            $error = "A product named \"$name\" already exists on the menu.";
+        $existingProd = $chk->get_result()->fetch_assoc();
+        if ($existingProd) {
+            $error = $isKm 
+                ? "មុខទំនិញឈ្មោះ \"{$existingProd['name']}\" មានរួចហើយនៅលើម៉ឺនុយ! មិនអាចបង្កើតឈ្មោះស្ទួនបានទេ។" 
+                : "A product named \"{$existingProd['name']}\" already exists on the menu! Duplicate products are not allowed.";
         }
+        $chk->close();
     }
 
     if (!$error) {
@@ -43,6 +53,22 @@ if (isset($_POST['add_product'])) {
             } else {
                 $error = $uploadRes['error'];
             }
+        } elseif (!empty($_POST['existing_image']) && !str_contains($_POST['existing_image'], 'no-image.png')) {
+            $image_path = trim($_POST['existing_image']);
+        }
+
+        // If still empty, check stock_items for a matching drink image
+        if (empty($image_path) && empty($error)) {
+            $sChk = $conn->prepare("SELECT image FROM stock_items WHERE LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) AND image IS NOT NULL AND image != '' LIMIT 1");
+            if ($sChk) {
+                $sChk->bind_param("s", $name);
+                $sChk->execute();
+                $sRes = $sChk->get_result()->fetch_assoc();
+                if (!empty($sRes['image'])) {
+                    $image_path = $sRes['image'];
+                }
+                $sChk->close();
+            }
         }
 
         if (empty($error)) {
@@ -52,6 +78,7 @@ if (isset($_POST['add_product'])) {
                 $new_id = $stmt->insert_id;
 
                 // ── Save Recipe / Bill of Materials (BOM) for Made-to-Order Drinks only ──
+                $hasRecipe = 0;
                 if ($product_type !== 'direct_drink' && !empty($_POST['recipe_ingredient_id']) && is_array($_POST['recipe_ingredient_id'])) {
                     $insRec = $conn->prepare("INSERT INTO product_recipes (product_id, item_id, quantity_required, unit, notes) VALUES (?, ?, ?, ?, ?)");
                     $ingIds  = $_POST['recipe_ingredient_id'];
@@ -76,6 +103,7 @@ if (isset($_POST['add_product'])) {
                             $insRec->bind_param("iidss", $new_id, $ingId, $qtyUsed, $unit, $note);
                             $insRec->execute();
                             $uStmt->close();
+                            $hasRecipe = 1;
                         }
                     }
                     $insRec->close();
@@ -90,12 +118,44 @@ if (isset($_POST['add_product'])) {
                     }
                 }
 
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode([
+                        'ok' => true,
+                        'message' => $isKm ? 'បានបង្កើតមុខទំនិញថ្មីដោយជោគជ័យ!' : 'Product added successfully!',
+                        'product' => [
+                            'id'           => $new_id,
+                            'name'         => $name,
+                            'description'  => $description,
+                            'price'        => $price,
+                            'cost_price'   => $cost_price,
+                            'category'     => $category,
+                            'image'        => get_image_url($image_path, 'uploads/no-image.png'),
+                            'is_available' => $is_avail,
+                            'badge_text'   => $badge_text,
+                            'promo_percent'=> $promo_percent,
+                            'product_type' => $product_type,
+                            'has_recipe'   => $hasRecipe
+                        ]
+                    ]);
+                    exit;
+                }
+
                 header("Location: products.php");
                 exit;
             } else {
                 $error = "Database error while adding product.";
             }
         }
+    }
+
+    if ($isAjax) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok' => false,
+            'error' => $error ?: 'Validation failed'
+        ]);
+        exit;
     }
 }
 
@@ -125,6 +185,18 @@ foreach ($allIngredients as $ing) {
             'unit'     => $ing['unit'] ?: 'cans',
             'cost'     => (float)$ing['cost_per_unit'],
             'category' => $ing['category'] ?? ''
+        ];
+    }
+}
+
+$allExistingProducts = [];
+$pRes = $conn->query("SELECT product_id, name, price FROM products");
+if ($pRes) {
+    while ($pr = $pRes->fetch_assoc()) {
+        $allExistingProducts[] = [
+            'id'    => (int)$pr['product_id'],
+            'name'  => $pr['name'],
+            'price' => (float)$pr['price']
         ];
     }
 }
@@ -1534,8 +1606,9 @@ input::placeholder, textarea::placeholder { color: #94a3b8 !important; opacity: 
                                 <?php endif; ?>
 
                                 <div class="relative" id="recipeNameWrap">
-                                    <input type="text" name="name" id="f_name" value="" placeholder="<?= $isKm ? "ឧ. Oolong Macchiato ឬ Bird's Nest Latte" : "e.g. Oolong Macchiato or Bird's Nest Latte" ?>" autocomplete="off" required oninput="checkDirectStockMatch(this.value)">
+                                    <input type="text" name="name" id="f_name" value="" placeholder="<?= $isKm ? "ឧ. Oolong Macchiato ឬ Bird's Nest Latte" : "e.g. Oolong Macchiato or Bird's Nest Latte" ?>" autocomplete="off" required oninput="checkDirectStockMatch(this.value); checkDuplicateProduct(this.value);">
                                 </div>
+                                <div id="dupProductAlert" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;color:#991b1b;margin-top:6px;align-items:center;"></div>
                             </div>
 
                             <!-- CATEGORY -->
@@ -1583,7 +1656,7 @@ input::placeholder, textarea::placeholder { color: #94a3b8 !important; opacity: 
 
                             <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
                             <div id="directMarginCard" class="w-full bg-[#ecfdf5] border border-[#a7f3d0] rounded-xl px-4 py-3 flex items-center justify-between" style="display:none;">
-                                <span class="text-xs font-bold text-[#065f46]"><?= $isKm ? 'ចំណេញដុល:' : 'Profit Margin:' ?></span>
+                                <span class="text-xs font-bold text-[#065f46]"><?= $isKm ? 'ចំណេញ:' : 'Profit Margin:' ?></span>
                                 <span id="directMarginDisp" class="text-sm font-black text-[#059669]">+$0.00 (+0.0%)</span>
                             </div>
 
@@ -2498,9 +2571,50 @@ function checkDirectStockMatch(val) {
     }
 }
 
+const allExistingProducts = <?= json_encode($allExistingProducts) ?>;
+
+function checkDuplicateProduct(val) {
+    const alertEl = document.getElementById('dupProductAlert');
+    const fName = document.getElementById('f_name');
+    const submitBtn = document.querySelector('button[type="submit"][name="add_product"]');
+    if (!val || !val.trim()) {
+        if (alertEl) alertEl.style.display = 'none';
+        if (fName) { fName.style.borderColor = ''; fName.style.backgroundColor = ''; }
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+    }
+    const clean = val.trim().toLowerCase().replace(/[\s\-_]+/g, '');
+    const found = allExistingProducts.find(p => {
+        const pClean = (p.name || '').trim().toLowerCase().replace(/[\s\-_]+/g, '');
+        return pClean === clean;
+    });
+
+    if (found) {
+        if (alertEl) {
+            alertEl.style.display = 'flex';
+            alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2 text-sm flex-shrink-0"></i> <span>` +
+                (window.IS_KM
+                    ? `មុខទំនិញ <strong>"${found.name}"</strong> (ID: #${found.id}, តម្លៃ: $${parseFloat(found.price).toFixed(2)}) មានរួចហើយនៅលើម៉ឺនុយ! សូមជ្រើសរើសឈ្មោះផ្សេង។`
+                    : `Product <strong>"${found.name}"</strong> (ID: #${found.id}, Price: $${parseFloat(found.price).toFixed(2)}) already exists on menu! Please use a unique name.`) + `</span>`;
+        }
+        if (fName) {
+            fName.style.borderColor = '#ef4444';
+            fName.style.backgroundColor = '#fef2f2';
+        }
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        if (alertEl) alertEl.style.display = 'none';
+        if (fName) { fName.style.borderColor = ''; fName.style.backgroundColor = ''; }
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const fName = document.getElementById('f_name');
-    if (fName && fName.value) checkDirectStockMatch(fName.value);
+    if (fName && fName.value) {
+        checkDirectStockMatch(fName.value);
+        checkDuplicateProduct(fName.value);
+    }
 
     // Auto switch type when category changes to a direct drink category
     const catSel = document.getElementById('f_cat');
@@ -2510,6 +2624,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const txt = this.options[this.selectedIndex]?.text.toLowerCase() || '';
             if (val.includes('soft') || txt.includes('soft') || val.includes('direct') || txt.includes('direct') || val.includes('bottle') || val.includes('can') || val.includes('snack')) {
                 setProductType('direct_drink');
+            }
+        });
+    }
+
+    const addForm = document.querySelector('form');
+    if (addForm) {
+        addForm.addEventListener('submit', function(e) {
+            const price = parseFloat(document.getElementById('f_price')?.value || document.getElementById('f_price_dd')?.value || 0);
+            if (isNaN(price) || price <= 0) {
+                e.preventDefault();
+                alert(window.IS_KM 
+                    ? '⚠️ សូមបញ្ចូលតម្លៃលក់ឲ្យបានត្រឹមត្រូវ (តម្លៃត្រូវធំជាង $0.00)!' 
+                    : '⚠️ Selling price is required and must be greater than $0.00!');
+                const targetInp = (document.getElementById('f_product_type')?.value === 'direct_drink') ? document.getElementById('f_price_dd') : document.getElementById('f_price');
+                if (targetInp) targetInp.focus();
+                return false;
             }
         });
     }

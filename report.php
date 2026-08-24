@@ -17,8 +17,26 @@ $today = business_date_today();
 $currentYear = date('Y', strtotime($today));
 $quickRange = $_GET['quick_range'] ?? 'month';
 $selectedMonth = $_GET['month_select'] ?? '';
-$fromDate = trim($_GET['from_date'] ?? $_GET['date_from'] ?? $_GET['from'] ?? '');
-$toDate   = trim($_GET['to_date']   ?? $_GET['date_to']   ?? $_GET['to']   ?? '');
+$fromDateTimeParam = trim($_GET['from_datetime'] ?? '');
+$toDateTimeParam   = trim($_GET['to_datetime']   ?? '');
+
+if (!empty($fromDateTimeParam)) {
+    $parts = explode('T', str_replace(' ', 'T', $fromDateTimeParam));
+    $fromDate = $parts[0] ?? $today;
+    $fromTime = $parts[1] ?? '00:00';
+} else {
+    $fromDate = trim($_GET['from_date'] ?? $_GET['date_from'] ?? $_GET['from'] ?? '');
+    $fromTime = trim($_GET['from_time'] ?? '');
+}
+
+if (!empty($toDateTimeParam)) {
+    $parts = explode('T', str_replace(' ', 'T', $toDateTimeParam));
+    $toDate = $parts[0] ?? $today;
+    $toTime = $parts[1] ?? '23:59';
+} else {
+    $toDate = trim($_GET['to_date'] ?? $_GET['date_to'] ?? $_GET['to'] ?? '');
+    $toTime = trim($_GET['to_time'] ?? '');
+}
 
 // If a specific month is chosen, override fromDate & toDate
 if (!empty($selectedMonth) && preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
@@ -51,6 +69,21 @@ if ($fromDate > $toDate) {
     [$fromDate, $toDate] = [$toDate, $fromDate];
 }
 
+$fromTimeFull = '00:00:00';
+if (!empty($fromTime) && preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $fromTime)) {
+    $fromTimeFull = (strlen($fromTime) === 5) ? ($fromTime . ':00') : $fromTime;
+}
+$toTimeFull = '23:59:59';
+if (!empty($toTime) && preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $toTime)) {
+    $toTimeFull = (strlen($toTime) === 5) ? ($toTime . ':59') : $toTime;
+}
+
+$fromDateTime = $fromDate . ' ' . $fromTimeFull;
+$toDateTime   = $toDate   . ' ' . $toTimeFull;
+
+$fromDateTimeInputVal = $fromDate . 'T' . substr($fromTimeFull, 0, 5);
+$toDateTimeInputVal   = $toDate   . 'T' . substr($toTimeFull, 0, 5);
+
 $timeShift      = trim($_GET['time_shift'] ?? '');
 $filterUser     = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
 if (!$_is_mgr) {
@@ -78,12 +111,12 @@ if ($q_cat) {
 
 // ── Build Database Query for Product Sales & Profit Analysis ──
 $whereClauses = [
-    "DATE(o.order_date) BETWEEN ? AND ?",
+    "o.order_date BETWEEN ? AND ?",
     "oc.order_id IS NULL",
     paid_orders_where('o')
 ];
 $bindTypes    = "ss";
-$bindParams   = [$fromDate, $toDate];
+$bindParams   = [$fromDateTime, $toDateTime];
 
 if ($timeShift === 'morning') {
     $whereClauses[] = "TIME(o.order_date) BETWEEN '06:00:00' AND '11:59:59'";
@@ -193,7 +226,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= current_lang() ?>">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
     <meta charset="UTF-8">
     <title><?= $isKm ? 'ការវិភាគ & នាំចេញ' : 'Analytics & Export' ?> | Bird's Nest Coffee</title>
@@ -202,15 +235,31 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
     
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, .app-layout, .app-main, .rep-page-wrapper {
             background-color: #f8fafc !important;
             background-image: none !important;
             color: #0f172a;
-            font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+        }
+        body, input, select, textarea, button, table {
+            font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        :lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+            font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        }
+        html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+            font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+        }
+        html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+            font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
         }
 
         /* Custom Scrollbar matching Daily Summary */
@@ -277,20 +326,20 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 <form method="GET" action="report.php" id="analyticsReportFilterForm" class="flex flex-col gap-3.5">
                     <!-- Row 1: 6 Filter Columns -->
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        <!-- 1. Start Date -->
+                        <!-- 1. Start Date & Time -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date' ?></label>
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date & Time' ?></label>
                             <div class="relative">
-                                <input type="date" id="fromDateInput" name="from_date" value="<?= htmlspecialchars($fromDate) ?>" onchange="this.form.submit()"
+                                <input type="datetime-local" id="fromDateTimeInput" name="from_datetime" value="<?= htmlspecialchars($fromDateTimeInputVal) ?>" onchange="this.form.submit()"
                                        class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
                             </div>
                         </div>
 
-                        <!-- 2. End Date -->
+                        <!-- 2. End Date & Time -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date' ?></label>
+                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date & Time' ?></label>
                             <div class="relative">
-                                <input type="date" id="toDateInput" name="to_date" value="<?= htmlspecialchars($toDate) ?>" onchange="this.form.submit()"
+                                <input type="datetime-local" id="toDateTimeInput" name="to_datetime" value="<?= htmlspecialchars($toDateTimeInputVal) ?>" onchange="this.form.submit()"
                                        class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
                             </div>
                         </div>
@@ -513,10 +562,15 @@ function handleMonthSelect(val) {
     const form = document.getElementById('analyticsReportFilterForm');
     const [yyyy, mm] = val.split('-');
     const lastDay = new Date(yyyy, mm, 0).getDate();
-    const pad = (n) => String(n).padStart(2, '0');
+    const fDt = document.getElementById('fromDateTimeInput');
+    const tDt = document.getElementById('toDateTimeInput');
+    if (fDt) fDt.value = `${yyyy}-${pad(mm)}-01T00:00`;
+    if (tDt) tDt.value = `${yyyy}-${pad(mm)}-${pad(lastDay)}T23:59`;
     
-    document.getElementById('fromDateInput').value = `${yyyy}-${pad(mm)}-01`;
-    document.getElementById('toDateInput').value = `${yyyy}-${pad(mm)}-${pad(lastDay)}`;
+    const fD = document.getElementById('fromDateInput');
+    const tD = document.getElementById('toDateInput');
+    if (fD) fD.value = `${yyyy}-${pad(mm)}-01`;
+    if (tD) tD.value = `${yyyy}-${pad(mm)}-${pad(lastDay)}`;
     
     const qr = document.getElementById('quickRangeSelect');
     if (qr) qr.value = '';
@@ -569,8 +623,16 @@ function handleQuickRangeChange(val) {
     const ms = document.getElementById('monthSelect');
     if (ms) ms.value = '';
     
-    document.getElementById('fromDateInput').value = fromStr;
-    document.getElementById('toDateInput').value = toStr;
+    const fDt = document.getElementById('fromDateTimeInput');
+    const tDt = document.getElementById('toDateTimeInput');
+    if (fDt) fDt.value = `${fromStr}T00:00`;
+    if (tDt) tDt.value = `${toStr}T23:59`;
+    
+    const fD = document.getElementById('fromDateInput');
+    const tD = document.getElementById('toDateInput');
+    if (fD) fD.value = fromStr;
+    if (tD) tD.value = toStr;
+    
     document.getElementById('analyticsReportFilterForm').submit();
 }
 

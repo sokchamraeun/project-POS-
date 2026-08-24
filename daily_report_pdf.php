@@ -73,6 +73,8 @@ if ($dateFrom !== '' && $dateTo !== '') {
 // ── Table report orders & filters ──
 $filter_from    = trim($_GET['date_from'] ?? $_GET['from_date'] ?? ($isRange ? $dateFrom : $date));
 $filter_to      = trim($_GET['date_to']   ?? $_GET['to_date']   ?? ($isRange ? $dateTo   : $date));
+$filter_from_time = trim($_GET['from_time'] ?? '');
+$filter_to_time   = trim($_GET['to_time']   ?? '');
 $filter_payment = trim($_GET['payment_method'] ?? '');
 $_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
 $filter_user = (int)($_GET['user_id'] ?? $_GET['user'] ?? 0);
@@ -84,7 +86,19 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_from)) $filter_from = $today;
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $filter_to))   $filter_to   = $today;
 if ($filter_from > $filter_to) [$filter_from, $filter_to] = [$filter_to, $filter_from];
 
-$where_conds = ["DATE(o.order_date) BETWEEN '$filter_from' AND '$filter_to'"];
+$from_time_full = '00:00:00';
+if (!empty($filter_from_time) && preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $filter_from_time)) {
+    $from_time_full = (strlen($filter_from_time) === 5) ? ($filter_from_time . ':00') : $filter_from_time;
+}
+$to_time_full = '23:59:59';
+if (!empty($filter_to_time) && preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $filter_to_time)) {
+    $to_time_full = (strlen($filter_to_time) === 5) ? ($filter_to_time . ':59') : $filter_to_time;
+}
+
+$dt_from_str = $conn->real_escape_string($filter_from . ' ' . $from_time_full);
+$dt_to_str   = $conn->real_escape_string($filter_to   . ' ' . $to_time_full);
+
+$where_conds = ["o.order_date BETWEEN '$dt_from_str' AND '$dt_to_str'"];
 if ($filter_payment !== '') {
     $where_conds[] = "LOWER(o.payment_method) = '" . $conn->real_escape_string(strtolower($filter_payment)) . "'";
 }
@@ -276,24 +290,26 @@ if (!empty($_GET['dompdf'])) {
       <thead>
         <tr>
           <th style="width:7%;"><?= he($lbl_col_no) ?></th>
-          <th style="width:20%;"><?= he($lbl_col_date) ?></th>
-          <th style="width:16%;"><?= he($lbl_col_cust) ?></th>
-          <th style="width:11%;"><?= he($lbl_col_price) ?></th>
+          <th style="width:18%;"><?= he($lbl_col_date) ?></th>
+          <th style="width:14%;"><?= he($lbl_col_cust) ?></th>
+          <th style="width:10%;"><?= he($lbl_col_price) ?></th>
+          <th style="width:10%;"><?= he($lbl_col_profit) ?></th>
           <th style="width:8%;"><?= he($lbl_col_qty) ?></th>
-          <th style="width:11%;"><?= he($lbl_col_payment) ?></th>
-          <th style="width:12%;"><?= he($lbl_col_total) ?></th>
-          <th style="width:15%;"><?= he($lbl_col_place) ?></th>
+          <th style="width:10%;"><?= he($lbl_col_payment) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_total) ?></th>
+          <th style="width:12%;"><?= he($lbl_col_place) ?></th>
         </tr>
       </thead>
       <tbody>
         <?php if (empty($processed_rows)): ?>
-          <tr><td colspan="8" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
+          <tr><td colspan="9" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
         <?php else: foreach ($processed_rows as $r): ?>
           <tr>
             <td><?= $r['no'] ?></td>
             <td><?= $r['date'] ?></td>
             <td><?= $r['customer'] ?></td>
             <td><?= $r['price'] ?></td>
+            <td><?= $r['profit'] ?></td>
             <td><?= $r['qty_item'] ?></td>
             <td><?= $r['payment_method'] ?></td>
             <td><?= $r['total'] ?></td>
@@ -303,6 +319,7 @@ if (!empty($_GET['dompdf'])) {
           <tr class="total-row">
             <td colspan="3" style="text-align:center; background:#fff;"><?= he($lbl_col_sum) ?></td>
             <td style="background:#c6efce;"><?= $fmt_sum_gross ?></td>
+            <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
             <td style="background:#c6efce;"><?= $sum_qty ?></td>
             <td style="background:#fff;"></td>
             <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
@@ -473,24 +490,26 @@ if (!empty($_GET['dompdf'])) {
     <thead>
       <tr>
         <th style="width:7%;"><?= he($lbl_col_no) ?></th>
-        <th style="width:20%;"><?= he($lbl_col_date) ?></th>
-        <th style="width:16%;"><?= he($lbl_col_cust) ?></th>
-        <th style="width:11%;"><?= he($lbl_col_price) ?></th>
+        <th style="width:18%;"><?= he($lbl_col_date) ?></th>
+        <th style="width:14%;"><?= he($lbl_col_cust) ?></th>
+        <th style="width:10%;"><?= he($lbl_col_price) ?></th>
+        <th style="width:10%;"><?= he($lbl_col_profit) ?></th>
         <th style="width:8%;"><?= he($lbl_col_qty) ?></th>
-        <th style="width:11%;"><?= he($lbl_col_payment) ?></th>
-        <th style="width:12%;"><?= he($lbl_col_total) ?></th>
-        <th style="width:15%;"><?= he($lbl_col_place) ?></th>
+        <th style="width:10%;"><?= he($lbl_col_payment) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_total) ?></th>
+        <th style="width:12%;"><?= he($lbl_col_place) ?></th>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($processed_rows)): ?>
-        <tr><td colspan="8" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
+        <tr><td colspan="9" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
       <?php else: foreach ($processed_rows as $r): ?>
         <tr>
           <td><?= $r['no'] ?></td>
           <td><?= $r['date'] ?></td>
           <td><?= $r['customer'] ?></td>
           <td><?= $r['price'] ?></td>
+          <td><?= $r['profit'] ?></td>
           <td><?= $r['qty_item'] ?></td>
           <td><?= $r['payment_method'] ?></td>
           <td><?= $r['total'] ?></td>
@@ -500,6 +519,7 @@ if (!empty($_GET['dompdf'])) {
         <tr class="total-row">
           <td colspan="3" style="text-align:center; background:#fff;"><?= he($lbl_col_sum) ?></td>
           <td style="background:#c6efce;"><?= $fmt_sum_gross ?></td>
+          <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
           <td style="background:#c6efce;"><?= $sum_qty ?></td>
           <td style="background:#fff;"></td>
           <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>

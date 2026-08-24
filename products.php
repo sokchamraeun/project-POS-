@@ -83,23 +83,28 @@ if (($_GET['action'] ?? '') === 'get_edit_data') {
     }
     $recStmt->close();
 
-    // Fetch all active stock items for ingredient dropdown
+    // Fetch all active stock items for ingredient dropdown & direct stock
     $allStock = [];
     $stockRes = $conn->query("
-        SELECT item_id, item_name, category, item_type, unit, cost_per_unit, quantity
-        FROM stock_items
-        WHERE is_active = 1
-        ORDER BY category ASC, item_name ASC
+        SELECT s.item_id, s.item_name, s.category, s.item_type, s.unit, s.cost_per_unit, s.quantity,
+               COALESCE(NULLIF(s.image, ''), p.image, '') AS image
+        FROM stock_items s
+        LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', ''))
+        WHERE s.is_active = 1
+        ORDER BY s.category ASC, s.item_name ASC
     ");
     if ($stockRes) {
         while ($si = $stockRes->fetch_assoc()) {
+            $img = !empty($si['image']) ? get_image_url($si['image'], 'uploads/no-image.png') : '';
             $allStock[] = [
                 'item_id'       => (int)$si['item_id'],
                 'item_name'     => $si['item_name'],
                 'category'      => $si['category'] ?? '',
                 'item_type'     => $si['item_type'] ?? '',
                 'unit'          => $si['unit'] ?? 'unit',
-                'cost_per_unit' => (float)($si['cost_per_unit'] ?? 0)
+                'cost_per_unit' => (float)($si['cost_per_unit'] ?? 0),
+                'quantity'      => (float)($si['quantity'] ?? 0),
+                'image'         => $img
             ];
         }
     }
@@ -116,6 +121,20 @@ if (($_GET['action'] ?? '') === 'get_edit_data') {
         }
     }
 
+    // Fetch all existing products for duplicate detection
+    $allExistingProducts = [];
+    $pRes = $conn->query("SELECT product_id, name, price, category FROM products ORDER BY name ASC");
+    if ($pRes) {
+        while ($pr = $pRes->fetch_assoc()) {
+            $allExistingProducts[] = [
+                'id'       => (int)$pr['product_id'],
+                'name'     => $pr['name'],
+                'price'    => (float)$pr['price'],
+                'category' => $pr['category'] ?? ''
+            ];
+        }
+    }
+
     echo json_encode([
         'ok' => true,
         'product' => [
@@ -128,11 +147,75 @@ if (($_GET['action'] ?? '') === 'get_edit_data') {
             'image'        => get_image_url($p['image'] ?? '', 'uploads/no-image.png'),
             'is_available' => (int)($p['is_available'] ?? 1),
             'badge_text'   => $p['badge_text'] ?? '',
-            'promo_percent'=> (int)($p['promo_percent'] ?? 0)
+            'promo_percent'=> (int)($p['promo_percent'] ?? 0),
+            'is_direct'    => is_direct_drink_product($p) || (count($recipes) === 0)
         ],
-        'recipes'        => $recipes,
-        'stock_items'    => $allStock,
-        'categories'     => $allCategories
+        'recipes'           => $recipes,
+        'stock_items'       => $allStock,
+        'categories'        => $allCategories,
+        'existing_products' => $allExistingProducts
+    ]);
+    exit;
+}
+
+// Add Product Modal data endpoint
+if (($_GET['action'] ?? '') === 'get_add_data') {
+    header('Content-Type: application/json');
+
+    $allStock = [];
+    $stockRes = $conn->query("
+        SELECT s.item_id, s.item_name, s.category, s.item_type, s.unit, s.cost_per_unit, s.quantity,
+               COALESCE(NULLIF(s.image, ''), p.image, '') AS image
+        FROM stock_items s
+        LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', ''))
+        WHERE s.is_active = 1
+        ORDER BY s.category ASC, s.item_name ASC
+    ");
+    if ($stockRes) {
+        while ($si = $stockRes->fetch_assoc()) {
+            $img = !empty($si['image']) ? get_image_url($si['image'], 'uploads/no-image.png') : '';
+            $allStock[] = [
+                'item_id'       => (int)$si['item_id'],
+                'item_name'     => $si['item_name'],
+                'category'      => $si['category'] ?? '',
+                'item_type'     => $si['item_type'] ?? '',
+                'unit'          => $si['unit'] ?? 'unit',
+                'cost_per_unit' => (float)($si['cost_per_unit'] ?? 0),
+                'quantity'      => (float)($si['quantity'] ?? 0),
+                'image'         => $img
+            ];
+        }
+    }
+
+    $allCategories = [];
+    $catRes = $conn->query("SELECT slug, name FROM categories WHERE is_active = 1 ORDER BY display_order ASC");
+    if ($catRes) {
+        while ($c = $catRes->fetch_assoc()) {
+            $allCategories[] = [
+                'slug' => $c['slug'],
+                'name' => $c['name'] ?: $c['slug']
+            ];
+        }
+    }
+
+    $allExistingProducts = [];
+    $pRes = $conn->query("SELECT product_id, name, price, category FROM products ORDER BY name ASC");
+    if ($pRes) {
+        while ($pr = $pRes->fetch_assoc()) {
+            $allExistingProducts[] = [
+                'id'       => (int)$pr['product_id'],
+                'name'     => $pr['name'],
+                'price'    => (float)$pr['price'],
+                'category' => $pr['category'] ?? ''
+            ];
+        }
+    }
+
+    echo json_encode([
+        'ok'                => true,
+        'stock_items'       => $allStock,
+        'categories'        => $allCategories,
+        'existing_products' => $allExistingProducts
     ]);
     exit;
 }
@@ -161,13 +244,18 @@ if ($d_res) {
 }
 
 if (!function_exists('is_direct_drink_product')) {
-    function is_direct_drink_product(array $product): bool {
+    function is_direct_drink_product(array $product, ?mysqli $db = null): bool {
         if (!empty($product['product_type']) && $product['product_type'] === 'direct_drink') {
             return true;
         }
         $cat = strtolower($product['category'] ?? '');
         $name = strtolower($product['name'] ?? '');
-        $directKeywords = ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'carabao', 'pocari', 'fanta', 'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 'drink'];
+        $directKeywords = [
+            'soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 
+            'red bull', 'redbull', 'bacchus', 'bachas', 'carabao', 'pocari', 'fanta', 
+            'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 
+            'drink', 'soda', 'energy'
+        ];
         foreach ($directKeywords as $kw) {
             if (str_contains($cat, $kw) || str_contains($name, $kw)) {
                 return true;
@@ -262,25 +350,35 @@ $availPct = $totalProducts > 0 ? round($availCount / $totalProducts * 100) : 0;
 
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Products | Bird's Nest Coffee</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="assets/css/product_cropper.css">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 
 <style>
-body, input, select, textarea, button {
-    font-family: 'Poppins', 'Kantumruy Pro', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
+body, input, select, textarea, button, .ep-modal-dialog, .ep-card-box, table {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
-:lang(km), [data-lang="km"], html[lang="km"] * {
-    font-family: 'Kantumruy Pro', 'Poppins', 'Siemreap', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+}
+html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+    font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
 }
 
 /* ── RESET & ROOT ── */
@@ -1436,7 +1534,7 @@ select.cat-filter-select option {
     z-index: 20;
 }
 .list-table-header .th-no {
-    width: 45px;
+    width: 58px;
     flex-shrink: 0;
     text-align: center;
 }
@@ -1569,11 +1667,18 @@ select.cat-filter-select option {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 45px;
+    width: 58px;
     flex-shrink: 0;
     font-size: 12px;
     font-weight: 700;
-    color: var(--text-muted, #888);
+    color: #64748b;
+    font-family: 'Poppins', ui-monospace, SFMono-Regular, monospace, sans-serif;
+}
+[data-theme="light"] .product-grid.list-view .col-no {
+    color: #475569;
+}
+.product-grid.list-view .prod-id-badge {
+    display: none !important;
 }
 .product-grid.list-view .product-card .image-wrapper { width: 64px; height: 64px; aspect-ratio: 1 / 1; flex-shrink: 0; border-radius: 12px; margin: 8px 0; overflow: hidden; }
 .product-grid.list-view .product-card .content {
@@ -1816,7 +1921,8 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 .product-card .content .top-row {
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
+    gap: 4px;
     margin-bottom: 4px;
 }
 .product-card .content .category-badge {
@@ -1831,10 +1937,39 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
     text-transform: uppercase;
     letter-spacing: 0.3px;
     transition: var(--transition);
+    max-width: 75%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .product-card:hover .content .category-badge { background: var(--accent); color: #000; border-color: var(--accent); }
 
-.product-card .content .product-id { display: none !important; }
+.prod-id-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #64748b;
+    background: rgba(148, 163, 184, 0.14);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: 'Poppins', monospace, sans-serif;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    flex-shrink: 0;
+}
+[data-theme="light"] .prod-id-badge {
+    color: #475569;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.product-grid.list-view .list-only-id {
+    display: inline-flex !important;
+    margin-right: 4px;
+}
 
 .product-card .content h3 {
     color: var(--text);
@@ -3450,9 +3585,9 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                 </div>
 
                 <?php if ($_can_manage_products): ?>
-                <a href="add_product.php" class="btn-add-product">
-                    <i class="fa-solid fa-plus"></i> Add Product
-                </a>
+                <button type="button" onclick="openAddProductModal(event)" class="btn-add-product" style="cursor:pointer;border:none;">
+                    <i class="fa-solid fa-plus"></i> <?= $isKm ? 'បង្កើតទំនិញថ្មី' : 'Add Product' ?>
+                </button>
                 <?php endif; ?>
             </div>
         </div>
@@ -3461,7 +3596,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
     <div class="products-scroll-wrap">
         <!-- ── Table Header (List View Only) ── -->
         <div class="list-table-header" id="listTableHeader" style="display:none">
-            <div class="th-col th-no">No</div>
+            <div class="th-col th-no">ID</div>
             <div class="th-col th-img">Image</div>
             <div class="th-content-wrap">
                 <div class="th-col th-name">Product Name</div>
@@ -3501,8 +3636,8 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <!-- Checkbox indicator -->
                     <div class="card-checkbox"><i class="fa-solid fa-check"></i></div>
 
-                    <!-- Row Number -->
-                    <div class="col-no"><?= $i + 1 ?></div>
+                    <!-- Product ID in List View Column -->
+                    <div class="col-no">#<?= (int)$row['product_id'] ?></div>
 
                     <div class="image-wrapper">
                         <img src="<?= htmlspecialchars($src) ?>"
@@ -3537,6 +3672,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                         </div>
                         <div class="top-row">
                             <span class="category-badge"><?= htmlspecialchars($catNames[$row['category']] ?? ($row['category'] ?: 'Uncategorized')) ?></span>
+                            <span class="prod-id-badge" title="Product ID: #<?= (int)$row['product_id'] ?>">#<?= (int)$row['product_id'] ?></span>
                         </div>
                         <div class="card-metrics-row">
                             <span class="price" data-pid="<?= $row['product_id'] ?>" title="Double-click to edit price">
@@ -3574,9 +3710,9 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <h3>No Products Yet</h3>
                     <p>Add your first product to get the menu started.</p>
                     <?php if ($_can_manage_products): ?>
-                    <a href="add_product.php" class="btn-add" style="display:inline-flex;margin:0 auto;">
-                        <i class="fa-solid fa-plus"></i> Add Product
-                    </a>
+                    <button type="button" onclick="openAddProductModal(event)" class="btn-add" style="display:inline-flex;margin:0 auto;cursor:pointer;border:none;">
+                        <i class="fa-solid fa-plus"></i> <?= $isKm ? 'បង្កើតទំនិញថ្មី' : 'Add Product' ?>
+                    </button>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -3616,16 +3752,20 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
     </div>
 </div>
 
-<!-- ========== EDIT PRODUCT MODAL (MATCHING SCREENSHOT) ========== -->
+<!-- ========== ADD / EDIT PRODUCT MODAL (MATCHING SCREENSHOT) ========== -->
 <div class="ep-modal-backdrop" id="editProductModalBackdrop" onclick="if(event.target===this) closeEditProductModal()">
     <div class="ep-modal-dialog">
         <!-- Header -->
         <div class="ep-modal-header">
             <div class="ep-header-left">
-                <div class="ep-header-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+                <div class="ep-header-icon" id="epHeaderIcon"><i class="fa-solid fa-pen-to-square"></i></div>
                 <div>
-                    <h3 class="ep-header-title"><?= $isKm ? 'កែប្រែមុខទំនិញ' : 'Edit Product' ?> <span id="epHeaderProdName" class="ep-header-prod-badge"><?= $isKm ? 'ទំនិញ' : 'Product' ?></span></h3>
-                    <div class="ep-header-sub"><?= $isKm ? 'កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)' : 'Configure product image, details and recipe (BOM)' ?></div>
+                    <h3 class="ep-header-title">
+                        <span id="epHeaderMainTitle"><?= $isKm ? 'កែប្រែមុខទំនិញ' : 'Edit Product' ?></span> 
+                        <span id="epHeaderProdName" class="ep-header-prod-badge"><?= $isKm ? 'ទំនិញ' : 'Product' ?></span>
+                        <span id="epHeaderIdBadge" class="ep-header-id-badge" style="display:none;font-size:11px;font-weight:700;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;padding:2px 8px;border-radius:20px;margin-left:6px;font-family:monospace;"></span>
+                    </h3>
+                    <div class="ep-header-sub" id="epHeaderSub"><?= $isKm ? 'កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)' : 'Configure product image, details and recipe (BOM)' ?></div>
                 </div>
             </div>
             <button type="button" class="ep-header-close" onclick="closeEditProductModal()" title="<?= $isKm ? 'បិទ (Esc)' : 'Close (Esc)' ?>">
@@ -3634,7 +3774,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
         </div>
 
         <!-- Body Form -->
-        <form id="editProductForm" onsubmit="submitEpForm(event)" enctype="multipart/form-data" class="ep-modal-body">
+        <form id="editProductForm" novalidate onsubmit="submitEpForm(event)" enctype="multipart/form-data" class="ep-modal-body">
             <input type="hidden" id="epProductId" name="id" value="">
             <input type="hidden" name="update_product" value="1">
             <input type="hidden" name="ajax" value="1">
@@ -3689,19 +3829,20 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                             </select>
                         </div>
                         <div id="epRecipeNameWrap">
-                            <input type="text" id="epName" name="name" class="ep-input" placeholder="<?= $isKm ? "ឧ. Oolong Macchiato ឬ Bird's Nest Latte" : "e.g. Oolong Macchiato or Bird's Nest Latte" ?>" required oninput="document.getElementById('epHeaderProdName').textContent = this.value || (window.IS_KM ? 'ទំនិញ' : 'Product')">
+                            <input type="text" id="epName" name="name" class="ep-input" placeholder="<?= $isKm ? "ឧ. Oolong Macchiato ឬ Bird's Nest Latte" : "e.g. Oolong Macchiato or Bird's Nest Latte" ?>" oninput="onEpNameInput(this.value)">
                         </div>
+                        <div id="epDuplicateAlert" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;color:#991b1b;margin-top:6px;align-items:center;"></div>
                     </div>
                     <div class="ep-field">
                         <label class="ep-label" for="epCategory"><?= $isKm ? 'ក្រុមប្រភេទ' : 'Category' ?> <span style="color:#ef4444;">*</span></label>
-                        <select id="epCategory" name="category" class="ep-select cat-select" required></select>
+                        <select id="epCategory" name="category" class="ep-select cat-select"></select>
                     </div>
                     <!-- MADE-TO-ORDER SELLING PRICE FIELD -->
                     <div class="ep-field" id="epRecipePriceWrap">
                         <label class="ep-label" for="epPrice"><?= $isKm ? 'តម្លៃលក់' : 'Selling Price' ?> <span style="color:#ef4444;">*</span></label>
                         <div class="ep-price-wrap">
                             <span class="ep-dollar">$</span>
-                            <input type="number" step="0.01" min="0" id="epPrice" name="price" class="ep-input" placeholder="0.00" required oninput="syncEpSellingPrice(this.value)">
+                            <input type="number" step="0.01" min="0" id="epPrice" name="price" class="ep-input" placeholder="0.00" oninput="syncEpSellingPrice(this.value)">
                         </div>
                     </div>
 
@@ -3725,7 +3866,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
 
                     <!-- DIRECT DRINK PROFIT MARGIN HIGHLIGHT CARD -->
                     <div id="epDirectMarginCard" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:10px 16px;display:none;align-items:center;justify-content:space-between;">
-                        <span style="font-size:12px;font-weight:700;color:#065f46;"><?= $isKm ? 'ចំណេញដុល:' : 'Profit Margin:' ?></span>
+                        <span style="font-size:12px;font-weight:700;color:#065f46;"><?= $isKm ? 'ចំណេញ:' : 'Profit Margin:' ?></span>
                         <span id="epDirectMargin" style="font-size:13.5px;font-weight:800;color:#059669;">+$0.00 (+0.0%)</span>
                     </div>
 
@@ -3799,7 +3940,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <?= $isKm ? 'បោះបង់' : 'Cancel' ?>
                 </button>
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <button type="submit" class="ep-save-btn" id="epSaveBtn">
+                    <button type="button" class="ep-save-btn" id="epSaveBtn" onclick="submitEpForm(event)">
                         <i class="fa-solid fa-check"></i> <?= $isKm ? 'រក្សាទុកការផ្លាស់ប្តូរ' : 'Save Changes' ?>
                     </button>
                 </div>
@@ -4036,7 +4177,8 @@ function applyFilters() {
     lastFiltered = allCards.filter(card => {
         const catMatch   = activeFilter === 'all' || card.dataset.category === activeFilter;
         const availMatch = activeAvail === 'all' || card.dataset.avail === activeAvail;
-        const nameMatch  = card.dataset.name.includes(activeSearch);
+        const cleanSearch = activeSearch.replace(/^#/, '').trim();
+        const nameMatch   = card.dataset.name.includes(activeSearch) || (cleanSearch && String(card.dataset.id || '').includes(cleanSearch));
         const price      = parseFloat(card.dataset.price);
         const priceMatch = price >= activePriceMin && price <= activePriceMax;
         const hasBadge    = card.dataset.badge === '1';
@@ -4069,7 +4211,7 @@ function renderPage() {
     lastFiltered.forEach((card, i) => {
         card.style.display = '';
         const colNo = card.querySelector('.col-no');
-        if (colNo) colNo.textContent = i + 1;
+        if (colNo) colNo.textContent = '#' + (card.dataset.id || (i + 1));
         grid.appendChild(card);
         void card.offsetWidth;
         card.style.animation = `cardIn 0.25s ease ${Math.min(i * 0.02, 0.4)}s both`;
@@ -4633,7 +4775,178 @@ function _qvEscHtml(str) {
 // ─────────────────────────────────────────────
 let epStockItems = [];
 let epCategories = [];
+let epExistingProducts = [];
 let epCurrentProduct = null;
+
+function checkEpDuplicate(nameVal) {
+    const currentId = parseInt(document.getElementById('epProductId')?.value || 0, 10);
+    const dupAlert = document.getElementById('epDuplicateAlert');
+    const saveBtn = document.getElementById('epSaveBtn');
+    
+    if (!nameVal || !nameVal.trim()) {
+        if (dupAlert) dupAlert.style.display = 'none';
+        if (saveBtn) saveBtn.disabled = false;
+        return false;
+    }
+    
+    // Normalize string: lower case, remove multiple spaces, dashes, symbols
+    const clean = nameVal.trim().toLowerCase().replace(/[\s\-_]+/g, '');
+    const duplicate = epExistingProducts.find(p => {
+        if (currentId && parseInt(p.id, 10) === currentId) return false;
+        const pClean = (p.name || '').trim().toLowerCase().replace(/[\s\-_]+/g, '');
+        return pClean === clean;
+    });
+
+    if (duplicate) {
+        if (dupAlert) {
+            dupAlert.style.display = 'flex';
+            dupAlert.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2 text-sm flex-shrink-0"></i> <span>` +
+                (window.IS_KM
+                    ? `មុខទំនិញ <strong>"${duplicate.name}"</strong> (ID: #${duplicate.id}, តម្លៃ: $${parseFloat(duplicate.price).toFixed(2)}) មានរួចហើយនៅលើម៉ឺនុយ! សូមជ្រើសរើសឈ្មោះផ្សេង។`
+                    : `Product <strong>"${duplicate.name}"</strong> (ID: #${duplicate.id}, Price: $${parseFloat(duplicate.price).toFixed(2)}) already exists on the menu! Please use a unique name.`) + `</span>`;
+        }
+        const epNameInp = document.getElementById('epName');
+        if (epNameInp) {
+            epNameInp.style.borderColor = '#ef4444';
+            epNameInp.style.backgroundColor = '#fef2f2';
+        }
+        if (saveBtn) saveBtn.disabled = true;
+        return duplicate;
+    } else {
+        if (dupAlert) dupAlert.style.display = 'none';
+        const epNameInp = document.getElementById('epName');
+        if (epNameInp) {
+            epNameInp.style.borderColor = '';
+            epNameInp.style.backgroundColor = '';
+        }
+        if (saveBtn) saveBtn.disabled = false;
+        return false;
+    }
+}
+
+function openAddProductModal(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const backdrop = document.getElementById('editProductModalBackdrop');
+    if (!backdrop) return;
+
+    // Reset form
+    document.getElementById('editProductForm').reset();
+    document.getElementById('epProductId').value = '';
+    
+    // Clear duplicate alert
+    const dupAlert = document.getElementById('epDuplicateAlert');
+    if (dupAlert) dupAlert.style.display = 'none';
+    const epNameInp = document.getElementById('epName');
+    if (epNameInp) { epNameInp.style.borderColor = ''; epNameInp.style.backgroundColor = ''; }
+
+    // Configure Header for Add Mode
+    const headerIcon = document.getElementById('epHeaderIcon');
+    if (headerIcon) headerIcon.innerHTML = '<i class="fa-solid fa-plus"></i>';
+
+    const mainTitle = document.getElementById('epHeaderMainTitle');
+    if (mainTitle) mainTitle.textContent = window.IS_KM ? 'បង្កើតមុខទំនិញថ្មី' : 'Add New Product';
+
+    const prodBadge = document.getElementById('epHeaderProdName');
+    if (prodBadge) prodBadge.textContent = window.IS_KM ? 'ទំនិញថ្មី' : 'New Product';
+
+    const idBadge = document.getElementById('epHeaderIdBadge');
+    if (idBadge) idBadge.style.display = 'none';
+
+    const subTitle = document.getElementById('epHeaderSub');
+    if (subTitle) subTitle.textContent = window.IS_KM ? 'កំណត់រូបភាព ព័ត៌មានទំនិញ និងរូបមន្តផ្សំគ្រឿងផ្សំ (BOM)' : 'Configure product image, details and recipe (BOM)';
+
+    const saveBtn = document.getElementById('epSaveBtn');
+    if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fa-solid fa-plus mr-1.5"></i> ' + (window.IS_KM ? 'បង្កើតមុខទំនិញ' : 'Create Product');
+    }
+
+    document.getElementById('epImgPreview').src = 'uploads/no-image.png';
+    document.getElementById('epAvailable').checked = true;
+    document.getElementById('epPrice').value = '';
+    const priceDD = document.getElementById('epPriceDD');
+    if (priceDD) priceDD.value = '';
+    const costDD = document.getElementById('epDirectCost');
+    if (costDD) costDD.value = '';
+    document.getElementById('epCogsVal').textContent = '$0.00';
+    document.getElementById('epSellVal').textContent = '$0.00';
+    document.getElementById('epMarginVal').textContent = '$0.00';
+    const dm = document.getElementById('epDirectMargin');
+    if (dm) dm.textContent = '+$0.00 (+0.0%)';
+
+    // Show backdrop
+    backdrop.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Reset recipe rows
+    const rowsContainer = document.getElementById('epRecipeRows');
+    rowsContainer.innerHTML = '<div id="epEmptyRecipeMsg" style="text-align:center;padding:18px;color:#888;font-size:12px;">' +
+        (window.IS_KM
+            ? 'មិនទាន់មានគ្រឿងផ្សំនៅឡើយទេ។ ចុច <strong>+ ថែមគ្រឿងផ្សំ</strong> ឬ <strong>+ ឈុតវេចខ្ចប់</strong> ខាងលើ។'
+            : 'No ingredients added yet. Click <strong>+ Add Ingredient</strong> or <strong>+ Packaging Set</strong> above.') +
+    '</div>';
+
+    setEpProductType('recipe');
+
+    // Load categories, stock items and existing products
+    fetch('products.php?action=get_add_data')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) return;
+            epStockItems = data.stock_items || [];
+            epCategories = data.categories || [];
+            epExistingProducts = data.existing_products || [];
+            populateEpDropdowns();
+        })
+        .catch(console.error);
+}
+
+function populateEpDropdowns(selectedCategory = '', selectedDirect = '') {
+    // Populate categories
+    const catSel = document.getElementById('epCategory');
+    if (catSel && epCategories.length > 0) {
+        catSel.innerHTML = '';
+        epCategories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.slug;
+            opt.textContent = cat.name;
+            if (cat.slug === selectedCategory) opt.selected = true;
+            catSel.appendChild(opt);
+        });
+    }
+
+    // Populate direct stock select
+    const directSel = document.getElementById('epDirectSelect');
+    if (directSel && epStockItems.length > 0) {
+        directSel.innerHTML = '<option value="">' + (window.IS_KM ? '-- ជ្រើសរើសទំនិញពីស្តុក --' : '-- Select Stock Drink --') + '</option>';
+        let matched = false;
+        epStockItems.forEach(item => {
+            const isDrink = ((item.item_type === 'direct_drink') || (item.category === 'Direct Drinks'));
+            if (isDrink) {
+                const opt = document.createElement('option');
+                opt.value = item.item_name;
+                opt.dataset.cost = item.cost_per_unit || 0;
+                opt.dataset.qty = item.quantity || 0;
+                opt.dataset.unit = item.unit || 'cans';
+                opt.dataset.image = item.image || '';
+                const isMatch = (item.item_name.toLowerCase() === selectedDirect.toLowerCase());
+                if (isMatch) { opt.selected = true; matched = true; }
+                opt.textContent = item.item_name;
+                directSel.appendChild(opt);
+            }
+        });
+        if (!matched && selectedDirect && selectedDirect.trim()) {
+            const opt = document.createElement('option');
+            opt.value = selectedDirect;
+            opt.textContent = selectedDirect;
+            opt.selected = true;
+            directSel.appendChild(opt);
+        }
+    }
+}
 
 function openEditProductModal(id, e) {
     if (e) {
@@ -4648,10 +4961,24 @@ function openEditProductModal(id, e) {
     document.getElementById('epRecipeRows').innerHTML = '<div style="text-align:center;padding:16px;color:#888;font-size:12px;"><i class="fa-solid fa-spinner fa-spin mr-1.5"></i> ' + (window.IS_KM ? 'កំពុងទាញយកទិន្នន័យ…' : 'Loading product data…') + '</div>';
     document.getElementById('epImgPreview').src = 'uploads/no-image.png';
     document.getElementById('epProductId').value = id;
+
+    // Configure Header for Edit Mode
+    const headerIcon = document.getElementById('epHeaderIcon');
+    if (headerIcon) headerIcon.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+
+    const mainTitle = document.getElementById('epHeaderMainTitle');
+    if (mainTitle) mainTitle.textContent = window.IS_KM ? 'កែប្រែមុខទំនិញ' : 'Edit Product';
+
     document.getElementById('epHeaderProdName').textContent = window.IS_KM ? 'កំពុងផ្ទុក…' : 'Loading…';
     document.getElementById('epCogsVal').textContent = '$0.00';
     document.getElementById('epSellVal').textContent = '$0.00';
     document.getElementById('epMarginVal').textContent = '$0.00';
+
+    const saveBtn = document.getElementById('epSaveBtn');
+    if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i> ' + (window.IS_KM ? 'រក្សាទុកការផ្លាស់ប្តូរ' : 'Save Changes');
+    }
     
     // Open backdrop
     backdrop.classList.add('active');
@@ -4668,55 +4995,35 @@ function openEditProductModal(id, e) {
             }
             epStockItems = data.stock_items || [];
             epCategories = data.categories || [];
+            epExistingProducts = data.existing_products || [];
             epCurrentProduct = data.product || {};
+
+            // Reset duplicate alert
+            const dupAlert = document.getElementById('epDuplicateAlert');
+            if (dupAlert) dupAlert.style.display = 'none';
+            const epNameInp = document.getElementById('epName');
+            if (epNameInp) { epNameInp.style.borderColor = ''; epNameInp.style.backgroundColor = ''; }
 
             const p = epCurrentProduct;
             document.getElementById('epProductId').value = p.id;
             document.getElementById('epHeaderProdName').textContent = p.name || (window.IS_KM ? 'ទំនិញ' : 'Product');
+            const idBadge = document.getElementById('epHeaderIdBadge');
+            if (idBadge) {
+                idBadge.textContent = 'ID: #' + p.id;
+                idBadge.style.display = 'inline-block';
+            }
             document.getElementById('epName').value = p.name || '';
-            document.getElementById('epPrice').value = parseFloat(p.price || 0).toFixed(2);
+            const priceFmt = parseFloat(p.price || 0).toFixed(2);
+            document.getElementById('epPrice').value = priceFmt;
+            const priceDD = document.getElementById('epPriceDD');
+            if (priceDD) priceDD.value = priceFmt;
             document.getElementById('epAvailable').checked = (parseInt(p.is_available) === 1);
             document.getElementById('epImgPreview').src = p.image || 'uploads/no-image.png';
 
-            // Populate categories dropdown
-            const catSel = document.getElementById('epCategory');
-            catSel.innerHTML = '';
-            epCategories.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat.slug;
-                opt.textContent = cat.name;
-                if (cat.slug === p.category) opt.selected = true;
-                catSel.appendChild(opt);
-            });
-
-            // Populate direct stock drinks dropdown
-            const directSel = document.getElementById('epDirectSelect');
-            if (directSel) {
-                directSel.innerHTML = '<option value="">' + (window.IS_KM ? '-- ជ្រើសរើសទំនិញពីស្តុក --' : '-- Select Stock Drink --') + '</option>';
-                let matched = false;
-                epStockItems.forEach(item => {
-                    const isDrink = ((item.item_type === 'direct_drink') || (item.category === 'Direct Drinks'));
-                    if (isDrink) {
-                        const opt = document.createElement('option');
-                        opt.value = item.item_name;
-                        opt.dataset.cost = item.cost_per_unit || 0;
-                        opt.dataset.qty = item.quantity || 0;
-                        opt.dataset.unit = item.unit || 'cans';
-                        const isMatch = (item.item_name.toLowerCase() === (p.name || '').toLowerCase());
-                        if (isMatch) { opt.selected = true; matched = true; }
-                        opt.textContent = item.item_name;
-                        directSel.appendChild(opt);
-                    }
-                });
-                if (!matched && p.name && p.name.trim()) {
-                    const opt = document.createElement('option');
-                    opt.value = p.name;
-                    opt.textContent = p.name;
-                    opt.selected = true;
-                    directSel.appendChild(opt);
-                }
-            }
+            // Populate categories dropdown & direct stock
+            populateEpDropdowns(p.category || '', p.name || '');
             checkEpDirectStockMatch(p.name || '');
+            checkEpDuplicate(p.name || '');
 
             // Populate recipe rows
             const rowsContainer = document.getElementById('epRecipeRows');
@@ -4745,12 +5052,23 @@ function openEditProductModal(id, e) {
             // Determine if direct drink
             const cleanName = (p.name || '').toLowerCase();
             const cleanCat = (p.category || '').toLowerCase();
-            const isDirectByDefault = !hasRecipes && (
-                cleanCat.includes('direct') || cleanCat.includes('soft') || cleanCat.includes('bottle') || cleanCat.includes('can') ||
-                cleanName.includes('coca') || cleanName.includes('coke') || cleanName.includes('red bull') || cleanName.includes('sting') || cleanName.includes('ize') || cleanName.includes('water')
-            );
+            
+            let isDirectProduct = false;
+            if (hasRecipes) {
+                isDirectProduct = false;
+            } else {
+                const hasStockMatch = Boolean(epStockItems.find(it => {
+                    const isDrink = ((it.item_type === 'direct_drink') || (it.category === 'Direct Drinks'));
+                    const cleanItem = (it.item_name || '').toLowerCase().replace(/\s+/g, '');
+                    const cleanP = cleanName.replace(/\s+/g, '');
+                    return isDrink && (cleanItem === cleanP || cleanP.includes(cleanItem) || cleanItem.includes(cleanP));
+                }));
+                const isKeywordsMatch = ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'carabao', 'pocari', 'fanta', 'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 'drink', 'bachas'].some(k => cleanName.includes(k) || cleanCat.includes(k));
+                
+                isDirectProduct = Boolean(p.is_direct) || hasStockMatch || isKeywordsMatch || (parseFloat(p.cost_price || 0) > 0) || !hasRecipes;
+            }
 
-            if (isDirectByDefault) {
+            if (isDirectProduct) {
                 setEpProductType('direct_drink');
             } else {
                 setEpProductType('recipe');
@@ -4861,8 +5179,9 @@ function onSelectEpDirectDrink(sel) {
     const inp = document.getElementById('epName');
     if (inp) {
         inp.value = val;
-        document.getElementById('epHeaderProdName').textContent = val || 'Product';
+        document.getElementById('epHeaderProdName').textContent = val || (window.IS_KM ? 'ទំនិញ' : 'Product');
         checkEpDirectStockMatch(val);
+        checkEpDuplicate(val);
     }
     
     // Auto switch to direct drink mode
@@ -4876,6 +5195,32 @@ function onSelectEpDirectDrink(sel) {
             directCostInput.value = cost.toFixed(2);
             recalcEpDirectMargin();
         }
+    }
+
+    // Auto take image from selected direct drink
+    let imgUrl = opt.dataset.image;
+    if (!imgUrl) {
+        const found = epStockItems.find(it => (it.item_name || '').toLowerCase() === val.toLowerCase());
+        if (found && found.image) imgUrl = found.image;
+    }
+
+    if (imgUrl && imgUrl.trim() && !imgUrl.includes('no-image.png')) {
+        const imgPreview = document.getElementById('epImgPreview');
+        if (imgPreview) {
+            imgPreview.src = imgUrl;
+        }
+        let exInp = document.getElementById('epExistingImage');
+        if (!exInp) {
+            exInp = document.createElement('input');
+            exInp.type = 'hidden';
+            exInp.name = 'existing_image';
+            exInp.id = 'epExistingImage';
+            document.getElementById('editProductForm').appendChild(exInp);
+        }
+        exInp.value = imgUrl;
+
+        const fileInp = document.getElementById('epImageInput');
+        if (fileInp) fileInp.value = '';
     }
 
     // Auto select Soft Drink or Drinks category if empty
@@ -4895,6 +5240,34 @@ function onSelectEpDirectDrink(sel) {
 function onEpNameInput(val) {
     document.getElementById('epHeaderProdName').textContent = val || (window.IS_KM ? 'ទំនិញ' : 'Product');
     checkEpDirectStockMatch(val);
+    checkEpDuplicate(val);
+
+    // Auto take image if user types a matching stock drink name and no custom file is selected
+    if (val && val.trim()) {
+        const preview = document.getElementById('epImgPreview');
+        const fileInp = document.getElementById('epImageInput');
+        const hasCustomFile = fileInp && fileInp.files && fileInp.files.length > 0;
+        
+        if (preview && (!preview.src || preview.src.includes('no-image.png')) && !hasCustomFile) {
+            const cleanV = val.trim().toLowerCase().replace(/\s+/g, '');
+            const match = epStockItems.find(d => {
+                const cleanD = (d.item_name || '').toLowerCase().replace(/\s+/g, '');
+                return cleanD === cleanV || cleanV.includes(cleanD) || cleanD.includes(cleanV);
+            });
+            if (match && match.image && !match.image.includes('no-image.png')) {
+                preview.src = match.image;
+                let exInp = document.getElementById('epExistingImage');
+                if (!exInp) {
+                    exInp = document.createElement('input');
+                    exInp.type = 'hidden';
+                    exInp.name = 'existing_image';
+                    exInp.id = 'epExistingImage';
+                    document.getElementById('editProductForm').appendChild(exInp);
+                }
+                exInp.value = match.image;
+            }
+        }
+    }
 }
 
 function checkEpDirectStockMatch(val) {
@@ -5163,18 +5536,69 @@ async function submitEpForm(e) {
     if (!form) return;
 
     const productId = document.getElementById('epProductId').value;
+    const isAddMode = !productId;
+    const isDirect = (document.getElementById('epProductType')?.value === 'direct_drink');
+    const nameVal = (document.getElementById('epName')?.value || '').trim();
+
+    // 1. Validate Product Name
+    if (!nameVal) {
+        showToast(window.IS_KM 
+            ? '⚠️ សូមបញ្ចូល ឬជ្រើសរើសឈ្មោះទំនិញ!' 
+            : '⚠️ Please enter or select a product name!', 'error');
+        const targetInp = isDirect ? document.getElementById('epDirectSelect') : document.getElementById('epName');
+        if (targetInp) targetInp.focus();
+        return;
+    }
+
+    // 2. Prevent submission if duplicate product name
+    const dup = checkEpDuplicate(nameVal);
+    if (dup) {
+        showToast(window.IS_KM 
+            ? `⚠️ មិនអាចរក្សាទុកបានទេ! ឈ្មោះទំនិញ "${dup.name}" មានរួចហើយនៅលើម៉ឺនុយ។` 
+            : `⚠️ Cannot save! Product name "${dup.name}" already exists on menu.`, 'error');
+        return;
+    }
+
+    // 3. Validate Selling Price > 0
+    const priceInput = isDirect ? document.getElementById('epPriceDD') : document.getElementById('epPrice');
+    const rawPriceVal = priceInput ? priceInput.value.trim() : '';
+    const priceVal = parseFloat(rawPriceVal || 0);
+
+    if (!rawPriceVal || isNaN(priceVal) || priceVal <= 0) {
+        showToast(window.IS_KM 
+            ? '⚠️ សូមបញ្ចូលតម្លៃលក់ឲ្យបានត្រឹមត្រូវ (តម្លៃត្រូវធំជាង $0.00)!' 
+            : '⚠️ Selling price is required and must be greater than $0.00!', 'error');
+        
+        if (priceInput) {
+            priceInput.focus();
+            priceInput.style.borderColor = '#ef4444';
+            priceInput.style.backgroundColor = '#fef2f2';
+            setTimeout(() => {
+                priceInput.style.borderColor = '';
+                priceInput.style.backgroundColor = '';
+            }, 3500);
+        }
+        return;
+    }
+
     const saveBtn = document.getElementById('epSaveBtn');
     const origBtnHtml = saveBtn.innerHTML;
 
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> ' + (window.IS_KM ? 'កំពុងរក្សាទុក…' : 'Saving changes…');
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> ' + (window.IS_KM ? 'កំពុងដំណើរការ…' : 'Processing…');
 
     try {
         const formData = new FormData(form);
         formData.append('ajax', '1');
-        formData.append('update_product', '1');
+        formData.set('price', priceVal.toFixed(2));
+        if (isAddMode) {
+            formData.append('add_product', '1');
+        } else {
+            formData.append('update_product', '1');
+        }
 
-        const res = await fetch('edit_product.php?id=' + productId, {
+        const endpoint = isAddMode ? 'add_product.php' : ('edit_product.php?id=' + productId);
+        const res = await fetch(endpoint, {
             method: 'POST',
             body: formData
         });
@@ -5183,97 +5607,106 @@ async function submitEpForm(e) {
 
         if (data.ok) {
             closeEditProductModal();
-            showToast(data.message || (window.IS_KM ? 'បានកែប្រែផលិតផល និងរូបមន្តដោយជោគជ័យ!' : 'Product & recipe updated successfully!'), 'success');
+            showToast(data.message || (isAddMode 
+                ? (window.IS_KM ? 'បានបង្កើតមុខទំនិញថ្មីដោយជោគជ័យ!' : 'Product added successfully!')
+                : (window.IS_KM ? 'បានកែប្រែផលិតផល និងរូបមន្តដោយជោគជ័យ!' : 'Product & recipe updated successfully!')), 'success');
 
-            // Update product card in DOM instantly
-            const p = data.product;
-            if (p && productId) {
-                const card = document.querySelector(`.product-card[data-id="${productId}"]`);
-                if (card) {
-                    if (p.name) {
-                        card.setAttribute('data-name', p.name.toLowerCase());
-                        const nameEl = card.querySelector('.qv-trigger');
-                        if (nameEl) nameEl.textContent = p.name;
-                    }
-                    if (p.price !== undefined) {
-                        const priceNum = parseFloat(p.price);
-                        card.setAttribute('data-price', priceNum);
-                        const priceEl = card.querySelector('.price');
-                        if (priceEl) priceEl.textContent = '$' + priceNum.toFixed(2);
-                    }
-                    if (p.category) {
-                        card.setAttribute('data-category', p.category);
-                        const catBadge = card.querySelector('.category-badge');
-                        if (catBadge) {
-                            const catDisplay = (window.CAT_NAMES && window.CAT_NAMES[p.category]) || p.category;
-                            catBadge.textContent = catDisplay;
+            if (isAddMode) {
+                // Auto reload after brief delay so new card is fully rendered in grid
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            } else {
+                // Update product card in DOM instantly
+                const p = data.product;
+                if (p && productId) {
+                    const card = document.querySelector(`.product-card[data-id="${productId}"]`);
+                    if (card) {
+                        if (p.name) {
+                            card.setAttribute('data-name', p.name.toLowerCase());
+                            const nameEl = card.querySelector('.qv-trigger');
+                            if (nameEl) nameEl.textContent = p.name;
                         }
-                    }
-                    if (p.image) {
-                        const img = card.querySelector('.image-wrapper img');
-                        if (img) img.src = p.image;
-                    }
-                    if (p.is_available !== undefined) {
-                        const isAvail = parseInt(p.is_available, 10) === 1;
-                        card.setAttribute('data-avail', isAvail ? '1' : '0');
-                        if (isAvail) {
-                            card.classList.remove('unavailable');
-                            const soldBadge = card.querySelector('.sold-out-badge');
-                            if (soldBadge) soldBadge.remove();
-                        } else {
-                            card.classList.add('unavailable');
-                            let soldBadge = card.querySelector('.sold-out-badge');
-                            if (!soldBadge) {
-                                soldBadge = document.createElement('div');
-                                soldBadge.className = 'sold-out-badge';
-                                soldBadge.textContent = 'Inactive';
-                                card.querySelector('.image-wrapper')?.appendChild(soldBadge);
+                        if (p.price !== undefined) {
+                            const priceNum = parseFloat(p.price);
+                            card.setAttribute('data-price', priceNum);
+                            const priceEl = card.querySelector('.price');
+                            if (priceEl) priceEl.textContent = '$' + priceNum.toFixed(2);
+                        }
+                        if (p.category) {
+                            card.setAttribute('data-category', p.category);
+                            const catBadge = card.querySelector('.category-badge');
+                            if (catBadge) {
+                                const catDisplay = (window.CAT_NAMES && window.CAT_NAMES[p.category]) || p.category;
+                                catBadge.textContent = catDisplay;
                             }
                         }
-                        const availBtn = card.querySelector('.actions .avail-on, .actions .avail-off');
-                        if (availBtn) {
-                            availBtn.className = `btn-action ${isAvail ? 'avail-on' : 'avail-off'}`;
-                            availBtn.title = isAvail ? 'Mark as inactive' : 'Mark as available';
-                            availBtn.innerHTML = `<i class="fa-solid ${isAvail ? 'fa-eye' : 'fa-eye-slash'}"></i> <span>${isAvail ? 'On' : 'Off'}</span>`;
+                        if (p.image) {
+                            const img = card.querySelector('.image-wrapper img');
+                            if (img) img.src = p.image;
                         }
-                    }
-                    if (p.has_recipe !== undefined || p.recipe_count !== undefined) {
-                        const isDirect = (p.product_type === 'direct_drink') || 
-                                         ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'vital', 'drink', 'juice'].some(kw => (p.category || '').toLowerCase().includes(kw) || (p.name || '').toLowerCase().includes(kw));
-                        const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0 || isDirect);
-                        card.setAttribute('data-has-recipe', hasRec ? '1' : '0');
-
-                        const imgWrapper = card.querySelector('.image-wrapper');
-                        let noRecBadge = card.querySelector('.image-wrapper .no-recipe-badge');
-                        if (!hasRec && !isDirect) {
-                            if (!noRecBadge && imgWrapper) {
-                                noRecBadge = document.createElement('div');
-                                noRecBadge.className = 'no-recipe-badge';
-                                noRecBadge.title = 'No Recipe Linked';
-                                noRecBadge.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
-                                imgWrapper.appendChild(noRecBadge);
+                        if (p.is_available !== undefined) {
+                            const isAvail = parseInt(p.is_available, 10) === 1;
+                            card.setAttribute('data-avail', isAvail ? '1' : '0');
+                            if (isAvail) {
+                                card.classList.remove('unavailable');
+                                const soldBadge = card.querySelector('.sold-out-badge');
+                                if (soldBadge) soldBadge.remove();
+                            } else {
+                                card.classList.add('unavailable');
+                                let soldBadge = card.querySelector('.sold-out-badge');
+                                if (!soldBadge) {
+                                    soldBadge = document.createElement('div');
+                                    soldBadge.className = 'sold-out-badge';
+                                    soldBadge.textContent = 'Inactive';
+                                    card.querySelector('.image-wrapper')?.appendChild(soldBadge);
+                                }
                             }
-                        } else {
-                            if (noRecBadge) noRecBadge.remove();
+                            const availBtn = card.querySelector('.actions .avail-on, .actions .avail-off');
+                            if (availBtn) {
+                                availBtn.className = `btn-action ${isAvail ? 'avail-on' : 'avail-off'}`;
+                                availBtn.title = isAvail ? 'Mark as inactive' : 'Mark as available';
+                                availBtn.innerHTML = `<i class="fa-solid ${isAvail ? 'fa-eye' : 'fa-eye-slash'}"></i> <span>${isAvail ? 'On' : 'Off'}</span>`;
+                            }
                         }
-                    }
+                        if (p.has_recipe !== undefined || p.recipe_count !== undefined) {
+                            const isDirect = (p.product_type === 'direct_drink') || 
+                                             ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'vital', 'drink', 'juice'].some(kw => (p.category || '').toLowerCase().includes(kw) || (p.name || '').toLowerCase().includes(kw));
+                            const hasRec = (p.has_recipe === 1 || p.has_recipe === true || parseInt(p.recipe_count, 10) > 0 || isDirect);
+                            card.setAttribute('data-has-recipe', hasRec ? '1' : '0');
 
-                    // Highlight card with soft glow
-                    card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-                    card.style.borderColor = '#d1904b';
-                    card.style.boxShadow = '0 0 20px rgba(209,144,75,0.4)';
-                    setTimeout(() => {
-                        card.style.borderColor = '';
-                        card.style.boxShadow = '';
-                    }, 2000);
+                            const imgWrapper = card.querySelector('.image-wrapper');
+                            let noRecBadge = card.querySelector('.image-wrapper .no-recipe-badge');
+                            if (!hasRec && !isDirect) {
+                                if (!noRecBadge && imgWrapper) {
+                                    noRecBadge = document.createElement('div');
+                                    noRecBadge.className = 'no-recipe-badge';
+                                    noRecBadge.title = 'No Recipe Linked';
+                                    noRecBadge.innerHTML = '<i class="fa-solid fa-mortar-pestle"></i> <?= htmlspecialchars(addslashes(__("no_recipe", "No Recipe"))) ?>';
+                                    imgWrapper.appendChild(noRecBadge);
+                                }
+                            } else {
+                                if (noRecBadge) noRecBadge.remove();
+                            }
+                        }
+
+                        // Highlight card with soft glow
+                        card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+                        card.style.borderColor = '#d1904b';
+                        card.style.boxShadow = '0 0 20px rgba(209,144,75,0.4)';
+                        setTimeout(() => {
+                            card.style.borderColor = '';
+                            card.style.boxShadow = '';
+                        }, 2000);
+                    }
                 }
             }
         } else {
-            showToast(data.error || 'Failed to save product changes', 'error');
+            showToast(data.error || (window.IS_KM ? 'មានបញ្ហាក្នុងការរក្សាទុក' : 'Failed to save product changes'), 'error');
         }
     } catch (err) {
         console.error(err);
-        showToast('Network error while saving product', 'error');
+        showToast(window.IS_KM ? 'កំហុសបណ្តាញ ឬប្រព័ន្ធ' : 'Network error while saving product', 'error');
     } finally {
         saveBtn.disabled = false;
         saveBtn.innerHTML = origBtnHtml;

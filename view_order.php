@@ -67,18 +67,21 @@ if ($_fp) { $_socketAvailable = true; fclose($_fp); }
 if ($action === ""):
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bird's Nest Coffee — Orders</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
     /* ── RESET & ROOT ── */
     :root {
         --accent: #d1904b;
@@ -132,7 +135,21 @@ if ($action === ""):
         background-color: #f8fafc !important;
         background-image: none !important;
         color: #0f172a;
-        font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+    }
+    body, input, select, textarea, button, table {
+        font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    :lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+        font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    }
+    html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+        font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+    }
+    html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+        font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
     }
 
     body.barista-mode,
@@ -1175,20 +1192,20 @@ if ($action === ""):
     .vo-date-pill {
         background: transparent !important;
         border: 1px solid transparent !important;
-        color: #64748b !important;
-        font-weight: 600 !important;
+        color: #94a3b8 !important;
+        font-weight: 500 !important;
         border-radius: 8px !important;
         box-shadow: none !important;
+        transition: all 0.18s ease;
     }
     .vo-date-pill:hover {
         color: #0f172a !important;
-        background: rgba(0, 0, 0, 0.03) !important;
     }
     .vo-date-pill.active {
-        background: #ffffff !important;
-        color: #0f172a !important;
-        border-color: rgba(226, 232, 240, 0.8) !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        background: #0f172a !important;
+        color: #ffffff !important;
+        border-color: #0f172a !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
         font-weight: 700 !important;
     }
 
@@ -2478,12 +2495,45 @@ body.barista-mode { padding: 0; }
     transition: opacity 0.25s ease;
 }
 
+.products-list-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
 .call-modal.active,
 .cancel-modal.active,
-.refund-modal.active {
+.refund-modal.active,
+.products-list-modal.active {
     display: flex !important;
     opacity: 1;
     pointer-events: auto;
+}
+
+.products-list-modal .products-modal-dialog {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 24px 28px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(241, 245, 249, 1);
+    transform: scale(0.96) translateY(6px);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.products-list-modal.active .products-modal-dialog {
+    transform: scale(1) translateY(0) !important;
 }
 
 .call-modal-content,
@@ -2859,40 +2909,33 @@ function showClockToast(msg, isErr) {
 
   <!-- TOP HEADER BAR -->
   <div class="flex items-center justify-between gap-4 pb-1 flex-shrink-0">
-    <div class="flex items-center gap-3">
-      <button type="button" onclick="toggleSidebar()" 
-              class="w-10 h-10 rounded-xl bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 flex items-center justify-center transition shadow-sm cursor-pointer" 
-              title="Toggle Sidebar">
-        <i class="fa-solid fa-bars text-base"></i>
-      </button>
-      <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-        <?= $isKm ? 'បញ្ជីការកុម្ម៉ង់' : __('nav_orders', 'Orders') ?>
-      </h1>
-    </div>
+    <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+      <?= $isKm ? 'បញ្ជីការកុម្ម៉ង់' : __('nav_orders', 'Orders') ?>
+    </h1>
   </div>
 
   <!-- TOP 2 METRIC CARDS (MEDIUM SIZE) -->
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
     
     <!-- 1. Total Orders Card -->
-    <div class="bg-white border border-slate-200/80 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
-      <div class="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center text-lg flex-shrink-0">
-        <i class="fa-solid fa-layer-group"></i>
+    <div class="bg-white border border-slate-100 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
+      <div class="w-11 h-11 rounded-xl bg-slate-100/90 border border-slate-200/50 text-slate-400 flex items-center justify-center text-lg flex-shrink-0">
+        <i class="fa-regular fa-file-lines"></i>
       </div>
       <div class="flex flex-col min-w-0">
-        <span class="text-xs font-semibold text-slate-500 truncate"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
-        <span class="text-xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-all-orders">0</span>
+        <span class="text-xs font-semibold text-slate-400 truncate"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
+        <span class="text-xl md:text-2xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-all-orders">0</span>
       </div>
     </div>
 
     <!-- 2. Today's Total Revenue Card -->
-    <div class="bg-white border border-slate-200/80 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
-      <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0">
-        <i class="fa-solid fa-dollar-sign font-bold"></i>
+    <div class="bg-white border border-slate-100 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
+      <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0 font-bold">
+        <i class="fa-solid fa-dollar-sign"></i>
       </div>
       <div class="flex flex-col min-w-0">
-        <span class="text-xs font-semibold text-slate-500 truncate"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
-        <span class="text-xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-total-price">$0.00</span>
+        <span class="text-xs font-semibold text-slate-400 truncate"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
+        <span class="text-xl md:text-2xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-total-price">$0.00</span>
       </div>
     </div>
 
@@ -2901,22 +2944,22 @@ function showClockToast(msg, isErr) {
   <!-- SEARCH & FILTER BAR -->
   <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4 flex-shrink-0">
     <!-- Left: Search Box -->
-    <div class="relative flex-1 max-w-md">
-      <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+    <div class="relative flex-1 max-w-sm">
+      <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
       <input type="text" id="searchInput" 
              placeholder="<?= $isKm ? 'ស្វែងរកតាមឈ្មោះ, លេខកុម្ម៉ង់...' : 'Search by name, order #...' ?>"
              oninput="searchOrders()" 
-             class="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200/90 rounded-xl text-xs md:text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 shadow-sm transition">
+             class="w-full pl-9 pr-4 py-2 bg-slate-100/60 border border-slate-200/60 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-300 shadow-none transition">
     </div>
 
     <!-- Right: Date Range Segmented Switcher -->
     <div class="flex items-center gap-3 flex-wrap justify-between md:justify-end">
       <!-- Date Segmented Pills -->
-      <div class="inline-flex items-center p-1 bg-slate-100/90 border border-slate-200/90 rounded-xl gap-1" id="voDatePillsDesktop">
+      <div class="inline-flex items-center p-1 bg-slate-100/80 border border-slate-200/60 rounded-xl gap-1" id="voDatePillsDesktop">
         <button type="button" onclick="filterDateRange('all', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer active"><?= $isKm ? 'ទាំងអស់' : 'All' ?></button>
-        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
-        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
-        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
+        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
+        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
+        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
       </div>
     </div>
   </div>
@@ -2938,6 +2981,13 @@ function showClockToast(msg, isErr) {
 <div class="detail-modal" id="orderDetailModal">
     <div class="detail-modal-content">
         <div id="orderDetailContent"></div>
+    </div>
+</div>
+
+<!-- Order Products List Modal -->
+<div class="products-list-modal" id="orderProductsModal" onclick="handleProductsModalBackdrop(event)">
+    <div class="products-modal-dialog relative flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+        <div id="orderProductsModalContent" class="flex flex-col h-full overflow-hidden"></div>
     </div>
 </div>
 
@@ -3830,37 +3880,33 @@ function renderTableView() {
         const totalItemsQty = (o.items || []).reduce((sum, item) => sum + parseInt(item.quantity || 1, 10), 0);
         const itemLabel = currentIsKm ? 'មុខទំនិញ' : (totalItemsQty === 1 ? 'Item' : 'Items');
         const itemsSummary = `
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/50 text-slate-700 text-xs font-semibold" title="${escapeHtml((o.items || []).map(i => i.quantity + 'x ' + i.product_name).join(', '))}">
-                <i class="fa-solid fa-cube text-slate-400 text-[10.5px]"></i>
+            <button type="button" 
+                    onclick="openOrderProductsModal(${Number(o.order_id)})" 
+                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-700 text-xs font-medium transition cursor-pointer" 
+                    title="${escapeHtml(currentIsKm ? 'ចុចដើម្បីមើលមុខទំនិញ' : 'Click to view products')}">
+                <i class="fa-solid fa-cube text-amber-600/80 text-[10px]"></i>
                 <span>${totalItemsQty} ${itemLabel}</span>
-            </span>
+            </button>
         `;
         const dtFormatted = formatDateTime(o.order_date);
-        const timeDisplay = `
-            <span class="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap">
-                <i class="fa-regular fa-clock text-slate-400 text-xs"></i>
-                <span>${escapeHtml(dtFormatted)}</span>
-            </span>
-        `;
-
         const orderNoPadded = '#' + String(o.daily_order_no || o.order_id || '').padStart(4, '0');
         const staffName = escapeHtml(getEmployeeDisplayName(o));
         const totalFormatted = '$' + parseFloat(o.total || 0).toFixed(2);
 
         return `
-            <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors" id="row-${o.order_id}">
+            <tr class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors" id="row-${o.order_id}">
                 <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">${orderNoPadded}</td>
-                <td class="py-4 px-6">${itemsSummary}</td>
-                <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap">${totalFormatted}</td>
-                <td class="py-4 px-6">${timeDisplay}</td>
-                <td class="py-4 px-6 text-xs font-medium text-slate-500 whitespace-nowrap">${staffName}</td>
+                <td class="py-4 px-6 whitespace-nowrap">${itemsSummary}</td>
+                <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">${totalFormatted}</td>
+                <td class="py-4 px-6 text-xs text-slate-400 font-normal whitespace-nowrap">${escapeHtml(dtFormatted)}</td>
+                <td class="py-4 px-6 text-xs text-slate-600 font-normal whitespace-nowrap">${staffName}</td>
                 <td class="py-4 px-6 text-center whitespace-nowrap">
                     <div class="inline-flex items-center justify-center gap-2">
-                        <button type="button" onclick="openOrderDetailModal(${Number(o.order_id)})" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-800 inline-flex items-center justify-center transition cursor-pointer" title="View Details">
-                            <i class="fa-regular fa-eye text-sm"></i>
+                        <button type="button" onclick="openOrderProductsModal(${Number(o.order_id)})" class="w-7 h-7 rounded-full text-[#8B2635] hover:bg-[#8B2635]/10 inline-flex items-center justify-center transition cursor-pointer" title="View Details">
+                            <i class="fa-regular fa-eye text-xs"></i>
                         </button>
-                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-800 inline-flex items-center justify-center transition cursor-pointer" title="Print Receipt">
-                            <i class="fa-solid fa-print text-sm"></i>
+                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-7 h-7 rounded-full text-[#4338CA] hover:bg-[#4338CA]/10 inline-flex items-center justify-center transition cursor-pointer" title="Print Receipt">
+                            <i class="fa-solid fa-print text-xs"></i>
                         </button>
                     </div>
                 </td>
@@ -4075,6 +4121,143 @@ function closeOrderDetailModal() {
     const modal = document.getElementById('orderDetailModal');
     if (modal) modal.classList.remove('active');
 }
+
+let currentProductsModalOrderId = null;
+
+function openOrderProductsModal(orderId) {
+    const o = (allOrders || []).find(item => Number(item.order_id) === Number(orderId));
+    if (!o) return;
+    currentProductsModalOrderId = Number(orderId);
+
+    const modal = document.getElementById('orderProductsModal');
+    const content = document.getElementById('orderProductsModalContent');
+    if (!modal || !content) return;
+
+    const currentIsKm = (<?= json_encode(current_lang() === 'km') ?>) || (document.documentElement.lang === 'km');
+    const orderNoPadded = '#' + String(o.daily_order_no || o.order_id || '').padStart(4, '0');
+    const dtFormatted = formatDateTime(o.order_date);
+    const staffName = escapeHtml(getEmployeeDisplayName(o));
+    
+    const grandTotal = parseFloat(o.total || 0);
+    const promoDisc = parseFloat(o.promotion_discount || 0);
+    const manualDisc = parseFloat(o.manual_discount || 0);
+    const totalDisc = promoDisc + manualDisc;
+    const subtotalCalc = (totalDisc > 0) ? (grandTotal + totalDisc) : grandTotal;
+
+    const itemsRowsHtml = (o.items || []).map((i) => {
+        const unitPrice = parseFloat(i.price || 0);
+        const qty = parseInt(i.quantity, 10) || 1;
+        const lineTotal = unitPrice * qty;
+
+        const customOpts = [i.size, i.sweetness, i.ice, i.milk].concat(i.addons || []).filter(Boolean).join(', ');
+        const subtextHtml = customOpts ? `<div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(customOpts)}</div>` : '';
+
+        return `
+            <tr class="border-b border-slate-50 last:border-b-0">
+                <td class="py-3 px-1 text-left">
+                    <div class="font-normal text-slate-800 text-xs md:text-sm leading-snug">${escapeHtml(i.product_name)}</div>
+                    ${subtextHtml}
+                </td>
+                <td class="py-3 px-3 text-center">
+                    <span class="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded bg-slate-100 text-slate-700 font-normal text-xs">${qty}</span>
+                </td>
+                <td class="py-3 px-3 text-right text-slate-600 font-normal whitespace-nowrap text-xs">
+                    $${unitPrice.toFixed(2)}
+                </td>
+                <td class="py-3 px-1 text-right font-normal text-slate-800 whitespace-nowrap text-xs md:text-sm">
+                    $${lineTotal.toFixed(2)}
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    content.innerHTML = `
+        <!-- Modal Header -->
+        <div class="flex items-start justify-between pb-3 border-b border-slate-100 flex-shrink-0">
+            <div>
+                <div class="flex items-center gap-2.5">
+                    <h3 class="text-base font-extrabold text-slate-900">
+                        ${currentIsKm ? 'ព័ត៌មានលម្អិតមុខទំនិញ' : 'Order Product Details'}
+                    </h3>
+                    <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200/80 text-xs font-bold tracking-wide">
+                        ${escapeHtml(orderNoPadded)}
+                    </span>
+                </div>
+                <div class="text-xs text-slate-400 font-normal mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span>${escapeHtml(dtFormatted)}</span>
+                    <span>•</span>
+                    <span>${currentIsKm ? 'បង្កើតដោយ' : 'Created by'}: ${staffName}</span>
+                </div>
+            </div>
+            <button type="button" onclick="closeOrderProductsModal()" class="w-7 h-7 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 inline-flex items-center justify-center transition cursor-pointer" title="Close">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Scrollable Product Table -->
+        <div class="overflow-y-auto max-h-[50vh] my-2 min-h-0">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-t border-slate-100 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                        <th class="py-2.5 px-1 text-left font-bold">${currentIsKm ? 'មុខទំនិញ (ITEM)' : 'ITEM'}</th>
+                        <th class="py-2.5 px-3 text-center font-bold">${currentIsKm ? 'ចំនួន (QTY)' : 'QTY'}</th>
+                        <th class="py-2.5 px-3 text-right font-bold">${currentIsKm ? 'តម្លៃរាយ' : 'PRICE'}</th>
+                        <th class="py-2.5 px-1 text-right font-bold">${currentIsKm ? 'សរុប' : 'TOTAL'}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    ${itemsRowsHtml || `<tr><td colspan="4" class="text-center py-6 text-slate-400 text-xs">${currentIsKm ? 'មិនមានមុខទំនិញទេ' : 'No items found'}</td></tr>`}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totals Calculation -->
+        <div class="pt-3 border-t border-slate-100 space-y-1.5 text-xs flex-shrink-0">
+            ${totalDisc > 0 ? `
+            <div class="flex justify-between items-center text-slate-500">
+                <span>${currentIsKm ? 'ការបញ្ចុះតម្លៃ (Discount)' : 'Discount'}</span>
+                <span class="font-bold text-rose-500">-$${totalDisc.toFixed(2)}</span>
+            </div>
+            ` : ''}
+            <div class="flex justify-between items-center pt-1">
+                <span class="text-xs md:text-sm font-black text-slate-900">${currentIsKm ? 'តម្លៃសរុបចុងក្រោយ (Grand Total)' : 'Grand Total'}</span>
+                <span class="text-sm md:text-base font-black text-emerald-600">$${grandTotal.toFixed(2)}</span>
+            </div>
+        </div>
+
+        <!-- Footer Action Buttons -->
+        <div class="mt-5 pt-2 flex items-center justify-end gap-3 flex-shrink-0">
+            <button type="button" onclick="closeOrderProductsModal()" class="px-5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 text-xs font-bold transition shadow-sm cursor-pointer">
+                ${currentIsKm ? 'បិទ (Close)' : 'Close'}
+            </button>
+            <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-print text-xs"></i>
+                <span>${currentIsKm ? 'បោះពុម្ព (Print)' : 'Print'}</span>
+            </button>
+        </div>
+    `;
+
+    modal.classList.add('active');
+}
+
+function closeOrderProductsModal() {
+    currentProductsModalOrderId = null;
+    const modal = document.getElementById('orderProductsModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function handleProductsModalBackdrop(e) {
+    if (e.target.id === 'orderProductsModal') {
+        closeOrderProductsModal();
+    }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeOrderProductsModal();
+        closeOrderDetailModal();
+    }
+});
 
 function closeReceiptModal() {}
 
@@ -5152,14 +5335,15 @@ if ($action === "fetch") {
             oi.made_at,
             oi.made_qty,
             oi.product_id,
-            p.category
+            p.category,
+            p.image
         FROM orders o
         LEFT JOIN users u ON u.user_id = o.user_id
         LEFT JOIN order_items oi ON o.order_id = oi.order_id
         LEFT JOIN products p ON p.product_id = oi.product_id
         LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id
         WHERE {$where_sql}
-        GROUP BY o.order_id, u.username, u.role, oi.item_id, oi.product_name, oi.price, oi.orig_price, oi.promo_percent, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category
+        GROUP BY o.order_id, u.username, u.role, oi.item_id, oi.product_name, oi.price, oi.orig_price, oi.promo_percent, oi.sweetness, oi.ice, oi.milk, oi.size_label, oi.addons_snapshot, oi.quantity, oi.made_at, oi.made_qty, oi.product_id, p.category, p.image
         ORDER BY o.order_id DESC
     ");
 
@@ -5238,9 +5422,10 @@ if ($action === "fetch") {
                 "addons"       => array_map(fn($a) => $a['name'], json_decode($r["addons_snapshot"] ?? '[]', true) ?: []),
                 "quantity"     => $qty,
                 "made_qty"     => $made_qty,
-                "is_made"      => $is_made
+                "is_made"      => $is_made,
+                "category"     => $r["category"] ?? '',
+                "image"        => $r["image"] ?? ''
             ];
-            if ($__isBarista) { $item["category"] = $r["category"] ?? ''; }
             $map[$id]["items"][] = $item;
         }
     }
