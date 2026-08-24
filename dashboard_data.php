@@ -94,7 +94,12 @@ WHERE $date_cond_w AND " . paid_orders_where() . "
 $sales = (float)$conn->query($sales_sql)->fetch_assoc()['total_sales'];
 
 // ── TOTAL ORDERS TODAY ──
-$total_orders = (int)$conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w")->fetch_assoc()['total_orders'];
+$total_orders = (int)$conn->query("
+    SELECT COUNT(o.order_id) AS total_orders 
+    FROM orders o 
+    LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id 
+    WHERE $date_cond_o AND oc.order_id IS NULL
+")->fetch_assoc()['total_orders'];
 
 // ── UNPAID ORDERS COUNT ──
 $unpaid_count = 0;

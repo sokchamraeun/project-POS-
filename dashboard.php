@@ -84,8 +84,13 @@ $stmt_yest->execute();
 $yesterday_sales = (float)$stmt_yest->get_result()->fetch_assoc()['yesterday_sales'];
 $sales_trend = $yesterday_sales > 0 ? round(($sales - $yesterday_sales) / $yesterday_sales * 100, 1) : ($sales > 0 ? 100.0 : 0.0);
 
-// Total Orders
-$stmt_ord = $conn->query("SELECT COUNT(*) AS total_orders FROM orders WHERE $date_cond_w " . $user_clause_w . " AND " . paid_orders_where());
+// Total Orders (matches report page: all non-cancelled orders)
+$stmt_ord = $conn->query("
+    SELECT COUNT(o.order_id) AS total_orders 
+    FROM orders o 
+    LEFT JOIN order_cancellations oc ON oc.order_id = o.order_id 
+    WHERE $date_cond_o " . $user_clause_o . " AND oc.order_id IS NULL
+");
 $total_orders = (int)($stmt_ord ? $stmt_ord->fetch_assoc()['total_orders'] : 0);
 
 // Total Items Sold
