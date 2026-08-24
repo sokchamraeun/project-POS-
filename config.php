@@ -1826,19 +1826,57 @@ $conn->query("CREATE TABLE IF NOT EXISTS categories (
     category_id INT AUTO_INCREMENT PRIMARY KEY,
     slug VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NULL DEFAULT '',
     icon VARCHAR(50) DEFAULT 'fa-circle',
     display_order INT DEFAULT 0,
-    is_active TINYINT(1) DEFAULT 1
+    is_active TINYINT(1) DEFAULT 1,
+    offer_sweetness TINYINT(1) NOT NULL DEFAULT 1,
+    offer_ice TINYINT(1) NOT NULL DEFAULT 1,
+    offer_milk TINYINT(1) NOT NULL DEFAULT 1,
+    offer_addons TINYINT(1) NOT NULL DEFAULT 1,
+    earns_points TINYINT(1) NOT NULL DEFAULT 1
 ) DEFAULT CHARSET=utf8mb4");
 
-if ((int)$conn->query("SELECT COUNT(*) FROM categories")->fetch_row()[0] === 0) {
-    $conn->query("INSERT INTO categories (slug, name, icon, display_order) VALUES
-        ('Iced','Iced Beverages','fa-snowflake',1),
-        ('Hot','Hot Beverages','fa-mug-hot',2),
-        ('Frappe','Frappes','fa-blender',3),
-        ('Juice','Juices','fa-lemon',4),
-        ('Milk Tea','Milk Tea','fa-circle-dot',5)");
+$catCountRes = $conn->query("SELECT COUNT(*) FROM categories");
+$catCount = ($catCountRes && ($row = $catCountRes->fetch_row())) ? (int)$row[0] : 0;
+
+if ($catCount === 0) {
+    // 1. Seed standard default categories
+    $defaultCats = [
+        ['slug' => 'Iced',        'name' => 'Iced Beverages', 'icon' => 'fa-snowflake',  'order' => 1],
+        ['slug' => 'Hot',         'name' => 'Hot Beverages',  'icon' => 'fa-mug-hot',    'order' => 2],
+        ['slug' => 'Frappe',      'name' => 'Frappes',        'icon' => 'fa-blender',    'order' => 3],
+        ['slug' => 'Juice',       'name' => 'Juices',         'icon' => 'fa-lemon',      'order' => 4],
+        ['slug' => 'Milk Tea',    'name' => 'Milk Tea',       'icon' => 'fa-circle-dot', 'order' => 5],
+        ['slug' => 'Soft Drinks', 'name' => 'Soft Drinks',    'icon' => 'fa-bottle-water','order' => 6],
+    ];
+    $insStmt = $conn->prepare("INSERT IGNORE INTO categories (slug, name, icon, display_order, is_active, offer_sweetness, offer_ice, offer_milk, offer_addons, earns_points) VALUES (?, ?, ?, ?, 1, 1, 1, 1, 1, 1)");
+    if ($insStmt) {
+        foreach ($defaultCats as $dc) {
+            $insStmt->bind_param('sssi', $dc['slug'], $dc['name'], $dc['icon'], $dc['order']);
+            $insStmt->execute();
+        }
+    }
+
+    // 2. Also import any categories currently used in products table
+    $prodCatsRes = $conn->query("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND TRIM(category) != ''");
+    if ($prodCatsRes) {
+        $nextOrder = 10;
+        while ($pRow = $prodCatsRes->fetch_assoc()) {
+            $pCatName = trim($pRow['category']);
+            if ($pCatName === '') continue;
+            $insCat = $conn->prepare("INSERT IGNORE INTO categories (slug, name, icon, display_order, is_active) VALUES (?, ?, 'fa-circle', ?, 1)");
+            if ($insCat) {
+                $insCat->bind_param('ssi', $pCatName, $pCatName, $nextOrder);
+                $insCat->execute();
+                $nextOrder++;
+            }
+        }
+    }
 }
+
+// Ensure products.category_id is mapped to categories.category_id
+$conn->query("UPDATE products p JOIN categories c ON (c.slug = p.category OR c.name = p.category) SET p.category_id = c.category_id WHERE p.category_id IS NULL OR p.category_id = 0");
 
 
 
