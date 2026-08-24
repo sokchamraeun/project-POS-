@@ -111,30 +111,7 @@ $q_top = $conn->query("
 $top_item = $q_top ? $q_top->fetch_assoc() : null;
 $top_item_name = $top_item ? $top_item['name'] : ($isKm ? 'Iced Latte' : 'Iced Latte');
 
-// Payment Method Breakdown: Bakong KHQR vs Cash (Quantity of drinks / items)
-$q_pm = $conn->query("
-    SELECT 
-        COALESCE(SUM(CASE WHEN LOWER(o.payment_method) LIKE '%bakong%' OR LOWER(o.payment_method) LIKE '%khqr%' OR LOWER(o.payment_method) LIKE '%qr%' THEN oi.quantity ELSE 0 END), 0) AS bakong_qty,
-        COALESCE(SUM(CASE WHEN LOWER(o.payment_method) LIKE '%cash%' OR o.payment_method = '' OR o.payment_method IS NULL THEN oi.quantity ELSE 0 END), 0) AS cash_qty,
-        COUNT(DISTINCT CASE WHEN LOWER(o.payment_method) LIKE '%bakong%' OR LOWER(o.payment_method) LIKE '%khqr%' OR LOWER(o.payment_method) LIKE '%qr%' THEN o.order_id ELSE NULL END) AS bakong_cnt,
-        COUNT(DISTINCT CASE WHEN LOWER(o.payment_method) LIKE '%cash%' OR o.payment_method = '' OR o.payment_method IS NULL THEN o.order_id ELSE NULL END) AS cash_cnt
-    FROM orders o
-    LEFT JOIN order_items oi ON o.order_id = oi.order_id AND oi.product_id <> 0
-    WHERE $date_cond_o " . $user_clause_o . " AND " . paid_orders_where('o')
-);
-$r_pm = $q_pm ? $q_pm->fetch_assoc() : ['bakong_qty' => 0, 'cash_qty' => 0, 'bakong_cnt' => 0, 'cash_cnt' => 0];
-$bakong_qty = (int)($r_pm['bakong_qty'] ?? 0);
-$cash_qty   = (int)($r_pm['cash_qty'] ?? 0);
-$bakong_cnt = (int)($r_pm['bakong_cnt'] ?? 0);
-$cash_cnt   = (int)($r_pm['cash_cnt'] ?? 0);
-$pm_total   = $bakong_qty + $cash_qty;
-if ($pm_total > 0) {
-    $bakong_pct = round(($bakong_qty / $pm_total) * 100);
-    $cash_pct   = 100 - $bakong_pct;
-} else {
-    $bakong_pct = 0;
-    $cash_pct   = 0;
-}
+
 
 // ── 2. Localized Date & Greeting ──
 $khmer_days = [
@@ -420,8 +397,8 @@ if ($q_rec) {
             </div>
         </div>
 
-        <!-- ════ ROW 1: 4 KPI CARDS (CLICKABLE LINKS TO REPORTS) ════ -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-shrink-0">
+        <!-- ════ ROW 1: 3 KPI CARDS (CLICKABLE LINKS TO REPORTS) ════ -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-shrink-0">
             <!-- 1. Revenue Card -> Links to Analytics & Export (report.php) -->
             <a href="<?= $report_link ?>" class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-emerald-400 hover:shadow-md hover:-translate-y-0.5 transition group cursor-pointer block text-inherit no-underline">
                 <div class="flex items-center justify-between">
@@ -464,34 +441,6 @@ if ($q_rec) {
                         <span class="text-sm font-bold text-slate-400"><?= $isKm ? 'កែវ' : 'items' ?></span>
                     </div>
                     <i class="fa-solid fa-arrow-up-right-from-square text-[11px] text-slate-300 group-hover:text-teal-600 transition"></i>
-                </div>
-            </a>
-
-            <!-- 4. Bakong KHQR vs Cash Split Card -> Links to Daily Summary (daily_report.php) -->
-            <a href="<?= $daily_report_link ?>" class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-rose-400 hover:shadow-md hover:-translate-y-0.5 transition group cursor-pointer block text-inherit no-underline">
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider group-hover:text-slate-800 transition"><?= $isKm ? 'បាគង KHQR VS សាច់ប្រាក់' : 'BAKONG KHQR VS CASH' ?></span>
-                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center text-base group-hover:bg-rose-600 group-hover:text-white transition">
-                        <i class="fa-solid fa-qrcode"></i>
-                    </div>
-                </div>
-                <div class="mt-2 flex items-center justify-around">
-                    <!-- Left: KHQR -->
-                    <div class="flex flex-col items-center">
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-xl lg:text-2xl font-black text-rose-600 leading-tight"><?= number_format($bakong_qty) ?></span>
-                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កែវ' : 'Qty' ?></span>
-                        </div>
-                    </div>
-                    <!-- Divider -->
-                    <div class="w-px h-8 bg-slate-100"></div>
-                    <!-- Right: CASH -->
-                    <div class="flex flex-col items-center">
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-xl lg:text-2xl font-black text-emerald-600 leading-tight"><?= number_format($cash_qty) ?></span>
-                            <span class="text-[10px] font-bold text-slate-400"><?= $isKm ? 'កែវ' : 'Qty' ?></span>
-                        </div>
-                    </div>
                 </div>
             </a>
         </div>
