@@ -28,6 +28,24 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES   => false,
     ]);
+
+    // Ensure selling price & box image columns exist
+    try {
+        $colCheck = $pdo->query("SHOW COLUMNS FROM stock_items LIKE 'selling_price_per_unit'")->fetch();
+        if (!$colCheck) {
+            $pdo->exec("ALTER TABLE stock_items ADD COLUMN selling_price_per_unit DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER cost_per_purchase_unit");
+        }
+        $colCheck2 = $pdo->query("SHOW COLUMNS FROM stock_items LIKE 'selling_price_per_box'")->fetch();
+        if (!$colCheck2) {
+            $pdo->exec("ALTER TABLE stock_items ADD COLUMN selling_price_per_box DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER selling_price_per_unit");
+        }
+        $colCheck3 = $pdo->query("SHOW COLUMNS FROM stock_items LIKE 'image_box'")->fetch();
+        if (!$colCheck3) {
+            $pdo->exec("ALTER TABLE stock_items ADD COLUMN image_box VARCHAR(255) NULL DEFAULT NULL AFTER image");
+        }
+    } catch (Exception $e) {
+        // Table doesn't exist yet or already altered
+    }
 } catch (PDOException $e) {
     die("Database Connection Error: " . htmlspecialchars($e->getMessage()));
 }
@@ -51,7 +69,8 @@ if (!function_exists('formatUnitLabel')) {
                 'can' => 'កំប៉ុង', 'cans' => 'កំប៉ុង',
                 'bottle' => 'ដប', 'bottles' => 'ដប',
                 'box' => 'កេស', 'boxes' => 'កេស',
-                'pack' => 'យួរ/កញ្ចប់', 'packs' => 'យួរ/កញ្ចប់',
+                'pack' => 'យួរ', 'packs' => 'យួរ',
+                'package' => 'កញ្ចប់', 'packages' => 'កញ្ចប់',
                 'carton' => 'កាតុង', 'cartons' => 'កាតុង',
                 'case' => 'កេសធំ', 'cases' => 'កេសធំ',
                 'crate' => 'ស្នោ', 'crates' => 'ស្នោ',
@@ -81,6 +100,38 @@ if (!function_exists('formatUnitLabel')) {
             return 'boxes';
         }
         return $singular . 's';
+    }
+}
+
+if (!function_exists('getPackageUnitSuffixKm')) {
+    function getPackageUnitSuffixKm(string $pUnit): string {
+        $pUnit = strtolower(trim($pUnit));
+        $map = [
+            'box' => 'កេស', 'boxes' => 'កេស',
+            'pack' => 'យួរ', 'packs' => 'យួរ',
+            'package' => 'កញ្ចប់', 'packages' => 'កញ្ចប់',
+            'carton' => 'កាតុង', 'cartons' => 'កាតុង',
+            'case' => 'កេសធំ', 'cases' => 'កេសធំ',
+            'dozen' => 'ឡូ', 'dozens' => 'ឡូ',
+            'crate' => 'ស្នោ', 'crates' => 'ស្នោ'
+        ];
+        return $map[$pUnit] ?? 'កេស';
+    }
+}
+
+if (!function_exists('getPackageUnitSuffixEn')) {
+    function getPackageUnitSuffixEn(string $pUnit): string {
+        $pUnit = strtolower(trim($pUnit));
+        $map = [
+            'box' => 'Box', 'boxes' => 'Box',
+            'pack' => 'Pack', 'packs' => 'Pack',
+            'package' => 'Package', 'packages' => 'Package',
+            'carton' => 'Carton', 'cartons' => 'Carton',
+            'case' => 'Case', 'cases' => 'Case',
+            'dozen' => 'Dozen', 'dozens' => 'Dozen',
+            'crate' => 'Crate', 'crates' => 'Crate'
+        ];
+        return $map[$pUnit] ?? 'Box';
     }
 }
 
@@ -178,7 +229,9 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             $search = trim($_GET['search'] ?? '');
             $sortBy = trim($_GET['sort'] ?? 'name_asc');
 
-            $sql = "SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') AS image 
+            $sql = "SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+                           COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
+                           COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box
                     FROM stock_items s 
                     LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', '')) 
                     WHERE s.item_type = 'direct_drink' AND s.is_active = 1";
@@ -236,7 +289,12 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         // 2. Get Single Item
         if ($action === 'get_item' || $action === 'get_single_item') {
             $itemId = (int)($_GET['item_id'] ?? ($_POST['item_id'] ?? 0));
-            $stmt = $pdo->prepare("SELECT * FROM stock_items WHERE item_id = ? AND item_type = 'direct_drink' AND is_active = 1 LIMIT 1");
+            $stmt = $pdo->prepare("SELECT s.*, 
+                           COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
+                           COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box
+                    FROM stock_items s 
+                    LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', '')) 
+                    WHERE s.item_id = ? AND s.item_type = 'direct_drink' AND s.is_active = 1 LIMIT 1");
             $stmt->execute([$itemId]);
             $item = $stmt->fetch();
 
@@ -249,15 +307,21 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
         // 3. Create New Canned/Bottled Drink
         if ($action === 'create_item') {
-            $name         = trim($_POST['item_name'] ?? '');
-            $unit         = trim($_POST['unit'] ?? 'can');
-            $purchaseUnit = trim($_POST['purchase_unit'] ?? 'box');
-            $rate         = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
-            $boxes        = (float)($_POST['initial_boxes'] ?? 0);
-            $loose        = (float)($_POST['initial_loose'] ?? 0);
-            $costBox      = (float)($_POST['cost_per_purchase_unit'] ?? 0);
-            $alertLevel   = (float)($_POST['alert_level'] ?? 24.0); // e.g. 1 box
-            $notes        = trim($_POST['notes'] ?? '');
+            $name          = trim($_POST['item_name'] ?? '');
+            $unit          = trim($_POST['unit'] ?? 'can');
+            $purchaseUnit  = trim($_POST['purchase_unit'] ?? 'box');
+            $rate          = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
+            $boxes         = (float)($_POST['initial_boxes'] ?? 0);
+            $loose         = (float)($_POST['initial_loose'] ?? 0);
+            $costBox       = (float)($_POST['cost_per_purchase_unit'] ?? 0);
+            $costUnit      = isset($_POST['cost_per_unit']) && $_POST['cost_per_unit'] !== '' ? (float)$_POST['cost_per_unit'] : (($costBox > 0 && $rate > 0) ? ($costBox / $rate) : 0.0);
+            if ($costBox <= 0 && $costUnit > 0) {
+                $costBox = $costUnit * $rate;
+            }
+            $alertLevel    = (float)($_POST['alert_level'] ?? 24.0); // e.g. 1 box
+            $sellPriceUnit = (float)($_POST['selling_price_per_unit'] ?? 0);
+            $sellPriceBox  = isset($_POST['selling_price_per_box']) && $_POST['selling_price_per_box'] !== '' ? (float)$_POST['selling_price_per_box'] : ($sellPriceUnit * $rate);
+            $notes         = trim($_POST['notes'] ?? '');
 
             if (empty($name)) {
                 sendJsonResponse(['success' => false, 'message' => 'Drink name is required.'], 422);
@@ -274,7 +338,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 ], 422);
             }
 
-            // Image Upload Handling
+            // Unit Image Upload Handling
             $image_path = null;
             if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
                 $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/stock');
@@ -289,32 +353,100 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 $image_path = $pImg->fetchColumn() ?: null;
             }
 
+            // Box Image Upload Handling
+            $image_box_path = null;
+            if (!empty($_FILES['image_box']['name']) && ($_FILES['image_box']['error'] ?? 1) === UPLOAD_ERR_OK) {
+                $uploadResBox = cloudinary_upload_file($_FILES['image_box'], 'pos_coffee/stock');
+                if ($uploadResBox['success']) {
+                    $image_box_path = $uploadResBox['url'];
+                }
+            }
+
             $totalBaseUnits = ($boxes * $rate) + $loose;
-            $unitCost = ($costBox > 0 && $rate > 0) ? ($costBox / $rate) : 0.0;
+            $unitCost = $costUnit > 0 ? $costUnit : (($costBox > 0 && $rate > 0) ? ($costBox / $rate) : 0.0);
 
             $stmt = $pdo->prepare("INSERT INTO stock_items 
-                (item_name, image, category, item_type, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, notes, is_active) 
-                VALUES (?, ?, 'Direct Drinks', 'direct_drink', ?, ?, ?, ?, ?, ?, ?, ?, 1)");
-            $stmt->execute([$name, $image_path, $totalBaseUnits, $unit, $purchaseUnit, $rate, $alertLevel, $unitCost, $costBox, $notes]);
+                (item_name, image, image_box, category, item_type, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, selling_price_per_unit, selling_price_per_box, notes, is_active) 
+                VALUES (?, ?, ?, 'Direct Drinks', 'direct_drink', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+            $stmt->execute([$name, $image_path, $image_box_path, $totalBaseUnits, $unit, $purchaseUnit, $rate, $alertLevel, $unitCost, $costBox, $sellPriceUnit, $sellPriceBox, $notes]);
             $newId = (int)$pdo->lastInsertId();
+
+            // ── Auto Add/Sync Products for POS (Unit and Box) ──
+            try {
+                // Determine target category for POS menu
+                $catStmt = $pdo->query("SELECT category_id, slug FROM categories WHERE is_active = 1 ORDER BY (slug = 'Drinks' OR name LIKE '%Drink%') DESC, display_order ASC LIMIT 1");
+                $catRow = $catStmt->fetch();
+                $targetCatSlug = $catRow ? $catRow['slug'] : 'Drinks';
+                $targetCatId = $catRow ? (int)$catRow['category_id'] : 3;
+
+                $kmUnitSuffix = getPackageUnitSuffixKm($purchaseUnit);
+                $enUnitSuffix = getPackageUnitSuffixEn($purchaseUnit);
+                $boxName = $name . ' (' . $kmUnitSuffix . ')';
+                $boxNameEn = $name . ' (' . $enUnitSuffix . ')';
+
+                // 1. Auto Create / Update UNIT Product
+                $uPrice = $sellPriceUnit > 0 ? $sellPriceUnit : (($sellPriceBox > 0 && $rate > 0) ? ($sellPriceBox / $rate) : 1.0);
+                $uCost = $unitCost;
+
+                $pCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) LIMIT 1");
+                $pCheck->execute([$name]);
+                $existingUnitProd = $pCheck->fetch();
+
+                if ($existingUnitProd) {
+                    $uImg = !empty($image_path) ? $image_path : $existingUnitProd['image'];
+                    $uUpd = $pdo->prepare("UPDATE products SET price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                    $uUpd->execute([$uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
+                } else {
+                    $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                    $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
+                    $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $image_path]);
+                }
+
+                // 2. Auto Create / Update BOX Product
+                $bPrice = $sellPriceBox > 0 ? $sellPriceBox : ($uPrice * $rate);
+                $bCost = $costBox > 0 ? $costBox : ($uCost * $rate);
+                $bImage = !empty($image_box_path) ? $image_box_path : $image_path;
+
+                $bCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) IN (
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', ''))
+                ) LIMIT 1");
+                $bCheck->execute([$boxName, $boxNameEn, $name . ' (កេស)', $name . ' (យួរ)']);
+                $existingBoxProd = $bCheck->fetch();
+
+                if ($existingBoxProd) {
+                    $bImgFinal = !empty($bImage) ? $bImage : $existingBoxProd['image'];
+                    $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                    $bUpd->execute([$boxName, $bPrice, $bCost, $bImgFinal, $existingBoxProd['product_id']]);
+                } else {
+                    $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                    $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
+                    $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
+                }
+            } catch (Exception $e) {
+                error_log("Auto sync products on create_item error: " . $e->getMessage());
+            }
 
             sendJsonResponse([
                 'success' => true,
-                'message' => "Direct drink '{$name}' added! Total on hand: {$totalBaseUnits} {$unit}s ({$boxes} {$purchaseUnit}s).",
+                'message' => "Direct drink '{$name}' added to inventory & auto-created both Unit and Box items on Product page!",
                 'item_id' => $newId
             ]);
         }
 
-        // 4. Bulk Box Restock (Atomic Transaction)
+        // 4. Bulk Box + Loose Restock (Atomic Transaction)
         if ($action === 'quick_restock') {
             $itemId      = (int)($_POST['item_id'] ?? 0);
-            $boxesToAdd  = (float)($_POST['purchase_qty'] ?? 0);
+            $boxesToAdd  = max(0, (float)($_POST['purchase_qty'] ?? 0));
+            $looseToAdd  = max(0, (float)($_POST['loose_qty'] ?? 0));
             $costPerBox  = isset($_POST['cost_per_box']) && $_POST['cost_per_box'] !== '' ? (float)$_POST['cost_per_box'] : null;
             $supplier    = trim($_POST['supplier'] ?? '');
             $notes       = trim($_POST['notes'] ?? '');
 
-            if ($itemId <= 0 || $boxesToAdd <= 0) {
-                sendJsonResponse(['success' => false, 'message' => 'Invalid drink selection or quantity.'], 422);
+            if ($itemId <= 0 || ($boxesToAdd <= 0 && $looseToAdd <= 0)) {
+                sendJsonResponse(['success' => false, 'message' => 'សូមបញ្ចូលចំនួនកេស ឬចំនួនរាយដែលត្រូវបន្ថែម។ (Please enter boxes or loose units to add)'], 422);
             }
 
             $pdo->beginTransaction();
@@ -330,13 +462,13 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 }
 
                 $rate             = max(1.0, (float)$cur['conversion_rate']);
-                $totalBaseUnits   = $boxesToAdd * $rate;
+                $totalBaseUnits   = ($boxesToAdd * $rate) + $looseToAdd;
                 $pUnit            = $cur['purchase_unit'];
                 $bUnit            = $cur['unit'];
 
                 $activeBoxCost    = ($costPerBox !== null && $costPerBox >= 0) ? $costPerBox : (float)$cur['cost_per_purchase_unit'];
                 $activeUnitCost   = ($activeBoxCost > 0) ? ($activeBoxCost / $rate) : (float)$cur['cost_per_unit'];
-                $totalPurchaseCost = $boxesToAdd * $activeBoxCost;
+                $totalPurchaseCost = ($boxesToAdd * $activeBoxCost) + ($looseToAdd * $activeUnitCost);
 
                 $uStmt = $pdo->prepare("UPDATE stock_items SET 
                     quantity = quantity + ?, 
@@ -346,7 +478,10 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                     WHERE item_id = ?");
                 $uStmt->execute([$totalBaseUnits, $activeBoxCost, $activeUnitCost, $itemId]);
 
-                $logDesc = "Bulk Restock: {$boxesToAdd} {$pUnit}(s) × {$rate} = +{$totalBaseUnits} {$bUnit}s";
+                $parts = [];
+                if ($boxesToAdd > 0) $parts[] = "{$boxesToAdd} {$pUnit}(s)";
+                if ($looseToAdd > 0) $parts[] = "{$looseToAdd} {$bUnit}(s)";
+                $logDesc = "Restock: " . implode(' + ', $parts) . " = +{$totalBaseUnits} {$bUnit}s";
                 if ($notes !== '') $logDesc .= " | " . $notes;
 
                 $rStmt = $pdo->prepare("INSERT INTO stock_restocks 
@@ -358,7 +493,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
                 sendJsonResponse([
                     'success' => true,
-                    'message' => "Successfully restocked {$cur['item_name']}! Added +{$totalBaseUnits} {$bUnit}s ({$boxesToAdd} {$pUnit})."
+                    'message' => "បានបញ្ចូលស្តុក {$cur['item_name']} ជោគជ័យ! បន្ថែមសរុប +{$totalBaseUnits} {$bUnit}."
                 ]);
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -368,32 +503,44 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
         // 5. Update Drink Details
         if ($action === 'update_item') {
-            $itemId      = (int)($_POST['item_id'] ?? 0);
-            $name        = trim($_POST['item_name'] ?? '');
-            $unit        = trim($_POST['unit'] ?? 'can');
-            $purchaseUnit= trim($_POST['purchase_unit'] ?? 'box');
-            $rate        = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
-            $quantity    = (float)($_POST['quantity'] ?? 0);
-            $alertLevel  = (float)($_POST['alert_level'] ?? 24.0);
-            $costBox     = (float)($_POST['cost_per_purchase_unit'] ?? 0);
-            $costUnit    = ($costBox > 0) ? ($costBox / $rate) : (float)($_POST['cost_per_unit'] ?? 0);
-            $notes       = trim($_POST['notes'] ?? '');
+            $itemId        = (int)($_POST['item_id'] ?? 0);
+            $name          = trim($_POST['item_name'] ?? '');
+            $unit          = trim($_POST['unit'] ?? 'can');
+            $purchaseUnit  = trim($_POST['purchase_unit'] ?? 'box');
+            $rate          = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
+            $quantity      = (float)($_POST['quantity'] ?? 0);
+            $alertLevel    = (float)($_POST['alert_level'] ?? 24.0);
+            $costBox       = (float)($_POST['cost_per_purchase_unit'] ?? 0);
+            $costUnit      = isset($_POST['cost_per_unit']) && $_POST['cost_per_unit'] !== '' ? (float)$_POST['cost_per_unit'] : (($costBox > 0) ? ($costBox / $rate) : 0.0);
+            if ($costBox <= 0 && $costUnit > 0) {
+                $costBox = $costUnit * $rate;
+            }
+            $sellPriceUnit = (float)($_POST['selling_price_per_unit'] ?? 0);
+            $sellPriceBox  = isset($_POST['selling_price_per_box']) && $_POST['selling_price_per_box'] !== '' ? (float)$_POST['selling_price_per_box'] : ($sellPriceUnit * $rate);
+            $notes         = trim($_POST['notes'] ?? '');
 
             if ($itemId <= 0 || empty($name)) {
                 sendJsonResponse(['success' => false, 'message' => 'Invalid parameters.'], 422);
             }
 
             // Duplicate Name Check on Edit
-            $chk = $pdo->prepare("SELECT item_id FROM stock_items WHERE item_type = 'direct_drink' AND LOWER(TRIM(item_name)) = LOWER(?) AND item_id != ? AND is_active = 1 LIMIT 1");
-            $chk->execute([$name, $itemId]);
-            if ($chk->fetch()) {
+            $chk = $pdo->prepare("SELECT item_id, image, image_box FROM stock_items WHERE item_id = ? AND is_active = 1 LIMIT 1");
+            $chk->execute([$itemId]);
+            $existing = $chk->fetch(PDO::FETCH_ASSOC);
+            if (!$existing) {
+                sendJsonResponse(['success' => false, 'message' => 'Item not found.'], 404);
+            }
+
+            $dupChk = $pdo->prepare("SELECT item_id FROM stock_items WHERE item_type = 'direct_drink' AND LOWER(TRIM(item_name)) = LOWER(?) AND item_id != ? AND is_active = 1 LIMIT 1");
+            $dupChk->execute([$name, $itemId]);
+            if ($dupChk->fetch()) {
                 sendJsonResponse([
                     'success' => false, 
                     'message' => "Another stock drink named '{$name}' already exists."
                 ], 422);
             }
 
-            // Optional Image Upload on Edit
+            // Optional Unit Image Upload on Edit
             $new_image_path = null;
             if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
                 $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/stock');
@@ -405,38 +552,118 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 }
             }
 
-            if ($new_image_path) {
-                $stmt = $pdo->prepare("UPDATE stock_items SET 
-                    item_name = ?, 
-                    image = ?,
-                    quantity = ?, 
-                    unit = ?, 
-                    purchase_unit = ?, 
-                    conversion_rate = ?, 
-                    alert_level = ?, 
-                    cost_per_purchase_unit = ?, 
-                    cost_per_unit = ?, 
-                    notes = ?, 
-                    updated_at = NOW() 
-                    WHERE item_id = ? AND is_active = 1");
-                $stmt->execute([$name, $new_image_path, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $notes, $itemId]);
-            } else {
-                $stmt = $pdo->prepare("UPDATE stock_items SET 
-                    item_name = ?, 
-                    quantity = ?, 
-                    unit = ?, 
-                    purchase_unit = ?, 
-                    conversion_rate = ?, 
-                    alert_level = ?, 
-                    cost_per_purchase_unit = ?, 
-                    cost_per_unit = ?, 
-                    notes = ?, 
-                    updated_at = NOW() 
-                    WHERE item_id = ? AND is_active = 1");
-                $stmt->execute([$name, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $notes, $itemId]);
+            // Optional Box Image Upload on Edit
+            $new_image_box_path = null;
+            if (!empty($_FILES['image_box']['name']) && ($_FILES['image_box']['error'] ?? 1) === UPLOAD_ERR_OK) {
+                $uploadResBox = cloudinary_upload_file($_FILES['image_box'], 'pos_coffee/stock');
+                if ($uploadResBox['success']) {
+                    $new_image_box_path = $uploadResBox['url'];
+                    if (!empty($existing['image_box'])) {
+                        cloudinary_delete_image($existing['image_box']);
+                    }
+                }
             }
 
-            sendJsonResponse(['success' => true, 'message' => "Drink '{$name}' updated successfully!"]);
+            $finalImage = $new_image_path !== null ? $new_image_path : $existing['image'];
+            $finalImageBox = $new_image_box_path !== null ? $new_image_box_path : ($existing['image_box'] ?? null);
+
+            $stmt = $pdo->prepare("UPDATE stock_items SET 
+                item_name = ?, 
+                image = ?,
+                image_box = ?,
+                quantity = ?, 
+                unit = ?, 
+                purchase_unit = ?, 
+                conversion_rate = ?, 
+                alert_level = ?, 
+                cost_per_purchase_unit = ?, 
+                cost_per_unit = ?, 
+                selling_price_per_unit = ?,
+                selling_price_per_box = ?,
+                notes = ?, 
+                updated_at = NOW() 
+                WHERE item_id = ? AND is_active = 1");
+            $stmt->execute([$name, $finalImage, $finalImageBox, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $sellPriceUnit, $sellPriceBox, $notes, $itemId]);
+
+            // ── Auto Sync Products for POS (Unit and Box) ──
+            try {
+                $catStmt = $pdo->query("SELECT category_id, slug FROM categories WHERE is_active = 1 ORDER BY (slug = 'Drinks' OR name LIKE '%Drink%') DESC, display_order ASC LIMIT 1");
+                $catRow = $catStmt->fetch();
+                $targetCatSlug = $catRow ? $catRow['slug'] : 'Drinks';
+                $targetCatId = $catRow ? (int)$catRow['category_id'] : 3;
+
+                $oldPurchaseUnit = $existing['purchase_unit'] ?? 'box';
+                $oldKmUnitSuffix = getPackageUnitSuffixKm($oldPurchaseUnit);
+                $oldEnUnitSuffix = getPackageUnitSuffixEn($oldPurchaseUnit);
+
+                $kmUnitSuffix = getPackageUnitSuffixKm($purchaseUnit);
+                $enUnitSuffix = getPackageUnitSuffixEn($purchaseUnit);
+
+                $boxName = $name . ' (' . $kmUnitSuffix . ')';
+                $boxNameEn = $name . ' (' . $enUnitSuffix . ')';
+                $oldName = $existing['item_name'] ?? '';
+                $oldBoxName = $oldName ? ($oldName . ' (' . $oldKmUnitSuffix . ')') : '';
+                $oldBoxNameEn = $oldName ? ($oldName . ' (' . $oldEnUnitSuffix . ')') : '';
+
+                // 1. Sync Unit Product
+                $uPrice = $sellPriceUnit > 0 ? $sellPriceUnit : (($sellPriceBox > 0 && $rate > 0) ? ($sellPriceBox / $rate) : 1.0);
+                $uCost = $costUnit;
+
+                $pCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) OR LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) LIMIT 1");
+                $pCheck->execute([$name, $oldName]);
+                $existingUnitProd = $pCheck->fetch();
+
+                if ($existingUnitProd) {
+                    $uImg = !empty($finalImage) ? $finalImage : $existingUnitProd['image'];
+                    $uUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                    $uUpd->execute([$name, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
+                } else {
+                    $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                    $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
+                    $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $finalImage]);
+                }
+
+                // 2. Sync Box Product
+                $bPrice = $sellPriceBox > 0 ? $sellPriceBox : ($uPrice * $rate);
+                $bCost = $costBox > 0 ? $costBox : ($uCost * $rate);
+                $bImage = !empty($finalImageBox) ? $finalImageBox : $finalImage;
+
+                $bCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) IN (
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', '')),
+                    LOWER(REPLACE(?, ' ', ''))
+                ) LIMIT 1");
+                $bCheck->execute([
+                    $boxName,
+                    $boxNameEn,
+                    $oldBoxName,
+                    $oldBoxNameEn,
+                    $name . ' (កេស)',
+                    $name . ' (យួរ)',
+                    $oldName . ' (កេស)',
+                    $oldName . ' (យួរ)'
+                ]);
+                $existingBoxProd = $bCheck->fetch();
+
+                if ($existingBoxProd) {
+                    $bImgFinal = !empty($bImage) ? $bImage : $existingBoxProd['image'];
+                    $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                    $bUpd->execute([$boxName, $bPrice, $bCost, $bImgFinal, $existingBoxProd['product_id']]);
+                } else {
+                    $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                    $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
+                    $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
+                }
+            } catch (Exception $e) {
+                error_log("Auto sync products on update_item error: " . $e->getMessage());
+            }
+
+            sendJsonResponse(['success' => true, 'message' => "Drink '{$name}' updated in stock & synced with Unit and Box products on Products page!"]);
         }
 
         // 6. Delete Drink
@@ -450,8 +677,13 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
         // 7. Export CSV
         if ($action === 'export_csv') {
-            $stmt = $pdo->query("SELECT item_id, item_name, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, (quantity * cost_per_unit) AS valuation, notes, updated_at 
-                FROM stock_items WHERE item_type = 'direct_drink' AND is_active = 1 ORDER BY item_name ASC");
+            $stmt = $pdo->query("SELECT s.item_id, s.item_name, s.quantity, s.unit, s.purchase_unit, s.conversion_rate, s.alert_level, s.cost_per_unit, s.cost_per_purchase_unit, 
+                COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
+                COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box,
+                (s.quantity * s.cost_per_unit) AS valuation, s.notes, s.updated_at 
+                FROM stock_items s 
+                LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', '')) 
+                WHERE s.item_type = 'direct_drink' AND s.is_active = 1 ORDER BY s.item_name ASC");
             $rows = $stmt->fetchAll();
 
             header('Content-Type: text/csv; charset=utf-8');
@@ -459,7 +691,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             
             $output = fopen('php://output', 'w');
             fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($output, ['Drink ID', 'Drink Name', 'Quantity (Units)', 'Unit', 'Package Unit', 'Units Per Package', 'Alert Level', 'Cost Per Unit ($)', 'Cost Per Box ($)', 'Total Valuation ($)', 'Stock Status', 'Notes', 'Last Updated']);
+            fputcsv($output, ['Drink ID', 'Drink Name', 'Quantity (Units)', 'Unit', 'Package Unit', 'Units Per Package', 'Alert Level', 'Cost Per Unit ($)', 'Cost Per Box ($)', 'Sell Price Per Unit ($)', 'Sell Price Per Box ($)', 'Total Valuation ($)', 'Stock Status', 'Notes', 'Last Updated']);
 
             foreach ($rows as $row) {
                 $status = 'In Stock';
@@ -479,6 +711,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                     $row['alert_level'],
                     number_format((float)$row['cost_per_unit'], 4, '.', ''),
                     number_format((float)$row['cost_per_purchase_unit'], 2, '.', ''),
+                    number_format((float)$row['selling_price_per_unit'], 2, '.', ''),
+                    number_format((float)$row['selling_price_per_box'], 2, '.', ''),
                     number_format((float)$row['valuation'], 2, '.', ''),
                     $status,
                     $row['notes'],
@@ -518,7 +752,9 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
 // ── Initial Page Load Data ──
 $initialKpis = getDirectDrinkKPIs($pdo);
-$initStmt = $pdo->query("SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') AS image 
+$initStmt = $pdo->query("SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+                         COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
+                         COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box
                          FROM stock_items s 
                          LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', '')) 
                          WHERE s.item_type = 'direct_drink' AND s.is_active = 1 
@@ -655,8 +891,33 @@ $stockItems = $initStmt->fetchAll();
             border-color: #e2e4ea !important;
             color: #111827 !important;
         }
-        [data-theme="light"] .modal-content .text-white { color: #111827 !important; }
         [data-theme="light"] .modal-content label { color: #475569 !important; }
+        
+        /* ── Modal Header & Button Color Fix ── */
+        .modal-header,
+        .modal-header .modal-title,
+        .modal-header h3 {
+            color: #ffffff !important;
+        }
+        .modal-header p,
+        .modal-header .text-slate-400 {
+            color: #94a3b8 !important;
+        }
+        .modal-header .text-indigo-400 {
+            color: #818cf8 !important;
+        }
+        .modal-header button {
+            color: #94a3b8 !important;
+        }
+        .modal-header button:hover {
+            color: #ffffff !important;
+        }
+        #addStockSubmitBtn,
+        #editStockSubmitBtn,
+        #addStockSubmitBtn *,
+        #editStockSubmitBtn * {
+            color: #ffffff !important;
+        }
         [data-theme="light"] input,
         [data-theme="light"] select,
         [data-theme="light"] textarea {
@@ -736,11 +997,11 @@ $stockItems = $initStmt->fetchAll();
             box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
         }
 
-        /* ── Mini Image Thumbnail for Table ── */
+        /* ── Mini Image Thumbnails for Table (Dual Images) ── */
         .item-mini-img {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
             background-color: #1e1e24;
             border: 1px solid #282834;
             overflow: hidden;
@@ -749,6 +1010,13 @@ $stockItems = $initStmt->fetchAll();
             align-items: center;
             justify-content: center;
             box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            position: relative;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        .item-mini-img:hover {
+            transform: scale(1.08);
+            border-color: #d1904b;
+            z-index: 10;
         }
         .item-mini-img img {
             width: 100%;
@@ -756,10 +1024,35 @@ $stockItems = $initStmt->fetchAll();
             object-fit: cover;
             display: block;
         }
+        .mini-img-tag {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: rgba(15, 23, 42, 0.85);
+            color: #94a3b8;
+            font-size: 8px;
+            font-weight: 700;
+            padding: 0 3px;
+            border-top-left-radius: 4px;
+            line-height: 1.2;
+            pointer-events: none;
+        }
+        .mini-img-tag.box-tag {
+            color: #f59e0b;
+            background: rgba(30, 27, 75, 0.9);
+        }
         [data-theme="light"] .item-mini-img {
             background-color: #f1f5f9 !important;
             border-color: #e2e4ea !important;
             box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+        }
+        [data-theme="light"] .mini-img-tag {
+            background: rgba(241, 245, 249, 0.9) !important;
+            color: #475569 !important;
+        }
+        [data-theme="light"] .mini-img-tag.box-tag {
+            background: #fef3c7 !important;
+            color: #b45309 !important;
         }
 
         /* ── Modern Adaptive Stock Image Upload Box ── */
@@ -1265,6 +1558,8 @@ $stockItems = $initStmt->fetchAll();
                                 <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_total_qty', 'Total Qty (Units)') ?></th>
                                 <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_breakdown', 'Package Breakdown') ?></th>
                                 <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_cost_box_unit', 'Cost (Per Box / Unit)') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_sell_price_unit', 'Sell Price / Unit') ?></th>
+                                <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_sell_price_box', 'Sell Price / Box') ?></th>
                                 <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_status', 'Status') ?></th>
                                 <th class="sticky top-0 z-20 py-3.5 px-3 bg-[#141418] border-b border-[#24242b]"><?= __('col_valuation', 'Valuation') ?></th>
                                 <th class="sticky top-0 z-20 py-3.5 px-4 bg-[#141418] border-b border-[#24242b] text-right"><?= __('col_actions', 'Actions') ?></th>
@@ -1272,12 +1567,16 @@ $stockItems = $initStmt->fetchAll();
                         </thead>
                         <tbody id="stockTableBody" class="table-divide divide-y divide-[#1f1f28]">
                             <!-- Initial PHP render -->
-                            <?php foreach ($stockItems as $item): 
+                            <?php 
+                            $isKm = (function_exists('current_lang') ? current_lang() : ($_SESSION['lang'] ?? 'km')) === 'km';
+                            foreach ($stockItems as $item): 
                                 $qty = (float)$item['quantity'];
                                 $rate = max(1.0, (float)$item['conversion_rate']);
                                 $alert = (float)$item['alert_level'];
                                 $costUnit = (float)$item['cost_per_unit'];
                                 $costBox = (float)$item['cost_per_purchase_unit'];
+                                $sellPriceUnit = (float)($item['selling_price_per_unit'] ?? 0);
+                                $sellPriceBox = (float)($item['selling_price_per_box'] ?? ($sellPriceUnit * $rate));
                                 $val = $qty * $costUnit;
 
                                 $status = 'in_stock';
@@ -1296,11 +1595,19 @@ $stockItems = $initStmt->fetchAll();
                             <tr class="row-hover group" data-item-id="<?= $item['item_id'] ?>">
                                 <td class="py-3 px-4">
                                     <div class="flex items-center gap-3">
-                                        <div class="item-mini-img">
-                                            <?php 
-                                            $imgSrc = get_image_url($item['image'] ?? null, 'uploads/no-image.png'); 
-                                            ?>
-                                            <img src="<?= htmlspecialchars($imgSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?>" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                                            <!-- Unit Image -->
+                                            <div class="item-mini-img" title="<?= __('unit_image', 'រូបភាពរាយ (Unit Image)') ?>">
+                                                <?php $imgUnitSrc = get_image_url($item['image'] ?? null, 'uploads/no-image.png'); ?>
+                                                <img src="<?= htmlspecialchars($imgUnitSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?>" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                                <span class="mini-img-tag"><?= $isKm ? 'រាយ' : 'Unit' ?></span>
+                                            </div>
+                                            <!-- Box Image -->
+                                            <div class="item-mini-img" title="<?= __('box_image', 'រូបភាពកេស (Box Image)') ?>">
+                                                <?php $imgBoxSrc = get_image_url($item['image_box'] ?? null, $imgUnitSrc); ?>
+                                                <img src="<?= htmlspecialchars($imgBoxSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?> Box" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                                <span class="mini-img-tag box-tag"><?= $isKm ? 'កេស' : 'Box' ?></span>
+                                            </div>
                                         </div>
                                         <div class="min-w-0">
                                             <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
@@ -1330,6 +1637,14 @@ $stockItems = $initStmt->fetchAll();
                                 <td class="py-3.5 px-3 text-xs">
                                     <div class="font-bold text-[var(--text-main)]">$<?= number_format($costBox, 2) ?> / <?= formatUnitLabel($item['purchase_unit'], 1) ?></div>
                                     <div class="text-[11px] text-[#8e8e9f] mt-0.5">$<?= number_format($costUnit, 4) ?> / <?= formatUnitLabel($item['unit'], 1) ?></div>
+                                </td>
+                                <td class="py-3.5 px-3 text-xs font-semibold">
+                                    <div class="font-bold text-[var(--text-main)]">$<?= number_format($sellPriceUnit, 2) ?></div>
+                                    <div class="text-[11px] text-[#8e8e9f] mt-0.5">/ <?= htmlspecialchars(formatUnitLabel($item['unit'], 1)) ?></div>
+                                </td>
+                                <td class="py-3.5 px-3 text-xs font-semibold">
+                                    <div class="font-bold text-[var(--text-main)]">$<?= number_format($sellPriceBox, 2) ?></div>
+                                    <div class="text-[11px] text-[#8e8e9f] mt-0.5">/ <?= htmlspecialchars(formatUnitLabel($item['purchase_unit'], 1)) ?></div>
                                 </td>
                                 <td class="py-3.5 px-3">
                                     <?= $statusBadge ?>
@@ -1382,149 +1697,285 @@ $stockItems = $initStmt->fetchAll();
     <!-- ══════════════════════════════════════════════════════════════
          MODAL 1: ADD NEW CANNED/BOTTLED DRINK
     ══════════════════════════════════════════════════════════════ -->
-    <div id="addStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-        <div class="modal-content glass-card max-w-lg w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative">
-            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+    <div id="addStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/80 backdrop-blur-sm">
+        <div class="modal-content max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative max-h-[92vh] flex flex-col">
+            <!-- Header -->
+            <div class="modal-header flex items-center justify-between px-6 py-4 bg-[#121528] text-white shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-[#1e2340] border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-base shadow-inner">
                         <i class="fa-solid fa-wine-bottle"></i>
                     </div>
-                    <h3 class="modal-title text-base font-bold text-white"><?= __('add_canned_bottled_drink', 'Add Canned / Bottled Drink') ?></h3>
+                    <div>
+                        <h3 class="modal-title text-base md:text-lg font-bold text-white leading-tight">
+                            <?= current_lang() === 'km' ? 'បន្ថែមភេសជ្ជៈដប/កំប៉ុង' : 'Add Canned / Bottled Drink' ?>
+                        </h3>
+                        <p class="text-[11px] md:text-xs text-slate-400 mt-0.5 font-normal">
+                            <?= current_lang() === 'km' ? 'កំណត់ខ្នាត តម្លៃដើម និងតម្លៃលក់ចេញក្នុងស្តុក' : 'Configure packaging units, purchase costs & retail prices' ?>
+                        </p>
+                    </div>
                 </div>
-                <button type="button" onclick="closeModal('addStockModal')" class="text-[#7d7d8e] hover:text-white p-1 text-sm">
-                    <i class="fa-solid fa-xmark"></i>
+                <button type="button" onclick="closeModal('addStockModal')" class="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
 
-            <form id="addStockForm" onsubmit="handleAddStock(event)" class="space-y-4">
+            <!-- Body -->
+            <form id="addStockForm" onsubmit="handleAddStock(event)" class="flex-1 overflow-y-auto p-5 md:p-6 space-y-4 text-slate-800 bg-[#f8fafc]/50">
                 <input type="hidden" name="action" value="create_item">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
 
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_drink_product', 'Drink Name') ?> <span class="text-rose-400">*</span></label>
-                    <input type="text" 
-                           name="item_name" 
-                           id="addStockItemName"
-                           required 
-                           autocomplete="off"
-                           placeholder="e.g. Sting Energy Drink 250ml, Coca-Cola 330ml" 
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                    <div id="addStockDupAlert" class="hidden mt-1.5 text-xs text-rose-500 font-semibold flex items-center gap-1.5">
-                        <i class="fa-solid fa-triangle-exclamation"></i>
-                        <span></span>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
-                    <div class="stock-img-upload-box" onclick="document.getElementById('addStockImageInput').click()" title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាព' : 'Click to choose image' ?>">
-                        <div class="stock-img-thumb" id="addStockThumbBox">
-                            <img id="addStockImagePreview" src="" alt="" style="display:none;" class="w-full h-full object-cover">
-                            <div id="addStockImagePlaceholder" class="flex flex-col items-center justify-center text-amber-500 w-full h-full">
-                                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                <!-- Top Section: 2 Columns (Inputs + Square Image Dropzone) -->
+                <div class="flex flex-col md:flex-row gap-4 items-start">
+                    <div class="flex-1 space-y-3 w-full">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <?= current_lang() === 'km' ? 'ឈ្មោះភេសជ្ជៈ (Drink Name)' : 'Drink Name' ?> <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" 
+                                   name="item_name" 
+                                   id="addStockItemName"
+                                   required 
+                                   autocomplete="off"
+                                   placeholder="e.g. Sting Energy Drink 250ml, Coca-Cola 330ml" 
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all">
+                            <div id="addStockDupAlert" class="hidden mt-1 text-[11px] text-rose-500 font-semibold flex items-center gap-1">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span></span>
                             </div>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2.5">
-                                <span class="stock-upload-btn-pill">
-                                    <i class="fa-solid fa-arrow-up-from-bracket text-xs"></i>
-                                    <span><?= current_lang() === 'km' ? 'ជ្រើសរើសរូបភាព' : 'Choose Image' ?></span>
-                                </span>
-                                <span id="addStockFileName" class="text-xs text-slate-500 font-medium truncate"><?= current_lang() === 'km' ? 'មិនទាន់ជ្រើសរើសឯកសារ' : 'No file chosen' ?></span>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <?= current_lang() === 'km' ? 'អ្នកផ្គត់ផ្គង់ / កំណត់សម្គាល់ (Supplier & Notes)' : 'Supplier & Notes' ?>
+                            </label>
+                            <input type="text" 
+                                   name="notes" 
+                                   placeholder="e.g. Cambodia Beverage Co." 
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all">
+                        </div>
+                    </div>
+
+                    <!-- Right 2 Image Upload Square Boxes: Unit & Box -->
+                    <div class="flex items-center gap-3 shrink-0 mx-auto md:mx-0">
+                        <!-- Image 1: Unit Image -->
+                        <div class="flex flex-col items-center">
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1 text-center">
+                                <?= current_lang() === 'km' ? 'រូបភាពរាយ' : 'Unit Image' ?>
+                            </label>
+                            <div class="w-[110px] h-[110px] aspect-square border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white rounded-2xl p-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative overflow-hidden group shadow-sm shrink-0"
+                                 onclick="document.getElementById('addStockImageInput').click()" 
+                                 title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាពរាយ' : 'Click to choose unit image' ?>">
+                                <img id="addStockImagePreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl">
+                                <div id="addStockImageHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
+                                    <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
+                                </div>
+                                <div id="addStockImagePlaceholder" class="flex flex-col items-center justify-center pointer-events-none p-1">
+                                    <div class="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs mb-1 group-hover:scale-110 transition-transform">
+                                        <i class="fa-regular fa-image"></i>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-indigo-600 mb-0.5 leading-tight"><?= current_lang() === 'km' ? 'រូបរាយ' : 'Unit' ?></span>
+                                    <span class="text-[8.5px] text-slate-400 leading-tight">កំប៉ុង/ដប</span>
+                                </div>
+                                <input type="file" 
+                                       name="image" 
+                                       id="addStockImageInput" 
+                                       accept="image/*" 
+                                       onchange="previewStockImageLight(this, 'addStockImagePreview', 'addStockImagePlaceholder', 'addStockImageHoverOverlay')" 
+                                       style="display:none;">
                             </div>
-                            <input type="file" 
-                                   name="image" 
-                                   id="addStockImageInput" 
-                                   accept="image/*" 
-                                   onchange="previewStockImage(this, 'addStockImagePreview', 'addStockImagePlaceholder', 'addStockFileName')" 
-                                   style="display:none;">
-                            <p class="text-[11px] text-[#7d7d8e] mt-1.5">PNG, JPG, WebP (Max 5MB) • <?= current_lang() === 'km' ? 'ចុចដើម្បីផ្លាស់ប្តូរ' : 'Click to select' ?></p>
+                        </div>
+
+                        <!-- Image 2: Box Image -->
+                        <div class="flex flex-col items-center">
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1 text-center">
+                                <?= current_lang() === 'km' ? 'រូបភាពកេស' : 'Box Image' ?>
+                            </label>
+                            <div class="w-[110px] h-[110px] aspect-square border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white rounded-2xl p-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative overflow-hidden group shadow-sm shrink-0"
+                                 onclick="document.getElementById('addStockImageBoxInput').click()" 
+                                 title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាពកេស' : 'Click to choose box image' ?>">
+                                <img id="addStockImageBoxPreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl">
+                                <div id="addStockImageBoxHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
+                                    <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
+                                </div>
+                                <div id="addStockImageBoxPlaceholder" class="flex flex-col items-center justify-center pointer-events-none p-1">
+                                    <div class="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs mb-1 group-hover:scale-110 transition-transform">
+                                        <i class="fa-solid fa-boxes-stacked"></i>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-indigo-600 mb-0.5 leading-tight"><?= current_lang() === 'km' ? 'រូបកេស' : 'Box' ?></span>
+                                    <span class="text-[8.5px] text-slate-400 leading-tight">កេស/កាតុង</span>
+                                </div>
+                                <input type="file" 
+                                       name="image_box" 
+                                       id="addStockImageBoxInput" 
+                                       accept="image/*" 
+                                       onchange="previewStockImageLight(this, 'addStockImageBoxPreview', 'addStockImageBoxPlaceholder', 'addStockImageBoxHoverOverlay')" 
+                                       style="display:none;">
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-3 gap-3">
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('single_unit', 'Single Unit') ?> *</label>
-                        <select name="unit" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="can" selected><?= current_lang() === 'km' ? 'កំប៉ុង (Can)' : 'Can' ?></option>
-                            <option value="bottle"><?= current_lang() === 'km' ? 'ដប (Bottle)' : 'Bottle' ?></option>
-                            <option value="pack"><?= current_lang() === 'km' ? 'កញ្ចប់ (Pack)' : 'Pack' ?></option>
-                            <option value="pcs"><?= current_lang() === 'km' ? 'គ្រាប់ / ដុំ (Pcs)' : 'Pcs (Pieces)' ?></option>
-                        </select>
+                <!-- Middle Section: Unit Packaging & Stock -->
+                <div class="border border-slate-200/80 bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                    <div class="flex items-center gap-2 text-xs font-bold text-slate-800 border-b border-slate-100 pb-2">
+                        <i class="fa-solid fa-shapes text-indigo-500"></i>
+                        <span><?= current_lang() === 'km' ? 'ខ្នាត និងការបំប្លែងស្តុក (Unit Packaging & Stock)' : 'Unit Packaging & Stock' ?></span>
                     </div>
 
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('package_unit', 'Purchase Package') ?> *</label>
-                        <select name="purchase_unit" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="box" selected><?= current_lang() === 'km' ? 'កេស (Box)' : 'Box' ?></option>
-                            <option value="pack"><?= current_lang() === 'km' ? 'យួរ / កញ្ចប់ (Pack)' : 'Pack / Sleeve' ?></option>
-                            <option value="carton"><?= current_lang() === 'km' ? 'កាតុង (Carton)' : 'Carton' ?></option>
-                            <option value="dozen"><?= current_lang() === 'km' ? 'ឡូ (Dozen)' : 'Dozen (12 pcs)' ?></option>
-                            <option value="case"><?= current_lang() === 'km' ? 'កេសធំ (Case)' : 'Case' ?></option>
-                        </select>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ខ្នាតរាយ *' : 'Single Unit *' ?></label>
+                            <select name="unit" onchange="updateCardUnitLabels('add')" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                                <option value="can" selected><?= current_lang() === 'km' ? 'កំប៉ុង (Can)' : 'Can' ?></option>
+                                <option value="bottle"><?= current_lang() === 'km' ? 'ដប (Bottle)' : 'Bottle' ?></option>
+                                <option value="pack"><?= current_lang() === 'km' ? 'កញ្ចប់ (Pack)' : 'Pack' ?></option>
+                                <option value="pcs"><?= current_lang() === 'km' ? 'គ្រាប់ / ដុំ (Pcs)' : 'Pcs (Pieces)' ?></option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ខ្នាតកេស *' : 'Package Unit *' ?></label>
+                            <select name="purchase_unit" onchange="updateCardUnitLabels('add')" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                                <option value="box" selected><?= current_lang() === 'km' ? 'កេស (Box)' : 'Box' ?></option>
+                                <option value="pack"><?= current_lang() === 'km' ? 'យួរ (Pack)' : 'Pack (Sleeve)' ?></option>
+                                <option value="package"><?= current_lang() === 'km' ? 'កញ្ចប់ (Package)' : 'Package' ?></option>
+                                <option value="carton"><?= current_lang() === 'km' ? 'កាតុង (Carton)' : 'Carton' ?></option>
+                                <option value="dozen"><?= current_lang() === 'km' ? 'ឡូ (Dozen)' : 'Dozen (12 pcs)' ?></option>
+                                <option value="case"><?= current_lang() === 'km' ? 'កេសធំ (Case)' : 'Case' ?></option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ចំនួនក្នុង១កេស *' : 'Units per Box *' ?></label>
+                            <input type="number" 
+                                   step="1" 
+                                   min="1" 
+                                   id="addConversionRate" 
+                                   name="conversion_rate" 
+                                   value="24" 
+                                   required 
+                                   oninput="onAddSellPriceUnitChange(document.getElementById('addSellPriceUnit')?.value); onAddCostBoxChange(document.getElementById('addCostBox')?.value);" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('units_per_package', 'Units per Box') ?> *</label>
-                        <input type="number" 
-                               step="1" 
-                               min="1" 
-                               name="conversion_rate" 
-                               value="24" 
-                               required 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs font-bold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                    <div class="grid grid-cols-3 gap-3 pt-1">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ចំនួនកេសដំបូង' : 'Initial Boxes' ?></label>
+                            <input type="number" 
+                                   step="1" 
+                                   min="0" 
+                                   name="initial_boxes" 
+                                   value="0" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ចំនួនរាយបន្ថែម' : 'Loose Units' ?></label>
+                            <input type="number" 
+                                   step="1" 
+                                   min="0" 
+                                   name="initial_loose" 
+                                   value="0" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'កម្រិតប្រកាសអាសន្ន' : 'Alert Threshold' ?></label>
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   name="alert_level" 
+                                   value="24" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                        </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-3 gap-3">
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('initial_boxes', 'Initial Boxes') ?></label>
-                        <input type="number" 
-                               step="1" 
-                               min="0" 
-                               name="initial_boxes" 
-                               value="0" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                <!-- Bottom Section: Cost & Selling Prices -->
+                <div class="border border-slate-200/80 bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div class="flex items-center gap-2 text-xs font-bold text-slate-800">
+                            <i class="fa-solid fa-circle-dollar-to-slot text-indigo-500"></i>
+                            <span><?= current_lang() === 'km' ? 'ការកំណត់តម្លៃ (Cost & Selling Prices)' : 'Cost & Selling Prices' ?></span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-medium">
+                            <?= current_lang() === 'km' ? 'គណនាប្រាក់ចំណេញដោយស្វ័យប្រវត្តិ' : 'Auto calculates profit & conversions' ?>
+                        </span>
                     </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('loose_units', 'Loose Units') ?></label>
-                        <input type="number" 
-                               step="1" 
-                               min="0" 
-                               name="initial_loose" 
-                               value="0" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                    </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_cost_box', 'Cost Per Box ($)') ?></label>
-                        <input type="number" 
-                               step="0.01" 
-                               min="0" 
-                               name="cost_per_purchase_unit" 
-                               value="12.00" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <!-- Sub Card: Unit -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                            <div class="text-xs font-bold text-slate-800" id="addSubCardUnitTitle">
+                                <?= current_lang() === 'km' ? 'ខ្នាតរាយ (Per Unit / Can)' : 'Single Unit (Per Unit)' ?>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ថ្លៃដើម/ខ្នាត ($)' : 'Cost/Unit ($)' ?></label>
+                                <input type="number" 
+                                       step="0.0001" 
+                                       min="0" 
+                                       name="cost_per_unit" 
+                                       id="addCostUnit" 
+                                       value="0.5000" 
+                                       oninput="onAddCostUnitChange(this.value)" 
+                                       class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1"><?= current_lang() === 'km' ? 'តម្លៃលក់/ខ្នាត ($) *' : 'Sell Price/Unit ($) *' ?></label>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       name="selling_price_per_unit" 
+                                       id="addSellPriceUnit" 
+                                       value="1.00" 
+                                       required 
+                                       class="w-full px-3 py-2 rounded-xl bg-emerald-50/30 border border-emerald-400 text-xs font-bold text-emerald-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+                            </div>
+                        </div>
+
+                        <!-- Sub Card: Box -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                            <div class="text-xs font-bold text-slate-800" id="addSubCardBoxTitle">
+                                <?= current_lang() === 'km' ? 'ខ្នាតកេស (Per Box / Carton)' : 'Package (Per Box)' ?>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ថ្លៃដើម/កេស ($)' : 'Cost/Box ($)' ?></label>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       name="cost_per_purchase_unit" 
+                                       id="addCostBox" 
+                                       value="12.00" 
+                                       oninput="onAddCostBoxChange(this.value)" 
+                                       class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-indigo-700 mb-1"><?= current_lang() === 'km' ? 'តម្លៃលក់/កេស ($)' : 'Sell Price/Box ($)' ?></label>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       name="selling_price_per_box" 
+                                       id="addSellPriceBox" 
+                                       value="24.00" 
+                                       class="w-full px-3 py-2 rounded-xl bg-indigo-50/30 border border-indigo-300 text-xs font-bold text-indigo-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('supplier_notes', 'Notes / Supplier') ?></label>
-                    <textarea name="notes" 
-                              rows="2" 
-                              placeholder="e.g. Cambodia Beverage Co. Fast selling canned soda" 
-                              class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]"></textarea>
-                </div>
-
-                <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
+                <!-- Footer -->
+                <div class="modal-footer flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
                     <button type="button" 
                             onclick="closeModal('addStockModal')" 
-                            class="px-4 py-2 rounded-xl bg-[#202026] text-xs font-semibold text-[#b4b4c2] hover:text-white transition-all cursor-pointer">
-                        <?= __('cancel', 'Cancel') ?>
+                            class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer">
+                        <?= current_lang() === 'km' ? 'បោះបង់ (Cancel)' : 'Cancel' ?>
                     </button>
                     <button type="submit" 
                             id="addStockSubmitBtn" 
-                            class="px-5 py-2 rounded-xl bg-[#d1904b] hover:bg-[#e5a15a] text-black text-xs font-bold transition-all shadow-md shadow-[#d1904b]/20 cursor-pointer">
-                        <?= __('save', 'Save Direct Drink') ?>
+                            class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-check text-xs"></i>
+                        <span><?= current_lang() === 'km' ? 'រក្សាទុកទិន្នន័យ (Save Drink)' : 'Save Direct Drink' ?></span>
                     </button>
                 </div>
             </form>
@@ -1532,110 +1983,156 @@ $stockItems = $initStmt->fetchAll();
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════
-         MODAL 2: QUICK BOX RESTOCK (WITH UNIT CONVERSION)
+         MODAL 2: QUICK BOX & LOOSE RESTOCK
     ══════════════════════════════════════════════════════════════ -->
-    <div id="restockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-        <div class="modal-content glass-card max-w-md w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative">
-            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+    <div id="restockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
+        <div class="modal-content max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative font-['Poppins','Kantumruy_Pro',sans-serif]">
+            <!-- Modal Header (Dark Slate / Navy) -->
+            <div class="px-6 py-5 bg-[#0f172a] text-white flex items-center justify-between relative">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-lg shadow-inner">
                         <i class="fa-solid fa-boxes-stacked"></i>
                     </div>
                     <div>
-                        <h3 class="modal-title text-base font-bold text-white"><?= __('quick_restock', 'Quick Box Restock') ?></h3>
-                        <p class="text-xs text-[#8e8e9f]">Auto-converts boxes into individual units</p>
+                        <h3 class="text-base font-bold text-white tracking-tight"><?= current_lang() === 'km' ? 'បញ្ចូលស្តុកភេសជ្ជៈ' : __('quick_restock', 'Quick Restock') ?></h3>
+                        <p class="text-xs text-slate-400 font-medium"><?= current_lang() === 'km' ? 'គាំទ្រការបញ្ចូលជាកេស និងចំនួនរាយព្រមគ្នា' : 'Supports adding by boxes and loose units simultaneously' ?></p>
                     </div>
                 </div>
-                <button type="button" onclick="closeModal('restockModal')" class="text-[#7d7d8e] hover:text-white p-1 text-sm">
+                <button type="button" onclick="closeModal('restockModal')" class="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer text-sm">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
-            <form id="restockForm" onsubmit="handleQuickRestock(event)" class="space-y-4">
+            <form id="restockForm" onsubmit="handleQuickRestock(event)" class="p-6 space-y-4 bg-white">
                 <input type="hidden" name="action" value="quick_restock">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
 
+                <!-- 1. Drink Selection -->
                 <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_drink_product', 'Select Drink') ?> <span class="text-rose-400">*</span></label>
-                    <select name="item_id" 
-                            id="restockItemSelect" 
-                            required 
-                            onchange="updateRestockModalPreview()" 
-                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                        <option value="">-- Choose Drink --</option>
-                        <?php foreach ($stockItems as $it): ?>
-                        <option value="<?= $it['item_id'] ?>" 
-                                data-unit="<?= htmlspecialchars($it['unit']) ?>" 
-                                data-punit="<?= htmlspecialchars($it['purchase_unit']) ?>"
-                                data-rate="<?= (float)$it['conversion_rate'] ?>"
-                                data-qty="<?= (float)$it['quantity'] ?>" 
-                                data-boxcost="<?= (float)$it['cost_per_purchase_unit'] ?>">
-                            <?= htmlspecialchars($it['item_name']) ?> (1 <?= htmlspecialchars(formatUnitLabel($it['purchase_unit'], 1)) ?> = <?= (int)$it['conversion_rate'] ?> <?= htmlspecialchars(formatUnitLabel($it['unit'], (float)$it['conversion_rate'])) ?>)
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះភេសជ្ជៈ' : __('col_drink_product', 'Select Drink') ?> <span class="text-rose-500">*</span></label>
+                    <div class="relative">
+                        <select name="item_id" 
+                                id="restockItemSelect" 
+                                required 
+                                onchange="updateRestockModalPreview()" 
+                                class="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs appearance-none">
+                            <option value="">-- <?= current_lang() === 'km' ? 'ជ្រើសរើសភេសជ្ជៈ' : 'Choose Drink' ?> --</option>
+                            <?php foreach ($stockItems as $it): ?>
+                            <option value="<?= $it['item_id'] ?>" 
+                                    data-unit="<?= htmlspecialchars($it['unit']) ?>" 
+                                    data-punit="<?= htmlspecialchars($it['purchase_unit']) ?>"
+                                    data-rate="<?= (float)$it['conversion_rate'] ?>"
+                                    data-qty="<?= (float)$it['quantity'] ?>" 
+                                    data-boxcost="<?= (float)$it['cost_per_purchase_unit'] ?>">
+                                <?= htmlspecialchars($it['item_name']) ?> (1 <?= htmlspecialchars(formatUnitLabel($it['purchase_unit'], 1)) ?> = <?= (int)$it['conversion_rate'] ?> <?= htmlspecialchars(formatUnitLabel($it['unit'], (float)$it['conversion_rate'])) ?>)
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1" id="lblRestockQty"><?= __('boxes_added', 'Boxes to Add') ?> *</label>
-                        <input type="number" 
-                               step="0.01" 
-                               min="0.01" 
-                               name="purchase_qty" 
-                               id="restockQtyInput" 
-                               required 
-                               placeholder="e.g. 3" 
-                               oninput="calculateRestockTotal()" 
-                               class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-sm font-bold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                <!-- 2. Dual Inputs: Boxes vs Loose Units -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <!-- Left: Box Input Card -->
+                    <div class="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-cube text-indigo-500"></i>
+                                <?= current_lang() === 'km' ? 'បញ្ចូលជាកេស' : 'Add Boxes' ?>
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black border border-indigo-100">
+                                <?= current_lang() === 'km' ? 'ខ្នាតធំ' : 'Bulk' ?>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mt-0.5">
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   name="purchase_qty" 
+                                   id="restockQtyInput" 
+                                   placeholder="0" 
+                                   oninput="calculateRestockTotal()" 
+                                   class="w-full bg-transparent text-2xl font-black text-slate-900 focus:outline-none tracking-tight">
+                            <span id="restockBoxUnitName" class="text-xs font-bold text-slate-500 whitespace-nowrap">កេស</span>
+                        </div>
+                        <div class="text-[11px] font-semibold text-slate-400 pt-1 border-t border-slate-200/60 flex items-center gap-1">
+                            <span>=</span> <b id="restockBoxToLoosePreview" class="text-indigo-600 font-bold">0</b> <span><?= current_lang() === 'km' ? 'ឯកតារាយ' : 'loose units' ?></span>
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_cost_box_unit', 'Cost Per Box ($)') ?></label>
+                    <!-- Right: Loose Units Input Card -->
+                    <div class="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-glass-water text-emerald-500"></i>
+                                <?= current_lang() === 'km' ? 'បញ្ចូលរាយ' : 'Add Loose Units' ?>
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[10px] font-black border border-emerald-100">
+                                <?= current_lang() === 'km' ? 'ខ្នាតរាយ' : 'Loose' ?>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mt-0.5">
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   name="loose_qty" 
+                                   id="restockLooseQtyInput" 
+                                   placeholder="0" 
+                                   oninput="calculateRestockTotal()" 
+                                   class="w-full bg-transparent text-2xl font-black text-slate-900 focus:outline-none tracking-tight">
+                            <span id="restockLooseUnitName" class="text-xs font-bold text-slate-500 whitespace-nowrap">កំប៉ុង</span>
+                        </div>
+                        <div class="text-[11px] font-semibold text-slate-400 pt-1 border-t border-slate-200/60">
+                            <?= current_lang() === 'km' ? 'ថែមផ្ទាល់ចូលស្តុករាយ' : 'Add directly to loose stock' ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Cost Per Box Input Card -->
+                <div class="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-1">
+                    <label class="block text-xs font-bold text-slate-700"><?= current_lang() === 'km' ? 'ថ្លៃដើមក្នុង១កេស ($)' : __('col_cost_box_unit', 'Cost Per Box ($)') ?></label>
+                    <div class="relative flex items-center">
+                        <span class="absolute left-3.5 text-sm font-bold text-slate-400 select-none">$</span>
                         <input type="number" 
                                step="0.01" 
                                min="0" 
                                name="cost_per_box" 
                                id="restockCostInput" 
-                               placeholder="e.g. 12.00" 
-                               oninput="calculateRestockTotal()" 
-                               class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                               placeholder="12.00" 
+                               class="w-full pl-8 pr-4 py-2 rounded-xl bg-slate-50/50 border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20">
                     </div>
                 </div>
 
-                <!-- Live Conversion Result Badge -->
-                <div id="restockPreviewCard" class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1.5">
-                    <div class="flex items-center justify-between font-bold text-amber-400">
-                        <span class="flex items-center gap-1.5">
-                            <i class="fa-solid fa-calculator"></i> <?= __('col_conversion_rate', 'Conversion Result') ?>:
+                <!-- 4. Total Added Units Highlight Card (Soft Indigo Lavender Box) -->
+                <div id="restockPreviewCard" class="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 text-xs space-y-2.5 shadow-xs">
+                    <div class="flex items-center justify-between font-black text-indigo-950">
+                        <span class="flex items-center gap-2 text-xs md:text-sm">
+                            <i class="fa-solid fa-calculator text-indigo-600 text-sm"></i> <?= current_lang() === 'km' ? 'សរុបស្តុកត្រូវបន្ថែម:' : 'Total Added Units:' ?>
                         </span>
-                        <span id="restockBadgeUnits" class="text-sm font-extrabold text-white">+0 units</span>
+                        <span id="restockBadgeUnits" class="px-3 py-1 rounded-2xl bg-white border border-indigo-200 text-indigo-600 font-black text-sm shadow-xs">+0 កំប៉ុង</span>
                     </div>
-                    <p id="restockFormula" class="text-[11px] text-[#e0d4c4]">Select a drink and enter quantity to see calculation.</p>
-                    <div class="pt-1.5 mt-1.5 border-t border-amber-500/20 flex items-center justify-between text-[11px]">
-                        <span id="restockCurrentStock">Current: --</span>
-                        <span id="restockProjectedStock" class="font-bold text-emerald-400">New Total: --</span>
+                    <p id="restockFormula" class="text-xs font-bold text-indigo-900/80 leading-relaxed">(0 កេស × 24) + 0 រាយ = +0 កំប៉ុង</p>
+                    <div class="pt-2 border-t border-indigo-200/60 flex items-center justify-between text-xs font-bold">
+                        <span id="restockCurrentStock" class="text-slate-600"><?= current_lang() === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Current:' ?> --</span>
+                        <span id="restockProjectedStock" class="text-emerald-700 font-black"><?= current_lang() === 'km' ? 'ស្តុកសរុបថ្មី:' : 'New Total:' ?> --</span>
                     </div>
                 </div>
 
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('supplier_notes', 'Supplier / Vendor') ?></label>
-                    <input type="text" 
-                           name="supplier" 
-                           placeholder="e.g. Cambodia Beverage Co." 
-                           class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                </div>
-
-                <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
+                <!-- 5. Footer -->
+                <div class="flex items-center justify-end gap-3 pt-2">
                     <button type="button" 
                             onclick="closeModal('restockModal')" 
-                            class="px-4 py-2 rounded-xl bg-[#202026] text-xs font-semibold text-[#b4b4c2] hover:text-white transition-all cursor-pointer">
-                        <?= __('cancel', 'Cancel') ?>
+                            class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
+                        <?= current_lang() === 'km' ? 'បោះបង់' : 'Cancel' ?>
                     </button>
                     <button type="submit" 
                             id="restockSubmitBtn" 
-                            class="px-5 py-2 rounded-xl bg-[#d1904b] hover:bg-[#e5a15a] text-black text-xs font-bold transition-all shadow-md shadow-[#d1904b]/20 cursor-pointer">
-                        <?= __('btn_confirm_restock', 'Complete Restock') ?>
+                            class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all shadow-lg shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-check text-xs"></i>
+                        <span><?= current_lang() === 'km' ? 'បញ្ជាក់ការបញ្ចូលស្តុក' : 'Confirm Restock' ?></span>
                     </button>
                 </div>
             </form>
@@ -1645,144 +2142,269 @@ $stockItems = $initStmt->fetchAll();
     <!-- ══════════════════════════════════════════════════════════════
          MODAL 3: EDIT DRINK DETAILS
     ══════════════════════════════════════════════════════════════ -->
-    <div id="editStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-        <div class="modal-content glass-card max-w-lg w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative">
-            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+    <div id="editStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/80 backdrop-blur-sm">
+        <div class="modal-content max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative max-h-[92vh] flex flex-col">
+            <!-- Header -->
+            <div class="modal-header flex items-center justify-between px-6 py-4 bg-[#121528] text-white shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-[#1e2340] border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-base shadow-inner">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </div>
-                    <h3 class="modal-title text-base font-bold text-white"><?= __('btn_edit', 'Edit Drink Details') ?></h3>
+                    <div>
+                        <h3 class="modal-title text-base md:text-lg font-bold text-white leading-tight">
+                            <?= current_lang() === 'km' ? 'កែប្រែភេសជ្ជៈដប/កំប៉ុង' : 'Edit Canned / Bottled Drink' ?>
+                        </h3>
+                        <p class="text-[11px] md:text-xs text-slate-400 mt-0.5 font-normal">
+                            <?= current_lang() === 'km' ? 'កំណត់ខ្នាត តម្លៃដើម និងតម្លៃលក់ចេញក្នុងស្តុក' : 'Configure packaging units, purchase costs & retail prices' ?>
+                        </p>
+                    </div>
                 </div>
-                <button type="button" onclick="closeModal('editStockModal')" class="text-[#7d7d8e] hover:text-white p-1 text-sm">
-                    <i class="fa-solid fa-xmark"></i>
+                <button type="button" onclick="closeModal('editStockModal')" class="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
 
-            <form id="editStockForm" onsubmit="handleEditStock(event)" class="space-y-4">
+            <!-- Body -->
+            <form id="editStockForm" onsubmit="handleEditStock(event)" class="flex-1 overflow-y-auto p-5 md:p-6 space-y-4 text-slate-800 bg-[#f8fafc]/50">
                 <input type="hidden" name="action" value="update_item">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                 <input type="hidden" name="item_id" id="editItemId">
 
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_drink_product', 'Drink Name') ?> <span class="text-rose-400">*</span></label>
-                    <input type="text" 
-                           id="editItemName" 
-                           name="item_name" 
-                           required 
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                </div>
-
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1.5"><?= __('image', 'Drink Image') ?></label>
-                    <div class="stock-img-upload-box" onclick="document.getElementById('editStockImageInput').click()" title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាព' : 'Click to change image' ?>">
-                        <div class="stock-img-thumb" id="editStockThumbBox">
-                            <img id="editStockImagePreview" src="" alt="" style="display:none;" class="w-full h-full object-cover" onerror="this.style.display='none'; const ph = document.getElementById('editStockImagePlaceholder'); if(ph) ph.style.display='flex';">
-                            <div id="editStockImagePlaceholder" class="flex flex-col items-center justify-center text-amber-500 w-full h-full">
-                                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
-                            </div>
+                <!-- Top Section: 2 Columns (Inputs + Square Image Dropzone) -->
+                <div class="flex flex-col md:flex-row gap-4 items-start">
+                    <div class="flex-1 space-y-3 w-full">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <?= current_lang() === 'km' ? 'ឈ្មោះភេសជ្ជៈ (Drink Name)' : 'Drink Name' ?> <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" 
+                                   id="editItemName" 
+                                   name="item_name" 
+                                   required 
+                                   autocomplete="off"
+                                   placeholder="e.g. Sting Energy Drink 250ml, Coca-Cola 330ml" 
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all">
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2.5">
-                                <span class="stock-upload-btn-pill">
-                                    <i class="fa-solid fa-arrow-up-from-bracket text-xs"></i>
-                                    <span><?= current_lang() === 'km' ? 'ប្តូររូបភាព' : 'Change Image' ?></span>
-                                </span>
-                                <span id="editStockFileName" class="text-xs text-slate-500 font-medium truncate"><?= current_lang() === 'km' ? 'រូបភាពបច្ចុប្បន្ន' : 'Current image' ?></span>
-                            </div>
-                            <input type="file" 
-                                   name="image" 
-                                   id="editStockImageInput" 
-                                   accept="image/*" 
-                                   onchange="previewStockImage(this, 'editStockImagePreview', 'editStockImagePlaceholder', 'editStockFileName')" 
-                                   style="display:none;">
-                            <p class="text-[11px] text-[#7d7d8e] mt-1.5">PNG, JPG, WebP (Max 5MB) • <?= current_lang() === 'km' ? 'ចុចដើម្បីផ្លាស់ប្តូរ' : 'Click to select' ?></p>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <?= current_lang() === 'km' ? 'អ្នកផ្គត់ផ្គង់ / កំណត់សម្គាល់ (Supplier & Notes)' : 'Supplier & Notes' ?>
+                            </label>
+                            <input type="text" 
+                                   id="editNotes"
+                                   name="notes" 
+                                   placeholder="e.g. Cambodia Beverage Co." 
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all">
                         </div>
                     </div>
-                </div>
 
-                <div class="grid grid-cols-3 gap-3">
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('single_unit', 'Single Unit') ?></label>
-                        <select id="editUnit" name="unit" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="can"><?= current_lang() === 'km' ? 'កំប៉ុង (Can)' : 'Can' ?></option>
-                            <option value="bottle"><?= current_lang() === 'km' ? 'ដប (Bottle)' : 'Bottle' ?></option>
-                            <option value="pack"><?= current_lang() === 'km' ? 'កញ្ចប់ (Pack)' : 'Pack' ?></option>
-                            <option value="pcs"><?= current_lang() === 'km' ? 'គ្រាប់ / ដុំ (Pcs)' : 'Pcs (Pieces)' ?></option>
-                        </select>
-                    </div>
+                    <!-- Right 2 Image Upload Square Boxes: Unit & Box -->
+                    <div class="flex items-center gap-3 shrink-0 mx-auto md:mx-0">
+                        <!-- Image 1: Unit Image -->
+                        <div class="flex flex-col items-center">
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1 text-center">
+                                <?= current_lang() === 'km' ? 'រូបភាពរាយ' : 'Unit Image' ?>
+                            </label>
+                            <div class="w-[110px] h-[110px] aspect-square border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white rounded-2xl p-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative overflow-hidden group shadow-sm shrink-0"
+                                 onclick="document.getElementById('editStockImageInput').click()" 
+                                 title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាពរាយ' : 'Click to change unit image' ?>">
+                                <img id="editStockImagePreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; (document.getElementById('editStockImagePlaceholder')||{}).style && (document.getElementById('editStockImagePlaceholder').style.display='flex');">
+                                <div id="editStockImageHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
+                                    <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
+                                </div>
+                                <div id="editStockImagePlaceholder" class="flex flex-col items-center justify-center pointer-events-none p-1">
+                                    <div class="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs mb-1 group-hover:scale-110 transition-transform">
+                                        <i class="fa-regular fa-image"></i>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-indigo-600 mb-0.5 leading-tight"><?= current_lang() === 'km' ? 'រូបរាយ' : 'Unit' ?></span>
+                                    <span class="text-[8.5px] text-slate-400 leading-tight">កំប៉ុង/ដប</span>
+                                </div>
+                                <input type="file" 
+                                       name="image" 
+                                       id="editStockImageInput" 
+                                       accept="image/*" 
+                                       onchange="previewStockImageLight(this, 'editStockImagePreview', 'editStockImagePlaceholder', 'editStockImageHoverOverlay')" 
+                                       style="display:none;">
+                            </div>
+                        </div>
 
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('package_unit', 'Package Unit') ?></label>
-                        <select id="editPurchaseUnit" name="purchase_unit" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                            <option value="box"><?= current_lang() === 'km' ? 'កេស (Box)' : 'Box' ?></option>
-                            <option value="pack"><?= current_lang() === 'km' ? 'យួរ / កញ្ចប់ (Pack)' : 'Pack / Sleeve' ?></option>
-                            <option value="carton"><?= current_lang() === 'km' ? 'កាតុង (Carton)' : 'Carton' ?></option>
-                            <option value="dozen"><?= current_lang() === 'km' ? 'ឡូ (Dozen)' : 'Dozen (12 pcs)' ?></option>
-                            <option value="case"><?= current_lang() === 'km' ? 'កេសធំ (Case)' : 'Case' ?></option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('units_per_package', 'Units Per Box') ?></label>
-                        <input type="number" 
-                               step="1" 
-                               min="1" 
-                               id="editConversionRate" 
-                               name="conversion_rate" 
-                               required 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs font-bold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-3">
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_total_qty', 'Qty on Hand (Units)') ?></label>
-                        <input type="number" 
-                               step="any" 
-                               min="0" 
-                               id="editQuantity" 
-                               name="quantity" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                    </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('alert_threshold', 'Alert Threshold') ?></label>
-                        <input type="number" 
-                               step="any" 
-                               min="0" 
-                               id="editAlertLevel" 
-                               name="alert_level" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
-                    </div>
-                    <div>
-                        <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_cost_box', 'Cost Per Box ($)') ?></label>
-                        <input type="number" 
-                               step="0.01" 
-                               min="0" 
-                               id="editCostPurchase" 
-                               name="cost_per_purchase_unit" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                        <!-- Image 2: Box Image -->
+                        <div class="flex flex-col items-center">
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1 text-center">
+                                <?= current_lang() === 'km' ? 'រូបភាពកេស' : 'Box Image' ?>
+                            </label>
+                            <div class="w-[110px] h-[110px] aspect-square border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white rounded-2xl p-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative overflow-hidden group shadow-sm shrink-0"
+                                 onclick="document.getElementById('editStockImageBoxInput').click()" 
+                                 title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាពកេស' : 'Click to change box image' ?>">
+                                <img id="editStockImageBoxPreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; (document.getElementById('editStockImageBoxPlaceholder')||{}).style && (document.getElementById('editStockImageBoxPlaceholder').style.display='flex');">
+                                <div id="editStockImageBoxHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
+                                    <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
+                                </div>
+                                <div id="editStockImageBoxPlaceholder" class="flex flex-col items-center justify-center pointer-events-none p-1">
+                                    <div class="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs mb-1 group-hover:scale-110 transition-transform">
+                                        <i class="fa-solid fa-boxes-stacked"></i>
+                                    </div>
+                                    <span class="text-[10px] font-bold text-indigo-600 mb-0.5 leading-tight"><?= current_lang() === 'km' ? 'រូបកេស' : 'Box' ?></span>
+                                    <span class="text-[8.5px] text-slate-400 leading-tight">កេស/កាតុង</span>
+                                </div>
+                                <input type="file" 
+                                       name="image_box" 
+                                       id="editStockImageBoxInput" 
+                                       accept="image/*" 
+                                       onchange="previewStockImageLight(this, 'editStockImageBoxPreview', 'editStockImageBoxPlaceholder', 'editStockImageBoxHoverOverlay')" 
+                                       style="display:none;">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('supplier_notes', 'Supplier & Notes') ?></label>
-                    <textarea id="editNotes" 
-                              name="notes" 
-                              rows="2" 
-                              class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]"></textarea>
+                <!-- Middle Section: Unit Packaging & Stock -->
+                <div class="border border-slate-200/80 bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                    <div class="flex items-center gap-2 text-xs font-bold text-slate-800 border-b border-slate-100 pb-2">
+                        <i class="fa-solid fa-shapes text-indigo-500"></i>
+                        <span><?= current_lang() === 'km' ? 'ខ្នាត និងការបំប្លែងស្តុក (Unit Packaging & Stock)' : 'Unit Packaging & Stock' ?></span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ខ្នាតរាយ *' : 'Single Unit *' ?></label>
+                            <select id="editUnit" name="unit" onchange="updateCardUnitLabels('edit')" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                                <option value="can"><?= current_lang() === 'km' ? 'កំប៉ុង (Can)' : 'Can' ?></option>
+                                <option value="bottle"><?= current_lang() === 'km' ? 'ដប (Bottle)' : 'Bottle' ?></option>
+                                <option value="pack"><?= current_lang() === 'km' ? 'កញ្ចប់ (Pack)' : 'Pack' ?></option>
+                                <option value="pcs"><?= current_lang() === 'km' ? 'គ្រាប់ / ដុំ (Pcs)' : 'Pcs (Pieces)' ?></option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ខ្នាតកេស *' : 'Package Unit *' ?></label>
+                            <select id="editPurchaseUnit" name="purchase_unit" onchange="updateCardUnitLabels('edit')" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                                <option value="box"><?= current_lang() === 'km' ? 'កេស (Box)' : 'Box' ?></option>
+                                <option value="pack"><?= current_lang() === 'km' ? 'យួរ (Pack)' : 'Pack (Sleeve)' ?></option>
+                                <option value="package"><?= current_lang() === 'km' ? 'កញ្ចប់ (Package)' : 'Package' ?></option>
+                                <option value="carton"><?= current_lang() === 'km' ? 'កាតុង (Carton)' : 'Carton' ?></option>
+                                <option value="dozen"><?= current_lang() === 'km' ? 'ឡូ (Dozen)' : 'Dozen (12 pcs)' ?></option>
+                                <option value="case"><?= current_lang() === 'km' ? 'កេសធំ (Case)' : 'Case' ?></option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ចំនួនក្នុង១កេស *' : 'Units per Box *' ?></label>
+                            <input type="number" 
+                                   step="1" 
+                                   min="1" 
+                                   id="editConversionRate" 
+                                   name="conversion_rate" 
+                                   required 
+                                   oninput="onEditSellPriceUnitChange(document.getElementById('editSellPriceUnit')?.value); onEditCostBoxChange(document.getElementById('editCostPurchase')?.value);" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ចំនួនសរុប (ខ្នាត)' : 'Total Qty (Units)' ?></label>
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   id="editQuantity" 
+                                   name="quantity" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'កម្រិតប្រកាសអាសន្ន' : 'Alert Threshold' ?></label>
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   id="editAlertLevel" 
+                                   name="alert_level" 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
+                <!-- Bottom Section: Cost & Selling Prices -->
+                <div class="border border-slate-200/80 bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div class="flex items-center gap-2 text-xs font-bold text-slate-800">
+                            <i class="fa-solid fa-circle-dollar-to-slot text-indigo-500"></i>
+                            <span><?= current_lang() === 'km' ? 'ការកំណត់តម្លៃ (Cost & Selling Prices)' : 'Cost & Selling Prices' ?></span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-medium">
+                            <?= current_lang() === 'km' ? 'គណនាប្រាក់ចំណេញដោយស្វ័យប្រវត្តិ' : 'Auto calculates profit & conversions' ?>
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <!-- Sub Card: Unit -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                            <div class="text-xs font-bold text-slate-800" id="editSubCardUnitTitle">
+                                <?= current_lang() === 'km' ? 'ខ្នាតរាយ (Per Unit / Can)' : 'Single Unit (Per Unit)' ?>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ថ្លៃដើម/ខ្នាត ($)' : 'Cost/Unit ($)' ?></label>
+                                <input type="number" 
+                                       step="0.0001" 
+                                       min="0" 
+                                       id="editCostUnit" 
+                                       name="cost_per_unit" 
+                                       oninput="onEditCostUnitChange(this.value)" 
+                                       class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 mb-1"><?= current_lang() === 'km' ? 'តម្លៃលក់/ខ្នាត ($) *' : 'Sell Price/Unit ($) *' ?></label>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       id="editSellPriceUnit" 
+                                       name="selling_price_per_unit" 
+                                       required 
+                                       class="w-full px-3 py-2 rounded-xl bg-emerald-50/30 border border-emerald-400 text-xs font-bold text-emerald-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+                            </div>
+                        </div>
+
+                        <!-- Sub Card: Box -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                            <div class="text-xs font-bold text-slate-800" id="editSubCardBoxTitle">
+                                <?= current_lang() === 'km' ? 'ខ្នាតកេស (Per Box / Carton)' : 'Package (Per Box)' ?>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ថ្លៃដើម/កេស ($)' : 'Cost/Box ($)' ?></label>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       id="editCostPurchase" 
+                                       name="cost_per_purchase_unit" 
+                                       oninput="onEditCostBoxChange(this.value)" 
+                                       class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-indigo-700 mb-1"><?= current_lang() === 'km' ? 'តម្លៃលក់/កេស ($)' : 'Sell Price/Box ($)' ?></label>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       id="editSellPriceBox" 
+                                       name="selling_price_per_box" 
+                                       class="w-full px-3 py-2 rounded-xl bg-indigo-50/30 border border-indigo-300 text-xs font-bold text-indigo-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="modal-footer flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
                     <button type="button" 
                             onclick="closeModal('editStockModal')" 
-                            class="px-4 py-2 rounded-xl bg-[#202026] text-xs font-semibold text-[#b4b4c2] hover:text-white transition-all cursor-pointer">
-                        <?= __('cancel', 'Cancel') ?>
+                            class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer">
+                        <?= current_lang() === 'km' ? 'បោះបង់ (Cancel)' : 'Cancel' ?>
                     </button>
                     <button type="submit" 
                             id="editStockSubmitBtn" 
-                            class="px-5 py-2 rounded-xl bg-[#d1904b] hover:bg-[#e5a15a] text-black text-xs font-bold transition-all shadow-md shadow-[#d1904b]/20 cursor-pointer">
-                        <?= __('btn_update_drink', 'Update Drink') ?>
+                            class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-check text-xs"></i>
+                        <span><?= current_lang() === 'km' ? 'កែប្រែទិន្នន័យ (Save Changes)' : 'Update Drink' ?></span>
                     </button>
                 </div>
             </form>
@@ -1983,9 +2605,12 @@ $stockItems = $initStmt->fetchAll();
                     'can': 'កំប៉ុង', 'cans': 'កំប៉ុង',
                     'bottle': 'ដប', 'bottles': 'ដប',
                     'box': 'កេស', 'boxes': 'កេស',
-                    'pack': 'កញ្ចប់', 'packs': 'កញ្ចប់',
-                    'case': 'កេស', 'cases': 'កេស',
-                    'crate': 'កេស', 'crates': 'កេស',
+                    'pack': 'យួរ', 'packs': 'យួរ',
+                    'package': 'កញ្ចប់', 'packages': 'កញ្ចប់', 'packet': 'កញ្ចប់', 'packets': 'កញ្ចប់',
+                    'carton': 'កាតុង', 'cartons': 'កាតុង',
+                    'case': 'កេសធំ', 'cases': 'កេសធំ',
+                    'crate': 'ស្នោ', 'crates': 'ស្នោ',
+                    'dozen': 'ឡូ', 'dozens': 'ឡូ',
                     'cup': 'កែវ', 'cups': 'កែវ',
                     'shot': 'ស៊ុត', 'shots': 'ស៊ុត',
                     'pcs': 'គ្រាប់', 'piece': 'គ្រាប់', 'pieces': 'គ្រាប់',
@@ -2034,7 +2659,7 @@ $stockItems = $initStmt->fetchAll();
             if (!items || items.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="9" class="py-12 text-center text-[#8e8e9f]">
+                        <td colspan="11" class="py-12 text-center text-[#8e8e9f]">
                             <div class="w-12 h-12 rounded-full bg-[#1e1e24] text-[#d1904b] mx-auto flex items-center justify-center text-xl mb-3">
                                 <i class="fa-solid fa-wine-bottle"></i>
                             </div>
@@ -2059,6 +2684,8 @@ $stockItems = $initStmt->fetchAll();
                 const alert = parseFloat(item.alert_level) || 0;
                 const costUnit = parseFloat(item.cost_per_unit) || 0;
                 const costBox = parseFloat(item.cost_per_purchase_unit) || 0;
+                const sellUnit = parseFloat(item.selling_price_per_unit) || 0;
+                const sellBox = parseFloat(item.selling_price_per_box) || (sellUnit * rate);
                 const val = qty * costUnit;
                 const breakdown = calculateBreakdownText(qty, item.unit, item.purchase_unit, rate);
 
@@ -2073,14 +2700,24 @@ $stockItems = $initStmt->fetchAll();
                     qtyColor = 'text-amber-400';
                 }
 
-                const imgSrc = item.image ? item.image : 'uploads/no-image.png';
+                const imgUnitSrc = item.image ? item.image : 'uploads/no-image.png';
+                const imgBoxSrc = item.image_box ? item.image_box : imgUnitSrc;
+                const unitTagText = I18N.lang === 'km' ? 'រាយ' : 'Unit';
+                const boxTagText = I18N.lang === 'km' ? 'កេស' : 'Box';
 
                 html += `
                 <tr class="row-hover group" data-item-id="${item.item_id}">
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
-                            <div class="item-mini-img">
-                                <img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(item.item_name)}" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                            <div class="flex items-center gap-1.5 flex-shrink-0">
+                                <div class="item-mini-img" title="${I18N.lang === 'km' ? 'រូបភាពរាយ (Unit Image)' : 'Unit Image'}">
+                                    <img src="${escapeHtml(imgUnitSrc)}" alt="${escapeHtml(item.item_name)}" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                    <span class="mini-img-tag">${unitTagText}</span>
+                                </div>
+                                <div class="item-mini-img" title="${I18N.lang === 'km' ? 'រូបភាពកេស (Box Image)' : 'Box Image'}">
+                                    <img src="${escapeHtml(imgBoxSrc)}" alt="${escapeHtml(item.item_name)} Box" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                    <span class="mini-img-tag box-tag">${boxTagText}</span>
+                                </div>
                             </div>
                             <div class="min-w-0">
                                 <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
@@ -2110,6 +2747,14 @@ $stockItems = $initStmt->fetchAll();
                     <td class="py-3.5 px-3 text-xs">
                         <div class="font-bold text-[var(--text-main)]">$${costBox.toFixed(2)} / ${escapeHtml(formatUnitLabel(item.purchase_unit, 1))}</div>
                         <div class="text-[11px] text-[#8e8e9f] mt-0.5">$${costUnit.toFixed(4)} / ${escapeHtml(formatUnitLabel(item.unit, 1))}</div>
+                    </td>
+                    <td class="py-3.5 px-3 text-xs font-semibold">
+                        <div class="font-bold text-[var(--text-main)]">$${sellUnit.toFixed(2)}</div>
+                        <div class="text-[11px] text-[#8e8e9f] mt-0.5">/ ${escapeHtml(formatUnitLabel(item.unit, 1))}</div>
+                    </td>
+                    <td class="py-3.5 px-3 text-xs font-semibold">
+                        <div class="font-bold text-[var(--text-main)]">$${sellBox.toFixed(2)}</div>
+                        <div class="text-[11px] text-[#8e8e9f] mt-0.5">/ ${escapeHtml(formatUnitLabel(item.purchase_unit, 1))}</div>
                     </td>
                     <td class="py-3.5 px-3">
                         ${statusBadge}
@@ -2167,14 +2812,13 @@ $stockItems = $initStmt->fetchAll();
             if (currentRVal) rSelect.value = currentRVal;
         }
 
-        // ── Image Preview Helper with Cropper Integration ──
-        function previewStockImage(input, previewId, placeholderId, fileNameId) {
+        // ── Image Preview Helper for New Light Card Layout ──
+        function previewStockImageLight(input, previewId, placeholderId, hoverOverlayId) {
             if (!input.files || !input.files[0]) return;
             const file = input.files[0];
-            if (file._isCropped) return;
-
             const preview = document.getElementById(previewId);
             const placeholder = placeholderId ? document.getElementById(placeholderId) : null;
+            const hoverOverlay = hoverOverlayId ? document.getElementById(hoverOverlayId) : null;
 
             if (typeof openProductCropper === 'function') {
                 const reader = new FileReader();
@@ -2187,10 +2831,6 @@ $stockItems = $initStmt->fetchAll();
                             input.files = dt.files;
                         } catch(err) { console.warn(err); }
 
-                        if (fileNameId) {
-                            const fnEl = document.getElementById(fileNameId);
-                            if (fnEl) fnEl.textContent = file.name + ' (Cropped)';
-                        }
                         if (preview) {
                             preview.src = dataUrl;
                             preview.style.display = 'block';
@@ -2200,14 +2840,13 @@ $stockItems = $initStmt->fetchAll();
                             placeholder.style.display = 'none';
                             placeholder.classList.add('hidden');
                         }
+                        if (hoverOverlay) {
+                            hoverOverlay.style.display = 'flex';
+                        }
                     }, 1);
                 };
                 reader.readAsDataURL(file);
             } else {
-                if (fileNameId) {
-                    const fnEl = document.getElementById(fileNameId);
-                    if (fnEl) fnEl.textContent = file.name;
-                }
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     if (preview) {
@@ -2219,16 +2858,83 @@ $stockItems = $initStmt->fetchAll();
                         placeholder.style.display = 'none';
                         placeholder.classList.add('hidden');
                     }
+                    if (hoverOverlay) {
+                        hoverOverlay.style.display = 'flex';
+                    }
                 };
                 reader.readAsDataURL(file);
+            }
+        }
+
+        function updateCardUnitLabels(modalPrefix) {
+            const form = document.getElementById(`${modalPrefix}StockForm`);
+            if (!form) return;
+            const uSelect = form.querySelector('select[name="unit"]');
+            const pSelect = form.querySelector('select[name="purchase_unit"]');
+            
+            const uName = uSelect ? (uSelect.options[uSelect.selectedIndex]?.text?.split('(')[0]?.trim() || 'ខ្នាត') : 'ខ្នាត';
+            const pName = pSelect ? (pSelect.options[pSelect.selectedIndex]?.text?.split('(')[0]?.trim() || 'កេស') : 'កេស';
+
+            const uTitle = document.getElementById(`${modalPrefix}SubCardUnitTitle`);
+            const pTitle = document.getElementById(`${modalPrefix}SubCardBoxTitle`);
+
+            if (uTitle) {
+                uTitle.textContent = I18N.lang === 'km' ? `ខ្នាតរាយ (Per Unit / ${uName})` : `Single Unit (Per Unit / ${uName})`;
+            }
+            if (pTitle) {
+                pTitle.textContent = I18N.lang === 'km' ? `ខ្នាតកេស (Per Box / ${pName})` : `Package (Per Box / ${pName})`;
+            }
+        }
+
+        // ── Cost Calculations (Unit <-> Box) ──
+        function onAddCostUnitChange(val) {
+            const rateInput = document.getElementById('addConversionRate') || document.querySelector('#addStockForm input[name="conversion_rate"]');
+            const rate = parseFloat(rateInput?.value) || 1;
+            const unitCost = parseFloat(val);
+            const boxInput = document.getElementById('addCostBox');
+            if (boxInput && !isNaN(unitCost) && rate > 0) {
+                boxInput.value = (unitCost * rate).toFixed(2);
+            }
+        }
+
+        function onAddCostBoxChange(val) {
+            const rateInput = document.getElementById('addConversionRate') || document.querySelector('#addStockForm input[name="conversion_rate"]');
+            const rate = parseFloat(rateInput?.value) || 1;
+            const boxCost = parseFloat(val);
+            const unitInput = document.getElementById('addCostUnit');
+            if (unitInput && !isNaN(boxCost) && rate > 0) {
+                unitInput.value = (boxCost / rate).toFixed(4);
+            }
+        }
+
+        function onEditCostUnitChange(val) {
+            const rateInput = document.getElementById('editConversionRate');
+            const rate = parseFloat(rateInput?.value) || 1;
+            const unitCost = parseFloat(val);
+            const boxInput = document.getElementById('editCostPurchase');
+            if (boxInput && !isNaN(unitCost) && rate > 0) {
+                boxInput.value = (unitCost * rate).toFixed(2);
+            }
+        }
+
+        function onEditCostBoxChange(val) {
+            const rateInput = document.getElementById('editConversionRate');
+            const rate = parseFloat(rateInput?.value) || 1;
+            const boxCost = parseFloat(val);
+            const unitInput = document.getElementById('editCostUnit');
+            if (unitInput && !isNaN(boxCost) && rate > 0) {
+                unitInput.value = (boxCost / rate).toFixed(4);
             }
         }
 
         // ── Modal Actions ──
         function openAddStockModal() {
             document.getElementById('addStockForm').reset();
+            
+            // Reset Unit Image Preview
             const preview = document.getElementById('addStockImagePreview');
             const placeholder = document.getElementById('addStockImagePlaceholder');
+            const hoverOverlay = document.getElementById('addStockImageHoverOverlay');
             if (preview) {
                 preview.src = '';
                 preview.style.display = 'none';
@@ -2238,18 +2944,34 @@ $stockItems = $initStmt->fetchAll();
                 placeholder.style.display = 'flex';
                 placeholder.classList.remove('hidden');
             }
-            const fnEl = document.getElementById('addStockFileName');
-            if (fnEl) {
-                fnEl.textContent = '<?= current_lang() === "km" ? "មិនទាន់ជ្រើសរើសឯកសារ" : "No file chosen" ?>';
-            }
+            if (hoverOverlay) hoverOverlay.style.display = 'none';
             const fileInput = document.getElementById('addStockImageInput');
             if (fileInput) fileInput.value = '';
+
+            // Reset Box Image Preview
+            const previewBox = document.getElementById('addStockImageBoxPreview');
+            const placeholderBox = document.getElementById('addStockImageBoxPlaceholder');
+            const hoverOverlayBox = document.getElementById('addStockImageBoxHoverOverlay');
+            if (previewBox) {
+                previewBox.src = '';
+                previewBox.style.display = 'none';
+                previewBox.classList.add('hidden');
+            }
+            if (placeholderBox) {
+                placeholderBox.style.display = 'flex';
+                placeholderBox.classList.remove('hidden');
+            }
+            if (hoverOverlayBox) hoverOverlayBox.style.display = 'none';
+            const fileInputBox = document.getElementById('addStockImageBoxInput');
+            if (fileInputBox) fileInputBox.value = '';
+
             const alertBox = document.getElementById('addStockDupAlert');
             if (alertBox) alertBox.classList.add('hidden');
             const nameInput = document.getElementById('addStockItemName');
             if (nameInput) nameInput.classList.remove('border-rose-500');
             const submitBtn = document.getElementById('addStockSubmitBtn');
             if (submitBtn) submitBtn.disabled = false;
+            updateCardUnitLabels('add');
             openModal('addStockModal');
         }
 
@@ -2279,6 +3001,82 @@ $stockItems = $initStmt->fetchAll();
                 input.classList.remove('border-rose-500');
                 if (submitBtn) submitBtn.disabled = false;
                 return false;
+            }
+        }
+
+        function onAddCostUnitChange(val) {
+            const rateInput = document.querySelector('#addStockModal input[name="conversion_rate"]');
+            const rate = parseFloat(rateInput ? rateInput.value : 24) || 24;
+            const cUnit = parseFloat(val);
+            const boxInput = document.getElementById('addCostBox');
+            if (boxInput && !isNaN(cUnit)) {
+                boxInput.value = (cUnit * rate).toFixed(2);
+            }
+        }
+
+        function onAddCostBoxChange(val) {
+            const rateInput = document.querySelector('#addStockModal input[name="conversion_rate"]');
+            const rate = parseFloat(rateInput ? rateInput.value : 24) || 24;
+            const cBox = parseFloat(val);
+            const unitInput = document.getElementById('addCostUnit');
+            if (unitInput && !isNaN(cBox) && rate > 0) {
+                unitInput.value = (cBox / rate).toFixed(4);
+            }
+        }
+
+        function onAddSellPriceUnitChange(val) {
+            const rateInput = document.querySelector('#addStockModal input[name="conversion_rate"]');
+            const rate = parseFloat(rateInput ? rateInput.value : 24) || 24;
+            const uPrice = parseFloat(val);
+            const boxInput = document.getElementById('addSellPriceBox');
+            if (boxInput && !isNaN(uPrice)) {
+                boxInput.value = (uPrice * rate).toFixed(2);
+            }
+        }
+
+        function onAddSellPriceBoxChange(val) {
+            const rateInput = document.querySelector('#addStockModal input[name="conversion_rate"]');
+            const rate = parseFloat(rateInput ? rateInput.value : 24) || 24;
+            const sBox = parseFloat(val);
+            const unitInput = document.getElementById('addSellPriceUnit');
+            if (unitInput && !isNaN(sBox) && rate > 0) {
+                unitInput.value = (sBox / rate).toFixed(2);
+            }
+        }
+
+        function onEditCostUnitChange(val) {
+            const rate = parseFloat(document.getElementById('editConversionRate')?.value || 24) || 24;
+            const cUnit = parseFloat(val);
+            const boxInput = document.getElementById('editCostPurchase');
+            if (boxInput && !isNaN(cUnit)) {
+                boxInput.value = (cUnit * rate).toFixed(2);
+            }
+        }
+
+        function onEditCostBoxChange(val) {
+            const rate = parseFloat(document.getElementById('editConversionRate')?.value || 24) || 24;
+            const cBox = parseFloat(val);
+            const unitInput = document.getElementById('editCostUnit');
+            if (unitInput && !isNaN(cBox) && rate > 0) {
+                unitInput.value = (cBox / rate).toFixed(4);
+            }
+        }
+
+        function onEditSellPriceUnitChange(val) {
+            const rate = parseFloat(document.getElementById('editConversionRate')?.value || 24) || 24;
+            const uPrice = parseFloat(val);
+            const boxInput = document.getElementById('editSellPriceBox');
+            if (boxInput && !isNaN(uPrice)) {
+                boxInput.value = (uPrice * rate).toFixed(2);
+            }
+        }
+
+        function onEditSellPriceBoxChange(val) {
+            const rate = parseFloat(document.getElementById('editConversionRate')?.value || 24) || 24;
+            const sBox = parseFloat(val);
+            const unitInput = document.getElementById('editSellPriceUnit');
+            if (unitInput && !isNaN(sBox) && rate > 0) {
+                unitInput.value = (sBox / rate).toFixed(2);
             }
         }
 
@@ -2352,13 +3150,18 @@ $stockItems = $initStmt->fetchAll();
             const select = document.getElementById('restockItemSelect');
             const selectedOpt = select.options[select.selectedIndex];
             const costInput = document.getElementById('restockCostInput');
-            const qtyLabel = document.getElementById('lblRestockQty');
+            const boxUnitName = document.getElementById('restockBoxUnitName');
+            const looseUnitName = document.getElementById('restockLooseUnitName');
 
             if (!selectedOpt || !selectedOpt.value) {
-                document.getElementById('restockBadgeUnits').textContent = '+0 units';
-                document.getElementById('restockFormula').textContent = 'Select a drink and enter quantity to see calculation.';
-                document.getElementById('restockCurrentStock').textContent = 'Current: --';
-                document.getElementById('restockProjectedStock').textContent = 'New Total: --';
+                if (boxUnitName) boxUnitName.textContent = 'កេស';
+                if (looseUnitName) looseUnitName.textContent = 'កំប៉ុង';
+                const bPreview = document.getElementById('restockBoxToLoosePreview');
+                if (bPreview) bPreview.textContent = '0';
+                document.getElementById('restockBadgeUnits').textContent = I18N.lang === 'km' ? '+0 ឯកតា' : '+0 units';
+                document.getElementById('restockFormula').textContent = I18N.lang === 'km' ? 'ជ្រើសរើសភេសជ្ជៈ និងបញ្ចូលចំនួនដើម្បីគណនា' : 'Select a drink and enter quantity to see calculation.';
+                document.getElementById('restockCurrentStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Current:'} --`;
+                document.getElementById('restockProjectedStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកសរុបថ្មី:' : 'New Total:'} --`;
                 return;
             }
 
@@ -2368,7 +3171,12 @@ $stockItems = $initStmt->fetchAll();
             const currentQty = parseFloat(selectedOpt.getAttribute('data-qty')) || 0;
             const boxCost = parseFloat(selectedOpt.getAttribute('data-boxcost')) || 0;
 
-            qtyLabel.textContent = `${formatUnitLabel(punit, 2)} to Add *`;
+            const unitLabel = formatUnitLabel(unit, 1);
+            const punitLabel = formatUnitLabel(punit, 1);
+
+            if (boxUnitName) boxUnitName.textContent = punitLabel;
+            if (looseUnitName) looseUnitName.textContent = unitLabel;
+
             if (!costInput.value && boxCost > 0) {
                 costInput.value = boxCost.toFixed(2);
             }
@@ -2386,17 +3194,32 @@ $stockItems = $initStmt->fetchAll();
             const rate = parseFloat(selectedOpt.getAttribute('data-rate')) || 24;
             const currentQty = parseFloat(selectedOpt.getAttribute('data-qty')) || 0;
 
-            const boxesToAdd = parseFloat(document.getElementById('restockQtyInput').value) || 0;
-            const addedUnits = boxesToAdd * rate;
-            const newTotalUnits = currentQty + addedUnits;
+            const boxesToAdd = parseFloat(document.getElementById('restockQtyInput')?.value) || 0;
+            const looseToAdd = parseFloat(document.getElementById('restockLooseQtyInput')?.value) || 0;
 
-            const unitLabel = formatUnitLabel(unit, addedUnits);
-            const punitLabel = formatUnitLabel(punit, boxesToAdd);
+            const boxAddedUnits = boxesToAdd * rate;
+            const totalAddedUnits = boxAddedUnits + looseToAdd;
+            const newTotalUnits = currentQty + totalAddedUnits;
 
-            document.getElementById('restockBadgeUnits').textContent = `+${formatNumber(addedUnits)} ${unitLabel}`;
-            document.getElementById('restockFormula').textContent = `${formatNumber(boxesToAdd)} ${punitLabel} × ${rate} ${formatUnitLabel(unit, rate)}/${formatUnitLabel(punit, 1)} = +${formatNumber(addedUnits)} ${unitLabel}`;
-            document.getElementById('restockCurrentStock').textContent = `Current: ${formatNumber(currentQty)} ${formatUnitLabel(unit, currentQty)}`;
-            document.getElementById('restockProjectedStock').textContent = `New Total: ${formatNumber(newTotalUnits)} ${formatUnitLabel(unit, newTotalUnits)}`;
+            const unitLabel = formatUnitLabel(unit, totalAddedUnits || 1);
+            const punitLabel = formatUnitLabel(punit, boxesToAdd || 1);
+
+            const boxToLoosePreview = document.getElementById('restockBoxToLoosePreview');
+            if (boxToLoosePreview) {
+                boxToLoosePreview.textContent = formatNumber(boxAddedUnits);
+            }
+
+            document.getElementById('restockBadgeUnits').textContent = `+${formatNumber(totalAddedUnits)} ${unitLabel}`;
+            
+            let formulaText = `(${formatNumber(boxesToAdd)} ${punitLabel} × ${rate})`;
+            if (looseToAdd > 0) {
+                formulaText += ` + ${formatNumber(looseToAdd)} ${I18N.lang === 'km' ? 'រាយ' : 'loose'}`;
+            }
+            formulaText += ` = +${formatNumber(totalAddedUnits)} ${unitLabel}`;
+            document.getElementById('restockFormula').textContent = formulaText;
+
+            document.getElementById('restockCurrentStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Current:'} ${formatNumber(currentQty)} ${unitLabel}`;
+            document.getElementById('restockProjectedStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកសរុបថ្មី:' : 'New Total:'} ${formatNumber(newTotalUnits)} ${unitLabel}`;
         }
 
         async function handleQuickRestock(e) {
@@ -2455,12 +3278,21 @@ $stockItems = $initStmt->fetchAll();
                 document.getElementById('editConversionRate').value = it.conversion_rate;
                 document.getElementById('editQuantity').value = it.quantity;
                 document.getElementById('editAlertLevel').value = it.alert_level;
-                document.getElementById('editCostPurchase').value = parseFloat(it.cost_per_purchase_unit || 0).toFixed(2);
+                const cBox = parseFloat(it.cost_per_purchase_unit || 0);
+                const cRate = parseFloat(it.conversion_rate || 24) || 24;
+                const cUnit = parseFloat(it.cost_per_unit || (cBox > 0 ? cBox / cRate : 0));
+                document.getElementById('editCostPurchase').value = cBox.toFixed(2);
+                document.getElementById('editCostUnit').value = cUnit.toFixed(4);
+                const sUnit = parseFloat(it.selling_price_per_unit || 0);
+                const sBox = parseFloat(it.selling_price_per_box || (sUnit * cRate));
+                document.getElementById('editSellPriceUnit').value = sUnit.toFixed(2);
+                document.getElementById('editSellPriceBox').value = sBox.toFixed(2);
                 document.getElementById('editNotes').value = it.notes || '';
 
+                // Preview Unit Image
                 const editPreview = document.getElementById('editStockImagePreview');
                 const editPlaceholder = document.getElementById('editStockImagePlaceholder');
-                const editFnEl = document.getElementById('editStockFileName');
+                const editHoverOverlay = document.getElementById('editStockImageHoverOverlay');
                 if (editPreview) {
                     if (it.image && it.image.trim() && !it.image.includes('no-image.png')) {
                         editPreview.src = it.image;
@@ -2470,7 +3302,7 @@ $stockItems = $initStmt->fetchAll();
                             editPlaceholder.style.display = 'none';
                             editPlaceholder.classList.add('hidden');
                         }
-                        if (editFnEl) editFnEl.textContent = '<?= current_lang() === "km" ? "រូបភាពបច្ចុប្បន្ន" : "Current image" ?>';
+                        if (editHoverOverlay) editHoverOverlay.style.display = 'flex';
                     } else {
                         editPreview.src = '';
                         editPreview.style.display = 'none';
@@ -2479,12 +3311,41 @@ $stockItems = $initStmt->fetchAll();
                             editPlaceholder.style.display = 'flex';
                             editPlaceholder.classList.remove('hidden');
                         }
-                        if (editFnEl) editFnEl.textContent = '<?= current_lang() === "km" ? "មិនទាន់មានរូបភាព" : "No image uploaded" ?>';
+                        if (editHoverOverlay) editHoverOverlay.style.display = 'none';
                     }
                 }
                 const editFileInput = document.getElementById('editStockImageInput');
                 if (editFileInput) editFileInput.value = '';
 
+                // Preview Box Image
+                const editPreviewBox = document.getElementById('editStockImageBoxPreview');
+                const editPlaceholderBox = document.getElementById('editStockImageBoxPlaceholder');
+                const editHoverOverlayBox = document.getElementById('editStockImageBoxHoverOverlay');
+                if (editPreviewBox) {
+                    if (it.image_box && it.image_box.trim() && !it.image_box.includes('no-image.png')) {
+                        editPreviewBox.src = it.image_box;
+                        editPreviewBox.style.display = 'block';
+                        editPreviewBox.classList.remove('hidden');
+                        if (editPlaceholderBox) {
+                            editPlaceholderBox.style.display = 'none';
+                            editPlaceholderBox.classList.add('hidden');
+                        }
+                        if (editHoverOverlayBox) editHoverOverlayBox.style.display = 'flex';
+                    } else {
+                        editPreviewBox.src = '';
+                        editPreviewBox.style.display = 'none';
+                        editPreviewBox.classList.add('hidden');
+                        if (editPlaceholderBox) {
+                            editPlaceholderBox.style.display = 'flex';
+                            editPlaceholderBox.classList.remove('hidden');
+                        }
+                        if (editHoverOverlayBox) editHoverOverlayBox.style.display = 'none';
+                    }
+                }
+                const editFileInputBox = document.getElementById('editStockImageBoxInput');
+                if (editFileInputBox) editFileInputBox.value = '';
+
+                updateCardUnitLabels('edit');
                 openModal('editStockModal');
             } catch (err) {
                 console.error(err);

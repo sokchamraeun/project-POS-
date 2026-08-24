@@ -495,6 +495,219 @@ $defaultMilk = 'Fresh Milk';
       min-width: 0;
       background: var(--bg, #ffffff);
     }
+    /* ── CATEGORY DROPDOWN & PACKAGE FILTER BAR ── */
+    .cat-filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--bg-header, rgba(255,255,255,.98));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border, #e5e7eb);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      flex-shrink: 0;
+    }
+
+    .cat-dropdown-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 42px;
+      padding: 0 14px;
+      border-radius: 14px;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      color: #0f172a;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      user-select: none;
+      outline: none;
+    }
+
+    [data-theme="dark"] .cat-dropdown-btn {
+      background: #1e293b;
+      border-color: #334155;
+      color: #f8fafc;
+    }
+
+    .cat-dropdown-btn:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    [data-theme="dark"] .cat-dropdown-btn:hover {
+      border-color: #475569;
+    }
+
+    .cat-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      min-width: 240px;
+      max-height: 380px;
+      overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+      padding: 6px;
+      z-index: 100;
+      scrollbar-width: thin;
+      animation: catDropdownFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes catDropdownFadeIn {
+      from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    [data-theme="dark"] .cat-dropdown-menu {
+      background: #0f172a;
+      border-color: #334155;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
+    }
+
+    .cat-dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #475569;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: left;
+      user-select: none;
+      outline: none;
+    }
+
+    [data-theme="dark"] .cat-dropdown-item {
+      color: #cbd5e1;
+    }
+
+    .cat-dropdown-item:hover {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    [data-theme="dark"] .cat-dropdown-item:hover {
+      background: #1e293b;
+      color: #ffffff;
+    }
+
+    .cat-dropdown-item .cat-item-icon {
+      color: #94a3b8;
+      font-size: 15px;
+      width: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s ease;
+    }
+
+    .cat-dropdown-item .cat-item-count {
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 8px;
+      transition: all 0.15s ease;
+    }
+
+    /* Active Item Style (Emerald Theme) */
+    .cat-dropdown-item.active {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28);
+    }
+
+    [data-theme="dark"] .cat-dropdown-item.active {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    }
+
+    .cat-dropdown-item.active .cat-item-icon {
+      color: #ffffff !important;
+    }
+
+    .cat-dropdown-item.active .cat-item-count {
+      background: rgba(255, 255, 255, 0.25) !important;
+      color: #ffffff !important;
+      padding: 2px 8px !important;
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      border-radius: 8px !important;
+    }
+
+    [data-theme="dark"] .cat-dropdown-item.active .cat-item-count {
+      background: #334155 !important;
+    }
+
+    /* Segmented Control for Unit / Box */
+    .pkg-filter-group {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      border-radius: 14px;
+      background: #f1f5f9;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+
+    [data-theme="dark"] .pkg-filter-group {
+      background: #1e293b;
+      border-color: #334155;
+    }
+
+    .pkg-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      height: 34px;
+      border-radius: 11px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #64748b;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      white-space: nowrap;
+      outline: none;
+    }
+
+    [data-theme="dark"] .pkg-btn {
+      color: #94a3b8;
+    }
+
+    .pkg-btn:hover {
+      color: #0f172a;
+    }
+
+    [data-theme="dark"] .pkg-btn:hover {
+      color: #ffffff;
+    }
+
+    .pkg-btn.active {
+      background: #10b981;
+      color: #ffffff !important;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35);
+    }
+
     .menu-panel .cat-nav {
       display: flex; align-items: center; gap: 10px;
       padding: 10px 20px 12px;
@@ -1125,9 +1338,9 @@ $defaultMilk = 'Fresh Milk';
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.75);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         z-index: 999999;
         align-items: center;
         justify-content: center;
@@ -1138,19 +1351,61 @@ $defaultMilk = 'Fresh Milk';
     }
     #cashPaymentModal .cpm-card {
         background: #ffffff;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 28px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 24px;
         width: 96vw;
-        max-width: 1060px;
-        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.2), 0 0 1px 1px rgba(0, 0, 0, 0.04);
+        max-width: 1040px;
+        max-height: 94vh;
+        box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 1px 1px rgba(0, 0, 0, 0.04);
         position: relative;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
         animation: cpmFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+    }
+    @media (min-width: 1024px) {
+        #cashPaymentModal .cpm-card {
+            height: min(780px, 95vh);
+        }
+        #cashPaymentModal .cpm-modal-body {
+            overflow: hidden !important;
+            height: 100% !important;
+            min-height: 0 !important;
+        }
+        #cashPaymentModal .cpm-left-col {
+            height: 100% !important;
+            max-height: 100% !important;
+            min-height: 0 !important;
+        }
+        #cashPaymentModal .cpm-right-col {
+            height: 100% !important;
+            min-height: 0 !important;
+            justify-content: space-between !important;
+            overflow-y: auto !important;
+        }
+        #cashPaymentModal #cpmItemsList {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow-y: auto !important;
+        }
     }
     @keyframes cpmFadeIn {
         from { opacity: 0; transform: translateY(14px) scale(0.98); }
         to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Modal Top Header (Dark Navy / Slate) */
+    #cashPaymentModal .cpm-modal-header {
+        background: #0f172a;
+        color: #ffffff;
+        padding: 16px 24px;
+    }
+    #cashPaymentModal .cpm-modal-header #cpmModalHeaderIconBox {
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #10b981;
     }
 
     /* Dual Received Input Cards */
@@ -1158,37 +1413,58 @@ $defaultMilk = 'Fresh Milk';
     #cashPaymentModal #cpmCardKhr {
         background: #f8fafc;
         border: 2px solid #e2e8f0;
-        border-radius: 16px;
+        border-radius: 18px;
         transition: all 0.2s ease;
     }
-    #cashPaymentModal #cpmCardUsd:hover,
-    #cashPaymentModal #cpmCardUsd:focus-within,
-    #cashPaymentModal #cpmCardKhr:hover,
+    #cashPaymentModal #cpmCardUsd.active-currency,
+    #cashPaymentModal #cpmCardUsd:focus-within {
+        background: #ffffff !important;
+        border-color: #10b981 !important;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    }
+    #cashPaymentModal #cpmCardUsd.active-currency input,
+    #cashPaymentModal #cpmCardUsd:focus-within input,
+    #cashPaymentModal #cpmCardUsd input {
+        color: #0f172a !important;
+    }
+    #cashPaymentModal #cpmCardUsd.active-currency #cpmUsdPrefix,
+    #cashPaymentModal #cpmCardUsd:focus-within #cpmUsdPrefix {
+        color: #10b981 !important;
+    }
+
+    #cashPaymentModal #cpmCardKhr.active-currency,
     #cashPaymentModal #cpmCardKhr:focus-within {
         background: #ffffff !important;
         border-color: #10b981 !important;
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    }
+    #cashPaymentModal #cpmCardKhr.active-currency input,
+    #cashPaymentModal #cpmCardKhr:focus-within input,
+    #cashPaymentModal #cpmCardKhr input {
+        color: #0f172a !important;
+    }
+    #cashPaymentModal #cpmCardKhr.active-currency #cpmKhrPrefix,
+    #cashPaymentModal #cpmCardKhr:focus-within #cpmKhrPrefix {
+        color: #10b981 !important;
     }
 
     /* Total Received Banner */
     #cashPaymentModal #cpmTotalRecBanner {
         background: #f8fafc;
-        border: 1.5px solid #e2e8f0;
-        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
         padding: 10px 16px;
     }
 
-    /* Selectors: Currency & Change Return Mode */
-    #cashPaymentModal #cpmCurrSelector,
+    /* Selectors: Change Return Mode */
     #cashPaymentModal #cpmChangeModeWrap {
         background: #f1f5f9;
         border: 1px solid #e2e8f0;
         border-radius: 10px;
-        padding: 2px;
+        padding: 3px;
         display: inline-flex;
-        gap: 2px;
+        gap: 3px;
     }
-    #cashPaymentModal #cpmCurrSelector button,
     #cashPaymentModal #cpmChangeModeWrap button {
         background: transparent;
         border: none;
@@ -1202,16 +1478,32 @@ $defaultMilk = 'Fresh Milk';
         white-space: nowrap;
         outline: none;
     }
-    #cashPaymentModal #cpmCurrSelector button.cpm-mode-active,
     #cashPaymentModal #cpmChangeModeWrap button.cpm-mode-active,
-    #cashPaymentModal #cpmCurrUsd.cpm-mode-active,
-    #cashPaymentModal #cpmCurrKhr.cpm-mode-active,
     #cashPaymentModal #cpmModeMixed.cpm-mode-active,
     #cashPaymentModal #cpmModeKhr.cpm-mode-active {
-        background: #10b981 !important;
+        background: #059669 !important;
         color: #ffffff !important;
         font-weight: 700 !important;
-        box-shadow: 0 1px 4px rgba(16, 185, 129, 0.35) !important;
+        box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3) !important;
+    }
+
+    #cashPaymentModal #cpmItemsList {
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        max-height: none !important;
+    }
+    #cashPaymentModal #cpmItemsList::-webkit-scrollbar {
+        width: 5px;
+    }
+    #cashPaymentModal #cpmItemsList::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    #cashPaymentModal #cpmItemsList::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 9999px;
+    }
+    #cashPaymentModal #cpmItemsList::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
     }
 
     /* Payment Methods */
@@ -1222,7 +1514,7 @@ $defaultMilk = 'Fresh Milk';
     }
     #cashPaymentModal #cpmMethodCash,
     #cashPaymentModal #cpmMethodBakong {
-        height: 44px;
+        height: 46px;
         border-radius: 12px;
         font-size: 13px;
         font-weight: 800;
@@ -1232,26 +1524,24 @@ $defaultMilk = 'Fresh Milk';
         gap: 8px;
         cursor: pointer;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 1.5px solid #e2e8f0;
-        background: #f8fafc;
-        color: #475569;
+        border: 1px solid #e2e8f0;
+        background: #f1f5f9;
+        color: #334155;
         outline: none;
     }
     #cashPaymentModal #cpmMethodCash:hover {
-        background: #f0fdf4;
-        border-color: #86efac;
-        color: #15803d;
+        background: #e2e8f0;
+        color: #0f172a;
     }
     #cashPaymentModal #cpmMethodBakong:hover {
-        background: #fff1f2;
-        border-color: #fecdd3;
-        color: #e11d48;
+        background: #e2e8f0;
+        color: #0f172a;
     }
     #cashPaymentModal #cpmMethodCash.cpm-method-active {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        background: #059669 !important;
         color: #ffffff !important;
         border-color: #059669 !important;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+        box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35) !important;
     }
     #cashPaymentModal #cpmMethodCash.cpm-method-active i {
         color: #ffffff !important;
@@ -1271,26 +1561,29 @@ $defaultMilk = 'Fresh Milk';
         background: #ecfdf5;
         border: 1.5px solid #a7f3d0;
         border-radius: 16px;
-        padding: 12px 18px;
+        padding: 14px 18px;
     }
     #cashPaymentModal #cpmChangeBox.cpm-short {
         background: #fef2f2 !important;
         border-color: #fca5a5 !important;
     }
     #cashPaymentModal #cpmChangeBox .cpm-change-lbl {
-        color: #047857;
+        color: #065f46;
+        font-weight: 800;
     }
     #cashPaymentModal #cpmChangeBox.cpm-short .cpm-change-lbl {
         color: #b91c1c !important;
     }
     #cashPaymentModal #cpmChangeUsd {
-        color: #047857;
+        color: #059669;
+        font-weight: 900;
     }
     #cashPaymentModal #cpmChangeBox.cpm-short #cpmChangeUsd {
         color: #dc2626 !important;
     }
     #cashPaymentModal #cpmChangeKhr {
-        color: #059669;
+        color: #047857;
+        font-weight: 700;
     }
     #cashPaymentModal #cpmChangeBox.cpm-short #cpmChangeKhr {
         color: #ef4444 !important;
@@ -1298,17 +1591,17 @@ $defaultMilk = 'Fresh Milk';
 
     /* Apply button */
     #cashPaymentModal #cpmApplyBtn {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        background: #059669 !important;
         color: #ffffff !important;
         font-weight: 800 !important;
         border: none !important;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+        box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35) !important;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
     #cashPaymentModal #cpmApplyBtn:hover {
-        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+        background: #047857 !important;
         transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45) !important;
+        box-shadow: 0 6px 18px rgba(5, 150, 105, 0.45) !important;
     }
     #cashPaymentModal #cpmApplyBtn.bakong-mode {
         background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
@@ -1779,12 +2072,6 @@ $defaultMilk = 'Fresh Milk';
 <div class="add-order-banner">
   <i class="fa-solid fa-cart-plus"></i>
   Adding to Order #<?= $add_to_order_mode ?>
-  <?php /* No "View Cart & Confirm" link here any more. It was the only caller of
-           cart_paylater.php and it led off a page that can already finish the job —
-           the cart panel's button reads "Add to Order #N" in this mode. With an
-           empty tab-cart it landed the cashier on "Your cart is empty, go back",
-           which reads like an error when nothing is wrong. cart_paylater.php is
-           left on disk, now unreferenced, if that review step is ever wanted. */ ?>
   <?php /* Says HELD, not removed. It belongs on this strip and not in the checkout
            panel: the panel only renders once the cart has items, and this notice is
            needed precisely when the cart is empty — a cashier who was mid-order
@@ -1806,74 +2093,111 @@ $defaultMilk = 'Fresh Milk';
   <!-- ════ LEFT: MENU PANEL ════ -->
   <div class="menu-panel" id="menuPanel">
 
-    <!-- Category nav (sticky within menu panel) -->
+    <!-- Category Dropdown & Package Filter Bar (sticky within menu panel) -->
     <?php if (!$is_price_sort): ?>
-    <nav class="cat-nav" id="catNav">
-      <?php 
-      $isFirstCat = true;
-      foreach ($categories as $key => $label):
-        if (empty($products[$key])) continue;
-        $count  = count(array_filter($products[$key], fn($p) => ((int)($p['is_available'] ?? 1) === 1) && !((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0)));
-        $anchor = e(cat_anchor_id($key));
-        $activeCls = $isFirstCat ? ' active' : '';
-        $isFirstCat = false;
+    <div class="cat-filter-bar" id="catFilterBar">
+      <!-- 1. Category Dropdown Selector -->
+      <div class="relative" id="categoryDropdownWrap">
+        <button type="button" 
+                id="catDropdownBtn" 
+                onclick="toggleCatDropdown(event)" 
+                class="cat-dropdown-btn"
+                title="<?= $isKm ? 'ជ្រើសរើស ឬ រំកិលទៅប្រភេទ' : 'Select or jump to category' ?>">
+          <span id="catDropdownSelectedDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+          <span id="catDropdownSelectedLabel" class="truncate max-w-[150px] md:max-w-[200px]"><?= $isKm ? 'គ្រប់ប្រភេទទាំងអស់' : 'All Categories' ?></span>
+          <span id="catDropdownSelectedCount" class="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold"><?= count($flat_products) ?></span>
+          <i class="fa-solid fa-chevron-up text-slate-400 text-xs ml-0.5 transition-transform duration-200" id="catDropdownChevron"></i>
+        </button>
 
-        $dbIcon   = $catIcons[$key] ?? '';
-        $s        = strtolower(trim($key . ' ' . $label));
-        $hasDbImg = !empty($dbIcon) && (str_contains($dbIcon, '/') || str_contains($dbIcon, '.'));
-        $hasDbFa  = !empty($dbIcon) && str_starts_with($dbIcon, 'fa-');
+        <!-- Floating Dropdown Menu -->
+        <div id="catDropdownMenu" class="cat-dropdown-menu hidden shadow-2xl">
+          <button type="button" 
+                  onclick="selectCategoryFilter('all', '<?= $isKm ? 'គ្រប់ប្រភេទទាំងអស់' : 'All Categories' ?>', <?= count($flat_products) ?>)" 
+                  class="cat-dropdown-item active"
+                  data-cat-key="all">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="cat-item-icon"><i class="fa-solid fa-layer-group"></i></span>
+              <span class="truncate"><?= $isKm ? 'គ្រប់ប្រភេទទាំងអស់' : 'All Categories' ?></span>
+            </div>
+            <span class="cat-item-count"><?= count($flat_products) ?></span>
+          </button>
 
-        if (str_contains($s, 'hot') || str_contains($s, 'ក្តៅ')) {
-            $catIcon = 'fa-mug-hot';
-            $iconBg  = '#fee2e2';
-            $iconClr = '#ef4444';
-        } elseif (str_contains($s, 'tea') || str_contains($s, 'តែ') || str_contains($s, 'green') || str_contains($s, 'matcha')) {
-            $catIcon = 'fa-leaf';
-            $iconBg  = '#ecfdf5';
-            $iconClr = '#10b981';
-        } elseif (str_contains($s, 'smoothie') || str_contains($s, 'soda') || str_contains($s, 'juice') || str_contains($s, 'drink') || str_contains($s, 'ភេសជ្ជៈ')) {
-            $catIcon = 'fa-glass-water';
-            $iconBg  = '#e0f2fe';
-            $iconClr = '#0ea5e9';
-        } elseif (str_contains($s, 'non') || str_contains($s, 'milk') || str_contains($s, 'ទឹកដោះគោ')) {
-            $catIcon = 'fa-bottle-water';
-            $iconBg  = '#ede9fe';
-            $iconClr = '#6366f1';
-        } elseif (str_contains($s, 'ice') || str_contains($s, 'cold') || str_contains($s, 'ត្រជាក់')) {
-            $catIcon = 'fa-snowflake';
-            $iconBg  = '#e0f2fe';
-            $iconClr = '#0284c7';
-        } elseif (str_contains($s, 'coffee') || str_contains($s, 'កាហ្វេ')) {
-            $catIcon = 'fa-mug-saucer';
-            $iconBg  = '#fef3c7';
-            $iconClr = '#d97706';
-        } elseif (str_contains($s, 'cake') || str_contains($s, 'bakery') || str_contains($s, 'food') || str_contains($s, 'snack') || str_contains($s, 'នំ')) {
-            $catIcon = 'fa-cookie-bite';
-            $iconBg  = '#fef3c7';
-            $iconClr = '#d97706';
-        } else {
-            $catIcon = 'fa-circle-dot';
-            $iconBg  = '#f1f5f9';
-            $iconClr = '#64748b';
-        }
+          <?php foreach ($categories as $key => $label):
+            if (empty($products[$key])) continue;
+            $count  = count(array_filter($products[$key], fn($p) => ((int)($p['is_available'] ?? 1) === 1) && !((int)($p['recipe_count'] ?? 0) > 0 && (int)($p['out_of_stock_ingredients'] ?? 0) > 0)));
+            $anchor = e(cat_anchor_id($key));
+            $dbIcon   = $catIcons[$key] ?? '';
+            $hasDbImg = !empty($dbIcon) && (str_contains($dbIcon, '/') || str_contains($dbIcon, '.'));
+            $hasDbFa  = !empty($dbIcon) && str_starts_with($dbIcon, 'fa-');
+            $s        = strtolower(trim($key . ' ' . $label));
 
-        if ($hasDbFa) {
-            $catIcon = $dbIcon;
-        }
-      ?>
-      <a href="#<?= $anchor ?>" class="cat-pill<?= $activeCls ?>" data-target="<?= $anchor ?>">
-        <span class="cat-pill-icon-box" style="--cat-icon-bg: <?= $iconBg ?>; --cat-icon-color: <?= $iconClr ?>;">
-          <?php if ($hasDbImg): ?>
-            <img src="<?= e($dbIcon) ?>" alt="" class="cat-pill-img">
-          <?php else: ?>
-            <i class="fa-solid <?= e($catIcon) ?>"></i>
-          <?php endif; ?>
-        </span>
-        <span class="cat-name"><?= e($label) ?></span>
-        <span class="pill-count"><?= $count ?></span>
-      </a>
-      <?php endforeach; ?>
-    </nav>
+            if (str_contains($s, 'hot') || str_contains($s, 'ក្តៅ')) {
+                $catIcon = 'fa-mug-hot';
+            } elseif (str_contains($s, 'tea') || str_contains($s, 'តែ') || str_contains($s, 'green') || str_contains($s, 'matcha')) {
+                $catIcon = 'fa-leaf';
+            } elseif (str_contains($s, 'smoothie') || str_contains($s, 'soda') || str_contains($s, 'juice') || str_contains($s, 'drink') || str_contains($s, 'ភេសជ្ជៈ')) {
+                $catIcon = 'fa-glass-water';
+            } elseif (str_contains($s, 'non') || str_contains($s, 'milk') || str_contains($s, 'ទឹកដោះគោ')) {
+                $catIcon = 'fa-bottle-water';
+            } elseif (str_contains($s, 'ice') || str_contains($s, 'cold') || str_contains($s, 'ត្រជាក់')) {
+                $catIcon = 'fa-mug-saucer';
+            } elseif (str_contains($s, 'coffee') || str_contains($s, 'កាហ្វេ')) {
+                $catIcon = 'fa-mug-saucer';
+            } elseif (str_contains($s, 'cake') || str_contains($s, 'bakery') || str_contains($s, 'food') || str_contains($s, 'snack') || str_contains($s, 'នំ')) {
+                $catIcon = 'fa-cookie-bite';
+            } else {
+                $catIcon = 'fa-circle-dot';
+            }
+            if ($hasDbFa) $catIcon = $dbIcon;
+          ?>
+          <button type="button" 
+                  onclick="selectCategoryFilter('<?= $anchor ?>', '<?= e(addslashes($label)) ?>', <?= $count ?>)" 
+                  class="cat-dropdown-item"
+                  data-cat-key="<?= $anchor ?>">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="cat-item-icon">
+                <?php if ($hasDbImg): ?>
+                  <img src="<?= e($dbIcon) ?>" alt="" class="w-4 h-4 object-contain rounded">
+                <?php else: ?>
+                  <i class="fa-solid <?= e($catIcon) ?>"></i>
+                <?php endif; ?>
+              </span>
+              <span class="truncate"><?= e($label) ?></span>
+            </div>
+            <span class="cat-item-count"><?= $count ?></span>
+          </button>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <!-- 2. Unit vs Box Filter Segmented Control -->
+      <div class="pkg-filter-group" id="pkgFilterGroup">
+        <button type="button" 
+                onclick="setPackageFilter('all', this)" 
+                id="pkgBtnAll"
+                class="pkg-btn active"
+                title="<?= $isKm ? 'បង្ហាញទំនិញទាំងអស់' : 'Show All Drinks & Items' ?>">
+          <i class="fa-solid fa-layer-group text-[11px]"></i>
+          <span><?= $isKm ? 'ទាំងអស់' : 'All' ?></span>
+        </button>
+        <button type="button" 
+                onclick="setPackageFilter('unit', this)" 
+                id="pkgBtnUnit"
+                class="pkg-btn"
+                title="<?= $isKm ? 'បង្ហាញតែទំនិញលក់រាយ (កំប៉ុង/ដប/កែវ)' : 'Loose / Single Units' ?>">
+          <i class="fa-solid fa-wine-glass text-[11px]"></i>
+          <span><?= $isKm ? 'លក់រាយ' : 'Retail' ?></span>
+        </button>
+        <button type="button" 
+                onclick="setPackageFilter('box', this)" 
+                id="pkgBtnBox"
+                class="pkg-btn"
+                title="<?= $isKm ? 'បង្ហាញតែទំនិញលក់ដុំ (កេស / យួរ / កាតុង)' : 'Wholesale / Box' ?>">
+          <i class="fa-solid fa-boxes-stacked text-[11px]"></i>
+          <span><?= $isKm ? 'លក់ដុំ' : 'Wholesale' ?></span>
+        </button>
+      </div>
+    </div>
     <?php endif; ?>
 
     <div class="menu-scroll" id="menuScroll">
@@ -1898,6 +2222,11 @@ $defaultMilk = 'Fresh Milk';
               $catOpt = $categoryOpts[$catKey] ?? $categoryOpts[strtolower($catKey)] ?? null;
               $hasSizes = (int)($p['has_sizes'] ?? 0) === 1;
               $needsCustomization = $hasSizes || ($catOpt ? ((int)($catOpt['sweet'] ?? 0) === 1 || (int)($catOpt['ice'] ?? 0) === 1) : false);
+
+              $isBox = preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $p['name']) ||
+                       preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $p['name']) ||
+                       preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $p['name']);
+              $pkgType = $isBox ? 'box' : 'unit';
             ?>
               <div class="product-card js-open-product relative <?= $isOut ? 'disabled out-of-stock-card cursor-not-allowed opacity-60 grayscale-[35%]' : '' ?>"
                    data-product-id="<?= (int)$p['product_id'] ?>"
@@ -1905,6 +2234,7 @@ $defaultMilk = 'Fresh Milk';
                    data-product-price="<?= e($p['price']) ?>"
                    data-product-image="<?= e($p['image']) ?>"
                    data-product-category="<?= e($p['category']) ?>"
+                   data-package-type="<?= $pkgType ?>"
                    data-product-desc="<?= e($p['description']) ?>"
                    data-product-badge="<?= e(product_badge_label($p)) ?>"
                    data-product-promo="<?= (int)($p['promo_percent'] ?? 0) ?>"
@@ -1972,6 +2302,11 @@ $defaultMilk = 'Fresh Milk';
               $catOpt = $categoryOpts[$catKey] ?? $categoryOpts[strtolower($catKey)] ?? null;
               $hasSizes = (int)($p['has_sizes'] ?? 0) === 1;
               $needsCustomization = $hasSizes || ($catOpt ? ((int)($catOpt['sweet'] ?? 0) === 1 || (int)($catOpt['ice'] ?? 0) === 1) : false);
+
+              $isBox = preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $p['name']) ||
+                       preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $p['name']) ||
+                       preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $p['name']);
+              $pkgType = $isBox ? 'box' : 'unit';
             ?>
               <div class="product-card js-open-product relative <?= $isOut ? 'disabled out-of-stock-card cursor-not-allowed opacity-60 grayscale-[35%]' : '' ?>"
                    data-product-id="<?= (int)$p['product_id'] ?>"
@@ -1979,6 +2314,7 @@ $defaultMilk = 'Fresh Milk';
                    data-product-price="<?= e($p['price']) ?>"
                    data-product-image="<?= e($p['image']) ?>"
                    data-product-category="<?= e($p['category']) ?>"
+                   data-package-type="<?= $pkgType ?>"
                    data-product-desc="<?= e($p['description']) ?>"
                    data-product-badge="<?= e(product_badge_label($p)) ?>"
                    data-product-promo="<?= (int)($p['promo_percent'] ?? 0) ?>"
@@ -2324,53 +2660,53 @@ $defaultMilk = 'Fresh Milk';
 </div>
 
 <!-- ── CASH PAYMENT SETTLEMENT MODAL (POS LAYOUT) ── -->
-<div id="cashPaymentModal" class="modal fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-[99999]" style="display:none;">
-  <div class="cpm-card flex flex-col max-h-[94vh] w-full max-w-5xl shadow-2xl rounded-3xl overflow-hidden bg-white border border-slate-100">
+<div id="cashPaymentModal" class="modal fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-[99999]" style="display:none;">
+  <div class="cpm-card flex flex-col max-h-[94vh] w-full max-w-5xl shadow-2xl rounded-3xl overflow-hidden bg-white border border-slate-200/80">
     
-    <!-- Modal Header -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
+    <!-- Modal Header (Dark Slate Theme) -->
+    <div class="cpm-modal-header flex items-center justify-between px-6 py-4 bg-[#0f172a] text-white shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 font-bold text-lg shadow-sm transition-all duration-200" id="cpmModalHeaderIconBox">
+        <div class="w-10 h-10 rounded-xl bg-[#1e293b] border border-slate-700/60 flex items-center justify-center text-emerald-400 font-bold text-base shadow-sm transition-all duration-200" id="cpmModalHeaderIconBox">
           <i class="fa-solid fa-money-bill-wave" id="cpmModalHeaderIcon"></i>
         </div>
         <div>
-          <h2 class="text-base md:text-lg font-extrabold text-slate-900 leading-tight transition-colors duration-200" id="cpmModalHeaderTitle"><?= __('cpm_modal_title', 'Cash Payment Settlement') ?></h2>
-          <p class="text-xs text-slate-400 font-medium transition-colors duration-200" id="cpmModalHeaderSub"><?= __('cpm_modal_subtitle', 'Take order cash & calculate change') ?></p>
+          <h2 class="text-base font-extrabold text-white leading-tight transition-colors duration-200" id="cpmModalHeaderTitle"><?= __('cpm_modal_title', 'Cash Payment Settlement') ?></h2>
+          <p class="text-xs text-slate-400 font-medium transition-colors duration-200 mt-0.5" id="cpmModalHeaderSub"><?= __('cpm_modal_subtitle', 'Take order cash & calculate change') ?></p>
         </div>
       </div>
-      <button type="button" onclick="closeCashPaymentModal()" class="w-9 h-9 rounded-full bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition" title="Close (Esc)">
+      <button type="button" onclick="closeCashPaymentModal()" class="w-8 h-8 rounded-full bg-[#1e293b] border border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center transition cursor-pointer" title="Close (Esc)">
         <i class="fa-solid fa-xmark text-sm"></i>
       </button>
     </div>
 
     <!-- Modal Body (2-Column POS Layout) -->
-    <div class="p-4 md:p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch bg-slate-50/50">
+    <div class="cpm-modal-body p-4 md:p-5 overflow-y-auto flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch bg-slate-50/50">
       
       <!-- LEFT COLUMN: Current Transaction Summary (5 cols) -->
-      <div class="lg:col-span-5 xl:col-span-5 bg-white border border-slate-200/80 rounded-2xl p-5 flex flex-col shadow-sm h-full">
+      <div class="cpm-left-col lg:col-span-5 xl:col-span-5 bg-white border border-slate-200/80 rounded-2xl p-4 md:p-5 flex flex-col min-h-0 h-full overflow-hidden shadow-sm">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-          <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+          <h3 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
             <i class="fa-solid fa-file-invoice text-emerald-500"></i> <?= __('cpm_summary_title', 'Current Transaction Summary') ?>
           </h3>
-          <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200" id="cpmItemCount">0 items</span>
+          <span class="text-xs font-bold px-3 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200" id="cpmItemCount">0 មុខទំនិញ</span>
         </div>
 
         <!-- Table Column Headers: Items, Price, Qty, Total -->
-        <div class="grid grid-cols-12 gap-2 py-2.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 border-b border-slate-100 cpm-table-head">
+        <div class="grid grid-cols-12 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-xl text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mb-1 cpm-table-head">
           <div class="col-span-6"><?= __('cpm_col_items', 'Items') ?></div>
           <div class="col-span-2 text-right"><?= __('cpm_col_price', 'Price') ?></div>
           <div class="col-span-2 text-center"><?= __('cpm_col_qty', 'Qty') ?></div>
           <div class="col-span-2 text-right"><?= __('cpm_col_total', 'Total') ?></div>
         </div>
 
-        <!-- Items Table -->
-        <div class="flex-1 overflow-y-auto min-h-[140px] max-h-[260px] divide-y divide-slate-50" id="cpmItemsList">
+        <!-- Items Table (Expands 100% and scrolls internally) -->
+        <div class="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-50 pr-1.5" id="cpmItemsList">
           <!-- Dynamic Items Populated here -->
         </div>
 
         <!-- Running Subtotal, Tax, Discount & Total Due (Pinned to Bottom) -->
         <div class="pt-4 border-t border-slate-100 space-y-2 mt-auto shrink-0">
-          <div class="flex justify-between text-xs font-semibold text-slate-500">
+          <div class="flex justify-between text-xs font-semibold text-slate-400">
             <span><?= __('cpm_subtotal', 'Running Subtotal') ?></span>
             <span class="font-bold text-slate-800" id="cpmSubtotal">$0.00</span>
           </div>
@@ -2385,44 +2721,44 @@ $defaultMilk = 'Fresh Milk';
 
           <div class="pt-3 border-t border-slate-100 flex items-baseline justify-between">
             <div>
-              <div class="text-xs font-extrabold uppercase tracking-wider text-slate-900"><?= __('cpm_total_due', 'Total Amount Due') ?></div>
-              <div class="text-xs font-semibold text-slate-400 mt-0.5" id="cpmTotalKhr">៛ 0</div>
+              <div class="text-xs font-black uppercase tracking-wider text-slate-900"><?= __('cpm_total_due', 'Total Amount Due') ?></div>
+              <div class="text-xs font-bold text-slate-400 mt-0.5" id="cpmTotalKhr">៛ 0</div>
             </div>
-            <div class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight" id="cpmTotalUsd">$0.00</div>
+            <div class="text-3xl font-black text-slate-900 tracking-tight" id="cpmTotalUsd">$0.00</div>
           </div>
         </div>
       </div>
 
       <!-- RIGHT COLUMN: Payment Details & Change Calculated (7 cols) -->
-      <div class="lg:col-span-7 xl:col-span-7 flex flex-col gap-4">
+      <div class="cpm-right-col lg:col-span-7 xl:col-span-7 flex flex-col justify-between gap-3.5 min-h-0">
         
         <!-- Top Box: Payment Details -->
-        <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm flex flex-col gap-3" id="cpmPaymentDetailsBox">
-          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2" id="cpmBoxTitle">
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-3.5 md:p-4 shadow-sm flex flex-col gap-2.5" id="cpmPaymentDetailsBox">
+          <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
+            <h3 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2" id="cpmBoxTitle">
               <i class="fa-solid fa-calculator text-emerald-500"></i> <?= __('cpm_payment_details', 'Payment Details') ?>
             </h3>
             
             <!-- Exchange rate badge -->
             <div class="flex items-center gap-2">
-              <div class="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700" id="cpmRateBadge" title="Current Exchange Rate">
-                <i class="fa-solid fa-arrow-right-arrow-left text-slate-400 text-[10px]"></i>
-                <span>1$ = <b class="text-slate-900" id="cpmRateDisplay">៛<?= number_format(defined('KHR_RATE') ? (int)KHR_RATE : 4100) ?></b></span>
+              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700" id="cpmRateBadge" title="Current Exchange Rate">
+                <i class="fa-solid fa-rotate text-slate-400 text-[10px]"></i>
+                <span>1$ = <b class="text-slate-900" id="cpmRateDisplay">៛<?= number_format(defined('KHR_RATE') ? (int)KHR_RATE : 4000) ?></b></span>
               </div>
             </div>
           </div>
 
           <!-- Cash Payment View (Full-Width Dual Inputs Layout) -->
-          <div id="cpmCashView" class="flex flex-col gap-3">
+          <div id="cpmCashView" class="flex flex-col gap-2.5">
             
             <!-- Dual Inputs Grid (Dollar + Riel Side-by-Side) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               
               <!-- 1. Received Dollar ($ USD) Input Card -->
-              <div class="p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-200/80 hover:border-emerald-500 focus-within:border-emerald-500 focus-within:bg-white transition-all shadow-sm flex flex-col justify-between gap-1.5" id="cpmCardUsd">
+              <div class="p-3 rounded-2xl bg-white border-2 border-emerald-500 transition-all shadow-sm flex flex-col justify-between gap-1 active-currency relative" id="cpmCardUsd">
                 <div class="flex items-center justify-between">
-                  <label for="cpmReceivedUsdInput" class="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
-                    <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-black shadow-sm">$</span>
+                  <label for="cpmReceivedUsdInput" class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
+                    <span class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-black shadow-sm">$</span>
                     <?= $isKm ? 'ប្រាក់ដុល្លារទទួល ($)' : __('cpm_received_usd', 'Received Dollar ($)') ?>
                   </label>
                   <button type="button" onclick="cpmClearUsdInput()" class="text-[11px] font-bold text-slate-400 hover:text-rose-500 transition flex items-center gap-1 cursor-pointer" title="Clear USD">
@@ -2430,17 +2766,17 @@ $defaultMilk = 'Fresh Milk';
                   </button>
                 </div>
                 <div class="relative flex items-center mt-1">
-                  <span class="text-2xl font-black text-slate-400 mr-2 select-none">$</span>
+                  <span class="text-2xl font-black text-emerald-500 mr-2 select-none" id="cpmUsdPrefix">$</span>
                   <input type="text" id="cpmReceivedUsdInput" 
-                         class="w-full bg-transparent text-2xl md:text-3xl font-black text-slate-900 text-right focus:outline-none tracking-tight"
+                         class="w-full bg-transparent text-3xl font-black text-slate-900 text-right focus:outline-none tracking-tight"
                          placeholder="0.00" oninput="cpmOnManualUsdInput(this.value)">
                 </div>
               </div>
 
               <!-- 2. Received Riel (៛ KHR) Input Card -->
-              <div class="p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-200/80 hover:border-emerald-500 focus-within:border-emerald-500 focus-within:bg-white transition-all shadow-sm flex flex-col justify-between gap-1.5" id="cpmCardKhr">
+              <div class="p-3 rounded-2xl bg-slate-50 border-2 border-slate-200/80 transition-all shadow-sm flex flex-col justify-between gap-1 relative" id="cpmCardKhr">
                 <div class="flex items-center justify-between">
-                  <label for="cpmReceivedKhrInput" class="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
+                  <label for="cpmReceivedKhrInput" class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
                     <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-black shadow-sm">៛</span>
                     <?= $isKm ? 'ប្រាក់រៀលទទួល (៛)' : __('cpm_received_khr', 'Received Riel (៛)') ?>
                   </label>
@@ -2449,19 +2785,25 @@ $defaultMilk = 'Fresh Milk';
                   </button>
                 </div>
                 <div class="relative flex items-center mt-1">
-                  <span class="text-2xl font-black text-slate-400 mr-2 select-none">៛</span>
+                  <span class="text-2xl font-black text-slate-400 mr-2 select-none" id="cpmKhrPrefix">៛</span>
                   <input type="text" id="cpmReceivedKhrInput" 
-                         class="w-full bg-transparent text-2xl md:text-3xl font-black text-slate-900 text-right focus:outline-none tracking-tight"
+                         class="w-full bg-transparent text-3xl font-black text-slate-800 text-right focus:outline-none tracking-tight"
                          placeholder="0" oninput="cpmOnManualKhrInput(this.value)">
                 </div>
               </div>
 
             </div>
 
+            <!-- High Amount Alert Banner (Shown if >= $1,000 or >= 1,000,000 Riel) -->
+            <div id="cpmHighAmountAlert" class="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-300/80 text-amber-950 text-[11px] font-bold flex items-center gap-2 shadow-xs transition-all duration-200" style="display:none;">
+              <i class="fa-solid fa-triangle-exclamation text-amber-500 text-xs flex-shrink-0"></i>
+              <span id="cpmHighAmountAlertText" class="leading-tight"><?= $isKm ? '⚠️ ប្រុងប្រយ័ត្ន៖ ចំនួនទឹកប្រាក់ទទួលច្រើន ($1,000+) សូមពិនិត្យផ្ទៀងផ្ទាត់ឡើងវិញ!' : '⚠️ Warning: High cash received ($1,000+), please verify!' ?></span>
+            </div>
+
             <!-- 3. Combined Total Received Banner -->
-            <div class="px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-sm transition-all duration-200" id="cpmTotalRecBanner">
-              <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-2" id="cpmTotalRecLabel">
-                <i class="fa-solid fa-hand-holding-dollar text-emerald-500 text-sm" id="cpmTotalRecIcon"></i> <span id="cpmTotalRecText"><?= $isKm ? 'សរុបប្រាក់ទទួលបាន:' : __('cpm_total_received', 'Total Received') . ':' ?></span>
+            <div class="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-sm transition-all duration-200" id="cpmTotalRecBanner">
+              <span class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2" id="cpmTotalRecLabel">
+                <i class="fa-regular fa-credit-card text-slate-500 text-sm" id="cpmTotalRecIcon"></i> <span id="cpmTotalRecText"><?= $isKm ? 'សរុបប្រាក់ទទួលបាន:' : __('cpm_total_received', 'Total Received') . ':' ?></span>
               </span>
               <div class="text-right flex items-baseline gap-2">
                 <span class="text-lg md:text-xl font-black text-slate-900" id="cpmTotalReceivedUsd">$0.00</span>
@@ -2470,13 +2812,13 @@ $defaultMilk = 'Fresh Milk';
             </div>
 
             <!-- 4. Payment Method Selector -->
-            <div class="pt-2 border-t border-slate-100">
+            <div class="pt-1.5 border-t border-slate-100">
               <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5"><?= __('cpm_payment_method', 'Payment Method') ?></div>
-              <div class="grid grid-cols-2 gap-3" id="cpmMethodPills">
-                <button type="button" id="cpmMethodCash" onclick="cpmSetMethod('cash')" class="py-2.5 px-4 rounded-xl cpm-method-active font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition cursor-pointer">
+              <div class="grid grid-cols-2 gap-2.5" id="cpmMethodPills">
+                <button type="button" id="cpmMethodCash" onclick="cpmSetMethod('cash')" class="py-2.5 px-3 rounded-xl cpm-method-active font-black text-xs md:text-sm flex items-center justify-center gap-2 transition cursor-pointer">
                   <i class="fa-solid fa-money-bill-wave"></i> <?= __('cpm_method_cash', 'Cash') ?>
                 </button>
-                <button type="button" id="cpmMethodBakong" onclick="cpmSetMethod('bakong')" class="py-2.5 px-4 rounded-xl font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition cursor-pointer">
+                <button type="button" id="cpmMethodBakong" onclick="cpmSetMethod('bakong')" class="py-2.5 px-3 rounded-xl font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition cursor-pointer">
                   <i class="fa-solid fa-qrcode text-slate-500"></i> <?= __('cpm_method_bakong', 'Bakong QR') ?>
                 </button>
               </div>
@@ -2521,20 +2863,20 @@ $defaultMilk = 'Fresh Milk';
         </div>
 
         <!-- Bottom Box: Change Calculated & Actions -->
-        <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm flex flex-col gap-3.5" id="cpmBottomBox">
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-3.5 md:p-4 shadow-sm flex flex-col gap-2.5" id="cpmBottomBox">
           
-          <div id="cpmChangeInfoWrap" class="flex flex-col gap-3">
-            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2" id="cpmBottomHeader">
-                <i class="fa-solid fa-coins text-emerald-500" id="cpmBottomHeaderIcon"></i> <span id="cpmBottomHeaderTitle"><?= __('cpm_change_calc', 'Change Calculated') ?></span>
+          <div id="cpmChangeInfoWrap" class="flex flex-col gap-2">
+            <div class="flex items-center justify-between pb-1.5 border-b border-slate-100">
+              <h3 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2" id="cpmBottomHeader">
+                <i class="fa-solid fa-coins text-amber-500" id="cpmBottomHeaderIcon"></i> <span id="cpmBottomHeaderTitle"><?= __('cpm_change_calc', 'Change Calculated') ?></span>
               </h3>
-              <span class="text-xs font-semibold text-slate-500"><?= __('cpm_return_method', 'Return Method') ?>: <b class="text-slate-900" id="cpmReturnMethod"><?= __('cpm_method_cash', 'Cash') ?></b></span>
+              <span class="text-xs font-semibold text-slate-500"><?= $isKm ? 'ទម្រង់អាប់:' : __('cpm_return_method', 'Return Method') . ':' ?> <b class="text-slate-900" id="cpmReturnMethod"><?= __('cpm_method_cash', 'Cash') ?></b></span>
             </div>
 
             <!-- Return Change Currency Options -->
             <div class="flex items-center justify-between gap-2" id="cpmReturnOptionsRow">
               <span class="text-xs font-bold text-slate-500">
-                <?= __('cpm_return_change_in', 'Return Change In:') ?>
+                <?= __('cpm_return_change_in', 'Return Change In:') ?>:
               </span>
               <div class="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1" id="cpmChangeModeWrap">
                 <button type="button" id="cpmModeMixed" onclick="cpmSetChangeMode('mixed')"
@@ -2561,32 +2903,32 @@ $defaultMilk = 'Fresh Milk';
             </div>
 
             <!-- Highlight Change to Return Box (Big Green Alert Display) -->
-            <div class="rounded-2xl p-4 bg-emerald-50 border-2 border-emerald-200 flex items-center justify-between transition min-h-[64px]" id="cpmChangeBox">
+            <div class="rounded-2xl p-3 bg-emerald-50/80 border-2 border-emerald-200/80 flex items-center justify-between transition min-h-[58px]" id="cpmChangeBox">
               <div class="flex-1 pr-3 min-w-0">
-                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 cpm-change-lbl" id="cpmChangeTitle"><?= __('cpm_change_to_return', 'Change to Return') ?></span>
-                <div class="text-xs font-bold text-emerald-700 truncate mt-0.5" id="cpmChangeKhr">៛ 0</div>
+                <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-900 cpm-change-lbl" id="cpmChangeTitle"><?= __('cpm_change_to_return', 'Change to Return') ?></span>
+                <div class="text-xs font-bold text-emerald-700 truncate mt-0.5" id="cpmChangeKhr">លុយគ្រប់គ្រាន់ (៛ 0)</div>
               </div>
-              <div class="text-2xl md:text-3xl font-black text-emerald-700 text-right tracking-tight whitespace-nowrap" id="cpmChangeUsd">$0.00</div>
+              <div class="text-3xl font-black text-emerald-600 text-right tracking-tight whitespace-nowrap" id="cpmChangeUsd">$0.00</div>
             </div>
           </div>
 
           <!-- Action Buttons for Cash Mode -->
-          <div class="flex items-center gap-3 pt-1" id="cpmNormalActions">
-            <button type="button" onclick="closeCashPaymentModal()" class="btn-cpm-cancel py-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 font-extrabold text-xs md:text-sm transition flex-shrink-0">
+          <div class="flex items-center gap-2.5 pt-1" id="cpmNormalActions">
+            <button type="button" onclick="closeCashPaymentModal()" class="btn-cpm-cancel py-2.5 px-6 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-extrabold text-xs md:text-sm transition flex-shrink-0 cursor-pointer shadow-sm">
               <?= __('cpm_cancel', 'Cancel') ?>
             </button>
-            <button type="button" onclick="cpmConfirmPayment()" id="cpmApplyBtn" class="flex-1 py-3 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs md:text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
-              <i class="fa-solid fa-circle-check text-base"></i> <?= __('cpm_apply_payment', 'Apply Payment & Print Receipt') ?>
+            <button type="button" onclick="cpmConfirmPayment()" id="cpmApplyBtn" class="flex-1 py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+              <i class="fa-regular fa-circle-check text-base"></i> <?= __('cpm_apply_payment', 'Apply Payment & Print Receipt') ?>
             </button>
           </div>
 
           <!-- Action Buttons for Active Bakong QR Mode -->
           <div class="flex items-center gap-3 pt-1" id="cpmBakongActions" style="display:none;">
-            <button type="button" onclick="cpmCancelActiveBakongOrder()" class="py-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs md:text-sm transition flex-shrink-0 flex items-center gap-1.5">
+            <button type="button" onclick="cpmCancelActiveBakongOrder()" class="py-3 px-5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-extrabold text-xs md:text-sm transition flex-shrink-0 flex items-center gap-1.5 cursor-pointer shadow-sm">
               <i class="fa-solid fa-xmark"></i> <?= __('cpm_cancel_order', 'Cancel Order') ?>
             </button>
-            <button type="button" id="cpmBtnManualConfirm" onclick="cpmManualConfirmBakong()" class="flex-1 py-3 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs md:text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
-              <i class="fa-solid fa-circle-check text-base"></i> <?= __('cpm_confirm_received', 'Confirm Payment Received') ?>
+            <button type="button" id="cpmBtnManualConfirm" onclick="cpmManualConfirmBakong()" class="flex-1 py-3.5 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer">
+              <i class="fa-regular fa-circle-check text-base"></i> <?= __('cpm_confirm_received', 'Confirm Payment Received') ?>
             </button>
           </div>
 
@@ -4158,6 +4500,49 @@ function cpRequireStand(onOk) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ── TOAST NOTIFICATION UTILITY ──
+// ══════════════════════════════════════════════════════════════════════════════
+function showToast(message, type) {
+  type = type || 'success';
+  var container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.style.cssText = 'position:fixed;top:24px;right:24px;z-index:99999999;display:flex;flex-direction:column;gap:10px;pointer-events:none;max-width:400px;width:calc(100% - 48px);';
+    document.body.appendChild(container);
+  }
+
+  var toast = document.createElement('div');
+  var borderCol = '#10b981';
+  var icon = 'fa-solid fa-circle-check text-emerald-400';
+  if (type === 'warning') {
+    borderCol = '#f59e0b';
+    icon = 'fa-solid fa-triangle-exclamation text-amber-400 text-lg';
+  } else if (type === 'error') {
+    borderCol = '#ef4444';
+    icon = 'fa-solid fa-circle-xmark text-rose-400';
+  }
+
+  toast.style.cssText = 'pointer-events:auto;background:#0f172a;color:#ffffff;border-radius:14px;padding:12px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 20px 40px rgba(0,0,0,0.4),0 0 1px 1px rgba(255,255,255,0.1);border-left:5px solid ' + borderCol + ';font-size:13px;font-weight:700;font-family:\'Poppins\',\'Kantumruy Pro\',sans-serif;transform:translateY(-20px);opacity:0;transition:all 0.25s cubic-bezier(0.16,1,0.3,1);';
+  toast.innerHTML = '<i class="' + icon + ' shrink-0"></i><div style="flex:1;line-height:1.4;">' + message + '</div>';
+  container.appendChild(toast);
+
+  requestAnimationFrame(function() {
+    toast.style.transform = 'translateY(0)';
+    toast.style.opacity = '1';
+  });
+
+  setTimeout(function() {
+    toast.style.transform = 'translateY(-15px)';
+    toast.style.opacity = '0';
+    setTimeout(function() {
+      if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 250);
+  }, 4000);
+}
+window.showToast = showToast;
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ── CASH PAYMENT SETTLEMENT MODAL CONTROLLER (POS LAYOUT) ──
 // ══════════════════════════════════════════════════════════════════════════════
 window.CPM_IS_KM = <?= $isKm ? 'true' : 'false' ?>;
@@ -4177,7 +4562,7 @@ window.CPM_I18N = {
   change_to_return: <?= json_encode(__('cpm_change_to_return', 'Change to Return')) ?>,
   shortage_need_more: <?= json_encode($isKm ? 'ខ្វះ / ត្រូវការប្រាក់បន្ថែម:' : 'Shortage / Need More:') ?>,
   short_khr_prefix: <?= json_encode($isKm ? 'ខ្វះ: ' : 'Short: ') ?>,
-  exact_amount_0: <?= json_encode($isKm ? 'លុយគ្រប់ (៛ 0)' : 'Exact Amount (៛ 0)') ?>,
+  exact_amount_0: <?= json_encode($isKm ? 'លុយគ្រប់គ្រាន់ (៛ 0)' : 'Exact Amount (៛ 0)') ?>,
   exact_usd_notes: <?= json_encode($isKm ? 'ក្រដាសប្រាក់ដុល្លារសុទ្ធ (៛ 0)' : 'Exact USD notes (៛ 0)') ?>,
   method_cash: <?= json_encode(__('cpm_method_cash', 'Cash')) ?>,
   method_bakong: <?= json_encode(__('cpm_method_bakong', 'Bakong QR')) ?>,
@@ -4283,7 +4668,7 @@ function openCashPaymentModal() {
     var numPrice = parseFloat(price) || 0;
     var lineTotal = (numPrice * qty).toFixed(2);
 
-    itemsHtml += '<div class="grid grid-cols-12 gap-2 py-2.5 items-center text-xs border-b border-slate-100 cpm-item-row">' +
+    itemsHtml += '<div class="grid grid-cols-12 gap-2 py-2 items-center text-xs border-b border-slate-100/80 cpm-item-row">' +
       '<div class="col-span-6 min-w-0 pr-1">' +
         '<div class="font-bold text-slate-800 leading-snug break-words cpm-item-name">' + name + '</div>' +
         (meta ? '<div class="text-[11px] text-slate-400 leading-snug break-words mt-0.5 cpm-item-meta">' + meta + '</div>' : '') +
@@ -4404,13 +4789,55 @@ function cpmClearActiveInput() {
 
 function cpmOnManualUsdInput(val) {
   if (cpmState.method === 'bakong') return;
-  cpmState.usdStr = val.replace(/[^0-9.]/g, '');
+  var clean = val.replace(/[^0-9.]/g, '');
+  var parts = clean.split('.');
+  if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
+  
+  var num = parseFloat(clean) || 0;
+  if (num > 10000) {
+    clean = '10000';
+    num = 10000;
+    var inUsd = document.getElementById('cpmReceivedUsdInput');
+    if (inUsd) inUsd.value = clean;
+    if (typeof showToast === 'function') {
+      showToast(window.CPM_IS_KM ? '⚠️ កំណត់ត្រឹមអតិបរមា $10,000' : '⚠️ Maximum limit is $10,000', 'warning');
+    }
+  } else if (num >= 1000 && !cpmState._alertedUsd1000) {
+    cpmState._alertedUsd1000 = true;
+    if (typeof showToast === 'function') {
+      showToast(window.CPM_IS_KM ? '⚠️ ចំនួនទឹកប្រាក់ទទួលច្រើន ($1,000+) សូមប្រុងប្រយ័ត្ន!' : '⚠️ High cash received ($1,000+), please verify!', 'warning');
+    }
+  } else if (num < 1000) {
+    cpmState._alertedUsd1000 = false;
+  }
+  
+  cpmState.usdStr = clean;
   cpmUpdateDualDisplay(false);
 }
 
 function cpmOnManualKhrInput(val) {
   if (cpmState.method === 'bakong') return;
-  cpmState.khrStr = val.replace(/[^0-9]/g, '');
+  var clean = val.replace(/[^0-9]/g, '');
+  var num = parseInt(clean, 10) || 0;
+  
+  if (num > 10000000) {
+    clean = '10000000';
+    num = 10000000;
+    var inKhr = document.getElementById('cpmReceivedKhrInput');
+    if (inKhr) inKhr.value = clean;
+    if (typeof showToast === 'function') {
+      showToast(window.CPM_IS_KM ? '⚠️ កំណត់ត្រឹមអតិបរមា ៛10,000,000' : '⚠️ Maximum limit is 10,000,000 Riel', 'warning');
+    }
+  } else if (num >= 1000000 && !cpmState._alertedKhr1M) {
+    cpmState._alertedKhr1M = true;
+    if (typeof showToast === 'function') {
+      showToast(window.CPM_IS_KM ? '⚠️ ចំនួនទឹកប្រាក់ទទួលច្រើន (1,000,000៛+) សូមប្រុងប្រយ័ត្ន!' : '⚠️ High cash received (1,000,000+ Riel), please verify!', 'warning');
+    }
+  } else if (num < 1000000) {
+    cpmState._alertedKhr1M = false;
+  }
+  
+  cpmState.khrStr = clean;
   cpmUpdateDualDisplay(false);
 }
 
@@ -4428,6 +4855,46 @@ function cpmUpdateDualDisplay(updateInputs) {
   var numKhr = parseFloat(cpmState.khrStr) || 0;
   var rate = window.CP_KHR_RATE || 4100;
   var i18n = window.CPM_I18N || {};
+
+  // Update input card border highlights
+  var cardUsd = document.getElementById('cpmCardUsd');
+  var cardKhr = document.getElementById('cpmCardKhr');
+  if (cardUsd && cardKhr) {
+    if (numUsd > 0 || (numKhr === 0 && numUsd === 0)) {
+      cardUsd.classList.add('active-currency');
+      if (numKhr === 0) cardKhr.classList.remove('active-currency');
+    } else {
+      cardUsd.classList.remove('active-currency');
+    }
+    if (numKhr > 0) {
+      cardKhr.classList.add('active-currency');
+    }
+  }
+
+
+  // Update High Amount Banner
+  var highAlert = document.getElementById('cpmHighAmountAlert');
+  var highAlertText = document.getElementById('cpmHighAmountAlertText');
+  if (highAlert && highAlertText) {
+    if (numUsd >= 1000 && numKhr >= 1000000) {
+      highAlert.style.display = 'flex';
+      highAlertText.textContent = window.CPM_IS_KM 
+        ? ('⚠️ ប្រុងប្រយ័ត្ន៖ ចំនួនទឹកប្រាក់ទទួលច្រើន ($' + numUsd.toLocaleString() + ' + ៛' + numKhr.toLocaleString() + ') សូមផ្ទៀងផ្ទាត់!')
+        : ('⚠️ Warning: High cash received ($' + numUsd.toLocaleString() + ' + ៛' + numKhr.toLocaleString() + '), please verify!');
+    } else if (numUsd >= 1000) {
+      highAlert.style.display = 'flex';
+      highAlertText.textContent = window.CPM_IS_KM 
+        ? ('⚠️ ប្រុងប្រយ័ត្ន៖ ចំនួនទឹកប្រាក់ដុល្លារទទួលច្រើន ($' + numUsd.toLocaleString() + ') សូមផ្ទៀងផ្ទាត់!')
+        : ('⚠️ Warning: High dollar received ($' + numUsd.toLocaleString() + '), please verify!');
+    } else if (numKhr >= 1000000) {
+      highAlert.style.display = 'flex';
+      highAlertText.textContent = window.CPM_IS_KM 
+        ? ('⚠️ ប្រុងប្រយ័ត្ន៖ ចំនួនទឹកប្រាក់រៀលទទួលច្រើន (៛' + numKhr.toLocaleString() + ') សូមផ្ទៀងផ្ទាត់!')
+        : ('⚠️ Warning: High riel received (៛' + numKhr.toLocaleString() + '), please verify!');
+    } else {
+      highAlert.style.display = 'none';
+    }
+  }
 
   // Combined total received
   var totalRecUsd = numUsd + (numKhr / rate);
@@ -5762,6 +6229,264 @@ function cpCheckStand(val) {
     })
     .catch(function() { warn.style.display = 'none'; });
 }
+
+// ── Category Dropdown & Package Filter (Unit vs Box) ──
+var currentCategoryFilter = 'all';
+var currentPackageFilter = 'all';
+var isProgrammaticScroll = false;
+var scrollSpyTimeout = null;
+
+function toggleCatDropdown(e) {
+  if (e) e.stopPropagation();
+  var menu = document.getElementById('catDropdownMenu');
+  var chevron = document.getElementById('catDropdownChevron');
+  if (!menu) return;
+  var isHidden = menu.classList.contains('hidden');
+  if (isHidden) {
+    menu.classList.remove('hidden');
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+  } else {
+    menu.classList.add('hidden');
+    if (chevron) chevron.style.transform = '';
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('categoryDropdownWrap');
+  var menu = document.getElementById('catDropdownMenu');
+  var chevron = document.getElementById('catDropdownChevron');
+  if (menu && !menu.classList.contains('hidden')) {
+    if (!wrap || !wrap.contains(e.target)) {
+      menu.classList.add('hidden');
+      if (chevron) chevron.style.transform = '';
+    }
+  }
+});
+
+function updateCatDropdownTrigger(label, count, catKey) {
+  var lbl = document.getElementById('catDropdownSelectedLabel');
+  if (lbl && label) lbl.textContent = label;
+  var cnt = document.getElementById('catDropdownSelectedCount');
+  if (cnt && count !== undefined && count !== null) cnt.textContent = count;
+
+  document.querySelectorAll('.cat-dropdown-item').forEach(function(el) {
+    if (el.getAttribute('data-cat-key') === catKey) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  });
+}
+
+var isProgrammaticScroll = false;
+var scrollSpyTimeout = null;
+
+function scrollToCategory(catKey) {
+  var menuScroll = document.getElementById('menuScroll');
+  if (!menuScroll) return;
+
+  if (catKey === 'all') {
+    menuScroll.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  var targetSec = document.getElementById(catKey);
+  if (targetSec) {
+    var menuScrollRect = menuScroll.getBoundingClientRect();
+    var targetRect = targetSec.getBoundingClientRect();
+    var scrollOffset = targetRect.top - menuScrollRect.top + menuScroll.scrollTop;
+
+    menuScroll.scrollTo({
+      top: Math.max(0, scrollOffset - 12),
+      behavior: 'smooth'
+    });
+  }
+}
+
+function selectCategoryFilter(catKey, catLabel, catCount) {
+  currentCategoryFilter = catKey;
+  isProgrammaticScroll = true;
+  if (scrollSpyTimeout) clearTimeout(scrollSpyTimeout);
+  
+  updateCatDropdownTrigger(catLabel, catCount, catKey);
+
+  var menu = document.getElementById('catDropdownMenu');
+  var chevron = document.getElementById('catDropdownChevron');
+  if (menu) menu.classList.add('hidden');
+  if (chevron) chevron.style.transform = '';
+
+  // Ensure all categories matching current search & package filter remain visible
+  applyMenuFilters();
+
+  // Smoothly scroll to the target category
+  scrollToCategory(catKey);
+
+  scrollSpyTimeout = setTimeout(function() {
+    isProgrammaticScroll = false;
+  }, 900);
+}
+
+function setPackageFilter(pkgType, btn) {
+  currentPackageFilter = pkgType;
+  
+  document.querySelectorAll('.pkg-btn').forEach(function(b) {
+    b.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+
+  applyMenuFilters();
+}
+
+function applyMenuFilters() {
+  var searchInput = document.getElementById('searchInput');
+  var q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+  var totalVisible = 0;
+
+  var sections = document.querySelectorAll('.cat-section');
+  if (sections.length > 0) {
+    sections.forEach(function(section) {
+      var sectionVisibleCount = 0;
+      var cards = section.querySelectorAll('.product-card');
+      cards.forEach(function(card) {
+        var cardName = (card.dataset.productName || '').toLowerCase();
+        var cardPkg = card.dataset.packageType || 'unit';
+        
+        var matchSearch = (!q || cardName.indexOf(q) !== -1);
+        var matchPkg = (currentPackageFilter === 'all' || cardPkg === currentPackageFilter);
+
+        if (matchSearch && matchPkg) {
+          card.style.display = '';
+          sectionVisibleCount++;
+          totalVisible++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      // Keep section visible as long as it has matching products so user can freely scroll
+      if (sectionVisibleCount > 0) {
+        section.style.display = '';
+        var countSpan = section.querySelector('.cat-title-text span');
+        if (countSpan) {
+          var isKm = (document.documentElement.lang === 'km' || document.documentElement.getAttribute('data-lang') === 'km');
+          var unitWord = sectionVisibleCount !== 1 ? (isKm ? 'មុខទំនិញ' : 'items') : (isKm ? 'មុខទំនិញ' : 'item');
+          countSpan.textContent = sectionVisibleCount + ' ' + unitWord;
+        }
+      } else {
+        section.style.display = 'none';
+      }
+    });
+  } else {
+    var cards = document.querySelectorAll('.product-card');
+    cards.forEach(function(card) {
+      var cardName = (card.dataset.productName || '').toLowerCase();
+      var cardPkg = card.dataset.packageType || 'unit';
+
+      var matchSearch = (!q || cardName.indexOf(q) !== -1);
+      var matchPkg = (currentPackageFilter === 'all' || cardPkg === currentPackageFilter);
+
+      if (matchSearch && matchPkg) {
+        card.style.display = '';
+        totalVisible++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  // Handle empty state
+  var noMatchEl = document.getElementById('menuNoMatchState');
+  if (totalVisible === 0) {
+    if (!noMatchEl) {
+      noMatchEl = document.createElement('div');
+      noMatchEl.id = 'menuNoMatchState';
+      noMatchEl.className = 'flex flex-col items-center justify-center py-16 px-4 text-center';
+      var isKm = (document.documentElement.lang === 'km' || document.documentElement.getAttribute('data-lang') === 'km');
+      noMatchEl.innerHTML = 
+        '<div class="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-2xl mb-4">' +
+          '<i class="fa-solid fa-box-open"></i>' +
+        '</div>' +
+        '<h3 class="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">' + (isKm ? 'រកមិនឃើញទំនិញឡើយ' : 'No items found') + '</h3>' +
+        '<p class="text-xs text-slate-500 max-w-sm mb-4">' + (isKm ? 'សូមព្យាយាមផ្លាស់ប្តូរការច្រោះប្រភេទ ឬ ពាក្យស្វែងរករបស់អ្នក' : 'Try adjusting your package or search filter.') + '</p>' +
+        '<button type="button" onclick="resetAllMenuFilters()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition">' +
+          '<i class="fa-solid fa-rotate-left mr-1.5"></i> ' + (isKm ? 'កំណត់ឡើងវិញ' : 'Reset Filters') +
+        '</button>';
+      var main = document.querySelector('.menu-main');
+      if (main) main.appendChild(noMatchEl);
+    }
+    noMatchEl.style.display = 'flex';
+  } else if (noMatchEl) {
+    noMatchEl.style.display = 'none';
+  }
+}
+
+function resetAllMenuFilters() {
+  var searchInput = document.getElementById('searchInput');
+  if (searchInput) searchInput.value = '';
+  
+  var allCatBtn = document.querySelector('.cat-dropdown-item[data-cat-key="all"]');
+  if (allCatBtn) allCatBtn.click();
+
+  var allPkgBtn = document.getElementById('pkgBtnAll');
+  if (allPkgBtn) setPackageFilter('all', allPkgBtn);
+}
+
+// ── ScrollSpy for Menu Category Dropdown ──
+function initMenuScrollSpy() {
+  var menuScroll = document.getElementById('menuScroll');
+  if (!menuScroll) return;
+
+  menuScroll.addEventListener('scroll', function() {
+    if (isProgrammaticScroll) return;
+
+    var sections = Array.from(document.querySelectorAll('.cat-section')).filter(function(s) {
+      return s.style.display !== 'none';
+    });
+    if (!sections.length) return;
+
+    if (menuScroll.scrollTop < 40) {
+      var allBtn = document.querySelector('.cat-dropdown-item[data-cat-key="all"]');
+      if (allBtn) {
+        var label = allBtn.querySelector('span.truncate') ? allBtn.querySelector('span.truncate').textContent : '';
+        var count = allBtn.querySelector('.cat-item-count') ? allBtn.querySelector('.cat-item-count').textContent : '';
+        updateCatDropdownTrigger(label, count, 'all');
+      }
+      return;
+    }
+
+    var menuScrollRect = menuScroll.getBoundingClientRect();
+    var activeSec = null;
+    for (var i = 0; i < sections.length; i++) {
+      var sec = sections[i];
+      var rect = sec.getBoundingClientRect();
+      if (rect.top <= menuScrollRect.top + 140) {
+        activeSec = sec;
+      }
+    }
+
+    if (activeSec) {
+      var secId = activeSec.id;
+      var optionBtn = document.querySelector('.cat-dropdown-item[data-cat-key="' + secId + '"]');
+      if (optionBtn) {
+        var label = optionBtn.querySelector('span.truncate') ? optionBtn.querySelector('span.truncate').textContent : '';
+        var count = optionBtn.querySelector('.cat-item-count') ? optionBtn.querySelector('.cat-item-count').textContent : '';
+        updateCatDropdownTrigger(label, count, secId);
+      }
+    }
+  }, { passive: true });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  initMenuScrollSpy();
+  
+  var sInput = document.getElementById('searchInput');
+  if (sInput) {
+    sInput.addEventListener('input', function() {
+      applyMenuFilters();
+    });
+  }
+});
 
 </script>
 <?php 

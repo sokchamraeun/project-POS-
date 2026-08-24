@@ -1176,26 +1176,68 @@ if (!function_exists('_deduct_stock')) {
 
                 // 4. Direct Drink Fallback: If no recipe exists, check direct drink stock match by name
                 if (!$hasBOM) {
-                    $pStmt = $conn->prepare("SELECT name FROM products WHERE product_id = ?");
+                    $pStmt = $conn->prepare("SELECT name, price FROM products WHERE product_id = ?");
                     if ($pStmt) {
                         $pStmt->bind_param("i", $product_id);
                         $pStmt->execute();
                         $pRes = $pStmt->get_result();
                         if ($pRow = $pRes->fetch_assoc()) {
                             $pName = trim($pRow['name']);
-                            $dStmt = $conn->prepare("SELECT item_id, item_name, quantity, alert_level, cost_per_unit, unit 
+                            $pPrice = (float)($pRow['price'] ?? 0);
+
+                            // Detect if this product is sold as a BOX (e.g. contains (Box), (កេស), (Carton), (កាតុង) or Box/កេស)
+                            $isBoxSale = false;
+                            if (preg_match('/\((?:Box|កេស|កាតុង|Carton|Case)\)/ui', $pName) ||
+                                preg_match('/\b(?:Box|Carton|Case)\b/ui', $pName) ||
+                                preg_match('/(?:កេស|កាតុង)/u', $pName)) {
+                                $isBoxSale = true;
+                            }
+
+                            // Clean product name to match base stock item
+                            $cleanBase = trim(preg_replace('/\s*\((?:Box|កេស|កាតុង|Carton|Case|Unit|កំប៉ុង|ដប)\)/ui', '', $pName));
+                            $cleanBase = trim(preg_replace('/\s+(?:Box|កេស|កាតុង|Carton|Case)$/ui', '', $cleanBase));
+
+                            $dStmt = $conn->prepare("SELECT item_id, item_name, quantity, alert_level, cost_per_unit, unit, purchase_unit, conversion_rate, selling_price_per_box, selling_price_per_unit 
                                                      FROM stock_items 
                                                      WHERE item_type = 'direct_drink' AND is_active = 1 
-                                                       AND (item_name LIKE ? OR ? LIKE CONCAT('%', item_name, '%')) 
+                                                       AND (
+                                                         LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) 
+                                                         OR LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
+                                                         OR item_name LIKE ? 
+                                                         OR ? LIKE CONCAT('%', item_name, '%')
+                                                         OR ? LIKE CONCAT('%', item_name, '%')
+                                                       ) 
                                                      LIMIT 1");
                             if ($dStmt) {
-                                $wildName = "%{$pName}%";
-                                $dStmt->bind_param("ss", $wildName, $pName);
+                                $wildName = "%{$cleanBase}%";
+                                $dStmt->bind_param("sssss", $cleanBase, $pName, $wildName, $cleanBase, $pName);
                                 $dStmt->execute();
                                 $dRes = $dStmt->get_result();
                                 if ($dRow = $dRes->fetch_assoc()) {
                                     $itemId = (int)$dRow['item_id'];
-                                    $req = (float)$qty;
+                                    $convRate = (float)($dRow['conversion_rate'] ?? 24);
+                                    if ($convRate <= 0) $convRate = 24;
+
+                                    // Secondary check: if product price is close to box selling price
+                                    $sellBox = (float)($dRow['selling_price_per_box'] ?? 0);
+                                    $sellUnit = (float)($dRow['selling_price_per_unit'] ?? 0);
+                                    if (!$isBoxSale && $sellBox > 0) {
+                                        if (abs($pPrice - $sellBox) < 0.01 || ($sellUnit > 0 && $pPrice >= $sellUnit * ($convRate * 0.7))) {
+                                            $isBoxSale = true;
+                                        }
+                                    }
+
+                                    // Calculate total single units to deduct from stock
+                                    if ($isBoxSale) {
+                                        $req = (float)$qty * $convRate;
+                                        $pUnit = !empty($dRow['purchase_unit']) ? $dRow['purchase_unit'] : 'boxes';
+                                        $uUnit = !empty($dRow['unit']) ? $dRow['unit'] : 'units';
+                                        $notes = "Order #{$order_id}: Direct Drink Box Sale ({$qty} {$pUnit} = {$req} {$uUnit}) for {$pName}";
+                                    } else {
+                                        $req = (float)$qty;
+                                        $notes = "Order #{$order_id}: Direct Drink Unit Sale for {$pName} (x{$qty})";
+                                    }
+
                                     $cur = (float)$dRow['quantity'];
                                     $after = max(0.0, $cur - $req);
                                     $cost = (float)$dRow['cost_per_unit'];
@@ -1204,7 +1246,6 @@ if (!function_exists('_deduct_stock')) {
                                     $upd->execute();
 
                                     $chg = -$req;
-                                    $notes = "Order #{$order_id}: Direct Drink Sale for {$pName} (x{$qty})";
                                     if (!empty($reference)) $notes .= " [{$reference}]";
 
                                     $log->bind_param("iiidddsss", $itemId, $order_id, $product_id, $chg, $cur, $after, $cost, $notes, $perf);

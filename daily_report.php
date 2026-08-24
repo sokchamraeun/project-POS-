@@ -525,10 +525,11 @@ if ($_is_mgr) {
                                     $dtFormatted   = date('G:i j/n/Y', strtotime($o['order_date']));
                                     $customerName  = !empty($o['customer_name']) ? $o['customer_name'] : 'Guest';
                                     $totalFormatted = '$' . number_format((float)$o['total'], 2);
-                                    $profitVal     = (float)($o['total_profit'] ?? 0);
+                                    $profitVal       = (float)($o['total_profit'] ?? 0);
                                     $profitFormatted = ($profitVal >= 0 ? '$' : '-$') . number_format(abs($profitVal), 2);
-                                    $itemsCount    = (int)$o['total_items'];
-                                    $sellerName    = $o['seller_name'];
+                                    $profitClass     = $profitVal < 0 ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold';
+                                    $itemsCount      = (int)$o['total_items'];
+                                    $sellerName      = $o['seller_name'];
                                     
                                     // Payment Method badge
                                     $pmLower = strtolower($o['payment_method'] ?? 'cash');
@@ -547,7 +548,7 @@ if ($_is_mgr) {
                                     <td class="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap"><?= htmlspecialchars($dtFormatted) ?></td>
                                     <td class="py-4 px-6 text-xs font-semibold text-slate-700 whitespace-nowrap"><?= htmlspecialchars($customerName) ?></td>
                                     <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap"><?= $totalFormatted ?></td>
-                                    <td class="py-4 px-6 text-xs font-bold text-emerald-600 whitespace-nowrap"><?= $profitFormatted ?></td>
+                                    <td class="py-4 px-6 text-xs whitespace-nowrap <?= $profitClass ?>"><?= $profitFormatted ?></td>
                                     <td class="py-4 px-6 text-center text-xs font-semibold text-slate-600 whitespace-nowrap">
                                         <span class="inline-flex items-center justify-center min-w-[24px] px-2 py-0.5 rounded-full bg-slate-100 font-semibold text-xs text-slate-700"><?= $itemsCount ?></span>
                                     </td>
@@ -580,7 +581,11 @@ if ($_is_mgr) {
                         </div>
                         <div class="text-right">
                             <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-emerald-600 leading-tight"><?= '$' . number_format($totalProfitAmount, 2) ?></div>
+                            <?php 
+                                $totalProfitFmt   = ($totalProfitAmount >= 0 ? '$' : '-$') . number_format(abs($totalProfitAmount), 2);
+                                $totalProfitClass = $totalProfitAmount < 0 ? 'text-rose-600' : 'text-emerald-600';
+                            ?>
+                            <div class="text-xl md:text-2xl font-black <?= $totalProfitClass ?> leading-tight"><?= $totalProfitFmt ?></div>
                         </div>
                     </div>
                 </div>

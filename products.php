@@ -86,8 +86,12 @@ if (($_GET['action'] ?? '') === 'get_edit_data') {
     // Fetch all active stock items for ingredient dropdown & direct stock
     $allStock = [];
     $stockRes = $conn->query("
-        SELECT s.item_id, s.item_name, s.category, s.item_type, s.unit, s.cost_per_unit, s.quantity,
-               COALESCE(NULLIF(s.image, ''), p.image, '') AS image
+        SELECT s.item_id, s.item_name, s.category, s.item_type, s.unit, s.purchase_unit, s.conversion_rate, s.cost_per_unit, s.cost_per_purchase_unit,
+               COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
+               COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box,
+               s.quantity,
+               COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+               COALESCE(NULLIF(s.image_box, ''), '') AS image_box
         FROM stock_items s
         LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', ''))
         WHERE s.is_active = 1
@@ -96,15 +100,22 @@ if (($_GET['action'] ?? '') === 'get_edit_data') {
     if ($stockRes) {
         while ($si = $stockRes->fetch_assoc()) {
             $img = !empty($si['image']) ? get_image_url($si['image'], 'uploads/no-image.png') : '';
+            $imgBox = !empty($si['image_box']) ? get_image_url($si['image_box'], '') : '';
             $allStock[] = [
-                'item_id'       => (int)$si['item_id'],
-                'item_name'     => $si['item_name'],
-                'category'      => $si['category'] ?? '',
-                'item_type'     => $si['item_type'] ?? '',
-                'unit'          => $si['unit'] ?? 'unit',
-                'cost_per_unit' => (float)($si['cost_per_unit'] ?? 0),
-                'quantity'      => (float)($si['quantity'] ?? 0),
-                'image'         => $img
+                'item_id'                => (int)$si['item_id'],
+                'item_name'              => $si['item_name'],
+                'category'               => $si['category'] ?? '',
+                'item_type'              => $si['item_type'] ?? '',
+                'unit'                   => $si['unit'] ?? 'unit',
+                'purchase_unit'          => $si['purchase_unit'] ?? 'box',
+                'conversion_rate'        => (float)($si['conversion_rate'] ?? 24),
+                'cost_per_unit'          => (float)($si['cost_per_unit'] ?? 0),
+                'cost_per_purchase_unit' => (float)($si['cost_per_purchase_unit'] ?? 0),
+                'selling_price_per_unit' => (float)($si['selling_price_per_unit'] ?? 0),
+                'selling_price_per_box'  => (float)($si['selling_price_per_box'] ?? 0),
+                'quantity'               => (float)($si['quantity'] ?? 0),
+                'image'                  => $img,
+                'image_box'              => $imgBox
             ];
         }
     }
@@ -164,8 +175,12 @@ if (($_GET['action'] ?? '') === 'get_add_data') {
 
     $allStock = [];
     $stockRes = $conn->query("
-        SELECT s.item_id, s.item_name, s.category, s.item_type, s.unit, s.cost_per_unit, s.quantity,
-               COALESCE(NULLIF(s.image, ''), p.image, '') AS image
+        SELECT s.item_id, s.item_name, s.category, s.item_type, s.unit, s.purchase_unit, s.conversion_rate, s.cost_per_unit, s.cost_per_purchase_unit,
+               COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
+               COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box,
+               s.quantity,
+               COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+               COALESCE(NULLIF(s.image_box, ''), '') AS image_box
         FROM stock_items s
         LEFT JOIN products p ON LOWER(REPLACE(s.item_name, ' ', '')) = LOWER(REPLACE(p.name, ' ', ''))
         WHERE s.is_active = 1
@@ -174,15 +189,22 @@ if (($_GET['action'] ?? '') === 'get_add_data') {
     if ($stockRes) {
         while ($si = $stockRes->fetch_assoc()) {
             $img = !empty($si['image']) ? get_image_url($si['image'], 'uploads/no-image.png') : '';
+            $imgBox = !empty($si['image_box']) ? get_image_url($si['image_box'], '') : '';
             $allStock[] = [
-                'item_id'       => (int)$si['item_id'],
-                'item_name'     => $si['item_name'],
-                'category'      => $si['category'] ?? '',
-                'item_type'     => $si['item_type'] ?? '',
-                'unit'          => $si['unit'] ?? 'unit',
-                'cost_per_unit' => (float)($si['cost_per_unit'] ?? 0),
-                'quantity'      => (float)($si['quantity'] ?? 0),
-                'image'         => $img
+                'item_id'                => (int)$si['item_id'],
+                'item_name'              => $si['item_name'],
+                'category'               => $si['category'] ?? '',
+                'item_type'              => $si['item_type'] ?? '',
+                'unit'                   => $si['unit'] ?? 'unit',
+                'purchase_unit'          => $si['purchase_unit'] ?? 'box',
+                'conversion_rate'        => (float)($si['conversion_rate'] ?? 24),
+                'cost_per_unit'          => (float)($si['cost_per_unit'] ?? 0),
+                'cost_per_purchase_unit' => (float)($si['cost_per_purchase_unit'] ?? 0),
+                'selling_price_per_unit' => (float)($si['selling_price_per_unit'] ?? 0),
+                'selling_price_per_box'  => (float)($si['selling_price_per_box'] ?? 0),
+                'quantity'               => (float)($si['quantity'] ?? 0),
+                'image'                  => $img,
+                'image_box'              => $imgBox
             ];
         }
     }
@@ -2209,6 +2231,91 @@ body.select-mode .direct-stock-card-badge {
     border-color: rgba(56, 189, 248, 0.4);
 }
 
+/* ── Packaging Filter (All / Unit / Box) ── */
+.pkg-filter-group {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    gap: 3px;
+    height: 38px;
+    box-sizing: border-box;
+}
+[data-theme="dark"] .pkg-filter-group,
+html:not([data-theme="light"]) .pkg-filter-group {
+    background: #18181b;
+    border-color: #27272a;
+}
+.pkg-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    font-family: inherit;
+    line-height: 1;
+    height: 100%;
+}
+[data-theme="dark"] .pkg-filter-btn,
+html:not([data-theme="light"]) .pkg-filter-btn {
+    color: #a1a1aa;
+}
+.pkg-filter-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.7);
+}
+[data-theme="dark"] .pkg-filter-btn:hover,
+html:not([data-theme="light"]) .pkg-filter-btn:hover {
+    color: #f4f4f5;
+    background: #27272a;
+}
+.pkg-filter-btn.active {
+    background: #ffffff;
+    color: #4f46e5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    font-weight: 700;
+}
+[data-theme="dark"] .pkg-filter-btn.active,
+html:not([data-theme="light"]) .pkg-filter-btn.active {
+    background: #27272a;
+    color: #818cf8;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.pkg-pill-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1.5px 5.5px;
+    border-radius: 9999px;
+    background: #e2e8f0;
+    color: #64748b;
+    transition: all 0.18s ease;
+    line-height: 1.1;
+}
+[data-theme="dark"] .pkg-pill-badge,
+html:not([data-theme="light"]) .pkg-pill-badge {
+    background: #3f3f46;
+    color: #a1a1aa;
+}
+.pkg-filter-btn.active .pkg-pill-badge {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+[data-theme="dark"] .pkg-filter-btn.active .pkg-pill-badge,
+html:not([data-theme="light"]) .pkg-filter-btn.active .pkg-pill-badge {
+    background: #312e81;
+    color: #c7d2fe;
+}
+
 /* ========== BULK ACTION BAR ========== */
 .bulk-bar {
     position: fixed;
@@ -2800,13 +2907,22 @@ body.select-mode .direct-stock-card-badge {
         width: 100% !important;
         gap: 8px !important;
     }
-    .results-info {
-        font-size: 11.5px !important;
-    }
     .btn-add-product {
         padding: 6px 12px !important;
         font-size: 11.5px !important;
         border-radius: 8px !important;
+    }
+    .pkg-filter-group {
+        grid-column: 1 / -1;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: space-between !important;
+    }
+    .pkg-filter-group .pkg-filter-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 6px 8px !important;
+        font-size: 11px !important;
     }
 }
 
@@ -3567,6 +3683,36 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <span><?= htmlspecialchars(__('no_recipe', 'No Recipe')) ?></span>
                     <span class="chip-count" id="noRecipeCountBadge"><?= $noRecipeCount ?></span>
                 </button>
+
+                <!-- Packaging Filter: All / Unit / Box -->
+                <div class="pkg-filter-group" id="pkgFilterGroup" role="group" aria-label="Filter by packaging">
+                    <button type="button" 
+                            class="pkg-filter-btn active" 
+                            data-pkg="all" 
+                            onclick="setPkgFilter('all', this)" 
+                            title="<?= $isKm ? 'បង្ហាញទាំងអស់' : 'Show All' ?>">
+                        <span><?= $isKm ? 'ទាំងអស់' : 'All' ?></span>
+                        <span class="pkg-pill-badge" id="pkgBadgeAll"><?= $totalProducts ?></span>
+                    </button>
+                    <button type="button" 
+                            class="pkg-filter-btn" 
+                            data-pkg="unit" 
+                            onclick="setPkgFilter('unit', this)" 
+                            title="<?= $isKm ? 'ទំនិញលក់រាយ (កំប៉ុង/ដប/កែវ)' : 'Single Unit' ?>">
+                        <i class="fa-solid fa-wine-bottle text-[10.5px]"></i>
+                        <span><?= $isKm ? 'លក់រាយ' : 'Unit' ?></span>
+                        <span class="pkg-pill-badge" id="pkgBadgeUnit">0</span>
+                    </button>
+                    <button type="button" 
+                            class="pkg-filter-btn" 
+                            data-pkg="box" 
+                            onclick="setPkgFilter('box', this)" 
+                            title="<?= $isKm ? 'ទំនិញលក់កេស (កេស/កាតុង)' : 'Box / Package' ?>">
+                        <i class="fa-solid fa-boxes-stacked text-[10.5px]"></i>
+                        <span><?= $isKm ? 'លក់កេស' : 'Box' ?></span>
+                        <span class="pkg-pill-badge" id="pkgBadgeBox">0</span>
+                    </button>
+                </div>
             </div>
 
             <div class="prod-controls-right">
@@ -3619,6 +3765,10 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     $mPct  = $sellP > 0 ? (($sellP - $costP) / $sellP) * 100 : 0;
                     $isDirect = is_direct_drink_product($row);
                     $hasRecipe = (((int)($row['recipe_count'] ?? 0) > 0) || $isDirect) ? '1' : '0';
+                    $isBox = preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $row['name']) ||
+                             preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $row['name']) ||
+                             preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $row['name']);
+                    $pkgType = $isBox ? 'box' : 'unit';
                 ?>
                 <div class="product-card <?= $available ? '' : 'unavailable' ?>"
                      data-category="<?= htmlspecialchars($row['category'] ?: 'Uncategorized') ?>"
@@ -3628,6 +3778,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                      data-avail="<?= $available ?>"
                      data-badge="<?= product_badge_label($row) !== '' ? '1' : '0' ?>"
                      data-has-recipe="<?= $hasRecipe ?>"
+                     data-pkg="<?= $pkgType ?>"
                      style="animation-delay:<?= min($i * 0.04, 0.6) ?>s">
 
                     <!-- Selection overlay (intercepts clicks in select mode) -->
@@ -3794,6 +3945,33 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     </div>
                     <input type="file" id="epImageInput" name="image" accept="image/*" style="display:none;" onchange="previewEpImage(this)">
                     <div class="ep-img-subtext"><?= $isKm ? 'រូបភាពបច្ចុប្បន្ន — ចុចខាងលើដើម្បីផ្លាស់ប្តូរ' : 'Current image — Click above to change' ?></div>
+
+                    <!-- ── Sell Unit or Sell Box Checked Selector ── -->
+                    <div class="ep-sell-unit-box" id="epSellUnitBox" style="margin-top: 6px; padding-top: 12px; border-top: 1px solid #f1f4f9;">
+                        <label style="display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px;">
+                            <span><?= $isKm ? 'ជម្រើសលក់' : 'Selling Option' ?></span>
+                            <span id="epSellRateBadge" style="font-size:10px;font-weight:700;color:#4f46e5;background:#eef2ff;padding:1px 6px;border-radius:6px;display:none;">1 = 24</span>
+                        </label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                            <!-- Option 1: Sell Unit -->
+                            <label class="ep-sell-card active" id="epSellCardUnit" onclick="onEpSellOptionSelect('unit')" style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:12px;border:1.5px solid #4f46e5;background:#f5f7ff;cursor:pointer;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(79,70,229,0.08);">
+                                <input type="radio" name="sell_format" id="epRadioSellUnit" value="unit" checked style="accent-color:#4f46e5;cursor:pointer;width:15px;height:15px;margin:0;">
+                                <div style="min-width:0;flex:1;">
+                                    <div style="font-size:11.5px;font-weight:700;color:#1e293b;line-height:1.2;" id="epSellUnitTitle"><?= $isKm ? 'លក់រាយ (Unit)' : 'Sell Unit' ?></div>
+                                    <div style="font-size:10px;color:#6366f1;font-weight:600;margin-top:1px;" id="epSellUnitSub"><?= $isKm ? 'កំប៉ុង / ដប' : 'Per Unit' ?></div>
+                                </div>
+                            </label>
+
+                            <!-- Option 2: Sell Box -->
+                            <label class="ep-sell-card" id="epSellCardBox" onclick="onEpSellOptionSelect('box')" style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:12px;border:1.5px solid #e2e8f0;background:#ffffff;cursor:pointer;transition:all 0.2s ease;">
+                                <input type="radio" name="sell_format" id="epRadioSellBox" value="box" style="accent-color:#4f46e5;cursor:pointer;width:15px;height:15px;margin:0;">
+                                <div style="min-width:0;flex:1;">
+                                    <div style="font-size:11.5px;font-weight:700;color:#64748b;line-height:1.2;" id="epSellBoxTitle"><?= $isKm ? 'លក់កេស (Box)' : 'Sell Box' ?></div>
+                                    <div style="font-size:10px;color:#94a3b8;font-weight:600;margin-top:1px;" id="epSellBoxSub"><?= $isKm ? 'កេស / កាតុង' : 'Per Box' ?></div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Column 2: Product Details -->
@@ -3997,6 +4175,7 @@ let activePriceMin     = 0;
 let activePriceMax     = 99999;
 let activeBadge        = 'all';
 let activeRecipeFilter = 'all'; // 'all', 'no_recipe'
+let activePkgFilter    = 'all'; // 'all', 'unit', 'box'
 let selectMode         = false;
 let selectedIds        = new Set();
 
@@ -4015,6 +4194,19 @@ function toggleNoRecipeFilter() {
     } else {
         activeRecipeFilter = 'no_recipe';
         btn?.classList.add('active');
+    }
+    applyFilters();
+}
+
+// Packaging (All / Unit / Box) Filter Toggle
+function setPkgFilter(type, btn) {
+    activePkgFilter = type;
+    document.querySelectorAll('.pkg-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) {
+        btn.classList.add('active');
+    } else {
+        const targetBtn = document.querySelector(`.pkg-filter-btn[data-pkg="${type}"]`);
+        if (targetBtn) targetBtn.classList.add('active');
     }
     applyFilters();
 }
@@ -4065,6 +4257,8 @@ function updateStatCounts() {
     const avail = allCards.filter(c => c.dataset.avail === '1').length;
     const unavail = total - avail;
     const noRecipe = allCards.filter(c => c.dataset.hasRecipe === '0').length;
+    const unitCount = allCards.filter(c => (c.dataset.pkg || 'unit') === 'unit').length;
+    const boxCount = allCards.filter(c => c.dataset.pkg === 'box').length;
 
     const elTotal = document.querySelector('#statTotal .stat-value');
     if (elTotal) elTotal.textContent = total;
@@ -4080,6 +4274,13 @@ function updateStatCounts() {
 
     const elNoRecipeCount = document.getElementById('noRecipeCountBadge');
     if (elNoRecipeCount) elNoRecipeCount.textContent = noRecipe;
+
+    const elPkgAll = document.getElementById('pkgBadgeAll');
+    if (elPkgAll) elPkgAll.textContent = total;
+    const elPkgUnit = document.getElementById('pkgBadgeUnit');
+    if (elPkgUnit) elPkgUnit.textContent = unitCount;
+    const elPkgBox = document.getElementById('pkgBadgeBox');
+    if (elPkgBox) elPkgBox.textContent = boxCount;
 }
 
 function updateRowNumbersAndCounts() {
@@ -4185,7 +4386,9 @@ function applyFilters() {
         const badgeMatch  = activeBadge === 'all' || (activeBadge === 'has' ? hasBadge : !hasBadge);
         const hasRecipe   = card.dataset.hasRecipe === '1';
         const recipeMatch = activeRecipeFilter === 'all' || (activeRecipeFilter === 'no_recipe' && !hasRecipe);
-        return catMatch && availMatch && nameMatch && priceMatch && badgeMatch && recipeMatch;
+        const pkgType     = card.dataset.pkg || 'unit';
+        const pkgMatch    = activePkgFilter === 'all' || pkgType === activePkgFilter;
+        return catMatch && availMatch && nameMatch && priceMatch && badgeMatch && recipeMatch && pkgMatch;
     });
     lastFiltered.sort((a, b) => {
         switch (activeSort) {
@@ -4836,7 +5039,7 @@ function openAddProductModal(e) {
     document.getElementById('editProductForm').reset();
     document.getElementById('epProductId').value = '';
     
-    // Clear duplicate alert
+    // Reset duplicate alert
     const dupAlert = document.getElementById('epDuplicateAlert');
     if (dupAlert) dupAlert.style.display = 'none';
     const epNameInp = document.getElementById('epName');
@@ -4877,6 +5080,9 @@ function openAddProductModal(e) {
     const dm = document.getElementById('epDirectMargin');
     if (dm) dm.textContent = '+$0.00 (+0.0%)';
 
+    updateEpSellOptionCards(null);
+    onEpSellOptionSelect('unit');
+
     // Show backdrop
     backdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -4904,6 +5110,151 @@ function openAddProductModal(e) {
         .catch(console.error);
 }
 
+// ── Direct Drink Selling Option (Unit vs Box) Management ──
+let currentDirectStockItem = null;
+
+function updateEpSellOptionCards(item) {
+    currentDirectStockItem = item;
+    const badge = document.getElementById('epSellRateBadge');
+    const titleUnit = document.getElementById('epSellUnitTitle');
+    const subUnit = document.getElementById('epSellUnitSub');
+    const titleBox = document.getElementById('epSellBoxTitle');
+    const subBox = document.getElementById('epSellBoxSub');
+
+    if (!item) {
+        if (badge) badge.style.display = 'none';
+        if (titleUnit) titleUnit.textContent = window.IS_KM ? 'លក់រាយ (Unit)' : 'Sell Unit';
+        if (subUnit) subUnit.textContent = window.IS_KM ? 'កំប៉ុង / ដប' : 'Per Unit';
+        if (titleBox) titleBox.textContent = window.IS_KM ? 'លក់កេស (Box)' : 'Sell Box';
+        if (subBox) subBox.textContent = window.IS_KM ? 'កេស / កាតុង' : 'Per Box';
+        return;
+    }
+
+    const uName = item.unit || (window.IS_KM ? 'កំប៉ុង' : 'can');
+    const pName = item.purchase_unit || (window.IS_KM ? 'កេស' : 'box');
+    const rate = parseFloat(item.conversion_rate || 24) || 24;
+    const costU = parseFloat(item.cost_per_unit || 0);
+    const sellU = parseFloat(item.selling_price_per_unit || 0);
+    const costB = parseFloat(item.cost_per_purchase_unit || (costU * rate));
+    const sellB = parseFloat(item.selling_price_per_box || (sellU * rate));
+
+    if (badge) {
+        badge.textContent = `1 ${pName} = ${rate} ${uName}`;
+        badge.style.display = 'inline-block';
+    }
+
+    if (titleUnit) titleUnit.textContent = window.IS_KM ? `លក់រាយ (${uName})` : `Sell Unit (${uName})`;
+    if (subUnit) subUnit.textContent = `$${costU.toFixed(2)} ដើម | $${sellU.toFixed(2)} លក់`;
+
+    if (titleBox) titleBox.textContent = window.IS_KM ? `លក់កេស (${pName})` : `Sell Box (${pName})`;
+    if (subBox) subBox.textContent = `$${costB.toFixed(2)} ដើម | $${sellB.toFixed(2)} លក់`;
+}
+
+function onEpSellOptionSelect(format) {
+    const isBox = (format === 'box');
+    const radioUnit = document.getElementById('epRadioSellUnit');
+    const radioBox = document.getElementById('epRadioSellBox');
+    const cardUnit = document.getElementById('epSellCardUnit');
+    const cardBox = document.getElementById('epSellCardBox');
+
+    if (radioUnit) radioUnit.checked = !isBox;
+    if (radioBox) radioBox.checked = isBox;
+
+    if (cardUnit) {
+        if (!isBox) {
+            cardUnit.style.borderColor = '#4f46e5';
+            cardUnit.style.background = '#f5f7ff';
+            cardUnit.style.boxShadow = '0 1px 3px rgba(79,70,229,0.08)';
+            const t = document.getElementById('epSellUnitTitle');
+            if (t) t.style.color = '#1e293b';
+        } else {
+            cardUnit.style.borderColor = '#e2e8f0';
+            cardUnit.style.background = '#ffffff';
+            cardUnit.style.boxShadow = 'none';
+            const t = document.getElementById('epSellUnitTitle');
+            if (t) t.style.color = '#64748b';
+        }
+    }
+
+    if (cardBox) {
+        if (isBox) {
+            cardBox.style.borderColor = '#4f46e5';
+            cardBox.style.background = '#f5f7ff';
+            cardBox.style.boxShadow = '0 1px 3px rgba(79,70,229,0.08)';
+            const t = document.getElementById('epSellBoxTitle');
+            if (t) t.style.color = '#1e293b';
+        } else {
+            cardBox.style.borderColor = '#e2e8f0';
+            cardBox.style.background = '#ffffff';
+            cardBox.style.boxShadow = 'none';
+            const t = document.getElementById('epSellBoxTitle');
+            if (t) t.style.color = '#64748b';
+        }
+    }
+
+    // Auto-update Product Name with Box / Unit format
+    const inp = document.getElementById('epName');
+    const directSel = document.getElementById('epDirectSelect');
+    let baseName = (inp ? inp.value : '') || (directSel ? directSel.value : '');
+    baseName = baseName.replace(/\s*\((?:Box|កេស|កំប៉ុង|ដប|Unit)\)/gi, '').trim();
+
+    if (baseName) {
+        const newName = isBox ? (baseName + (window.IS_KM ? ' (កេស)' : ' (Box)')) : baseName;
+        if (inp) inp.value = newName;
+        const badgeName = document.getElementById('epHeaderProdName');
+        if (badgeName) badgeName.textContent = newName || (window.IS_KM ? 'ទំនិញ' : 'Product');
+        checkEpDuplicate(newName);
+    }
+
+    if (currentDirectStockItem) {
+        const rate = parseFloat(currentDirectStockItem.conversion_rate || 24) || 24;
+        const costU = parseFloat(currentDirectStockItem.cost_per_unit || 0);
+        const sellU = parseFloat(currentDirectStockItem.selling_price_per_unit || 0);
+        const costB = parseFloat(currentDirectStockItem.cost_per_purchase_unit || (costU * rate));
+        const sellB = parseFloat(currentDirectStockItem.selling_price_per_box || (sellU * rate));
+
+        const targetSell = isBox ? sellB : sellU;
+        const targetCost = isBox ? costB : costU;
+
+        const epPrice = document.getElementById('epPrice');
+        const epPriceDD = document.getElementById('epPriceDD');
+        const epCostDD = document.getElementById('epDirectCost');
+
+        if (targetSell > 0) {
+            if (epPrice) epPrice.value = targetSell.toFixed(2);
+            if (epPriceDD) epPriceDD.value = targetSell.toFixed(2);
+        }
+        if (targetCost > 0 && epCostDD) {
+            epCostDD.value = targetCost.toFixed(2);
+        }
+
+        // Auto-switch image preview if direct stock has dedicated unit/box images
+        const fileInput = document.getElementById('epImageInput');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            const targetImg = isBox 
+                ? (currentDirectStockItem.image_box || currentDirectStockItem.image) 
+                : (currentDirectStockItem.image || currentDirectStockItem.image_box);
+
+            const preview = document.getElementById('epImgPreview');
+            const placeholder = document.getElementById('epPlaceholder');
+            const hoverOverlay = document.getElementById('epHoverOverlay');
+            const existingInput = document.getElementById('epExistingImage');
+
+            if (targetImg && preview && !targetImg.includes('no-image.png')) {
+                preview.src = targetImg;
+                preview.style.display = 'block';
+                preview.classList.remove('hidden');
+                if (placeholder) placeholder.style.display = 'none';
+                if (hoverOverlay) hoverOverlay.style.display = 'flex';
+                if (existingInput) existingInput.value = targetImg;
+            }
+        }
+
+        recalcEpTotals();
+        recalcEpDirectMargin();
+    }
+}
+
 function populateEpDropdowns(selectedCategory = '', selectedDirect = '') {
     // Populate categories
     const catSel = document.getElementById('epCategory');
@@ -4928,9 +5279,15 @@ function populateEpDropdowns(selectedCategory = '', selectedDirect = '') {
             if (isDrink) {
                 const opt = document.createElement('option');
                 opt.value = item.item_name;
+                opt.dataset.costUnit = item.cost_per_unit || 0;
+                opt.dataset.costBox = item.cost_per_purchase_unit || (parseFloat(item.cost_per_unit || 0) * parseFloat(item.conversion_rate || 24));
+                opt.dataset.sellUnit = item.selling_price_per_unit || 0;
+                opt.dataset.sellBox = item.selling_price_per_box || (parseFloat(item.selling_price_per_unit || 0) * parseFloat(item.conversion_rate || 24));
                 opt.dataset.cost = item.cost_per_unit || 0;
                 opt.dataset.qty = item.quantity || 0;
-                opt.dataset.unit = item.unit || 'cans';
+                opt.dataset.unit = item.unit || 'can';
+                opt.dataset.punit = item.purchase_unit || 'box';
+                opt.dataset.rate = item.conversion_rate || 24;
                 opt.dataset.image = item.image || '';
                 const isMatch = (item.item_name.toLowerCase() === selectedDirect.toLowerCase());
                 if (isMatch) { opt.selected = true; matched = true; }
@@ -5049,23 +5406,40 @@ function openEditProductModal(id, e) {
                 directCostInput.value = costVal > 0 ? costVal.toFixed(2) : '';
             }
 
-            // Determine if direct drink
+            // Determine if direct drink & check unit vs box
             const cleanName = (p.name || '').toLowerCase();
             const cleanCat = (p.category || '').toLowerCase();
             
             let isDirectProduct = false;
             if (hasRecipes) {
                 isDirectProduct = false;
+                updateEpSellOptionCards(null);
+                onEpSellOptionSelect('unit');
             } else {
-                const hasStockMatch = Boolean(epStockItems.find(it => {
+                const stockMatch = epStockItems.find(it => {
                     const isDrink = ((it.item_type === 'direct_drink') || (it.category === 'Direct Drinks'));
                     const cleanItem = (it.item_name || '').toLowerCase().replace(/\s+/g, '');
                     const cleanP = cleanName.replace(/\s+/g, '');
                     return isDrink && (cleanItem === cleanP || cleanP.includes(cleanItem) || cleanItem.includes(cleanP));
-                }));
+                });
                 const isKeywordsMatch = ['soft', 'direct', 'bottle', 'can', 'water', 'coca', 'coke', 'sting', 'ize', 'red bull', 'bacchus', 'carabao', 'pocari', 'fanta', 'sprite', 'mirinda', 'yeo', 'aquarius', 'beer', 'vital', 'juice', 'snack', 'drink', 'bachas'].some(k => cleanName.includes(k) || cleanCat.includes(k));
                 
-                isDirectProduct = Boolean(p.is_direct) || hasStockMatch || isKeywordsMatch || (parseFloat(p.cost_price || 0) > 0) || !hasRecipes;
+                isDirectProduct = Boolean(p.is_direct) || Boolean(stockMatch) || isKeywordsMatch || (parseFloat(p.cost_price || 0) > 0) || !hasRecipes;
+
+                if (stockMatch) {
+                    updateEpSellOptionCards(stockMatch);
+                    const rate = parseFloat(stockMatch.conversion_rate || 24) || 24;
+                    const boxSell = parseFloat(stockMatch.selling_price_per_box || (parseFloat(stockMatch.selling_price_per_unit || 0) * rate));
+                    const pPrice = parseFloat(p.price || 0);
+                    if (p.name.includes('(កេស)') || p.name.includes('(Box)') || (boxSell > 0 && Math.abs(pPrice - boxSell) < 0.01)) {
+                        onEpSellOptionSelect('box');
+                    } else {
+                        onEpSellOptionSelect('unit');
+                    }
+                } else {
+                    updateEpSellOptionCards(null);
+                    onEpSellOptionSelect('unit');
+                }
             }
 
             if (isDirectProduct) {
@@ -5177,31 +5551,48 @@ function onSelectEpDirectDrink(sel) {
     const val = sel.value;
     const opt = sel.options[sel.selectedIndex];
     const inp = document.getElementById('epName');
-    if (inp) {
-        inp.value = val;
-        document.getElementById('epHeaderProdName').textContent = val || (window.IS_KM ? 'ទំនិញ' : 'Product');
-        checkEpDirectStockMatch(val);
-        checkEpDuplicate(val);
-    }
     
     // Auto switch to direct drink mode
     setEpProductType('direct_drink');
 
-    // Auto fill cost if present
-    const cost = parseFloat(opt.dataset.cost || 0);
-    if (cost > 0) {
-        const directCostInput = document.getElementById('epDirectCost');
-        if (directCostInput) {
-            directCostInput.value = cost.toFixed(2);
-            recalcEpDirectMargin();
+    // Update Sell Unit vs Sell Box options
+    const found = epStockItems.find(it => (it.item_name || '').toLowerCase() === val.toLowerCase());
+    if (found) {
+        updateEpSellOptionCards(found);
+    }
+
+    const radioBox = document.getElementById('epRadioSellBox');
+    const isBox = radioBox && radioBox.checked;
+    let baseName = val.replace(/\s*\((?:Box|កេស|កំប៉ុង|ដប|Unit)\)/gi, '').trim();
+
+    if (inp) {
+        inp.value = isBox ? (baseName + (window.IS_KM ? ' (កេស)' : ' (Box)')) : baseName;
+        document.getElementById('epHeaderProdName').textContent = inp.value || (window.IS_KM ? 'ទំនិញ' : 'Product');
+        checkEpDirectStockMatch(val);
+        checkEpDuplicate(inp.value);
+    }
+
+    if (found) {
+        if (isBox) {
+            onEpSellOptionSelect('box');
+        } else {
+            onEpSellOptionSelect('unit');
+        }
+    } else {
+        const cost = parseFloat(opt.dataset.cost || 0);
+        if (cost > 0) {
+            const directCostInput = document.getElementById('epDirectCost');
+            if (directCostInput) {
+                directCostInput.value = cost.toFixed(2);
+                recalcEpDirectMargin();
+            }
         }
     }
 
     // Auto take image from selected direct drink
     let imgUrl = opt.dataset.image;
-    if (!imgUrl) {
-        const found = epStockItems.find(it => (it.item_name || '').toLowerCase() === val.toLowerCase());
-        if (found && found.image) imgUrl = found.image;
+    if (!imgUrl && found && found.image) {
+        imgUrl = found.image;
     }
 
     if (imgUrl && imgUrl.trim() && !imgUrl.includes('no-image.png')) {
@@ -5798,6 +6189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // initial JS pagination render
     lastFiltered = [...allCards];
+    updateStatCounts();
     renderPage();
 });
 </script>

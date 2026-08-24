@@ -268,6 +268,7 @@ foreach ($table_orders as $to) {
         'total'          => fmtNum($net),
         'cogs'           => fmtNum($ocogs),
         'profit'         => fmtNum($profit),
+        'profit_val'     => $profit,
         'currency'       => '$',
         'place_by'       => $staff,
     ];
@@ -346,7 +347,7 @@ if (!empty($_GET['dompdf'])) {
             <td><?= $r['qty_item'] ?></td>
             <td><?= $r['total'] ?></td>
             <td><?= $r['cogs'] ?></td>
-            <td><?= $r['profit'] ?></td>
+            <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color:#dc2626;font-weight:bold;' : '' ?>"><?= $r['profit'] ?></td>
             <td><?= $r['payment_method'] ?></td>
             <td><?= $r['place_by'] ?></td>
           </tr>
@@ -356,7 +357,7 @@ if (!empty($_GET['dompdf'])) {
             <td style="background:#c6efce;"><?= $sum_qty ?></td>
             <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
             <td style="background:#c6efce;"><?= $fmt_sum_cogs ?></td>
-            <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
+            <td style="background:#c6efce;<?= $sum_profit < 0 ? 'color:#dc2626;' : '' ?>"><?= $fmt_sum_profit ?></td>
             <td style="background:#fff;"></td>
             <td style="background:#fff;"></td>
           </tr>
@@ -548,7 +549,7 @@ if (!empty($_GET['dompdf'])) {
           <td><?= $r['qty_item'] ?></td>
           <td><?= $r['total'] ?></td>
           <td><?= $r['cogs'] ?></td>
-          <td><?= $r['profit'] ?></td>
+          <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color:#dc2626;font-weight:bold;' : '' ?>"><?= $r['profit'] ?></td>
           <td><?= $r['payment_method'] ?></td>
           <td><?= $r['place_by'] ?></td>
         </tr>
@@ -558,7 +559,7 @@ if (!empty($_GET['dompdf'])) {
           <td style="background:#c6efce;"><?= $sum_qty ?></td>
           <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
           <td style="background:#c6efce;"><?= $fmt_sum_cogs ?></td>
-          <td style="background:#c6efce;"><?= $fmt_sum_profit ?></td>
+          <td style="background:#c6efce;<?= $sum_profit < 0 ? 'color:#dc2626;' : '' ?>"><?= $fmt_sum_profit ?></td>
           <td style="background:#fff;"></td>
           <td style="background:#fff;"></td>
         </tr>

@@ -271,6 +271,63 @@ function deductStockForOrder(int $order_id, PDO $pdo, bool $strict_mode = false,
                 'amount_used'  => $totalReq
             ];
         }
+
+        // Direct Drink Fallback: If no BOM recipe exists, check direct drink stock match by name
+        if (empty($recipes)) {
+            $pName = trim((string)($oi['product_name'] ?? ''));
+            $cleanBase = trim(preg_replace('/\s*\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Unit|កំប៉ុង|ដប|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', '', $pName));
+            $cleanBase = trim(preg_replace('/\s+(?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)$/ui', '', $cleanBase));
+
+            $isBoxSale = false;
+            if (preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $pName) ||
+                preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $pName) ||
+                preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $pName)) {
+                $isBoxSale = true;
+            }
+
+            $dStmt = $pdo->prepare("SELECT item_id, item_name, quantity AS current_stock, alert_level, cost_per_unit, unit, purchase_unit, conversion_rate, selling_price_per_box, selling_price_per_unit 
+                                    FROM stock_items 
+                                    WHERE item_type = 'direct_drink' AND is_active = 1 
+                                      AND (
+                                        LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) 
+                                        OR LOWER(REPLACE(item_name, ' ', '')) = LOWER(REPLACE(?, ' ', ''))
+                                        OR item_name LIKE ? 
+                                        OR ? LIKE CONCAT('%', item_name, '%')
+                                        OR ? LIKE CONCAT('%', item_name, '%')
+                                      ) 
+                                    LIMIT 1");
+            $wild = "%{$cleanBase}%";
+            $dStmt->execute([$cleanBase, $pName, $wild, $cleanBase, $pName]);
+            $dRow = $dStmt->fetch();
+            if ($dRow) {
+                $convRate = (float)($dRow['conversion_rate'] ?? 24);
+                if ($convRate <= 0) $convRate = 24;
+
+                $totalReq = $isBoxSale ? ((float)$orderedQty * $convRate) : (float)$orderedQty;
+                $itemId = (int)$dRow['item_id'];
+
+                if (!isset($aggregatedIngredients[$itemId])) {
+                    $aggregatedIngredients[$itemId] = [
+                        'item_id'          => $itemId,
+                        'item_name'        => $dRow['item_name'],
+                        'unit'             => $dRow['unit'],
+                        'cost_per_unit'    => (float)$dRow['cost_per_unit'],
+                        'alert_level'      => (float)$dRow['alert_level'],
+                        'current_stock'    => (float)$dRow['current_stock'],
+                        'total_qty_needed' => 0.0,
+                        'products'         => []
+                    ];
+                }
+
+                $aggregatedIngredients[$itemId]['total_qty_needed'] += $totalReq;
+                $aggregatedIngredients[$itemId]['products'][] = [
+                    'product_id'   => $productId,
+                    'product_name' => $oi['product_name'],
+                    'qty_ordered'  => $orderedQty,
+                    'amount_used'  => $totalReq
+                ];
+            }
+        }
     }
 
     if (empty($aggregatedIngredients)) {
