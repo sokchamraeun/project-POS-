@@ -2905,37 +2905,54 @@ function showClockToast(msg, isErr) {
 </div>
 <?php else: ?>
 <?php $isKm = (current_lang() === 'km'); ?>
-<div class="vo-page-wrapper w-full h-full p-4 md:p-6 bg-[#f8fafc] flex flex-col gap-4 overflow-hidden" style="background-color: #f8fafc !important;">
+<style>
+.vo-date-pill {
+  color: #64748b;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+.vo-date-pill:hover {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+.vo-date-pill.active {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3) !important;
+}
+</style>
+<div class="vo-page-wrapper w-full h-full p-4 md:p-6 lg:p-7 bg-[#f8fafc] flex flex-col gap-5 overflow-hidden" style="background-color: #f8fafc !important;">
 
   <!-- TOP HEADER BAR -->
-  <div class="flex items-center justify-between gap-4 pb-1 flex-shrink-0">
+  <div class="flex items-center justify-between gap-4 pb-0.5 flex-shrink-0">
     <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
       <?= $isKm ? 'បញ្ជីការកុម្ម៉ង់' : __('nav_orders', 'Orders') ?>
     </h1>
   </div>
 
-  <!-- TOP 2 METRIC CARDS (MEDIUM SIZE) -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
+  <!-- TOP 2 METRIC CARDS (ELEVATED CARDS) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-shrink-0">
     
     <!-- 1. Total Orders Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
-      <div class="w-11 h-11 rounded-xl bg-slate-100/90 border border-slate-200/50 text-slate-400 flex items-center justify-center text-lg flex-shrink-0">
+    <div class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300 group">
+      <div class="w-12 h-12 rounded-2xl bg-slate-100/90 border border-slate-200 text-slate-500 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
         <i class="fa-regular fa-file-lines"></i>
       </div>
       <div class="flex flex-col min-w-0">
-        <span class="text-xs font-semibold text-slate-400 truncate"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
-        <span class="text-xl md:text-2xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-all-orders">0</span>
+        <span class="text-xs font-bold text-slate-400 truncate tracking-wide"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
+        <span class="text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="stat-count-all-orders">0</span>
       </div>
     </div>
 
     <!-- 2. Today's Total Revenue Card -->
-    <div class="bg-white border border-slate-100 rounded-2xl px-5 py-3.5 shadow-sm flex items-center gap-4 transition hover:shadow-md">
-      <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0 font-bold">
+    <div class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-emerald-300 group">
+      <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-xl flex-shrink-0 font-black group-hover:scale-105 transition-all duration-200 shadow-2xs">
         <i class="fa-solid fa-dollar-sign"></i>
       </div>
       <div class="flex flex-col min-w-0">
-        <span class="text-xs font-semibold text-slate-400 truncate"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
-        <span class="text-xl md:text-2xl font-black text-slate-900 leading-tight mt-0.5" id="stat-count-total-price">$0.00</span>
+        <span class="text-xs font-bold text-slate-400 truncate tracking-wide"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
+        <span class="text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="stat-count-total-price">$0.00</span>
       </div>
     </div>
 
@@ -2949,23 +2966,23 @@ function showClockToast(msg, isErr) {
       <input type="text" id="searchInput" 
              placeholder="<?= $isKm ? 'ស្វែងរកតាមឈ្មោះ, លេខកុម្ម៉ង់...' : 'Search by name, order #...' ?>"
              oninput="searchOrders()" 
-             class="w-full pl-9 pr-4 py-2 bg-slate-100/60 border border-slate-200/60 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-300 shadow-none transition">
+             class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-xs transition-all">
     </div>
 
     <!-- Right: Date Range Segmented Switcher -->
     <div class="flex items-center gap-3 flex-wrap justify-between md:justify-end">
       <!-- Date Segmented Pills -->
-      <div class="inline-flex items-center p-1 bg-slate-100/80 border border-slate-200/60 rounded-xl gap-1" id="voDatePillsDesktop">
-        <button type="button" onclick="filterDateRange('all', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer active"><?= $isKm ? 'ទាំងអស់' : 'All' ?></button>
-        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
-        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
-        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
+      <div class="inline-flex items-center p-1.5 bg-white border border-slate-200 rounded-full gap-1 shadow-xs" id="voDatePillsDesktop">
+        <button type="button" onclick="filterDateRange('all', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer active"><?= $isKm ? 'ទាំងអស់' : 'All' ?></button>
+        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
+        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
+        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
       </div>
     </div>
   </div>
 
   <!-- TABLE CONTAINER CARD WITH INTERNAL SCROLL -->
-  <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden" id="ordersTableCard">
+  <div class="bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md transition-all duration-300 flex-1 min-h-0 flex flex-col overflow-hidden" id="ordersTableCard">
     <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="ordersBody"></div>
   </div>
 
@@ -3849,18 +3866,18 @@ function renderTableView() {
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="border-b border-slate-100 bg-white">
-                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.no}</th>
-                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.item}</th>
-                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.total_price}</th>
-                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.time}</th>
-                        <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.place_by}</th>
-                        <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.action}</th>
+                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.no}</th>
+                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.item}</th>
+                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.total_price}</th>
+                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.time}</th>
+                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.place_by}</th>
+                        <th class="py-4 px-6 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.action}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td colspan="6" class="text-center py-16 px-4 text-slate-400">
-                            <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl">
+                            <div class="w-14 h-14 rounded-2xl bg-slate-100/80 border border-slate-200/60 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl shadow-2xs">
                                 <i class="fa-solid fa-mug-hot"></i>
                             </div>
                             <div class="font-bold text-slate-700 text-sm mb-1">${window.I18N.no_orders_found}</div>
@@ -3882,9 +3899,9 @@ function renderTableView() {
         const itemsSummary = `
             <button type="button" 
                     onclick="openOrderProductsModal(${Number(o.order_id)})" 
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-700 text-xs font-medium transition cursor-pointer" 
+                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 hover:bg-emerald-50 border border-slate-200/80 hover:border-emerald-200 text-slate-700 hover:text-emerald-800 text-xs font-bold transition-all duration-150 cursor-pointer shadow-2xs" 
                     title="${escapeHtml(currentIsKm ? 'ចុចដើម្បីមើលមុខទំនិញ' : 'Click to view products')}">
-                <i class="fa-solid fa-cube text-amber-600/80 text-[10px]"></i>
+                <i class="fa-solid fa-cube text-amber-600 text-[10px]"></i>
                 <span>${totalItemsQty} ${itemLabel}</span>
             </button>
         `;
@@ -3894,18 +3911,18 @@ function renderTableView() {
         const totalFormatted = '$' + parseFloat(o.total || 0).toFixed(2);
 
         return `
-            <tr class="border-b border-slate-50 hover:bg-slate-50/60 transition-colors" id="row-${o.order_id}">
-                <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">${orderNoPadded}</td>
+            <tr class="border-b border-slate-100/80 hover:bg-emerald-50/20 transition-colors duration-150" id="row-${o.order_id}">
+                <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap">${orderNoPadded}</td>
                 <td class="py-4 px-6 whitespace-nowrap">${itemsSummary}</td>
-                <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">${totalFormatted}</td>
-                <td class="py-4 px-6 text-xs text-slate-400 font-normal whitespace-nowrap">${escapeHtml(dtFormatted)}</td>
-                <td class="py-4 px-6 text-xs text-slate-600 font-normal whitespace-nowrap">${staffName}</td>
+                <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap">${totalFormatted}</td>
+                <td class="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap">${escapeHtml(dtFormatted)}</td>
+                <td class="py-4 px-6 text-xs text-slate-700 font-medium whitespace-nowrap">${staffName}</td>
                 <td class="py-4 px-6 text-center whitespace-nowrap">
                     <div class="inline-flex items-center justify-center gap-2">
-                        <button type="button" onclick="openOrderProductsModal(${Number(o.order_id)})" class="w-7 h-7 rounded-full text-[#8B2635] hover:bg-[#8B2635]/10 inline-flex items-center justify-center transition cursor-pointer" title="View Details">
+                        <button type="button" onclick="openOrderProductsModal(${Number(o.order_id)})" class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200/70 hover:border-rose-200 text-[#8B2635] inline-flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" title="View Details">
                             <i class="fa-regular fa-eye text-xs"></i>
                         </button>
-                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-7 h-7 rounded-full text-[#4338CA] hover:bg-[#4338CA]/10 inline-flex items-center justify-center transition cursor-pointer" title="Print Receipt">
+                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200/70 hover:border-indigo-200 text-[#4338CA] inline-flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" title="Print Receipt">
                             <i class="fa-solid fa-print text-xs"></i>
                         </button>
                     </div>
@@ -3916,17 +3933,17 @@ function renderTableView() {
 
     container.innerHTML = `
         <table class="w-full text-left border-collapse">
-            <thead class="sticky top-0 bg-white z-10 shadow-[0_1px_0_0_#f1f5f9]">
-                <tr class="border-b border-slate-100 bg-white">
-                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.no}</th>
-                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.item}</th>
-                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.total_price}</th>
-                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.time}</th>
-                    <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.place_by}</th>
-                    <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">${window.I18N.action}</th>
+            <thead class="sticky top-0 bg-slate-50/95 backdrop-blur z-10 border-b border-slate-200">
+                <tr class="bg-transparent">
+                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.no}</th>
+                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.item}</th>
+                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.total_price}</th>
+                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.time}</th>
+                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.place_by}</th>
+                    <th class="py-4 px-6 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.action}</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-50">
+            <tbody class="divide-y divide-slate-100/70">
                 ${rowsHtml}
             </tbody>
         </table>

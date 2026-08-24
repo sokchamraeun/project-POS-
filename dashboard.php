@@ -373,24 +373,24 @@ if ($q_rec) {
             <!-- Right: Filter Pills & New POS Button -->
             <div class="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-end flex-wrap">
                 <!-- Filter Segmented Control -->
-                <div class="bg-slate-100 p-1 rounded-full flex items-center gap-1 border border-slate-200/50 shadow-xs">
+                <div class="bg-white p-1.5 rounded-full flex items-center gap-1 border border-slate-200 shadow-xs">
                     <a href="dashboard.php?quick_range=today" 
-                       class="px-4 py-1.5 text-xs font-extrabold rounded-full transition <?= $_quick_range === 'today' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">
+                       class="px-4 py-1.5 text-xs font-extrabold rounded-full transition-all duration-200 <?= $_quick_range === 'today' ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' ?>">
                         <?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?>
                     </a>
                     <a href="dashboard.php?quick_range=this_week" 
-                       class="px-4 py-1.5 text-xs font-bold rounded-full transition <?= ($_quick_range === 'week' || $_quick_range === 'this_week') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">
+                       class="px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-200 <?= ($_quick_range === 'week' || $_quick_range === 'this_week') ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' ?>">
                         <?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?>
                     </a>
                     <a href="dashboard.php?quick_range=this_month" 
-                       class="px-4 py-1.5 text-xs font-bold rounded-full transition <?= ($_quick_range === 'month' || $_quick_range === 'this_month') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' ?>">
+                       class="px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-200 <?= ($_quick_range === 'month' || $_quick_range === 'this_month') ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50' ?>">
                         <?= $isKm ? 'ខែនេះ' : 'This Month' ?>
                     </a>
                 </div>
 
                 <!-- New POS Order Button -->
                 <a href="menu.php" 
-                   class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs md:text-sm font-bold rounded-xl shadow-sm transition hover:shadow cursor-pointer">
+                   class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs md:text-sm font-bold rounded-2xl shadow-sm shadow-emerald-600/25 transition-all transform active:scale-95 cursor-pointer">
                     <i class="fa-solid fa-plus text-xs"></i>
                     <span><?= $isKm ? 'កុម្ម៉ង់ថ្មី (New POS)' : 'New POS' ?></span>
                 </a>
@@ -398,49 +398,49 @@ if ($q_rec) {
         </div>
 
         <!-- ════ ROW 1: 3 KPI CARDS (CLICKABLE LINKS TO REPORTS) ════ -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-shrink-0">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 flex-shrink-0">
             <!-- 1. Revenue Card -> Links to Analytics & Export (report.php) -->
-            <a href="<?= $report_link ?>" class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-emerald-400 hover:shadow-md hover:-translate-y-0.5 transition group cursor-pointer block text-inherit no-underline">
+            <a href="<?= $report_link ?>" class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-lg hover:-translate-y-1 hover:border-emerald-400/80 transition-all duration-300 group cursor-pointer block text-inherit no-underline">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-slate-500 tracking-wide group-hover:text-slate-800 transition"><?= $isKm ? 'ចំណូលថ្ងៃនេះ' : 'Today\'s Revenue' ?></span>
-                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-black group-hover:bg-emerald-600 group-hover:text-white transition">
+                    <div class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100/80 flex items-center justify-center text-lg font-black group-hover:bg-emerald-600 group-hover:text-white transition-all duration-200 shadow-2xs">
                         <i class="fa-solid fa-dollar-sign"></i>
                     </div>
                 </div>
-                <div class="mt-2 flex items-center justify-between">
+                <div class="mt-3 flex items-center justify-between">
                     <div class="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">$<?= number_format($sales, 2) ?></div>
-                    <i class="fa-solid fa-arrow-up-right-from-square text-[11px] text-slate-300 group-hover:text-emerald-600 transition"></i>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-xs text-slate-300 group-hover:text-emerald-600 transition"></i>
                 </div>
             </a>
 
             <!-- 2. Orders Count Card -> Links to Daily Summary (daily_report.php) -->
-            <a href="<?= $daily_report_link ?>" class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-purple-400 hover:shadow-md hover:-translate-y-0.5 transition group cursor-pointer block text-inherit no-underline">
+            <a href="<?= $daily_report_link ?>" class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-lg hover:-translate-y-1 hover:border-purple-400/80 transition-all duration-300 group cursor-pointer block text-inherit no-underline">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-slate-500 tracking-wide group-hover:text-slate-800 transition"><?= $isKm ? 'ការកុម្ម៉ង់' : 'Total Orders' ?></span>
-                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-base group-hover:bg-purple-600 group-hover:text-white transition">
+                    <div class="w-11 h-11 rounded-2xl bg-purple-50 text-purple-600 border border-purple-100/80 flex items-center justify-center text-base font-black group-hover:bg-purple-600 group-hover:text-white transition-all duration-200 shadow-2xs">
                         <i class="fa-solid fa-receipt"></i>
                     </div>
                 </div>
-                <div class="mt-2 flex items-center justify-between">
+                <div class="mt-3 flex items-center justify-between">
                     <div class="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight"><?= number_format($total_orders) ?></div>
-                    <i class="fa-solid fa-arrow-up-right-from-square text-[11px] text-slate-300 group-hover:text-purple-600 transition"></i>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-xs text-slate-300 group-hover:text-purple-600 transition"></i>
                 </div>
             </a>
 
             <!-- 3. Items Sold Card -> Links to Analytics & Export (report.php) -->
-            <a href="<?= $report_link ?>" class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-teal-400 hover:shadow-md hover:-translate-y-0.5 transition group cursor-pointer block text-inherit no-underline">
+            <a href="<?= $report_link ?>" class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-lg hover:-translate-y-1 hover:border-teal-400/80 transition-all duration-300 group cursor-pointer block text-inherit no-underline">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-slate-500 tracking-wide group-hover:text-slate-800 transition"><?= $isKm ? 'ភេសជ្ជៈលក់ចេញ' : 'Beverages Sold' ?></span>
-                    <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-base group-hover:bg-teal-600 group-hover:text-white transition">
+                    <div class="w-11 h-11 rounded-2xl bg-teal-50 text-teal-600 border border-teal-100/80 flex items-center justify-center text-base font-black group-hover:bg-teal-600 group-hover:text-white transition-all duration-200 shadow-2xs">
                         <i class="fa-solid fa-mug-hot"></i>
                     </div>
                 </div>
-                <div class="mt-2 flex items-center justify-between">
+                <div class="mt-3 flex items-center justify-between">
                     <div class="flex items-baseline gap-1.5">
                         <span class="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight"><?= number_format($items_sold) ?></span>
                         <span class="text-sm font-bold text-slate-400"><?= $isKm ? 'កែវ' : 'items' ?></span>
                     </div>
-                    <i class="fa-solid fa-arrow-up-right-from-square text-[11px] text-slate-300 group-hover:text-teal-600 transition"></i>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-xs text-slate-300 group-hover:text-teal-600 transition"></i>
                 </div>
             </a>
         </div>
@@ -449,13 +449,13 @@ if ($q_rec) {
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             
             <!-- ── ROW 1 LEFT: WEEKLY REVENUE CHART (8 COLS) ── -->
-            <div class="lg:col-span-8 bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col justify-between">
-                <div class="flex items-center justify-between gap-2 flex-wrap mb-3">
+            <div class="lg:col-span-8 bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-4">
                     <div>
                         <h2 class="text-sm md:text-base font-extrabold text-slate-900"><?= $isKm ? 'ទិន្នន័យចំណូលសប្តាហ៍នេះ ($)' : 'Weekly Revenue Chart ($)' ?></h2>
-                        <p class="text-xs text-slate-400 font-medium"><?= $isKm ? 'ចំនួនទឹកប្រាក់ចំណូលសរុបគិតតាមថ្ងៃ' : 'Total sales revenue by day' ?></p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5"><?= $isKm ? 'ចំនួនទឹកប្រាក់ចំណូលសរុបគិតតាមថ្ងៃ' : 'Total sales revenue by day' ?></p>
                     </div>
-                    <span class="px-3 py-1 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold">
+                    <span class="px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold shadow-2xs">
                         <?= htmlspecialchars($week_range_badge) ?>
                     </span>
                 </div>
@@ -465,10 +465,10 @@ if ($q_rec) {
             </div>
 
             <!-- ── ROW 1 RIGHT: CATEGORY DONUT CHART (4 COLS) ── -->
-            <div class="lg:col-span-4 bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col justify-between">
+            <div class="lg:col-span-4 bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div>
                     <h2 class="text-sm md:text-base font-extrabold text-slate-900"><?= $isKm ? 'សមាមាត្រការលក់តាមមុខទំនិញ' : 'Category Sales Proportion' ?></h2>
-                    <p class="text-xs text-slate-400 font-medium"><?= $isKm ? 'ប្រភេទទំនិញដែលបានលក់' : 'Product categories sold' ?></p>
+                    <p class="text-xs text-slate-400 font-medium mt-0.5"><?= $isKm ? 'ប្រភេទទំនិញដែលបានលក់' : 'Product categories sold' ?></p>
                 </div>
 
                 <!-- Donut Canvas with Center KPI text -->
@@ -481,7 +481,7 @@ if ($q_rec) {
                 </div>
 
                 <!-- Legend list -->
-                <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                <div class="flex flex-col gap-2 pt-3 border-t border-slate-100">
                     <?php foreach ($chart_cat_list as $cl): ?>
                     <div class="flex items-center justify-between text-xs">
                         <div class="flex items-center gap-2">
@@ -495,13 +495,13 @@ if ($q_rec) {
             </div>
 
             <!-- ── ROW 2 LEFT: HOURLY RUSH HOURS CHART (8 COLS) ── -->
-            <div class="lg:col-span-8 bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col justify-between">
-                <div class="flex items-center justify-between gap-2 flex-wrap mb-3">
+            <div class="lg:col-span-8 bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-4">
                     <div>
                         <h2 class="text-sm md:text-base font-extrabold text-slate-900"><?= $isKm ? 'ចរាចរណ៍កុម្ម៉ង់តាមម៉ោង (Rush Hours)' : 'Hourly Order Traffic (Rush Hours)' ?></h2>
-                        <p class="text-xs text-slate-400 font-medium"><?= $isKm ? 'ម៉ោងដែលមានការកុម្ម៉ង់ច្រើនបំផុត' : 'Peak hours with highest customer volume' ?></p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5"><?= $isKm ? 'ម៉ោងដែលមានការកុម្ម៉ង់ច្រើនបំផុត' : 'Peak hours with highest customer volume' ?></p>
                     </div>
-                    <span class="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/70 text-xs font-bold">
+                    <span class="px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs">
                         Peak: <?= htmlspecialchars($peak_hour_str) ?>
                     </span>
                 </div>
@@ -511,15 +511,15 @@ if ($q_rec) {
             </div>
 
             <!-- ── ROW 2 RIGHT: RECENT ORDERS LIST (4 COLS) ── -->
-            <div class="lg:col-span-4 bg-white border border-slate-200/80 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col justify-between">
-                <div class="flex items-center justify-between mb-2">
+            <div class="lg:col-span-4 bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
                     <h2 class="text-sm md:text-base font-extrabold text-slate-900"><?= $isKm ? 'ការកុម្ម៉ង់ចុងក្រោយ' : 'Recent Orders' ?></h2>
                     <a href="view_order.php" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition cursor-pointer">
                         <?= $isKm ? 'មើលទាំងអស់' : 'View All' ?>
                     </a>
                 </div>
 
-                <div class="flex flex-col divide-y divide-slate-100 flex-1 justify-around">
+                <div class="flex flex-col flex-1 justify-around space-y-2">
                     <?php if (empty($recent_orders_list)): ?>
                     <div class="py-6 text-center text-xs text-slate-400 font-medium">
                         <?= $isKm ? 'គ្មានការកុម្ម៉ង់ថ្មីៗទេ' : 'No recent orders found' ?>
@@ -537,9 +537,9 @@ if ($q_rec) {
                             $r_pmLower = strtolower($ro['payment_method'] ?? 'cash');
                             $isBakong  = (strpos($r_pmLower, 'bakong') !== false || strpos($r_pmLower, 'khqr') !== false || strpos($r_pmLower, 'qr') !== false);
                         ?>
-                        <a href="view_order.php" class="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/90 -mx-2 px-2 rounded-xl transition cursor-pointer text-inherit no-underline group">
-                            <div class="flex items-center gap-2.5 min-w-0">
-                                <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-black flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition">
+                        <a href="view_order.php" class="p-3 flex items-center justify-between gap-3 bg-slate-50/60 hover:bg-emerald-50/40 border border-slate-100 hover:border-emerald-200/80 rounded-2xl transition-all duration-200 cursor-pointer text-inherit no-underline group shadow-2xs">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <span class="w-8 h-8 rounded-xl bg-white border border-slate-200/80 text-slate-800 text-xs font-black flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition shadow-2xs">
                                     <?= htmlspecialchars($r_orderNo) ?>
                                 </span>
                                 <div class="flex flex-col min-w-0">

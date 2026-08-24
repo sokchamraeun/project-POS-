@@ -29,6 +29,16 @@ $_page_subtitle = $page_subtitle ?? '';
             <?php endif; ?>
         </div>
     </div>
+    <div class="flex items-center gap-3">
+        <button type="button" 
+                onclick="window.toggleTheme()" 
+                class="theme-toggle-btn"
+                style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 14px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; cursor: pointer; transition: all 0.2s; font-size: 13px; font-weight: 600;"
+                title="Toggle Dark / Light Theme">
+            <i class="fa-solid fa-moon" id="topThemeIcon"></i>
+            <span id="topThemeText">Dark</span>
+        </button>
+    </div>
 </div>
 
 <script>

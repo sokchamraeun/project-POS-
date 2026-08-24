@@ -900,6 +900,18 @@ html[data-theme="light"] .toast-dismiss:hover {
 
     <!-- Sidebar Footer -->
     <div class="sidebar-footer">
+        <!-- Theme Mode Switcher -->
+        <div class="sidebar-theme-switch" id="sidebarThemeSwitch">
+            <button type="button" class="theme-switch-btn theme-switch-light" id="themeBtnLight" onclick="setAppTheme('light')" title="<?= current_lang() === 'km' ? 'ប្តូរទៅពន្លឺ (Light Mode)' : 'Switch to Light Mode' ?>">
+                <i class="fa-solid fa-sun theme-switch-icon"></i>
+                <span class="theme-switch-label"><?= current_lang() === 'km' ? 'ពន្លឺ' : 'Light' ?></span>
+            </button>
+            <button type="button" class="theme-switch-btn theme-switch-dark active" id="themeBtnDark" onclick="setAppTheme('dark')" title="<?= current_lang() === 'km' ? 'ប្តូរទៅងងឹត (Dark Mode)' : 'Switch to Dark Mode' ?>">
+                <i class="fa-solid fa-moon theme-switch-icon"></i>
+                <span class="theme-switch-label"><?= current_lang() === 'km' ? 'ងងឹត' : 'Dark' ?></span>
+            </button>
+        </div>
+
         <!-- Language Switcher Card -->
         <div class="sidebar-lang-card">
             <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" class="sidebar-lang-btn" title="<?= current_lang() === 'en' ? 'Switch to ភាសាខ្មែរ' : 'Switch to English' ?>">

@@ -35,12 +35,33 @@ function _ensure_categories_schema($conn) {
     static $done = false;
     if ($done) return;
     $done = true;
-    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS description VARCHAR(255) NULL DEFAULT ''");
-    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_sweetness TINYINT(1) NOT NULL DEFAULT 1");
-    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_ice TINYINT(1) NOT NULL DEFAULT 1");
-    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_milk TINYINT(1) NOT NULL DEFAULT 1");
-    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_addons TINYINT(1) NOT NULL DEFAULT 1");
-    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS earns_points TINYINT(1) NOT NULL DEFAULT 1");
+
+    // 1. Ensure table exists
+    @$conn->query("CREATE TABLE IF NOT EXISTS categories (
+        category_id INT AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(50) NOT NULL UNIQUE,
+        name VARCHAR(100) NOT NULL,
+        description VARCHAR(255) NULL DEFAULT '',
+        icon VARCHAR(50) DEFAULT 'fa-circle',
+        display_order INT DEFAULT 0,
+        is_active TINYINT(1) DEFAULT 1
+    ) DEFAULT CHARSET=utf8mb4");
+
+    // 2. Safe cross-version column checks
+    $cols = [
+        'description'     => "VARCHAR(255) NULL DEFAULT ''",
+        'offer_sweetness' => "TINYINT(1) NOT NULL DEFAULT 1",
+        'offer_ice'       => "TINYINT(1) NOT NULL DEFAULT 1",
+        'offer_milk'      => "TINYINT(1) NOT NULL DEFAULT 1",
+        'offer_addons'    => "TINYINT(1) NOT NULL DEFAULT 1",
+        'earns_points'    => "TINYINT(1) NOT NULL DEFAULT 1"
+    ];
+    foreach ($cols as $colName => $colDef) {
+        $chk = @$conn->query("SHOW COLUMNS FROM categories LIKE '$colName'");
+        if ($chk && $chk->num_rows === 0) {
+            @$conn->query("ALTER TABLE categories ADD `$colName` $colDef");
+        }
+    }
 }
 
 function cat_upload_icon(): string {
@@ -294,39 +315,46 @@ if ($catCountInDb === 0 || isset($_GET['sync'])) {
 
 // ── Load categories with product counts ──
 $categories = [];
-try {
-    $res = $conn->query("
-        SELECT c.category_id, c.slug, c.name, 
-               COALESCE(c.description, '') AS description, 
-               COALESCE(c.icon, 'fa-circle') AS icon, 
-               COALESCE(c.display_order, 0) AS display_order, 
-               COALESCE(c.is_active, 1) AS is_active,
-               COALESCE(c.offer_sweetness, 1) AS offer_sweetness, 
-               COALESCE(c.offer_ice, 1) AS offer_ice, 
-               COALESCE(c.offer_milk, 1) AS offer_milk, 
-               COALESCE(c.offer_addons, 1) AS offer_addons, 
-               COALESCE(c.earns_points, 1) AS earns_points,
-               (SELECT COUNT(*) FROM products p WHERE p.category_id = c.category_id OR p.category = c.slug OR p.category = c.name) AS product_count
-        FROM categories c
-        ORDER BY c.display_order ASC, c.category_id ASC
-    ");
-    if ($res) {
-        while ($row = $res->fetch_assoc()) $categories[] = $row;
+$res = $conn->query("SELECT * FROM categories ORDER BY display_order ASC, category_id ASC");
+if ($res) {
+    while ($row = $res->fetch_assoc()) {
+        $row['description']     = $row['description']     ?? '';
+        $row['offer_sweetness'] = (int)($row['offer_sweetness'] ?? 1);
+        $row['offer_ice']       = (int)($row['offer_ice']       ?? 1);
+        $row['offer_milk']      = (int)($row['offer_milk']      ?? 1);
+        $row['offer_addons']    = (int)($row['offer_addons']    ?? 1);
+        $row['earns_points']    = (int)($row['earns_points']    ?? 1);
+        $row['is_active']       = (int)($row['is_active']       ?? 1);
+        $row['display_order']   = (int)($row['display_order']   ?? 0);
+        $row['icon']            = !empty($row['icon']) ? $row['icon'] : 'fa-circle';
+        $row['product_count']   = 0;
+        $categories[] = $row;
     }
-} catch (Throwable $e) {
-    $res = @$conn->query("SELECT * FROM categories ORDER BY display_order ASC, category_id ASC");
-    if ($res) {
-        while ($row = $res->fetch_assoc()) {
-            $row['description']     = $row['description']     ?? '';
-            $row['offer_sweetness'] = $row['offer_sweetness'] ?? 1;
-            $row['offer_ice']       = $row['offer_ice']       ?? 1;
-            $row['offer_milk']      = $row['offer_milk']      ?? 1;
-            $row['offer_addons']    = $row['offer_addons']    ?? 1;
-            $row['earns_points']    = $row['earns_points']    ?? 1;
-            $row['product_count']   = 0;
-            $categories[] = $row;
+}
+
+// Populate product counts for each category
+if (!empty($categories)) {
+    $counts = [];
+    $cRes = @$conn->query("SELECT category, category_id, COUNT(*) AS cnt FROM products GROUP BY category, category_id");
+    if ($cRes) {
+        while ($cr = $cRes->fetch_assoc()) {
+            if (!empty($cr['category_id'])) {
+                $k = 'id_' . (int)$cr['category_id'];
+                $counts[$k] = ($counts[$k] ?? 0) + (int)$cr['cnt'];
+            }
+            if (!empty($cr['category'])) {
+                $k = 'name_' . strtolower(trim($cr['category']));
+                $counts[$k] = ($counts[$k] ?? 0) + (int)$cr['cnt'];
+            }
         }
     }
+    foreach ($categories as &$c) {
+        $cid = (int)$c['category_id'];
+        $slug = strtolower(trim($c['slug'] ?? ''));
+        $name = strtolower(trim($c['name'] ?? ''));
+        $c['product_count'] = $counts['id_' . $cid] ?? $counts['name_' . $slug] ?? $counts['name_' . $name] ?? 0;
+    }
+    unset($c);
 }
 
 $totalCats    = count($categories);
@@ -474,52 +502,52 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             </div>
 
             <!-- 2. KPI Stat Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <!-- Card 1: Total Categories -->
                 <div onclick="setCatFilter('all')" 
-                     class="vo-stat-box bg-white rounded-3xl p-5 border border-slate-100 shadow-xs flex items-center gap-4 transition hover:shadow-md cursor-pointer group" 
+                     class="vo-stat-box bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-300 cursor-pointer group" 
                      data-filter="all">
-                    <div class="w-12 h-12 rounded-2xl bg-indigo-50/80 border border-indigo-100 text-indigo-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
                         <i class="fa-solid fa-layer-group"></i>
                     </div>
                     <div>
-                        <span class="block text-xs font-semibold text-slate-400"><?= current_lang() === 'km' ? 'ប្រភេទទាំងអស់' : __('all_categories', 'All Categories') ?></span>
-                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight" id="statTotalCats"><?= $totalCats ?></span>
-                        <span class="block text-[11px] font-medium text-slate-400"><?= current_lang() === 'km' ? 'សរុបក្នុងប្រព័ន្ធ' : 'Total in system' ?></span>
+                        <span class="block text-xs font-bold text-slate-400 tracking-wide"><?= current_lang() === 'km' ? 'ប្រភេទទាំងអស់' : __('all_categories', 'All Categories') ?></span>
+                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="statTotalCats"><?= $totalCats ?></span>
+                        <span class="block text-[11px] font-medium text-slate-400 mt-0.5"><?= current_lang() === 'km' ? 'សរុបក្នុងប្រព័ន្ធ' : 'Total in system' ?></span>
                     </div>
                 </div>
 
                 <!-- Card 2: Active Categories -->
                 <div onclick="setCatFilter('active')" 
-                     class="vo-stat-box bg-white rounded-3xl p-5 border border-slate-100 shadow-xs flex items-center gap-4 transition hover:shadow-md cursor-pointer group" 
+                     class="vo-stat-box bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-emerald-300 cursor-pointer group" 
                      data-filter="active">
-                    <div class="w-12 h-12 rounded-2xl bg-emerald-50/80 border border-emerald-100 text-emerald-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
                         <i class="fa-solid fa-circle-check"></i>
                     </div>
                     <div>
-                        <span class="block text-xs font-semibold text-slate-400"><?= current_lang() === 'km' ? 'សកម្ម' : __('active', 'Active') ?></span>
-                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight" id="statActiveCats"><?= $activeCats ?></span>
-                        <span class="block text-[11px] font-medium text-slate-400"><?= current_lang() === 'km' ? 'បង្ហាញក្នុងម៉ឺនុយ' : 'Visible on menu' ?></span>
+                        <span class="block text-xs font-bold text-slate-400 tracking-wide"><?= current_lang() === 'km' ? 'សកម្ម' : __('active', 'Active') ?></span>
+                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="statActiveCats"><?= $activeCats ?></span>
+                        <span class="block text-[11px] font-medium text-slate-400 mt-0.5"><?= current_lang() === 'km' ? 'បង្ហាញក្នុងម៉ឺនុយ' : 'Visible on menu' ?></span>
                     </div>
                 </div>
 
                 <!-- Card 3: Inactive Categories -->
                 <div onclick="setCatFilter('inactive')" 
-                     class="vo-stat-box bg-white rounded-3xl p-5 border border-slate-100 shadow-xs flex items-center gap-4 transition hover:shadow-md cursor-pointer group" 
+                     class="vo-stat-box bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-rose-300 cursor-pointer group" 
                      data-filter="inactive">
-                    <div class="w-12 h-12 rounded-2xl bg-rose-50/80 border border-rose-100 text-rose-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
                         <i class="fa-solid fa-circle-exclamation"></i>
                     </div>
                     <div>
-                        <span class="block text-xs font-semibold text-slate-400"><?= current_lang() === 'km' ? 'អសកម្ម' : __('inactive', 'Inactive') ?></span>
-                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight" id="statInactiveCats"><?= $inactiveCats ?></span>
-                        <span class="block text-[11px] font-medium text-slate-400"><?= current_lang() === 'km' ? 'លាក់ពីការពិនិត្យ' : 'Hidden from menu' ?></span>
+                        <span class="block text-xs font-bold text-slate-400 tracking-wide"><?= current_lang() === 'km' ? 'អសកម្ម' : __('inactive', 'Inactive') ?></span>
+                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="statInactiveCats"><?= $inactiveCats ?></span>
+                        <span class="block text-[11px] font-medium text-slate-400 mt-0.5"><?= current_lang() === 'km' ? 'លាក់ពីការពិនិត្យ' : 'Hidden from menu' ?></span>
                     </div>
                 </div>
             </div>
 
             <!-- 3. Main Categories Table Card -->
-            <div class="bg-white rounded-3xl border border-slate-100 shadow-xs p-5 md:p-6 space-y-5">
+            <div class="bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 p-5 md:p-6 space-y-5">
                 <!-- Search & Actions Bar -->
                 <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div class="relative w-full sm:w-80">
@@ -528,13 +556,13 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                id="catSearchInput" 
                                oninput="filterCategoriesLive()" 
                                placeholder="<?= current_lang() === 'km' ? 'ស្វែងរកប្រភេទ...' : 'Search categories...' ?>" 
-                               class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs transition">
+                               class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-xs transition">
                     </div>
                     <div class="flex items-center gap-2 self-end sm:self-auto">
                         <button type="button" 
                                 onclick="toggleSortOrder()" 
-                                class="px-4 py-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 shadow-xs transition cursor-pointer">
-                            <i class="fa-solid fa-filter text-slate-400 text-xs"></i>
+                                class="px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center gap-2 shadow-xs transition cursor-pointer">
+                            <i class="fa-solid fa-arrow-down-short-wide text-slate-400 text-xs"></i>
                             <span><?= current_lang() === 'km' ? 'តម្រៀប' : 'Filter / Sort' ?></span>
                         </button>
                     </div>
@@ -544,24 +572,24 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse" id="categoriesTable">
                         <thead>
-                            <tr class="border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider whitespace-nowrap">
-                                <th class="py-3.5 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'លេខរៀង' : __('col_no', 'No.') ?></th>
-                                <th class="py-3.5 px-3 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'រូបភាព' : __('image', 'Image') ?></th>
-                                <th class="py-3.5 px-4 text-left whitespace-nowrap"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : __('category_name', 'Category Name') ?></th>
-                                <th class="py-3.5 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'ទំនិញសរុប' : __('nav_products', 'Total Products') ?></th>
-                                <th class="py-3.5 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'ជម្រើសបន្ថែម' : __('offers', 'Options') ?></th>
-                                <th class="py-3.5 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'ស្ថានភាព' : __('active', 'Status') ?></th>
-                                <th class="py-3.5 px-4 text-right whitespace-nowrap"><?= current_lang() === 'km' ? 'សកម្មភាព' : __('actions', 'Actions') ?></th>
+                            <tr class="border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                <th class="py-4 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'លេខរៀង' : __('col_no', 'No.') ?></th>
+                                <th class="py-4 px-3 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'រូបភាព' : __('image', 'Image') ?></th>
+                                <th class="py-4 px-4 text-left whitespace-nowrap"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : __('category_name', 'Category Name') ?></th>
+                                <th class="py-4 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'ទំនិញសរុប' : __('nav_products', 'Total Products') ?></th>
+                                <th class="py-4 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'ជម្រើសបន្ថែម' : __('offers', 'Options') ?></th>
+                                <th class="py-4 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'ស្ថានភាព' : __('active', 'Status') ?></th>
+                                <th class="py-4 px-4 text-right whitespace-nowrap"><?= current_lang() === 'km' ? 'សកម្មភាព' : __('actions', 'Actions') ?></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50 text-slate-700" id="categoriesTbody">
+                        <tbody class="divide-y divide-slate-100/80 text-slate-700" id="categoriesTbody">
                             <?php foreach ($categories as $i => $c): ?>
-                            <tr class="cat-row hover:bg-slate-50/70 transition <?= $c['is_active'] ? '' : 'opacity-60 bg-slate-50/30' ?>" 
+                            <tr class="cat-row hover:bg-emerald-50/20 transition-colors duration-150 <?= $c['is_active'] ? '' : 'opacity-60 bg-slate-50/30' ?>" 
                                 data-active="<?= (int)$c['is_active'] ?>"
                                 data-name="<?= he(strtolower($c['name'])) ?>"
                                 data-slug="<?= he(strtolower($c['slug'])) ?>">
                                 <!-- No. -->
-                                <td class="py-4 px-3 text-center font-bold text-xs text-slate-400">
+                                <td class="py-4 px-3 text-center font-black text-xs text-slate-400">
                                     <?= sprintf('#%02d', $i + 1) ?>
                                 </td>
 
@@ -570,11 +598,11 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                     <div class="flex items-center justify-center">
                                         <?php $__icon = $c['icon'] ?: 'fa-circle'; ?>
                                         <?php if (str_contains($__icon, '/')): ?>
-                                        <div class="w-12 h-12 rounded-2xl bg-slate-50 overflow-hidden border border-slate-200/80 shadow-xs flex items-center justify-center p-0.5">
+                                        <div class="w-12 h-12 rounded-2xl bg-slate-50 overflow-hidden border border-slate-200/80 shadow-2xs flex items-center justify-center p-0.5">
                                             <img src="<?= he($__icon) ?>" alt="<?= he($c['name']) ?>" class="w-full h-full object-cover rounded-[14px]">
                                         </div>
                                         <?php else: ?>
-                                        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center text-lg shadow-xs">
+                                        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center text-lg shadow-2xs">
                                             <i class="fa-solid <?= he($__icon) ?>"></i>
                                         </div>
                                         <?php endif; ?>
@@ -595,7 +623,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
 
                                 <!-- Total Products Count Badge -->
                                 <td class="py-4 px-4 text-center">
-                                    <span class="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs">
+                                    <span class="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200/60 shadow-2xs">
                                         <?= (int)$c['product_count'] ?> <?= current_lang() === 'km' ? 'មុខ' : 'items' ?>
                                     </span>
                                 </td>
@@ -604,13 +632,13 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                 <td class="py-4 px-4 text-center">
                                     <div class="inline-flex items-center justify-center gap-1.5 flex-wrap">
                                         <?php if ($c['offer_sweetness']): ?>
-                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200/60 rounded-xl text-[11px] font-bold">
+                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/70 rounded-xl text-[11px] font-bold shadow-2xs">
                                             Sugar
                                         </span>
                                         <?php endif; ?>
 
                                         <?php if ($c['offer_ice']): ?>
-                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200/60 rounded-xl text-[11px] font-bold">
+                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/70 rounded-xl text-[11px] font-bold shadow-2xs">
                                             <?= current_lang() === 'km' ? 'កម្រិតទឹកកក' : 'Ice Level' ?>
                                         </span>
                                         <?php endif; ?>
@@ -625,7 +653,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                 <td class="py-4 px-4 text-center">
                                     <button type="button" 
                                             onclick="toggleCategoryActive(<?= (int)$c['category_id'] ?>, this, event)"
-                                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer <?= $c['is_active'] ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' ?>">
+                                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer <?= $c['is_active'] ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' ?>">
                                         <span class="w-1.5 h-1.5 rounded-full <?= $c['is_active'] ? 'bg-emerald-500' : 'bg-rose-500' ?>"></span>
                                         <span><?= $c['is_active'] ? (current_lang() === 'km' ? 'បើក' : 'Active') : (current_lang() === 'km' ? 'បិទ' : 'Inactive') ?></span>
                                     </button>
@@ -633,11 +661,11 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
 
                                 <!-- Actions (Edit, Delete) -->
                                 <td class="py-4 px-4 text-right">
-                                    <div class="inline-flex items-center justify-end gap-1">
+                                    <div class="inline-flex items-center justify-end gap-1.5">
                                         <!-- Edit -->
                                         <button type="button" 
                                                 onclick="openEditCategoryModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>)" 
-                                                class="w-8 h-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition cursor-pointer" 
+                                                class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200/70 hover:border-amber-200 text-slate-500 hover:text-amber-700 flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" 
                                                 title="<?= __('edit', 'Edit Category') ?>">
                                             <i class="fa-solid fa-pen text-xs"></i>
                                         </button>
@@ -645,7 +673,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                         <!-- Delete -->
                                         <?php if ((int)$c['product_count'] > 0): ?>
                                         <button type="button" 
-                                                class="w-8 h-8 rounded-xl text-slate-200 cursor-not-allowed flex items-center justify-center" 
+                                                class="w-8 h-8 rounded-xl bg-slate-50/50 border border-slate-100 text-slate-300 cursor-not-allowed flex items-center justify-center shadow-2xs" 
                                                 disabled 
                                                 title="Cannot delete: <?= (int)$c['product_count'] ?> product(s) use this category">
                                             <i class="fa-solid fa-trash-can text-xs"></i>
@@ -656,7 +684,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="category_id" value="<?= (int)$c['category_id'] ?>">
                                             <button type="submit" 
-                                                    class="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition cursor-pointer" 
+                                                    class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200/70 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" 
                                                     title="<?= __('delete', 'Delete Category') ?>">
                                                 <i class="fa-solid fa-trash-can text-xs"></i>
                                             </button>
