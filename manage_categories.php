@@ -1,6 +1,9 @@
 <?php
 require 'auth.php';
 require_once 'config.php';
+if (file_exists(__DIR__ . '/cloudinary_config.php')) {
+    require_once __DIR__ . '/cloudinary_config.php';
+}
 if (!can('manage_categories')) { header("Location: dashboard.php?denied=1"); exit; }
 
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -31,9 +34,21 @@ function getCategorySubtitle($name, $slug): string {
 function cat_upload_icon(): string {
     if (empty($_FILES['icon']['name'])) return '';
     if (($_FILES['icon']['error'] ?? 1) !== UPLOAD_ERR_OK) return '__UPLOAD_ERR__';
-    $res = cloudinary_upload_file($_FILES['icon'], 'pos_coffee/categories');
-    if ($res['success']) {
-        return $res['url'];
+    if (function_exists('cloudinary_upload_file')) {
+        $res = cloudinary_upload_file($_FILES['icon'], 'pos_coffee/categories');
+        if (!empty($res['success']) && !empty($res['url'])) {
+            return $res['url'];
+        }
+    }
+    // Local fallback if Cloudinary is not configured
+    $ext = strtolower(pathinfo($_FILES['icon']['name'], PATHINFO_EXTENSION));
+    if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'svg', 'gif'], true)) {
+        $uploadDir = __DIR__ . '/uploads/categories/';
+        if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+        $fileName = 'cat_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        if (move_uploaded_file($_FILES['icon']['tmp_name'], $uploadDir . $fileName)) {
+            return 'uploads/categories/' . $fileName;
+        }
     }
     return '__UPLOAD_ERR__';
 }
@@ -86,7 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newIcon = cat_upload_icon();
                 if ($newIcon === '__UPLOAD_ERR__') { $flash = ['type'=>'error','msg'=>'Image upload failed. Please try again.']; break; }
                 if ($newIcon !== '') {
-                    if (!empty($iconRow['icon'])) cloudinary_delete_image($iconRow['icon']);
+                    if (!empty($iconRow['icon']) && function_exists('cloudinary_delete_image')) {
+                        cloudinary_delete_image($iconRow['icon']);
+                    }
                     $icon = $newIcon;
                 }
                 $os = isset($_POST['offer_sweetness']) ? 1 : 0;
@@ -134,7 +151,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $n = (int)$chk->get_result()->fetch_assoc()['n'];
                 if ($n > 0) { $flash = ['type'=>'error','msg'=>"$n product(s) use this category — reassign them or delete them first."]; break; }
                 $curCat = $conn->query("SELECT icon FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
-                if (!empty($curCat['icon'])) cloudinary_delete_image($curCat['icon']);
+                if (!empty($curCat['icon']) && function_exists('cloudinary_delete_image')) {
+                    cloudinary_delete_image($curCat['icon']);
+                }
                 $d = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
                 $d->bind_param('i', $id); $d->execute();
                 $flash = ['type'=>'success','msg'=>'Category deleted.'];
@@ -188,14 +207,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Load categories with product counts ──
 $categories = [];
-$res = $conn->query("
-    SELECT c.category_id, c.slug, c.name, c.description, c.icon, c.display_order, c.is_active,
-           c.offer_sweetness, c.offer_ice, c.offer_milk, c.offer_addons, c.earns_points,
-           (SELECT COUNT(*) FROM products p WHERE p.category_id = c.category_id) AS product_count
-    FROM categories c
-    ORDER BY c.display_order ASC, c.category_id ASC
-");
-while ($row = $res->fetch_assoc()) $categories[] = $row;
+try {
+    $res = $conn->query("
+        SELECT c.category_id, c.slug, c.name, COALESCE(c.description,'') AS description, c.icon, c.display_order, c.is_active,
+               COALESCE(c.offer_sweetness, 1) AS offer_sweetness, 
+               COALESCE(c.offer_ice, 1) AS offer_ice, 
+               COALESCE(c.offer_milk, 1) AS offer_milk, 
+               COALESCE(c.offer_addons, 1) AS offer_addons, 
+               COALESCE(c.earns_points, 1) AS earns_points,
+               (SELECT COUNT(*) FROM products p WHERE p.category_id = c.category_id) AS product_count
+        FROM categories c
+        ORDER BY c.display_order ASC, c.category_id ASC
+    ");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) $categories[] = $row;
+    }
+} catch (Throwable $e) {
+    $res = @$conn->query("SELECT * FROM categories ORDER BY display_order ASC, category_id ASC");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $row['description']     = $row['description']     ?? '';
+            $row['offer_sweetness'] = $row['offer_sweetness'] ?? 1;
+            $row['offer_ice']       = $row['offer_ice']       ?? 1;
+            $row['offer_milk']      = $row['offer_milk']      ?? 1;
+            $row['offer_addons']    = $row['offer_addons']    ?? 1;
+            $row['earns_points']    = $row['earns_points']    ?? 1;
+            $row['product_count']   = 0;
+            $categories[] = $row;
+        }
+    }
+}
 
 $totalCats    = count($categories);
 $activeCats   = count(array_filter($categories, fn($c) => (int)$c['is_active'] === 1));

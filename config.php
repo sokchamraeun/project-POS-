@@ -1797,6 +1797,15 @@ _migrate($conn, 'categories_option_flags_v1', function($db) {
 });
 
 // ── Per-category add-on availability (master gate; products still pick which add-ons) ──
+_migrate($conn, 'categories_full_columns_v1', function($db) {
+    $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS description VARCHAR(255) NULL DEFAULT ''");
+    $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_sweetness TINYINT(1) NOT NULL DEFAULT 1");
+    $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_ice TINYINT(1) NOT NULL DEFAULT 1");
+    $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_milk TINYINT(1) NOT NULL DEFAULT 1");
+    $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_addons TINYINT(1) NOT NULL DEFAULT 1");
+    $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS earns_points TINYINT(1) NOT NULL DEFAULT 1");
+});
+
 _migrate($conn, 'categories_offer_addons_v1', function($db) {
     $db->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_addons TINYINT(1) NOT NULL DEFAULT 1");
     $db->query("UPDATE categories SET offer_addons=0 WHERE slug='Juice'");
