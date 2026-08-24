@@ -31,16 +31,32 @@ function getCategorySubtitle($name, $slug): string {
     return current_lang() === 'km' ? 'ភេសជ្ជៈ និងទំនិញក្នុងម៉ឺនុយ' : 'Menu Category';
 }
 
+function _ensure_categories_schema($conn) {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS description VARCHAR(255) NULL DEFAULT ''");
+    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_sweetness TINYINT(1) NOT NULL DEFAULT 1");
+    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_ice TINYINT(1) NOT NULL DEFAULT 1");
+    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_milk TINYINT(1) NOT NULL DEFAULT 1");
+    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS offer_addons TINYINT(1) NOT NULL DEFAULT 1");
+    @$conn->query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS earns_points TINYINT(1) NOT NULL DEFAULT 1");
+}
+
 function cat_upload_icon(): string {
     if (empty($_FILES['icon']['name'])) return '';
     if (($_FILES['icon']['error'] ?? 1) !== UPLOAD_ERR_OK) return '__UPLOAD_ERR__';
-    if (function_exists('cloudinary_upload_file')) {
-        $res = cloudinary_upload_file($_FILES['icon'], 'pos_coffee/categories');
-        if (!empty($res['success']) && !empty($res['url'])) {
-            return $res['url'];
+    try {
+        if (function_exists('cloudinary_upload_file')) {
+            $res = cloudinary_upload_file($_FILES['icon'], 'pos_coffee/categories');
+            if (!empty($res['success']) && !empty($res['url'])) {
+                return $res['url'];
+            }
         }
+    } catch (Throwable $t) {
+        // Continue to local fallback
     }
-    // Local fallback if Cloudinary is not configured
+    // Local fallback if Cloudinary is not configured or fails
     $ext = strtolower(pathinfo($_FILES['icon']['name'], PATHINFO_EXTENSION));
     if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'svg', 'gif'], true)) {
         $uploadDir = __DIR__ . '/uploads/categories/';
@@ -62,123 +78,152 @@ if (isset($_SESSION['flash'])) {
 
 // ── POST action router (CSRF-guarded) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    _ensure_categories_schema($conn);
     if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
         $flash = ['type' => 'error', 'msg' => 'Security check failed. Please retry.'];
     } else {
-        switch ($_POST['action'] ?? '') {
-            case 'create': {
-                $name = trim((string)($_POST['name'] ?? ''));
-                $desc = trim((string)($_POST['description'] ?? ''));
-                $icon = cat_upload_icon();
-                if ($icon === '__UPLOAD_ERR__') { $flash = ['type'=>'error','msg'=>'Image upload failed. Please try again.']; break; }
-                if ($icon === '') $icon = 'fa-circle';
-                $active = isset($_POST['is_active']) ? 1 : 0;
-                $slug = cat_slug($name);
-                if ($slug === '') { $flash = ['type'=>'error','msg'=>'Category name is required.']; break; }
-                $dup = $conn->prepare("SELECT category_id FROM categories WHERE LOWER(slug) = LOWER(?) LIMIT 1");
-                $dup->bind_param('s', $slug); $dup->execute();
-                if ($dup->get_result()->fetch_assoc()) { $flash = ['type'=>'error','msg'=>"A category named \"$slug\" already exists."]; break; }
-                $ord = (int)$conn->query("SELECT COALESCE(MAX(display_order),0)+1 AS n FROM categories")->fetch_assoc()['n'];
-                $os = isset($_POST['offer_sweetness']) ? 1 : 0;
-                $oi = isset($_POST['offer_ice'])       ? 1 : 0;
-                $om = isset($_POST['offer_milk'])      ? 1 : 0;
-                $oa = isset($_POST['offer_addons'])    ? 1 : 0;
-                $ep = isset($_POST['earns_points'])    ? 1 : 0;
-                $ins = $conn->prepare("INSERT INTO categories (slug, name, description, icon, display_order, is_active, offer_sweetness, offer_ice, offer_milk, offer_addons, earns_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $ins->bind_param('ssssiiiiiii', $slug, $name, $desc, $icon, $ord, $active, $os, $oi, $om, $oa, $ep);
-                $ins->execute();
-                $flash = ['type'=>'success','msg'=>"Category \"$slug\" added successfully."];
-                break;
-            }
-            case 'update': {
-                $id   = (int)($_POST['category_id'] ?? 0);
-                $name = trim((string)($_POST['name'] ?? ''));
-                $desc = trim((string)($_POST['description'] ?? ''));
-                $active = isset($_POST['is_active']) ? 1 : 0;
-                if ($id <= 0 || $name === '') { $flash = ['type'=>'error','msg'=>'Name is required.']; break; }
-                $iconRow = $conn->query("SELECT icon FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
-                $icon = $iconRow['icon'] ?? 'fa-circle';
-                $newIcon = cat_upload_icon();
-                if ($newIcon === '__UPLOAD_ERR__') { $flash = ['type'=>'error','msg'=>'Image upload failed. Please try again.']; break; }
-                if ($newIcon !== '') {
-                    if (!empty($iconRow['icon']) && function_exists('cloudinary_delete_image')) {
-                        cloudinary_delete_image($iconRow['icon']);
+        try {
+            switch ($_POST['action'] ?? '') {
+                case 'create': {
+                    $name = trim((string)($_POST['name'] ?? ''));
+                    $desc = trim((string)($_POST['description'] ?? ''));
+                    $icon = cat_upload_icon();
+                    if ($icon === '__UPLOAD_ERR__') { $flash = ['type'=>'error','msg'=>'Image upload failed. Please try again.']; break; }
+                    if ($icon === '') $icon = 'fa-circle';
+                    $active = isset($_POST['is_active']) ? 1 : 0;
+                    $slug = cat_slug($name);
+                    if ($slug === '') { $flash = ['type'=>'error','msg'=>'Category name is required.']; break; }
+                    $dup = $conn->prepare("SELECT category_id FROM categories WHERE LOWER(slug) = LOWER(?) LIMIT 1");
+                    if ($dup) {
+                        $dup->bind_param('s', $slug); $dup->execute();
+                        if ($dup->get_result()->fetch_assoc()) { $flash = ['type'=>'error','msg'=>"A category named \"$slug\" already exists."]; break; }
                     }
-                    $icon = $newIcon;
-                }
-                $os = isset($_POST['offer_sweetness']) ? 1 : 0;
-                $oi = isset($_POST['offer_ice'])       ? 1 : 0;
-                $om = isset($_POST['offer_milk'])      ? 1 : 0;
-                $oa = isset($_POST['offer_addons'])    ? 1 : 0;
-                $ep = isset($_POST['earns_points'])    ? 1 : 0;
-                $u = $conn->prepare("UPDATE categories SET name=?, description=?, icon=?, is_active=?, offer_sweetness=?, offer_ice=?, offer_milk=?, offer_addons=?, earns_points=? WHERE category_id=?");
-                $u->bind_param('sssiiiiiii', $name, $desc, $icon, $active, $os, $oi, $om, $oa, $ep, $id);
-                $u->execute();
-                $flash = ['type'=>'success','msg'=>'Category updated successfully.'];
-                break;
-            }
-            case 'toggle': {
-                $id = (int)($_POST['category_id'] ?? 0);
-                if ($id > 0) {
-                    $conn->query("UPDATE categories SET is_active = 1 - is_active WHERE category_id = " . $id);
-                    $res = $conn->query("SELECT is_active FROM categories WHERE category_id = " . $id)->fetch_assoc();
-                    $newActive = (int)($res['is_active'] ?? 0);
+                    $ordRow = $conn->query("SELECT COALESCE(MAX(display_order),0)+1 AS n FROM categories");
+                    $ord = ($ordRow && ($orow = $ordRow->fetch_assoc())) ? (int)$orow['n'] : 1;
+                    $os = isset($_POST['offer_sweetness']) ? 1 : 0;
+                    $oi = isset($_POST['offer_ice'])       ? 1 : 0;
+                    $om = isset($_POST['offer_milk'])      ? 1 : 0;
+                    $oa = isset($_POST['offer_addons'])    ? 1 : 0;
+                    $ep = isset($_POST['earns_points'])    ? 1 : 0;
                     
-                    $totalCats    = (int)$conn->query("SELECT COUNT(*) c FROM categories")->fetch_assoc()['c'];
-                    $activeCats   = (int)$conn->query("SELECT COUNT(*) c FROM categories WHERE is_active = 1")->fetch_assoc()['c'];
-                    $inactiveCats = $totalCats - $activeCats;
-
-                    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_POST['ajax']) && $_POST['ajax'] == '1')) {
-                        header('Content-Type: application/json');
-                        echo json_encode([
-                            'success' => true,
-                            'is_active' => $newActive,
-                            'active_count' => $activeCats,
-                            'inactive_count' => $inactiveCats,
-                            'total_count' => $totalCats
-                        ]);
-                        exit;
+                    $ins = $conn->prepare("INSERT INTO categories (slug, name, description, icon, display_order, is_active, offer_sweetness, offer_ice, offer_milk, offer_addons, earns_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    if ($ins) {
+                        $ins->bind_param('ssssiiiiiii', $slug, $name, $desc, $icon, $ord, $active, $os, $oi, $om, $oa, $ep);
+                        $ins->execute();
+                    } else {
+                        $escSlug = $conn->real_escape_string($slug);
+                        $escName = $conn->real_escape_string($name);
+                        $escIcon = $conn->real_escape_string($icon);
+                        $conn->query("INSERT INTO categories (slug, name, icon, display_order, is_active) VALUES ('$escSlug', '$escName', '$escIcon', $ord, $active)");
                     }
-                    $flash = ['type'=>'success','msg'=>'Category visibility updated.'];
+                    $flash = ['type'=>'success','msg'=>"Category \"$slug\" added successfully."];
+                    break;
                 }
-                break;
-            }
-            case 'delete': {
-                $id = (int)($_POST['category_id'] ?? 0);
-                if ($id <= 0) { $flash = ['type'=>'error','msg'=>'Invalid category.']; break; }
-                $chk = $conn->prepare("SELECT COUNT(*) AS n FROM products WHERE category_id = ?");
-                $chk->bind_param('i', $id); $chk->execute();
-                $n = (int)$chk->get_result()->fetch_assoc()['n'];
-                if ($n > 0) { $flash = ['type'=>'error','msg'=>"$n product(s) use this category — reassign them or delete them first."]; break; }
-                $curCat = $conn->query("SELECT icon FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
-                if (!empty($curCat['icon']) && function_exists('cloudinary_delete_image')) {
-                    cloudinary_delete_image($curCat['icon']);
+                case 'update': {
+                    $id   = (int)($_POST['category_id'] ?? 0);
+                    $name = trim((string)($_POST['name'] ?? ''));
+                    $desc = trim((string)($_POST['description'] ?? ''));
+                    $active = isset($_POST['is_active']) ? 1 : 0;
+                    if ($id <= 0 || $name === '') { $flash = ['type'=>'error','msg'=>'Name is required.']; break; }
+                    $iconRow = $conn->query("SELECT icon FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
+                    $icon = $iconRow['icon'] ?? 'fa-circle';
+                    $newIcon = cat_upload_icon();
+                    if ($newIcon === '__UPLOAD_ERR__') { $flash = ['type'=>'error','msg'=>'Image upload failed. Please try again.']; break; }
+                    if ($newIcon !== '') {
+                        if (!empty($iconRow['icon']) && function_exists('cloudinary_delete_image')) {
+                            cloudinary_delete_image($iconRow['icon']);
+                        }
+                        $icon = $newIcon;
+                    }
+                    $os = isset($_POST['offer_sweetness']) ? 1 : 0;
+                    $oi = isset($_POST['offer_ice'])       ? 1 : 0;
+                    $om = isset($_POST['offer_milk'])      ? 1 : 0;
+                    $oa = isset($_POST['offer_addons'])    ? 1 : 0;
+                    $ep = isset($_POST['earns_points'])    ? 1 : 0;
+                    
+                    $u = $conn->prepare("UPDATE categories SET name=?, description=?, icon=?, is_active=?, offer_sweetness=?, offer_ice=?, offer_milk=?, offer_addons=?, earns_points=? WHERE category_id=?");
+                    if ($u) {
+                        $u->bind_param('sssiiiiiii', $name, $desc, $icon, $active, $os, $oi, $om, $oa, $ep, $id);
+                        $u->execute();
+                    } else {
+                        $escName = $conn->real_escape_string($name);
+                        $escIcon = $conn->real_escape_string($icon);
+                        $conn->query("UPDATE categories SET name='$escName', icon='$escIcon', is_active=$active WHERE category_id=$id");
+                    }
+                    $flash = ['type'=>'success','msg'=>'Category updated successfully.'];
+                    break;
                 }
-                $d = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
-                $d->bind_param('i', $id); $d->execute();
-                $flash = ['type'=>'success','msg'=>'Category deleted.'];
-                break;
-            }
-            case 'reorder': {
-                $id  = (int)($_POST['category_id'] ?? 0);
-                $dir = ($_POST['dir'] ?? '') === 'up' ? 'up' : 'down';
-                if ($id > 0) {
-                    $cur = $conn->query("SELECT category_id, display_order FROM categories WHERE category_id = " . $id)->fetch_assoc();
-                    if ($cur) {
-                        $cmp = $dir === 'up' ? '<' : '>';
-                        $ord = $dir === 'up' ? 'DESC' : 'ASC';
-                        $nb = $conn->query("SELECT category_id, display_order FROM categories WHERE display_order $cmp " . (int)$cur['display_order'] . " ORDER BY display_order $ord LIMIT 1")->fetch_assoc();
-                        if ($nb) {
-                            $a = (int)$cur['display_order']; $b = (int)$nb['display_order'];
-                            $ca = (int)$cur['category_id'];  $cb = (int)$nb['category_id'];
-                            $conn->query("UPDATE categories SET display_order = $b WHERE category_id = $ca");
-                            $conn->query("UPDATE categories SET display_order = $a WHERE category_id = $cb");
-                            $flash = ['type'=>'success','msg'=>'Order updated.'];
+                case 'toggle': {
+                    $id = (int)($_POST['category_id'] ?? 0);
+                    if ($id > 0) {
+                        $conn->query("UPDATE categories SET is_active = 1 - is_active WHERE category_id = " . $id);
+                        $res = $conn->query("SELECT is_active FROM categories WHERE category_id = " . $id)->fetch_assoc();
+                        $newActive = (int)($res['is_active'] ?? 0);
+                        
+                        $totalCats    = (int)$conn->query("SELECT COUNT(*) c FROM categories")->fetch_assoc()['c'];
+                        $activeCats   = (int)$conn->query("SELECT COUNT(*) c FROM categories WHERE is_active = 1")->fetch_assoc()['c'];
+                        $inactiveCats = $totalCats - $activeCats;
+
+                        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_POST['ajax']) && $_POST['ajax'] == '1')) {
+                            header('Content-Type: application/json');
+                            echo json_encode([
+                                'success' => true,
+                                'is_active' => $newActive,
+                                'active_count' => $activeCats,
+                                'inactive_count' => $inactiveCats,
+                                'total_count' => $totalCats
+                            ]);
+                            exit;
+                        }
+                        $flash = ['type'=>'success','msg'=>'Category visibility updated.'];
+                    }
+                    break;
+                }
+                case 'delete': {
+                    $id = (int)($_POST['category_id'] ?? 0);
+                    if ($id <= 0) { $flash = ['type'=>'error','msg'=>'Invalid category.']; break; }
+                    $chk = $conn->prepare("SELECT COUNT(*) AS n FROM products WHERE category_id = ?");
+                    if ($chk) {
+                        $chk->bind_param('i', $id); $chk->execute();
+                        $n = (int)$chk->get_result()->fetch_assoc()['n'];
+                        if ($n > 0) { $flash = ['type'=>'error','msg'=>"$n product(s) use this category — reassign them or delete them first."]; break; }
+                    }
+                    $curCat = $conn->query("SELECT icon FROM categories WHERE category_id=" . (int)$id)->fetch_assoc();
+                    if (!empty($curCat['icon']) && function_exists('cloudinary_delete_image')) {
+                        cloudinary_delete_image($curCat['icon']);
+                    }
+                    $d = $conn->prepare("DELETE FROM categories WHERE category_id = ?");
+                    if ($d) {
+                        $d->bind_param('i', $id); $d->execute();
+                    } else {
+                        $conn->query("DELETE FROM categories WHERE category_id = " . (int)$id);
+                    }
+                    $flash = ['type'=>'success','msg'=>'Category deleted.'];
+                    break;
+                }
+                case 'reorder': {
+                    $id  = (int)($_POST['category_id'] ?? 0);
+                    $dir = ($_POST['dir'] ?? '') === 'up' ? 'up' : 'down';
+                    if ($id > 0) {
+                        $cur = $conn->query("SELECT category_id, display_order FROM categories WHERE category_id = " . $id)->fetch_assoc();
+                        if ($cur) {
+                            $cmp = $dir === 'up' ? '<' : '>';
+                            $ord = $dir === 'up' ? 'DESC' : 'ASC';
+                            $nb = $conn->query("SELECT category_id, display_order FROM categories WHERE display_order $cmp " . (int)$cur['display_order'] . " ORDER BY display_order $ord LIMIT 1")->fetch_assoc();
+                            if ($nb) {
+                                $a = (int)$cur['display_order']; $b = (int)$nb['display_order'];
+                                $ca = (int)$cur['category_id'];  $cb = (int)$nb['category_id'];
+                                $conn->query("UPDATE categories SET display_order = $b WHERE category_id = $ca");
+                                $conn->query("UPDATE categories SET display_order = $a WHERE category_id = $cb");
+                                $flash = ['type'=>'success','msg'=>'Order updated.'];
+                            }
                         }
                     }
+                    break;
                 }
-                break;
             }
+        } catch (Throwable $e) {
+            $flash = ['type' => 'error', 'msg' => 'Error saving category: ' . $e->getMessage()];
         }
     }
 
