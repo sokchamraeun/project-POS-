@@ -3030,17 +3030,17 @@ function flyToCart(sourceElement) {
         borderRadius: '16px'
       },
       {
-        transform: 'translate(' + (dx * 0.5) + 'px, ' + (dy * 0.3 - 35) + 'px) scale(0.65) rotate(-10deg)',
+        transform: 'translate(' + (dx * 0.5) + 'px, ' + (dy * 0.3 - 25) + 'px) scale(0.65) rotate(-6deg)',
         opacity: 0.9,
         offset: 0.45
       },
       {
-        transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.18) rotate(15deg)',
+        transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.18) rotate(10deg)',
         opacity: 0.1,
         borderRadius: '50%'
       }
     ], {
-      duration: 600,
+      duration: 260,
       easing: 'cubic-bezier(0.2, 0.8, 0.25, 1)',
       fill: 'forwards'
     });
@@ -3050,16 +3050,16 @@ function flyToCart(sourceElement) {
       triggerCartBump();
     };
   } else {
-    clone.style.transition = 'transform 0.6s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.6s cubic-bezier(0.2, 0.8, 0.25, 1), border-radius 0.6s ease';
+    clone.style.transition = 'transform 0.26s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.26s cubic-bezier(0.2, 0.8, 0.25, 1), border-radius 0.26s ease';
     requestAnimationFrame(function() {
-      clone.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.2) rotate(15deg)';
+      clone.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.2) rotate(10deg)';
       clone.style.opacity = '0.1';
       clone.style.borderRadius = '50%';
     });
     setTimeout(function() {
       clone.remove();
       triggerCartBump();
-    }, 600);
+    }, 260);
   }
 }
 window.flyToCart = flyToCart;
@@ -3282,6 +3282,71 @@ window.pollProductStockStatuses = pollProductStockStatuses;
 // Background polling every 8 seconds
 setInterval(pollProductStockStatuses, 8000);
 
+// ── OPTIMISTIC CART UPDATE (Instant 0ms UI Feedback) ──
+function optimisticAddToCart(itemData) {
+  var items = (window.currentCartItems && Array.isArray(window.currentCartItems)) ? window.currentCartItems.slice() : [];
+  var found = false;
+  var targetPid = String(itemData.product_id);
+  var targetSw  = itemData.sweetness || '';
+  var targetIce = itemData.ice || '';
+  var targetMilk = itemData.milk || '';
+  var targetSize = itemData.size_code || '';
+
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    if (String(it.product_id) === targetPid &&
+        (it.size_code || '') === targetSize &&
+        (it.sweetness || '') === targetSw &&
+        (it.ice || '') === targetIce &&
+        (it.milk || '') === targetMilk) {
+      it.qty = Math.min(100, (parseInt(it.qty, 10) || 1) + (itemData.qty || 1));
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    items.push({
+      index: items.length,
+      product_id: itemData.product_id,
+      product_name: itemData.product_name || 'Item',
+      price: itemData.price,
+      orig_price: itemData.orig_price || itemData.price,
+      promo_percent: itemData.promo_percent || 0,
+      image: itemData.image || 'images/logo.png',
+      size_code: targetSize,
+      size_label: itemData.size_label || '',
+      sweetness: targetSw,
+      ice: targetIce,
+      milk: targetMilk,
+      addons: itemData.addons || [],
+      qty: itemData.qty || 1
+    });
+  }
+
+  for (var k = 0; k < items.length; k++) {
+    items[k].index = k;
+  }
+
+  var count = 0;
+  var subtotal = 0;
+  items.forEach(function(it) {
+    var q = parseInt(it.qty, 10) || 1;
+    count += q;
+    subtotal += (parseFloat(it.price) || 0) * q;
+  });
+
+  renderCartPanel({
+    items: items,
+    count: count,
+    subtotal: subtotal.toFixed(2),
+    tax: '0.00',
+    total: subtotal.toFixed(2),
+    manual: '0.00',
+    manual_label: ''
+  });
+}
+
 // ── ADD / UPDATE CART (from modal) ──
 function addToCart() {
   var btn = document.querySelector('.btn-add-to-cart');
@@ -3325,7 +3390,6 @@ function addToCart() {
         } else {
           loadCartPanel();
         }
-        pollProductStockStatuses();
       })
       .catch(function(err) {
         console.error('Edit cart item error:', err);
@@ -3340,6 +3404,7 @@ function addToCart() {
     return;
   }
 
+  // 1. Instant fly animation
   var modalImg = document.getElementById('modalImg');
   if (modalImg && modalImg.src && modalImg.offsetParent !== null) {
     flyToCart(modalImg);
@@ -3348,6 +3413,24 @@ function addToCart() {
     if (curCard) flyToCart(curCard);
   }
 
+  // 2. Instant Optimistic UI Update & Immediate Modal Close
+  var pPrice = parseFloat(product.price || 0);
+  var promo = parseInt(product.promo || 0, 10);
+  var netPrice = promoNet(pPrice, promo);
+  optimisticAddToCart({
+    product_id: product.id,
+    product_name: product.name || 'Item',
+    price: netPrice,
+    orig_price: pPrice,
+    promo_percent: promo,
+    image: product.image || 'images/logo.png',
+    sweetness: swVal,
+    ice: iceVal,
+    qty: modalQty
+  });
+  closeModal();
+
+  // 3. Background server persistence
   var params = new URLSearchParams({ id: product.id, qty: modalQty, csrf_token: CSRF });
   if (swVal) params.append('sweetness', swVal);
   if (iceVal) params.append('ice', iceVal);
@@ -3355,19 +3438,19 @@ function addToCart() {
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: params.toString() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.success) { 
-        showToast(data.message || 'Error', 'error'); 
-        pollProductStockStatuses();
+      if (!data || !data.success) { 
+        showToast((data && data.message) ? data.message : 'Error', 'error'); 
+        loadCartPanel();
         return; 
       }
-      closeModal();
       if (data.cart) {
         renderCartPanel(data.cart);
       }
-      loadCartPanel();
-      pollProductStockStatuses();
     })
-    .catch(function() { showToast('Error adding to cart', 'error'); })
+    .catch(function() {
+      showToast('Error adding to cart', 'error');
+      loadCartPanel();
+    })
     .finally(function() { 
       if (btn) {
         btn.disabled = false; 
@@ -3384,27 +3467,46 @@ function quickAdd(productId, price, sourceEl, skipFly) {
     showToast((card.dataset.productName || 'This item') + ' is currently out of stock (' + outReason + ').', 'warning');
     return;
   }
-  var prodName = card ? (card.dataset.productName || '') : '';
 
+  // 1. Instant Fly animation
   if (!skipFly && card) {
     flyToCart(card);
   }
 
+  // 2. Instant 0ms Optimistic UI update
+  if (card) {
+    var pPrice = parseFloat(card.dataset.productPrice || price || 0);
+    var promo = parseInt(card.dataset.productPromo || 0, 10);
+    var netPrice = promo > 0 ? (pPrice * (1 - promo / 100)) : pPrice;
+    var imgEl = card.querySelector('.card-img img') || card.querySelector('img');
+    optimisticAddToCart({
+      product_id: productId,
+      product_name: card.dataset.productName || 'Item',
+      price: netPrice,
+      orig_price: pPrice,
+      promo_percent: promo,
+      image: card.dataset.productImage || (imgEl ? imgEl.src : 'images/logo.png'),
+      qty: 1
+    });
+  }
+
+  // 3. Background server persistence
   fetch('add_to_cart.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'}, body: new URLSearchParams({ id: productId, qty: 1, csrf_token: CSRF }).toString() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.success) { 
-        showToast(data.message || 'Error', 'error'); 
-        pollProductStockStatuses();
+      if (!data || !data.success) { 
+        showToast((data && data.message) ? data.message : 'Error', 'error'); 
+        loadCartPanel();
         return; 
       }
       if (data.cart) {
         renderCartPanel(data.cart);
       }
-      loadCartPanel();
-      pollProductStockStatuses();
     })
-    .catch(function() { showToast('Error adding to cart', 'error'); });
+    .catch(function() {
+      showToast('Error adding to cart', 'error');
+      loadCartPanel();
+    });
 }
 
 // ── LOAD & RENDER CART PANEL ──

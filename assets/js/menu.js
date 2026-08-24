@@ -183,17 +183,17 @@ function flyToCart(sourceElement) {
                 borderRadius: '16px'
             },
             {
-                transform: `translate(${dx * 0.5}px, ${dy * 0.3 - 35}px) scale(0.65) rotate(-10deg)`,
+                transform: `translate(${dx * 0.5}px, ${dy * 0.3 - 25}px) scale(0.65) rotate(-6deg)`,
                 opacity: 0.9,
                 offset: 0.45
             },
             {
-                transform: `translate(${dx}px, ${dy}px) scale(0.18) rotate(15deg)`,
+                transform: `translate(${dx}px, ${dy}px) scale(0.18) rotate(10deg)`,
                 opacity: 0.1,
                 borderRadius: '50%'
             }
         ], {
-            duration: 600,
+            duration: 260,
             easing: 'cubic-bezier(0.2, 0.8, 0.25, 1)',
             fill: 'forwards'
         });
@@ -203,16 +203,16 @@ function flyToCart(sourceElement) {
             triggerCartBump();
         };
     } else {
-        clone.style.transition = 'transform 0.6s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.6s cubic-bezier(0.2, 0.8, 0.25, 1), border-radius 0.6s ease';
+        clone.style.transition = 'transform 0.26s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.26s cubic-bezier(0.2, 0.8, 0.25, 1), border-radius 0.26s ease';
         requestAnimationFrame(() => {
-            clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.2) rotate(15deg)`;
+            clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.2) rotate(10deg)`;
             clone.style.opacity = '0.1';
             clone.style.borderRadius = '50%';
         });
         setTimeout(() => {
             clone.remove();
             triggerCartBump();
-        }, 600);
+        }, 260);
     }
 }
 window.flyToCart = flyToCart;
@@ -256,20 +256,25 @@ function addToCart() {
         }
     }
 
+    if (typeof closeModal === 'function') closeModal();
+
     _postCart(params).then(data => {
         if (!data || !data.success) {
             showToast((data && data.message) ? data.message : 'Error adding to cart', 'error');
+            if (typeof window.loadCartPanel === 'function') window.loadCartPanel();
             return;
         }
-        if (typeof closeModal === 'function') closeModal();
         _updateCartCount(data.cart_count);
-        if (typeof window.loadCartPanel === 'function') {
+        if (data.cart && typeof renderCartPanel === 'function') {
+            renderCartPanel(data.cart);
+        } else if (typeof window.loadCartPanel === 'function') {
             window.loadCartPanel();
         } else if (typeof loadCartPanel === 'function') {
             loadCartPanel();
         }
     }).catch(err => {
         showToast((err && err.message) ? err.message : 'Error adding to cart', 'error');
+        if (typeof window.loadCartPanel === 'function') window.loadCartPanel();
     });
 }
 
@@ -292,16 +297,20 @@ function quickAdd(productId, eventOrPrice) {
     _postCart(params).then(data => {
         if (!data || !data.success) {
             showToast((data && data.message) ? data.message : 'Error adding to cart', 'error');
+            if (typeof window.loadCartPanel === 'function') window.loadCartPanel();
             return;
         }
         _updateCartCount(data.cart_count);
-        if (typeof window.loadCartPanel === 'function') {
+        if (data.cart && typeof renderCartPanel === 'function') {
+            renderCartPanel(data.cart);
+        } else if (typeof window.loadCartPanel === 'function') {
             window.loadCartPanel();
         } else if (typeof loadCartPanel === 'function') {
             loadCartPanel();
         }
     }).catch(err => {
         showToast((err && err.message) ? err.message : 'Error adding to cart', 'error');
+        if (typeof window.loadCartPanel === 'function') window.loadCartPanel();
     });
 }
 
