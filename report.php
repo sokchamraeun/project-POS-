@@ -255,15 +255,19 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
                 <!-- Action Buttons -->
                 <div class="flex items-center gap-3">
-                    <button type="button" onclick="window.print()" 
-                            class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
+                    <?php
+                    $pdf_params = [
+                        'from_date' => $fromDate,
+                        'to_date'   => $toDate,
+                        'category'  => $filterCategory,
+                        'lang'      => current_lang()
+                    ];
+                    $pdf_url = 'report_pdf.php?' . http_build_query($pdf_params);
+                    ?>
+                    <a href="<?= htmlspecialchars($pdf_url) ?>" target="_blank" 
+                       class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
                         <i class="fa-solid fa-print text-slate-400 text-xs"></i>
-                        <span><?= $isKm ? 'បោះពុម្ព' : 'Print' ?></span>
-                    </button>
-                    <a href="report.php?<?= http_build_query(array_merge($_GET, ['export' => 'csv'])) ?>" 
-                       class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm font-bold rounded-xl shadow-sm transition cursor-pointer">
-                        <i class="fa-solid fa-file-excel text-xs"></i>
-                        <span>Export CSV</span>
+                        <span><?= $isKm ? 'បោះពុម្ព (PDF)' : 'Print (PDF)' ?></span>
                     </a>
                 </div>
             </div>

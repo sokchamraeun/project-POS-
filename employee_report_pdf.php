@@ -65,9 +65,8 @@ foreach ($staff_rows as $sr) {
     $grand_total_sales  += (float)$sr['total_sales'];
 }
 
-$_gen_role = ucfirst($_SESSION['role'] ?? 'Admin');
-$_gen_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Admin';
-$gen_by_str = (strtolower($_gen_role) !== strtolower($_gen_name)) ? "{$_gen_role} ({$_gen_name})" : $_gen_name;
+$_gen_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Root';
+$gen_by_str = $_gen_name;
 
 // ── HTML Template Construction ──
 ob_start();

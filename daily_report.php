@@ -1452,11 +1452,21 @@ if ($_is_mgr) {
 
                 <!-- Action Buttons -->
                 <div class="flex items-center gap-3">
-                    <button type="button" onclick="window.print()" 
-                            class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
+                    <?php
+                    $pdf_params = [
+                        'from_date'      => $fromDate,
+                        'to_date'        => $toDate,
+                        'user_id'        => $filterUser,
+                        'payment_method' => ($paymentMethod !== 'all' && !empty($paymentMethod)) ? $paymentMethod : '',
+                        'lang'           => current_lang()
+                    ];
+                    $pdf_url = 'daily_report_pdf.php?' . http_build_query($pdf_params);
+                    ?>
+                    <a href="<?= htmlspecialchars($pdf_url) ?>" target="_blank" 
+                       class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
                         <i class="fa-solid fa-print text-slate-400 text-xs"></i>
-                        <span><?= $isKm ? 'បោះពុម្ព' : 'Print' ?></span>
-                    </button>
+                        <span><?= $isKm ? 'បោះពុម្ព (PDF)' : 'Print (PDF)' ?></span>
+                    </a>
                 </div>
             </div>
 

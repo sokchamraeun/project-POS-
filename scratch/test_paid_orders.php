@@ -24,7 +24,7 @@ $stmt_items = $conn->query("SELECT IFNULL(SUM(oi.quantity),0) AS total_items FRO
 $items_sold = (int)($stmt_items ? $stmt_items->fetch_assoc()['total_items'] : 0);
 echo "3. Items Sold: $items_sold\n";
 
-// 4. Payment Method Breakdown
+// 4. Payment Method Breakdownvvvv
 $q_pm = $conn->query("
     SELECT 
         SUM(CASE WHEN LOWER(payment_method) LIKE '%bakong%' OR LOWER(payment_method) LIKE '%khqr%' OR LOWER(payment_method) LIKE '%qr%' THEN 1 ELSE 0 END) AS bakong_cnt,

@@ -93,9 +93,8 @@ if ($filter_user > 0) {
 }
 $where_str = implode(' AND ', $where_conds);
 
-$_gen_role = ucfirst($_SESSION['role'] ?? 'Admin');
-$_gen_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Admin';
-$gen_by_str = (strtolower($_gen_role) !== strtolower($_gen_name)) ? "{$_gen_role} ({$_gen_name})" : $_gen_name;
+$_gen_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Root';
+$gen_by_str = $_gen_name;
 
 $sql_table_orders = "SELECT o.order_id, o.order_id AS daily_order_no, o.order_date, 'Guest' AS customer_name, '' AS table_number, 'drink_in' AS order_type, o.total, o.payment_method, 'Completed' AS status,
                             0 AS discount_amount,
@@ -276,18 +275,19 @@ if (!empty($_GET['dompdf'])) {
     <table class="report-table">
       <thead>
         <tr>
-          <th style="width:8%;"><?= he($lbl_col_no) ?></th>
-          <th style="width:22%;"><?= he($lbl_col_date) ?></th>
-          <th style="width:18%;"><?= he($lbl_col_cust) ?></th>
-          <th style="width:12%;"><?= he($lbl_col_price) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_qty) ?></th>
-          <th style="width:14%;"><?= he($lbl_col_total) ?></th>
-          <th style="width:16%;"><?= he($lbl_col_place) ?></th>
+          <th style="width:7%;"><?= he($lbl_col_no) ?></th>
+          <th style="width:20%;"><?= he($lbl_col_date) ?></th>
+          <th style="width:16%;"><?= he($lbl_col_cust) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_price) ?></th>
+          <th style="width:8%;"><?= he($lbl_col_qty) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_payment) ?></th>
+          <th style="width:12%;"><?= he($lbl_col_total) ?></th>
+          <th style="width:15%;"><?= he($lbl_col_place) ?></th>
         </tr>
       </thead>
       <tbody>
         <?php if (empty($processed_rows)): ?>
-          <tr><td colspan="7" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
+          <tr><td colspan="8" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
         <?php else: foreach ($processed_rows as $r): ?>
           <tr>
             <td><?= $r['no'] ?></td>
@@ -295,6 +295,7 @@ if (!empty($_GET['dompdf'])) {
             <td><?= $r['customer'] ?></td>
             <td><?= $r['price'] ?></td>
             <td><?= $r['qty_item'] ?></td>
+            <td><?= $r['payment_method'] ?></td>
             <td><?= $r['total'] ?></td>
             <td><?= $r['place_by'] ?></td>
           </tr>
@@ -303,6 +304,7 @@ if (!empty($_GET['dompdf'])) {
             <td colspan="3" style="text-align:center; background:#fff;"><?= he($lbl_col_sum) ?></td>
             <td style="background:#c6efce;"><?= $fmt_sum_gross ?></td>
             <td style="background:#c6efce;"><?= $sum_qty ?></td>
+            <td style="background:#fff;"></td>
             <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
             <td style="background:#fff;"></td>
           </tr>
