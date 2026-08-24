@@ -1015,8 +1015,13 @@ function showPaymentSuccess() {
         `;
     }
 
+    try {
+        const receiptUrl = 'receipt_print.php?order_id=' + orderId;
+        window.open(receiptUrl, 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+    } catch(e) {}
+
     setTimeout(() => {
-        window.location.href = 'payment_cash.php?order_id=' + orderId;
+        window.location.href = 'payment_cash.php?order_id=' + orderId + '&auto_print=1';
     }, 800);
 }
 

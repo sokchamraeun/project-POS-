@@ -659,8 +659,8 @@ body {
 
         <!-- ── Actions ── -->
         <div class="actions anim-6">
-            <a href="receipt_pdf.php?order_id=<?= $order_id ?>" target="_blank" class="btn btn-print">
-                <i class="fa-solid fa-file-pdf"></i> Print Receipt
+            <a href="receipt_print.php?order_id=<?= $order_id ?>" target="_blank" class="btn btn-print" onclick="openReceiptPrint(event, <?= $order_id ?>)">
+                <i class="fa-solid fa-print"></i> Print Receipt
             </a>
             <?php if ($is_paylater): ?>
             <a href="find_order.php?tab=paylater" class="btn btn-new">
@@ -737,18 +737,27 @@ body {
     });
 })();
 
-// ── Items scroll fade ──
-(function() {
-    const list = document.getElementById('itemsList');
-    const fade = document.getElementById('itemsFade');
-    if (!list || !fade) return;
-    function updateFade() {
-        const atBottom = list.scrollHeight - list.scrollTop <= list.clientHeight + 4;
-        fade.style.opacity = atBottom ? '0' : '1';
-    }
-    updateFade();
-    list.addEventListener('scroll', updateFade);
-})();
+// ── Open receipt in popup window ──
+function openReceiptPrint(e, orderId) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    const url = 'receipt_print.php?order_id=' + Number(orderId);
+    let win = null;
+    try {
+        win = window.open(url, 'receipt_win', 'width=460,height=720,top=100,left=100,scrollbars=yes');
+        if (win) { win.focus(); return false; }
+    } catch(err) {}
+    window.location.href = url;
+    return false;
+}
+
+<?php if (!empty($_GET['auto_print'])): ?>
+// Automatically open small print receipt window on load
+window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        openReceiptPrint(null, <?= (int)$order_id ?>);
+    }, 450);
+});
+<?php endif; ?>
 </script>
 
 </body>

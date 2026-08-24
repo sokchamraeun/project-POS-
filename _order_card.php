@@ -120,9 +120,9 @@ if ($overdueMins < 60) {
                      every order there printed a cash or Bakong sale as an unpaid tab.
                      receipt_pdf.php is the method-aware one: it reads order_payments and
                      names what was actually tendered. */ ?>
-            <a href="<?= $isPayLater ? 'receipt_paylater.php' : 'receipt_pdf.php' ?>?order_id=<?= $order['order_id'] ?>"
-               target="_blank" class="btn btn-receipt" title="Open receipt">
-                <i class="fa-solid fa-file-pdf"></i>
+            <a href="<?= $isPayLater ? 'receipt_paylater.php' : 'receipt_print.php' ?>?order_id=<?= $order['order_id'] ?>"
+               target="_blank" class="btn btn-receipt" title="Print receipt">
+                <i class="fa-solid fa-print"></i>
             </a>
             <?php if (!$is_cashier): ?>
             <button class="btn btn-cancel-order" onclick="cancelOrderFromFind(<?= $order['order_id'] ?>, this)" title="Cancel this order">

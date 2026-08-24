@@ -80,6 +80,9 @@ $discount_percent = ($subtotal > 0 && $discount > 0) ? round(($discount / $subto
 
 $khr_rate = defined('KHR_RATE') ? KHR_RATE : 4000;
 $total_khr = (int)(round($total * $khr_rate / 100) * 100);
+if ($total > 0 && $total_khr === 0) {
+    $total_khr = (int)round($total * $khr_rate);
+}
 
 // ── FETCH PAYMENT DETAILS ──
 $pay_stmt = $conn->prepare("
@@ -162,6 +165,10 @@ if ($change_usd > 0 && $change_khr > 0) {
 $wifi_pass = defined('WIFI_PASSWORD') ? WIFI_PASSWORD : '';
 $order_time = date("d-m-Y h:i A", strtotime(!empty($order['started_at']) ? $order['started_at'] : $order['order_date']));
 $invoice_no = str_pad($order['daily_order_no'], 4, '0', STR_PAD_LEFT);
+
+$is_58 = (isset($_GET['size']) && (string)$_GET['size'] === '58');
+$paper_width_mm = $is_58 ? 58 : 80;
+$approx_height_mm = max(130, 115 + (count($items) * 10) + ($discount > 0 ? 10 : 0) + ($is_cash_order ? 12 : 0));
 ?>
 <!DOCTYPE html>
 <html lang="km">
@@ -169,6 +176,7 @@ $invoice_no = str_pad($order['daily_order_no'], 4, '0', STR_PAD_LEFT);
 <meta charset="UTF-8">
 <title>វិក្កយបត្រ #<?= htmlspecialchars($order['daily_order_no']) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 * {
     box-sizing: border-box;
@@ -177,30 +185,32 @@ $invoice_no = str_pad($order['daily_order_no'], 4, '0', STR_PAD_LEFT);
 }
 body {
     font-family: 'Kantumruy Pro', 'Poppins', sans-serif;
-    font-size: 11px;
+    font-size: <?= $is_58 ? '9.5px' : '11px' ?>;
     color: #000;
     background: #fff;
     line-height: 1.35;
 }
 
 @page {
-    size: 80mm auto;
+    size: <?= $paper_width_mm ?>mm <?= $approx_height_mm ?>mm;
     margin: 0mm;
 }
 
 @media print {
     html, body {
-        width: 80mm !important;
-        max-width: 80mm !important;
+        width: 100% !important;
+        max-width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
         box-shadow: none !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
     .receipt {
-        width: 80mm !important;
-        max-width: 80mm !important;
-        padding: 4mm 3mm !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: <?= $is_58 ? '2mm 1mm' : '3mm 2mm' ?> !important;
         margin: 0 auto !important;
         border: none !important;
         box-shadow: none !important;
@@ -220,7 +230,7 @@ body {
         padding: 24px 12px;
     }
     .receipt {
-        width: 320px;
+        width: <?= $is_58 ? '240px' : '320px' ?>;
         background: #ffffff;
         padding: 20px 16px;
         border-radius: 12px;
@@ -228,9 +238,82 @@ body {
         border: 1px solid #d4d4d8;
     }
     .no-print {
-        width: 320px;
+        width: <?= $is_58 ? '240px' : '320px' ?>;
         margin-bottom: 12px;
-        border-radius: 10px;
+    }
+    .screen-toolbar {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .toolbar-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .btn-tool-print {
+        flex: 1;
+        background: #18181b;
+        color: #fff;
+        border: none;
+        padding: 9px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 12.5px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-family: inherit;
+        transition: background 0.15s;
+    }
+    .btn-tool-print:hover {
+        background: #27272a;
+    }
+    .btn-tool-close {
+        background: #e4e4e7;
+        color: #3f3f46;
+        border: none;
+        padding: 9px 14px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 12.5px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-family: inherit;
+        transition: background 0.15s;
+    }
+    .btn-tool-close:hover {
+        background: #d4d4d8;
+    }
+    .size-toggle-group {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #d4d4d8;
+        border-radius: 8px;
+        padding: 3px;
+        gap: 4px;
+    }
+    .size-btn {
+        flex: 1;
+        padding: 4px 8px;
+        font-size: 11.5px;
+        font-weight: 600;
+        text-align: center;
+        color: #52525b;
+        text-decoration: none;
+        border-radius: 6px;
+        transition: all 0.15s;
+    }
+    .size-btn.active {
+        background: #ffffff;
+        color: #18181b;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
 }
 
@@ -266,15 +349,16 @@ body {
 .meta-table {
     width: 100%;
     margin-bottom: 8px;
-    font-size: 10.5px;
+    font-size: 10px;
     border-collapse: collapse;
 }
 .meta-table td {
-    padding: 1px 0;
+    padding: 1.5px 0;
     vertical-align: top;
 }
 .meta-table td.right {
     text-align: right;
+    white-space: nowrap;
 }
 
 /* ── ITEM TABLE ── */
@@ -349,6 +433,17 @@ body {
 </head>
 <body>
 
+<div class="no-print screen-toolbar">
+    <div class="toolbar-row">
+        <button type="button" onclick="window.print()" class="btn-tool-print"><i class="fa-solid fa-print"></i> Print Receipt</button>
+        <button type="button" onclick="window.close()" class="btn-tool-close"><i class="fa-solid fa-xmark"></i> Close</button>
+    </div>
+    <div class="size-toggle-group">
+        <a href="receipt_print.php?order_id=<?= $order_id ?>&size=80<?= isset($_GET['no_auto']) ? '&no_auto=1' : '' ?>" class="size-btn <?= !$is_58 ? 'active' : '' ?>">80mm Thermal (Standard)</a>
+        <a href="receipt_print.php?order_id=<?= $order_id ?>&size=58<?= isset($_GET['no_auto']) ? '&no_auto=1' : '' ?>" class="size-btn <?= $is_58 ? 'active' : '' ?>">58mm Thermal (Mini)</a>
+    </div>
+</div>
+
 <div class="receipt">
     <!-- Header -->
     <div class="text-center">
@@ -363,11 +458,11 @@ body {
     <!-- Metadata Section -->
     <table class="meta-table">
         <tr>
-            <td style="width: 55%;">អ្នកគិតលុយ : <?= htmlspecialchars($cashier_display) ?></td>
-            <td class="right" style="width: 45%;">លេខវិក្កយបត្រ : <?= htmlspecialchars($invoice_no) ?></td>
+            <td style="width: 48%;">អ្នកគិតលុយ : <?= htmlspecialchars($cashier_display) ?></td>
+            <td class="right" style="width: 52%;">លេខវិក្កយបត្រ : <?= htmlspecialchars($invoice_no) ?></td>
         </tr>
         <tr>
-            <td>អតិថិជន : <?= htmlspecialchars($order['customer_name'] ?: 'General Customer') ?></td>
+            <td>អតិថិជន : <?= htmlspecialchars($order['customer_name'] ?: 'Guest') ?></td>
             <td class="right">ម៉ោងចេញ : <?= htmlspecialchars($order_time) ?></td>
         </tr>
         <tr>
