@@ -158,21 +158,7 @@ function flyToCart(sourceElement) {
     document.body.appendChild(clone);
 
     function triggerCartBump() {
-        const cpCount = document.getElementById('cpCount');
-        if (cpCount) {
-            cpCount.classList.remove('cart-badge-bump');
-            void cpCount.offsetWidth;
-            cpCount.classList.add('cart-badge-bump');
-            setTimeout(() => cpCount.classList.remove('cart-badge-bump'), 400);
-        }
-
-        const badge = document.getElementById('cart-badge');
-        if (badge) {
-            badge.classList.remove('cart-badge-bump');
-            void badge.offsetWidth;
-            badge.classList.add('cart-badge-bump');
-            setTimeout(() => badge.classList.remove('cart-badge-bump'), 400);
-        }
+        // Clean update without scale animation
     }
 
     if (typeof clone.animate === 'function') {

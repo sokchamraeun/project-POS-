@@ -906,19 +906,8 @@ $defaultMilk = 'Fresh Milk';
       100% { transform: scale(1) rotate(0deg); }
     }
 
-    @keyframes cartBadgePop {
-      0%   { transform: scale(1); }
-      45%  { transform: scale(1.55); box-shadow: 0 0 16px rgba(245, 158, 11, 0.95); }
-      100% { transform: scale(1); }
-    }
-
     .cart-icon-bump {
       animation: cartIconBounce 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-      transform-origin: center center !important;
-    }
-
-    .cart-badge-bump {
-      animation: cartBadgePop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
       transform-origin: center center !important;
     }
 
@@ -3005,21 +2994,7 @@ function flyToCart(sourceElement) {
   document.body.appendChild(clone);
 
   function triggerCartBump() {
-    var cpCount = document.getElementById('cpCount');
-    if (cpCount) {
-      cpCount.classList.remove('cart-badge-bump');
-      void cpCount.offsetWidth;
-      cpCount.classList.add('cart-badge-bump');
-      setTimeout(function() { cpCount.classList.remove('cart-badge-bump'); }, 400);
-    }
-
-    var badge = document.getElementById('cart-badge');
-    if (badge) {
-      badge.classList.remove('cart-badge-bump');
-      void badge.offsetWidth;
-      badge.classList.add('cart-badge-bump');
-      setTimeout(function() { badge.classList.remove('cart-badge-bump'); }, 400);
-    }
+    // Clean update without scale animation
   }
 
   if (typeof clone.animate === 'function') {
