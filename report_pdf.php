@@ -274,19 +274,18 @@ if (!empty($_GET['dompdf'])) {
     <table class="report-table">
       <thead>
         <tr>
-          <th style="width:6%;"><?= he($lbl_col_no) ?></th>
-          <th style="width:32%;"><?= he($lbl_col_pname) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_qty) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_price) ?></th>
+          <th style="width:7%;"><?= he($lbl_col_no) ?></th>
+          <th style="width:35%;"><?= he($lbl_col_pname) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_qty) ?></th>
+          <th style="width:11%;"><?= he($lbl_col_price) ?></th>
           <th style="width:13%;"><?= he($lbl_col_rev) ?></th>
           <th style="width:11%;"><?= he($lbl_col_cogs) ?></th>
-          <th style="width:10%;"><?= he($lbl_col_profit) ?></th>
-          <th style="width:8%;"><?= he($lbl_col_margin) ?></th>
+          <th style="width:12%;"><?= he($lbl_col_profit) ?></th>
         </tr>
       </thead>
       <tbody>
         <?php if (empty($processed_rows)): ?>
-          <tr><td colspan="8" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យទំនិញឡើយ' : 'No product sales data found for selected period.' ?></td></tr>
+          <tr><td colspan="7" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យទំនិញឡើយ' : 'No product sales data found for selected period.' ?></td></tr>
         <?php else: foreach ($processed_rows as $r): ?>
           <tr>
             <td><?= $r['no'] ?></td>
@@ -296,7 +295,6 @@ if (!empty($_GET['dompdf'])) {
             <td><?= $r['revenue'] ?></td>
             <td><?= $r['cogs'] ?></td>
             <td><?= $r['profit'] ?></td>
-            <td><?= $r['margin'] ?></td>
           </tr>
         <?php endforeach; ?>
           <tr class="total-row">
@@ -306,7 +304,6 @@ if (!empty($_GET['dompdf'])) {
             <td style="background:#c6efce;"><?= $fmt_total_rev ?></td>
             <td style="background:#c6efce;"><?= $fmt_total_cogs ?></td>
             <td style="background:#c6efce;"><?= $fmt_total_profit ?></td>
-            <td style="background:#fff;"></td>
           </tr>
         <?php endif; ?>
       </tbody>
@@ -470,19 +467,18 @@ if (!empty($_GET['dompdf'])) {
   <table class="report-table">
     <thead>
       <tr>
-        <th style="width:6%;"><?= he($lbl_col_no) ?></th>
-        <th style="width:32%;"><?= he($lbl_col_pname) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_qty) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_price) ?></th>
+        <th style="width:7%;"><?= he($lbl_col_no) ?></th>
+        <th style="width:35%;"><?= he($lbl_col_pname) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_qty) ?></th>
+        <th style="width:11%;"><?= he($lbl_col_price) ?></th>
         <th style="width:13%;"><?= he($lbl_col_rev) ?></th>
         <th style="width:11%;"><?= he($lbl_col_cogs) ?></th>
-        <th style="width:10%;"><?= he($lbl_col_profit) ?></th>
-        <th style="width:8%;"><?= he($lbl_col_margin) ?></th>
+        <th style="width:12%;"><?= he($lbl_col_profit) ?></th>
       </tr>
     </thead>
     <tbody>
       <?php if (empty($processed_rows)): ?>
-        <tr><td colspan="8" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យទំនិញឡើយ' : 'No product sales data found for selected period.' ?></td></tr>
+        <tr><td colspan="7" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យទំនិញឡើយ' : 'No product sales data found for selected period.' ?></td></tr>
       <?php else: foreach ($processed_rows as $r): ?>
         <tr>
           <td><?= $r['no'] ?></td>
@@ -492,7 +488,6 @@ if (!empty($_GET['dompdf'])) {
           <td><?= $r['revenue'] ?></td>
           <td><?= $r['cogs'] ?></td>
           <td><?= $r['profit'] ?></td>
-          <td><?= $r['margin'] ?></td>
         </tr>
       <?php endforeach; ?>
         <tr class="total-row">
@@ -502,7 +497,6 @@ if (!empty($_GET['dompdf'])) {
           <td style="background:#c6efce;"><?= $fmt_total_rev ?></td>
           <td style="background:#c6efce;"><?= $fmt_total_cogs ?></td>
           <td style="background:#c6efce;"><?= $fmt_total_profit ?></td>
-          <td style="background:#fff;"></td>
         </tr>
       <?php endif; ?>
     </tbody>
