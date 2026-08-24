@@ -250,17 +250,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── Always ensure database schema is up to date ──
+_ensure_categories_schema($conn);
+
+// ── Check if categories table is empty on live host and seed (or force sync via ?sync=1) ──
+$catCheck = $conn->query("SELECT COUNT(*) AS c FROM categories");
+$catCountInDb = ($catCheck && ($cr = $catCheck->fetch_assoc())) ? (int)$cr['c'] : 0;
+
+if ($catCountInDb === 0 || isset($_GET['sync'])) {
+    // 1. Seed standard default categories
+    $defaultCats = [
+        ['slug' => 'Iced',        'name' => 'Iced Beverages', 'icon' => 'fa-snowflake',  'order' => 1],
+        ['slug' => 'Hot',         'name' => 'Hot Beverages',  'icon' => 'fa-mug-hot',    'order' => 2],
+        ['slug' => 'Frappe',      'name' => 'Frappes',        'icon' => 'fa-blender',    'order' => 3],
+        ['slug' => 'Juice',       'name' => 'Juices',         'icon' => 'fa-lemon',      'order' => 4],
+        ['slug' => 'Milk Tea',    'name' => 'Milk Tea',       'icon' => 'fa-circle-dot', 'order' => 5],
+        ['slug' => 'Soft Drinks', 'name' => 'Soft Drinks',    'icon' => 'fa-bottle-water','order' => 6],
+    ];
+    foreach ($defaultCats as $dc) {
+        $s = $conn->real_escape_string($dc['slug']);
+        $n = $conn->real_escape_string($dc['name']);
+        $ic = $conn->real_escape_string($dc['icon']);
+        $o = (int)$dc['order'];
+        $conn->query("INSERT INTO categories (slug, name, icon, display_order, is_active) VALUES ('$s', '$n', '$ic', $o, 1) ON DUPLICATE KEY UPDATE name='$n'");
+    }
+
+    // 2. Import distinct categories from products
+    $prodCatsRes = $conn->query("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND TRIM(category) != ''");
+    if ($prodCatsRes) {
+        $nextOrder = 10;
+        while ($pRow = $prodCatsRes->fetch_assoc()) {
+            $pCatName = trim($pRow['category']);
+            if ($pCatName === '') continue;
+            $escName = $conn->real_escape_string($pCatName);
+            $conn->query("INSERT INTO categories (slug, name, icon, display_order, is_active) VALUES ('$escName', '$escName', 'fa-circle', $nextOrder, 1) ON DUPLICATE KEY UPDATE is_active=1");
+            $nextOrder++;
+        }
+    }
+
+    // Link products to categories
+    $conn->query("UPDATE products p JOIN categories c ON (c.slug = p.category OR c.name = p.category) SET p.category_id = c.category_id WHERE p.category_id IS NULL OR p.category_id = 0");
+}
+
 // ── Load categories with product counts ──
 $categories = [];
 try {
     $res = $conn->query("
-        SELECT c.category_id, c.slug, c.name, COALESCE(c.description,'') AS description, c.icon, c.display_order, c.is_active,
+        SELECT c.category_id, c.slug, c.name, 
+               COALESCE(c.description, '') AS description, 
+               COALESCE(c.icon, 'fa-circle') AS icon, 
+               COALESCE(c.display_order, 0) AS display_order, 
+               COALESCE(c.is_active, 1) AS is_active,
                COALESCE(c.offer_sweetness, 1) AS offer_sweetness, 
                COALESCE(c.offer_ice, 1) AS offer_ice, 
                COALESCE(c.offer_milk, 1) AS offer_milk, 
                COALESCE(c.offer_addons, 1) AS offer_addons, 
                COALESCE(c.earns_points, 1) AS earns_points,
-               (SELECT COUNT(*) FROM products p WHERE p.category_id = c.category_id) AS product_count
+               (SELECT COUNT(*) FROM products p WHERE p.category_id = c.category_id OR p.category = c.slug OR p.category = c.name) AS product_count
         FROM categories c
         ORDER BY c.display_order ASC, c.category_id ASC
     ");
@@ -284,53 +330,6 @@ try {
 }
 
 $totalCats    = count($categories);
-
-// Auto self-seed if database categories table is empty on live host
-if ($totalCats === 0) {
-    $defaultCats = [
-        ['slug' => 'Iced',        'name' => 'Iced Beverages', 'icon' => 'fa-snowflake',  'order' => 1],
-        ['slug' => 'Hot',         'name' => 'Hot Beverages',  'icon' => 'fa-mug-hot',    'order' => 2],
-        ['slug' => 'Frappe',      'name' => 'Frappes',        'icon' => 'fa-blender',    'order' => 3],
-        ['slug' => 'Juice',       'name' => 'Juices',         'icon' => 'fa-lemon',      'order' => 4],
-        ['slug' => 'Milk Tea',    'name' => 'Milk Tea',       'icon' => 'fa-circle-dot', 'order' => 5],
-        ['slug' => 'Soft Drinks', 'name' => 'Soft Drinks',    'icon' => 'fa-bottle-water','order' => 6],
-    ];
-    foreach ($defaultCats as $dc) {
-        $conn->query("INSERT IGNORE INTO categories (slug, name, icon, display_order, is_active, offer_sweetness, offer_ice, offer_milk, offer_addons, earns_points) VALUES ('" . $conn->real_escape_string($dc['slug']) . "', '" . $conn->real_escape_string($dc['name']) . "', '" . $conn->real_escape_string($dc['icon']) . "', " . (int)$dc['order'] . ", 1, 1, 1, 1, 1, 1)");
-    }
-
-    $prodCatsRes = $conn->query("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND TRIM(category) != ''");
-    if ($prodCatsRes) {
-        $nextOrder = 10;
-        while ($pRow = $prodCatsRes->fetch_assoc()) {
-            $pCatName = trim($pRow['category']);
-            if ($pCatName === '') continue;
-            $escName = $conn->real_escape_string($pCatName);
-            $conn->query("INSERT IGNORE INTO categories (slug, name, icon, display_order, is_active) VALUES ('$escName', '$escName', 'fa-circle', $nextOrder, 1)");
-            $nextOrder++;
-        }
-    }
-
-    $conn->query("UPDATE products p JOIN categories c ON (c.slug = p.category OR c.name = p.category) SET p.category_id = c.category_id WHERE p.category_id IS NULL OR p.category_id = 0");
-
-    $res = $conn->query("
-        SELECT c.category_id, c.slug, c.name, COALESCE(c.description,'') AS description, c.icon, c.display_order, c.is_active,
-               COALESCE(c.offer_sweetness, 1) AS offer_sweetness, 
-               COALESCE(c.offer_ice, 1) AS offer_ice, 
-               COALESCE(c.offer_milk, 1) AS offer_milk, 
-               COALESCE(c.offer_addons, 1) AS offer_addons, 
-               COALESCE(c.earns_points, 1) AS earns_points,
-               (SELECT COUNT(*) FROM products p WHERE p.category_id = c.category_id) AS product_count
-        FROM categories c
-        ORDER BY c.display_order ASC, c.category_id ASC
-    ");
-    if ($res) {
-        $categories = [];
-        while ($row = $res->fetch_assoc()) $categories[] = $row;
-    }
-    $totalCats = count($categories);
-}
-
 $activeCats   = count(array_filter($categories, fn($c) => (int)$c['is_active'] === 1));
 $inactiveCats = $totalCats - $activeCats;
 ?>
