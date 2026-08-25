@@ -118,6 +118,11 @@ if (isset($_POST['add_product'])) {
                     }
                 }
 
+                // Auto-sync price and cost to Stock Drink (stock_items) if applicable
+                if (function_exists('sync_product_to_stock_item')) {
+                    sync_product_to_stock_item($conn, $name, $price, $cost_price, $image_path, $new_id);
+                }
+
                 if ($isAjax) {
                     header('Content-Type: application/json; charset=utf-8');
                     echo json_encode([

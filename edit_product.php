@@ -138,6 +138,11 @@ if (isset($_POST['update_product']) || isset($_POST['ajax'])) {
         $product['badge_text']   = $badge_text ?: null;
         $product['promo_percent'] = $promo_percent;
 
+        // Auto-sync price and cost to Stock Drink (stock_items) if applicable
+        if (function_exists('sync_product_to_stock_item')) {
+            sync_product_to_stock_item($conn, $name, $price, $cost_price, !empty($product['image']) ? $product['image'] : null, $id);
+        }
+
         $recCountStmt = $conn->prepare("SELECT COUNT(*) AS rc FROM product_recipes WHERE product_id = ?");
         $recCountStmt->bind_param("i", $id);
         $recCountStmt->execute();

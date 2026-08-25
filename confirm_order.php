@@ -606,6 +606,9 @@ try {
         header('Content-Type: application/json');
         $rate = defined('KHR_RATE') ? (int)KHR_RATE : 4100;
         $khr_amount = (int)(round($total * $rate / 100) * 100);
+        if ($total > 0 && $khr_amount === 0) {
+            $khr_amount = (int)round($total * $rate);
+        }
         $qr_data = $_SESSION['bakong_qr_' . $order_id] ?? ($b_res->data['qr'] ?? '');
         $m_name = $b_config['merchant_name'] ?? 'The Bird\'s Nest Coffee';
         echo json_encode([

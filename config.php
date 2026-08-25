@@ -1986,4 +1986,121 @@ if (!function_exists('can')) {
         return in_array($slug, $staff_allowed, true);
     }
 }
+
+// ── AUTO-SYNC: Sync Product selling/cost price edits directly to Stock Drink (stock_items) ──
+if (!function_exists('sync_product_to_stock_item')) {
+    function sync_product_to_stock_item($conn, $name, $price, $cost_price = null, $image = null, $product_id = null) {
+        if (empty($name) || (float)$price <= 0 || !$conn) return false;
+
+        $nameTrimmed = trim((string)$name);
+        // Check if product name represents Box/Package (e.g. "IZE (កេស)", "Carabao (Box)", "Sting (យួរ)")
+        $isBox = (bool)preg_match('/\s*\((?:Box|box|កេស|យួរ|Pack|pack)\)/ui', $nameTrimmed);
+        
+        // Base name without any unit/box suffix
+        $baseName = trim(preg_replace('/\s*\((?:Box|box|កេស|យួរ|Pack|pack|កំប៉ុង|Can|can|ដប|Bottle|bottle|Unit|unit)\)/ui', '', $nameTrimmed));
+        if ($baseName === '') $baseName = $nameTrimmed;
+
+        // Search for direct_drink in stock_items matching base name or full name
+        $stmt = $conn->prepare("
+            SELECT item_id, item_name, unit, purchase_unit, conversion_rate, 
+                   selling_price_per_unit, selling_price_per_box, cost_per_unit, cost_per_purchase_unit, 
+                   image, image_box 
+            FROM stock_items 
+            WHERE item_type = 'direct_drink' AND is_active = 1 
+              AND (
+                LOWER(REPLACE(REPLACE(TRIM(item_name), ' ', ''), '-', '')) = LOWER(REPLACE(REPLACE(TRIM(?), ' ', ''), '-', ''))
+                OR LOWER(REPLACE(REPLACE(TRIM(item_name), ' ', ''), '-', '')) = LOWER(REPLACE(REPLACE(TRIM(?), ' ', ''), '-', ''))
+              )
+            LIMIT 1
+        ");
+
+        if (!$stmt) return false;
+
+        $stmt->bind_param("ss", $baseName, $nameTrimmed);
+        $stmt->execute();
+        $stockItem = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        // If not found by name, try to check if product has a recipe linked to direct_drink item
+        if (!$stockItem && $product_id > 0) {
+            $rStmt = $conn->prepare("
+                SELECT s.item_id, s.item_name, s.unit, s.purchase_unit, s.conversion_rate, 
+                       s.selling_price_per_unit, s.selling_price_per_box, s.cost_per_unit, s.cost_per_purchase_unit, 
+                       s.image, s.image_box 
+                FROM product_recipes pr 
+                JOIN stock_items s ON pr.item_id = s.item_id 
+                WHERE pr.product_id = ? AND s.item_type = 'direct_drink' AND s.is_active = 1 
+                LIMIT 1
+            ");
+            if ($rStmt) {
+                $rStmt->bind_param("i", $product_id);
+                $rStmt->execute();
+                $stockItem = $rStmt->get_result()->fetch_assoc();
+                $rStmt->close();
+            }
+        }
+
+        if (!$stockItem) return false;
+
+        $itemId = (int)$stockItem['item_id'];
+        $rate   = max(1.0, (float)($stockItem['conversion_rate'] ?? 24));
+        $curUnitSell = (float)($stockItem['selling_price_per_unit'] ?? 0);
+        $curBoxSell  = (float)($stockItem['selling_price_per_box'] ?? 0);
+        $curUnitCost = (float)($stockItem['cost_per_unit'] ?? 0);
+        $curBoxCost  = (float)($stockItem['cost_per_purchase_unit'] ?? 0);
+
+        $newUnitSell = $curUnitSell;
+        $newBoxSell  = $curBoxSell;
+        $newUnitCost = $curUnitCost;
+        $newBoxCost  = $curBoxCost;
+
+        if ($isBox) {
+            // Updated Box selling price
+            $newBoxSell = round((float)$price, 2);
+            if ($cost_price !== null && (float)$cost_price > 0) {
+                $newBoxCost = round((float)$cost_price, 2);
+            }
+            // If unit selling price is 0 or needs default from box rate
+            if ($newUnitSell <= 0 && $rate > 0) {
+                $newUnitSell = round($newBoxSell / $rate, 2);
+            }
+            if ($newUnitCost <= 0 && $newBoxCost > 0 && $rate > 0) {
+                $newUnitCost = round($newBoxCost / $rate, 2);
+            }
+        } else {
+            // Updated Unit selling price
+            $newUnitSell = round((float)$price, 2);
+            if ($cost_price !== null && (float)$cost_price > 0) {
+                $newUnitCost = round((float)$cost_price, 2);
+            }
+            // If box selling price is 0 or needs default from unit rate
+            if ($newBoxSell <= 0 && $rate > 0) {
+                $newBoxSell = round($newUnitSell * $rate, 2);
+            }
+            if ($newBoxCost <= 0 && $newUnitCost > 0 && $rate > 0) {
+                $newBoxCost = round($newUnitCost * $rate, 2);
+            }
+        }
+
+        // Prepare update for stock_items
+        $upd = $conn->prepare("
+            UPDATE stock_items 
+            SET selling_price_per_unit = ?, 
+                selling_price_per_box = ?, 
+                cost_per_unit = ?, 
+                cost_per_purchase_unit = ?, 
+                updated_at = NOW() 
+            WHERE item_id = ?
+        ");
+
+        if ($upd) {
+            $upd->bind_param("ddddi", $newUnitSell, $newBoxSell, $newUnitCost, $newBoxCost, $itemId);
+            $upd->execute();
+            $upd->close();
+            return true;
+        }
+
+        return false;
+    }
+}
 ?>

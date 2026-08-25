@@ -2016,7 +2016,7 @@ $defaultMilk = 'Fresh Milk';
     #cashPaymentModal #cpmBakongQrCanvas img, #cashPaymentModal #cpmBakongQrCanvas canvas {
         display: block;
         margin: 0 auto;
-        border-radius: 12px;
+        border-radius: 0 !important;
     }
 
     /* ── Cohesive Emerald & Cyan Glass Dark Theme for Payment Modal ── */
@@ -3352,20 +3352,46 @@ $defaultMilk = 'Fresh Milk';
 
           <!-- Bakong QR View -->
           <div id="cpmBakongQrView" style="display:none;" class="flex flex-col items-center justify-center p-3 text-center">
-            <div class="w-full max-w-[270px] bg-white rounded-3xl p-4 text-black shadow-2xl border-2 border-rose-500 relative overflow-hidden flex flex-col items-center" style="box-shadow: 0 16px 36px -8px rgba(225, 29, 72, 0.25);">
-              <div class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white font-black text-[11px] uppercase tracking-wider shadow-sm mb-3">
-                <i class="fa-solid fa-qrcode text-xs"></i> <?= __('cpm_khqr_scan_pay', 'KHQR SCAN TO PAY') ?>
+            <div class="w-full max-w-[310px] bg-white rounded-[28px] p-5 text-black border-2 border-[#e01a22] shadow-[0_12px_36px_rgba(224,26,34,0.12)] relative overflow-hidden flex flex-col items-center mx-auto">
+              <!-- Top Pill Badge -->
+              <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#e01a22] text-white font-bold text-xs tracking-wide shadow-md shadow-red-600/30 mb-3.5">
+                <i class="fa-solid fa-qrcode text-xs"></i> <span><?= $isKm ? 'ស្កេនទូទាត់តាម KHQR' : 'Scan to Pay with KHQR' ?></span>
               </div>
-              <div id="cpmBakongQrCanvas" class="flex items-center justify-center min-h-[160px] min-w-[160px] my-1 bg-white p-1 rounded-xl"></div>
-              <div class="mt-3 pt-2.5 border-t border-dashed border-rose-200 w-full flex items-baseline justify-center gap-2">
-                <span class="text-2xl font-black text-slate-900" id="cpmBakongDispUsd">$0.00</span>
-                <span class="text-xs font-bold text-rose-600" id="cpmBakongDispKhr">(៛ 0)</span>
+
+              <!-- QR Code Frame with 4 Red Corner Accents & KHQR Logo Center Overlay -->
+              <div class="relative p-2.5 bg-white">
+                <span class="absolute top-0 left-0 w-4 h-4 border-t-[3px] border-l-[3px] border-[#e01a22] rounded-tl-sm pointer-events-none"></span>
+                <span class="absolute top-0 right-0 w-4 h-4 border-t-[3px] border-r-[3px] border-[#e01a22] rounded-tr-sm pointer-events-none"></span>
+                <span class="absolute bottom-0 left-0 w-4 h-4 border-b-[3px] border-l-[3px] border-[#e01a22] rounded-bl-sm pointer-events-none"></span>
+                <span class="absolute bottom-0 right-0 w-4 h-4 border-b-[3px] border-r-[3px] border-[#e01a22] rounded-br-sm pointer-events-none"></span>
+
+                <div id="cpmBakongQrCanvas" class="flex items-center justify-center min-h-[160px] min-w-[160px] relative"></div>
+                
+                <!-- Center KHQR Badge Overlay -->
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div class="w-7 h-7 rounded-lg bg-[#e01a22] border-2 border-white flex items-center justify-center shadow-md">
+                    <span class="text-[7.5px] font-black text-white leading-none tracking-tighter">KHQR</span>
+                  </div>
+                </div>
               </div>
-              <div class="text-[11px] font-semibold text-slate-500 mt-1 flex items-center justify-center gap-1">
-                <i class="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
-                <span id="cpmBakongMerchant">The Bird's Nest Coffee</span>
+
+              <!-- Dashed Divider -->
+              <div class="w-full border-t border-dashed border-slate-200 my-3.5"></div>
+
+              <!-- Price Row with USD and KHR Equivalent Pill -->
+              <div class="w-full flex items-center justify-center gap-2">
+                <span class="text-2xl md:text-3xl font-black text-slate-900 tracking-tight" id="cpmBakongDispUsd">$0.00</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 font-mono" id="cpmBakongDispKhr">≈ 0 ៛</span>
+              </div>
+
+              <!-- Merchant Name -->
+              <div class="text-xs font-bold text-emerald-600 flex items-center justify-center gap-1.5 mt-1.5">
+                <i class="fa-regular fa-circle-check text-emerald-600 text-sm"></i>
+                <span id="cpmBakongMerchant">Sok Chamroeun (Merchant)</span>
               </div>
             </div>
+
+            <!-- Waiting Status Pill -->
             <div id="cpmBakongStatusBadge" class="mt-3.5 px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-extrabold flex items-center justify-center gap-2 shadow-sm">
               <i class="fa-solid fa-spinner fa-spin text-rose-500 text-xs" id="cpmBakongSpinner"></i>
               <span id="cpmBakongStatusText"><?= __('cpm_waiting_bakong', 'Waiting for Bakong payment...') ?></span>
@@ -3480,6 +3506,36 @@ $defaultMilk = 'Fresh Milk';
       </button>
       <button type="button" id="cartRemoveConfirmBtn" class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs transition shadow-lg shadow-red-600/30 active:scale-95">
         <?= __('cart_remove_item_confirm', 'Yes, Remove') ?>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── UNIVERSAL POS ALERT & CONFIRM MODAL POPUP ── -->
+<div id="posAlertConfirmModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-[999999]" style="display:none;">
+  <div class="pos-alert-box bg-white dark:bg-[#14151e] border border-slate-200/90 dark:border-[#232433] rounded-[24px] shadow-2xl p-5 md:p-6 max-w-[360px] w-full text-center relative transform transition-all duration-200 scale-95 opacity-0 mx-auto">
+    <!-- Icon Box -->
+    <div id="pacmIconBox" class="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-500/25 text-rose-500 flex items-center justify-center text-2xl shadow-sm">
+      <i class="fa-solid fa-triangle-exclamation" id="pacmIcon"></i>
+    </div>
+
+    <!-- Title -->
+    <h3 class="text-base md:text-lg font-extrabold text-slate-800 dark:text-white mb-1.5 leading-snug" id="pacmTitle">
+      បញ្ជាក់ការបោះបង់
+    </h3>
+
+    <!-- Message -->
+    <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400 mb-5 leading-relaxed font-medium" id="pacmMessage">
+      តើអ្នកពិតជាចង់បោះបង់មែនទេ?
+    </p>
+
+    <!-- Action Buttons -->
+    <div class="flex items-center justify-center gap-2.5" id="pacmBtnRow">
+      <button type="button" id="pacmCancelBtn" onclick="pacmHandleCancel()" class="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-[#2e3042] bg-slate-100 hover:bg-slate-200 dark:bg-[#1b1c27] dark:hover:bg-[#252636] text-slate-700 dark:text-slate-300 font-bold text-xs md:text-sm transition active:scale-95 cursor-pointer">
+        មិនបោះបង់
+      </button>
+      <button type="button" id="pacmConfirmBtn" onclick="pacmHandleConfirm()" class="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs md:text-sm transition shadow-lg shadow-rose-600/25 active:scale-95 cursor-pointer">
+        យល់ព្រម
       </button>
     </div>
   </div>
@@ -5201,6 +5257,9 @@ function openCashPaymentModal() {
   var totalUsd = cpGetCartTotal();
   var rate = window.CP_KHR_RATE || 4100;
   var totalKhr = Math.round(totalUsd * rate / 100) * 100;
+  if (totalUsd > 0 && totalKhr === 0) {
+    totalKhr = Math.round(totalUsd * rate);
+  }
 
   cpmState.owedUsd = totalUsd;
   cpmState.owedKhr = totalKhr;
@@ -5311,15 +5370,22 @@ function openCashPaymentModal() {
   }, 60);
 }
 
-function closeCashPaymentModal() {
+async function closeCashPaymentModal() {
   var modal = document.getElementById('cashPaymentModal');
   if (!modal) return;
 
   if (cpmState.activeBakongOrderId) {
-    var confirmMsg = window.CPM_IS_KM 
-      ? ('អ្នកមានការកុម្ម៉ង់បាគង #' + cpmState.activeBakongOrderId + ' កំពុងដំណើរការ។ តើអ្នកចង់បោះបង់ការកុម្ម៉ង់នេះ ហើយត្រឡប់ទៅកាន់កន្ត្រកវិញទេ?')
-      : ('You have an active Bakong QR order #' + cpmState.activeBakongOrderId + '. Do you want to cancel this order and return to cart?');
-    if (confirm(confirmMsg)) {
+    var isKm = window.CPM_IS_KM || (document.documentElement.lang === 'km');
+    var confirmed = await showConfirmModal({
+      title: isKm ? 'បោះបង់ការកុម្ម៉ង់បាគង?' : 'Cancel Bakong Order?',
+      message: isKm 
+        ? ('អ្នកមានការកុម្ម៉ង់បាគង #' + cpmState.activeBakongOrderId + ' កំពុងដំណើរការ។ តើអ្នកចង់បោះបង់ការកុម្ម៉ង់នេះ ហើយត្រឡប់ទៅកាន់កន្ត្រកវិញទេ?')
+        : ('You have an active Bakong QR order #' + cpmState.activeBakongOrderId + '. Do you want to cancel this order and return to cart?'),
+      type: 'danger',
+      cancelText: isKm ? 'មិនបោះបង់ (Cancel)' : 'Cancel',
+      confirmText: isKm ? 'យល់ព្រមបោះបង់ (Yes)' : 'Yes, Cancel'
+    });
+    if (confirmed) {
       cpmCancelActiveBakongOrder(true);
       modal.style.display = 'none';
     }
@@ -5821,7 +5887,11 @@ function cpmApplyBakongPayment() {
         try { cpmState.receiptWindow.close(); } catch(e) {}
         cpmState.receiptWindow = null;
       }
-      alert(res && res.error ? res.error : 'Failed to generate Bakong KHQR. Please check network/inventory.');
+      showAlertModal({
+        title: window.CPM_IS_KM ? 'បរាជ័យក្នុងការបង្កើត KHQR' : 'Failed to generate KHQR',
+        message: res && res.error ? res.error : 'Failed to generate Bakong KHQR. Please check network/inventory.',
+        type: 'danger'
+      });
       return;
     }
 
@@ -5861,11 +5931,20 @@ function cpmApplyBakongPayment() {
 
     var numTotal = parseFloat(res.amount || res.total || totalVal) || 0;
     var rate = window.CP_KHR_RATE || 4100;
-    var numKhr = res.amount_khr || Math.round(numTotal * rate / 100) * 100;
+    var numKhr = res.amount_khr;
+    if (numKhr === undefined || numKhr === null || (numTotal > 0 && numKhr === 0)) {
+      numKhr = Math.round(numTotal * rate / 100) * 100;
+      if (numTotal > 0 && numKhr === 0) {
+        numKhr = Math.round(numTotal * rate);
+      }
+    }
 
     if (dispUsd) dispUsd.textContent = '$' + numTotal.toFixed(2);
-    if (dispKhr) dispKhr.textContent = '(៛ ' + numKhr.toLocaleString() + ')';
-    if (merchantEl) merchantEl.textContent = res.merchant_name || "The Bird's Nest Coffee";
+    if (dispKhr) dispKhr.textContent = '≈ ' + numKhr.toLocaleString() + ' ៛';
+    if (merchantEl) {
+      var mName = res.merchant_name || 'Sok Chamroeun';
+      merchantEl.textContent = mName.indexOf('(Merchant)') !== -1 ? mName : (mName + ' (Merchant)');
+    }
     if (statusText) statusText.textContent = 'Waiting for Bakong payment...';
     if (spinner) spinner.className = 'fa-solid fa-spinner fa-spin text-amber-400';
 
@@ -5881,7 +5960,11 @@ function cpmApplyBakongPayment() {
       applyBtn.innerHTML = '<i class="fa-solid fa-qrcode text-base"></i> Apply Payment & Show QR';
     }
     console.error('Bakong checkout error:', err);
-    alert('Network error while generating Bakong QR. Please try again.');
+    showAlertModal({
+      title: window.CPM_IS_KM ? 'កំហុសតភ្ជាប់បណ្តាញ' : 'Network Error',
+      message: window.CPM_IS_KM ? 'មានបញ្ហាតភ្ជាប់បណ្តាញក្នុងការបង្កើត Bakong QR។ សូមព្យាយាមម្តងទៀត។' : 'Network error while generating Bakong QR. Please try again.',
+      type: 'danger'
+    });
   });
 }
 
@@ -5911,7 +5994,7 @@ function cpmRenderBakongQR(qrString) {
     var img = document.createElement('img');
     img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=290x290&data=' + encodeURIComponent(qrString);
     img.alt = 'Bakong KHQR';
-    img.className = 'w-[145px] h-[145px] rounded-lg object-contain';
+    img.className = 'w-[145px] h-[145px] object-contain';
     container.appendChild(img);
   } else {
     container.innerHTML = '<div class="text-xs text-rose-500 font-bold p-4"><i class="fa-solid fa-triangle-exclamation text-xl mb-1"></i><br>QR not generated</div>';
@@ -6043,15 +6126,117 @@ function cpmHandleBakongPaymentSuccess(orderId, existingWin) {
   cpmState.receiptWindow = null;
 }
 
-function cpmCancelActiveBakongOrder(skipConfirm) {
+// ── Universal Alert & Confirm Modal Popup Controller ──
+var _pacmResolve = null;
+
+function showConfirmModal(options) {
+  return new Promise(function(resolve) {
+    _pacmResolve = resolve;
+    var modal = document.getElementById('posAlertConfirmModal');
+    var box = modal ? modal.querySelector('.pos-alert-box') : null;
+    if (!modal) {
+      resolve(confirm(options.message || ''));
+      return;
+    }
+
+    var isKm = (document.documentElement.lang === 'km' || document.documentElement.getAttribute('data-lang') === 'km' || window.CPM_IS_KM);
+
+    var title = options.title || (isKm ? 'បញ្ជាក់ការសម្រេចចិត្ត' : 'Please Confirm');
+    var msg = options.message || '';
+    var type = options.type || 'warning';
+    var cancelText = options.cancelText || (isKm ? 'មិនបោះបង់ (Cancel)' : 'Cancel');
+    var confirmText = options.confirmText || (isKm ? 'យល់ព្រម (Yes)' : 'Confirm');
+
+    var titleEl = document.getElementById('pacmTitle');
+    var msgEl = document.getElementById('pacmMessage');
+    var iconBox = document.getElementById('pacmIconBox');
+    var icon = document.getElementById('pacmIcon');
+    var cancelBtn = document.getElementById('pacmCancelBtn');
+    var confirmBtn = document.getElementById('pacmConfirmBtn');
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = msg;
+    if (cancelBtn) {
+      cancelBtn.style.display = options.hideCancel ? 'none' : 'block';
+      cancelBtn.textContent = cancelText;
+    }
+    if (confirmBtn) {
+      confirmBtn.textContent = confirmText;
+      if (type === 'danger' || type === 'rose') {
+        confirmBtn.className = 'flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs md:text-sm transition shadow-lg shadow-rose-600/25 active:scale-95 cursor-pointer';
+        if (iconBox) iconBox.className = 'w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-500/25 text-rose-500 flex items-center justify-center text-2xl shadow-sm';
+        if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
+      } else if (type === 'success' || type === 'emerald') {
+        confirmBtn.className = 'flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs md:text-sm transition shadow-lg shadow-emerald-600/25 active:scale-95 cursor-pointer';
+        if (iconBox) iconBox.className = 'w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/25 text-emerald-500 flex items-center justify-center text-2xl shadow-sm';
+        if (icon) icon.className = 'fa-solid fa-circle-check';
+      } else {
+        confirmBtn.className = 'flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-xs md:text-sm transition shadow-lg shadow-amber-500/25 active:scale-95 cursor-pointer';
+        if (iconBox) iconBox.className = 'w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-500/25 text-amber-500 flex items-center justify-center text-2xl shadow-sm';
+        if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
+      }
+    }
+
+    modal.style.display = 'flex';
+    requestAnimationFrame(function() {
+      if (box) {
+        box.style.transform = 'scale(1)';
+        box.style.opacity = '1';
+      }
+    });
+  });
+}
+
+function showAlertModal(options) {
+  if (typeof options === 'string') {
+    options = { message: options };
+  }
+  options.hideCancel = true;
+  return showConfirmModal(options);
+}
+
+function pacmHandleConfirm() {
+  var modal = document.getElementById('posAlertConfirmModal');
+  var box = modal ? modal.querySelector('.pos-alert-box') : null;
+  if (box) {
+    box.style.transform = 'scale(0.95)';
+    box.style.opacity = '0';
+  }
+  setTimeout(function() {
+    if (modal) modal.style.display = 'none';
+    if (_pacmResolve) { _pacmResolve(true); _pacmResolve = null; }
+  }, 120);
+}
+
+function pacmHandleCancel() {
+  var modal = document.getElementById('posAlertConfirmModal');
+  var box = modal ? modal.querySelector('.pos-alert-box') : null;
+  if (box) {
+    box.style.transform = 'scale(0.95)';
+    box.style.opacity = '0';
+  }
+  setTimeout(function() {
+    if (modal) modal.style.display = 'none';
+    if (_pacmResolve) { _pacmResolve(false); _pacmResolve = null; }
+  }, 120);
+}
+
+async function cpmCancelActiveBakongOrder(skipConfirm) {
   var orderId = cpmState.activeBakongOrderId;
   if (!orderId) return;
 
   if (!skipConfirm) {
-    var confirmMsg = window.CPM_IS_KM 
-      ? ('អ្នកមានការកុម្ម៉ង់បាគង #' + orderId + ' កំពុងដំណើរការ។ តើអ្នកចង់បោះបង់ការកុម្ម៉ង់នេះ ហើយត្រឡប់ទៅកាន់កន្ត្រកវិញទេ?')
-      : ('Do you want to cancel this Bakong payment and return items to cart?');
-    if (!confirm(confirmMsg)) {
+    var isKm = window.CPM_IS_KM || (document.documentElement.lang === 'km');
+    var confirmed = await showConfirmModal({
+      title: isKm ? 'បោះបង់ការកុម្ម៉ង់បាគង?' : 'Cancel Bakong Order?',
+      message: isKm 
+        ? ('អ្នកមានការកុម្ម៉ង់បាគង #' + orderId + ' កំពុងដំណើរការ។ តើអ្នកចង់បោះបង់ការកុម្ម៉ង់នេះ ហើយត្រឡប់ទៅកាន់កន្ត្រកវិញទេ?')
+        : ('You have an active Bakong order #' + orderId + '. Do you want to cancel this order and return items to cart?'),
+      type: 'danger',
+      cancelText: isKm ? 'មិនបោះបង់ (Cancel)' : 'Cancel',
+      confirmText: isKm ? 'យល់ព្រមបោះបង់ (Yes)' : 'Yes, Cancel'
+    });
+    if (!confirmed) {
       return;
     }
   }
