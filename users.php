@@ -18,16 +18,40 @@ function he($s) {
     return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 }
 
-// ── AUTO-MIGRATE USERS SCHEMA FIRST BEFORE ANY QUERY ──
+// ── ENSURE USERS TABLE SCHEMA IS COMPATIBLE ACROSS ALL MYSQL VERSIONS ──
 try {
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100) NULL DEFAULT NULL");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL DEFAULT NULL");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'staff'");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_set_security TINYINT(1) NOT NULL DEFAULT 0");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR(255) NULL DEFAULT NULL");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR(255) NULL DEFAULT NULL");
+    $existing_cols = [];
+    $col_res = $conn->query("SHOW COLUMNS FROM `users`");
+    if ($col_res) {
+        while ($c = $col_res->fetch_assoc()) {
+            $existing_cols[strtolower($c['Field'])] = true;
+        }
+    }
+
+    if (!isset($existing_cols['name'])) {
+        @$conn->query("ALTER TABLE `users` ADD `name` VARCHAR(100) NULL DEFAULT NULL");
+    }
+    if (!isset($existing_cols['email'])) {
+        @$conn->query("ALTER TABLE `users` ADD `email` VARCHAR(255) NULL DEFAULT NULL");
+    }
+    if (!isset($existing_cols['is_active'])) {
+        @$conn->query("ALTER TABLE `users` ADD `is_active` TINYINT(1) NOT NULL DEFAULT 1");
+    }
+    if (!isset($existing_cols['role'])) {
+        @$conn->query("ALTER TABLE `users` ADD `role` VARCHAR(50) NOT NULL DEFAULT 'staff'");
+    }
+    if (!isset($existing_cols['must_change_password'])) {
+        @$conn->query("ALTER TABLE `users` ADD `must_change_password` TINYINT(1) NOT NULL DEFAULT 0");
+    }
+    if (!isset($existing_cols['must_set_security'])) {
+        @$conn->query("ALTER TABLE `users` ADD `must_set_security` TINYINT(1) NOT NULL DEFAULT 0");
+    }
+    if (!isset($existing_cols['security_question'])) {
+        @$conn->query("ALTER TABLE `users` ADD `security_question` VARCHAR(255) NULL DEFAULT NULL");
+    }
+    if (!isset($existing_cols['security_answer'])) {
+        @$conn->query("ALTER TABLE `users` ADD `security_answer` VARCHAR(255) NULL DEFAULT NULL");
+    }
 } catch (Throwable $e) {}
 
 $flash = null;
@@ -88,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1");
+            if (!$chk) throw new Exception("Database prepare error: " . $conn->error);
             $chk->bind_param("s", $username);
             $chk->execute();
             if ($chk->get_result()->fetch_assoc()) {
@@ -97,16 +122,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
-            $chk_email->bind_param("s", $email);
-            $chk_email->execute();
-            if ($chk_email->get_result()->fetch_assoc()) {
-                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
-                header("Location: users.php");
-                exit;
+            if ($chk_email) {
+                $chk_email->bind_param("s", $email);
+                $chk_email->execute();
+                if ($chk_email->get_result()->fetch_assoc()) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
+                    header("Location: users.php");
+                    exit;
+                }
             }
 
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $ins = $conn->prepare("INSERT INTO users (username, name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+            if (!$ins) throw new Exception("Database prepare error: " . $conn->error);
             $ins->bind_param("sssssi", $username, $name, $email, $hash, $user_role, $is_active);
             if ($ins->execute()) {
                 $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($name) . '" created successfully.'];
@@ -135,6 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $cur = $conn->prepare("SELECT user_id, username, role FROM users WHERE user_id = ? LIMIT 1");
+            if (!$cur) throw new Exception("Database prepare error: " . $conn->error);
             $cur->bind_param("i", $target_id);
             $cur->execute();
             $target_user = $cur->get_result()->fetch_assoc();
@@ -176,6 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) AND user_id != ? LIMIT 1");
+            if (!$chk) throw new Exception("Database prepare error: " . $conn->error);
             $chk->bind_param("si", $username, $target_id);
             $chk->execute();
             if ($chk->get_result()->fetch_assoc()) {
@@ -186,12 +216,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($email !== '') {
                 $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND user_id != ? LIMIT 1");
-                $chk_email->bind_param("si", $email, $target_id);
-                $chk_email->execute();
-                if ($chk_email->get_result()->fetch_assoc()) {
-                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
-                    header("Location: users.php");
-                    exit;
+                if ($chk_email) {
+                    $chk_email->bind_param("si", $email, $target_id);
+                    $chk_email->execute();
+                    if ($chk_email->get_result()->fetch_assoc()) {
+                        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
+                        header("Location: users.php");
+                        exit;
+                    }
                 }
             }
 
@@ -203,9 +235,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $hash = password_hash($password, PASSWORD_DEFAULT);
                 $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ?, password = ? WHERE user_id = ?");
+                if (!$upd) throw new Exception("Database prepare error: " . $conn->error);
                 $upd->bind_param("ssssisi", $username, $name, $email, $user_role, $is_active, $hash, $target_id);
             } else {
                 $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ? WHERE user_id = ?");
+                if (!$upd) throw new Exception("Database prepare error: " . $conn->error);
                 $upd->bind_param("ssssii", $username, $name, $email, $user_role, $is_active, $target_id);
             }
 

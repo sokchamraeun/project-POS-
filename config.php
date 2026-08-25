@@ -204,12 +204,22 @@ _migrate($conn, 'order_items_orig_price', function($db) {
 });
 
 _migrate($conn, 'users_email_security_v1', function($db) {
-    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL DEFAULT NULL");
-    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0");
-    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_set_security TINYINT(1) NOT NULL DEFAULT 0");
-    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR(255) NULL DEFAULT NULL");
-    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR(255) NULL DEFAULT NULL");
-    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1");
+    $existing = [];
+    $res = $db->query("SHOW COLUMNS FROM `users`");
+    if ($res) {
+        while ($c = $res->fetch_assoc()) {
+            $existing[strtolower($c['Field'])] = true;
+        }
+    }
+    if (!isset($existing['name']))                 @$db->query("ALTER TABLE `users` ADD `name` VARCHAR(100) NULL DEFAULT NULL");
+    if (!isset($existing['email']))                @$db->query("ALTER TABLE `users` ADD `email` VARCHAR(255) NULL DEFAULT NULL");
+    if (!isset($existing['is_active']))            @$db->query("ALTER TABLE `users` ADD `is_active` TINYINT(1) NOT NULL DEFAULT 1");
+    if (!isset($existing['role']))                 @$db->query("ALTER TABLE `users` ADD `role` VARCHAR(50) NOT NULL DEFAULT 'staff'");
+    if (!isset($existing['must_change_password'])) @$db->query("ALTER TABLE `users` ADD `must_change_password` TINYINT(1) NOT NULL DEFAULT 0");
+    if (!isset($existing['must_set_security']))    @$db->query("ALTER TABLE `users` ADD `must_set_security` TINYINT(1) NOT NULL DEFAULT 0");
+    if (!isset($existing['security_question']))    @$db->query("ALTER TABLE `users` ADD `security_question` VARCHAR(255) NULL DEFAULT NULL");
+    if (!isset($existing['security_answer']))      @$db->query("ALTER TABLE `users` ADD `security_answer` VARCHAR(255) NULL DEFAULT NULL");
+
     @$db->query("CREATE TABLE IF NOT EXISTS `password_resets` (
       `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       `user_id` INT NOT NULL,
