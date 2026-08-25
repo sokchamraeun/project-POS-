@@ -250,9 +250,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ── FETCH USERS LIST ──
-$users_result = $conn->query("SELECT user_id, username, COALESCE(NULLIF(name, ''), username) AS name, COALESCE(email, '') AS email, role, COALESCE(is_active, 1) AS is_active FROM users ORDER BY user_id ASC");
-$users = $users_result ? $users_result->fetch_all(MYSQLI_ASSOC) : [];
+// ── AUTO-MIGRATE USERS SCHEMA IF NEEDED ON HOSTING ──
+try {
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100) NULL DEFAULT NULL");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL DEFAULT NULL");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'staff'");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0");
+} catch (Throwable $e) {}
+
+// ── FETCH USERS LIST RESILIENTLY ──
+$users = [];
+$users_result = @$conn->query("SELECT * FROM users ORDER BY user_id ASC");
+if ($users_result) {
+    while ($row = $users_result->fetch_assoc()) {
+        $uName = (string)($row['username'] ?? 'user');
+        $dName = !empty($row['name']) ? (string)$row['name'] : $uName;
+        $users[] = [
+            'user_id'   => (int)($row['user_id'] ?? 0),
+            'username'  => $uName,
+            'name'      => $dName,
+            'email'     => (string)($row['email'] ?? ''),
+            'role'      => (string)($row['role'] ?? 'staff'),
+            'is_active' => isset($row['is_active']) ? (int)$row['is_active'] : 1
+        ];
+    }
+}
 
 $role_meta = [
     'admin'   => ['label' => 'Admin',   'color' => '#ef4444', 'bg' => 'rgba(239, 68, 68, 0.15)',  'icon' => 'fa-user-shield'],
