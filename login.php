@@ -308,6 +308,23 @@ i.fa-brands, i.fab, .fa-brands, .fab {
     text-shadow: 0 0 12px rgba(0, 245, 160, 0.35);
 }
 
+.typewriter-cursor {
+    display: inline-block;
+    width: 2.5px;
+    height: 1.15em;
+    background-color: var(--mint);
+    margin-left: 3px;
+    vertical-align: -2px;
+    border-radius: 1px;
+    box-shadow: 0 0 8px var(--mint);
+    animation: cursorBlink 0.75s infinite ease-in-out;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0; }
+}
+
 /* ── 3D CHARACTER BOX ── */
 .character-box {
     position: relative;
@@ -708,7 +725,7 @@ i.fa-brands, i.fab, .fa-brands, .fab {
 /* ── CYBER FLOOR NEON LINE UNDER 3D CARTOONS ── */
 .cyber-line-container {
     position: absolute;
-    bottom: -20px;
+    bottom: -55px;
     left: 50%;
     transform: translateX(-50%);
     width: 100vw;
@@ -817,7 +834,7 @@ i.fa-brands, i.fab, .fa-brands, .fab {
         <!-- Left Side Character & Badge -->
         <div class="side-character-col side-left">
             <div class="chat-bubble">
-                <span class="chat-text">សូមស្វាគមន៍មកកាន់ POS!</span>
+                <span class="chat-text" id="typewriterLeft">សូមស្វាគមន៍មកកាន់ POS!</span><span class="typewriter-cursor"></span>
             </div>
             <div class="character-box">
                 <img src="image/3d-cartoon-left.webp" alt="Bird's Nest 3D Barista" class="character-img" loading="eager">
@@ -943,7 +960,7 @@ i.fa-brands, i.fab, .fa-brands, .fab {
         <!-- Right Side Character & Badge -->
         <div class="side-character-col side-right">
             <div class="chat-bubble">
-                <span class="chat-text">ត្រៀមរួចរាល់សម្រាប់បម្រើ!</span>
+                <span class="chat-text" id="typewriterRight">ត្រៀមរួចរាល់សម្រាប់បម្រើ!</span><span class="typewriter-cursor"></span>
             </div>
             <div class="character-box">
                 <img src="image/3d-cartoon-right.webp" alt="Bird's Nest 3D Barista" class="character-img" loading="eager" onerror="this.src='image/3d-cartoon-rgiht.webp'">
@@ -982,6 +999,70 @@ eyeBtn.addEventListener('click', function(){
 // Submit loading state
 document.getElementById('form').addEventListener('submit', function(){
     document.getElementById('btn').classList.add('loading');
+});
+
+// ── TYPEWRITER TEXT ANIMATION ──
+function initTypewriter(elementId, texts, typeSpeed = 75, eraseSpeed = 35, delayBetween = 3000) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    let textIdx = 0;
+    let charIdx = 0;
+    let isDeleting = false;
+    
+    function getGraphemes(str) {
+        if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+            try {
+                const seg = new Intl.Segmenter('km', { granularity: 'grapheme' });
+                return Array.from(seg.segment(str), s => s.segment);
+            } catch(e) {}
+        }
+        return Array.from(str);
+    }
+    
+    function run() {
+        const currentString = texts[textIdx % texts.length];
+        const graphemes = getGraphemes(currentString);
+        
+        if (isDeleting) {
+            charIdx--;
+            el.textContent = graphemes.slice(0, charIdx).join('');
+        } else {
+            charIdx++;
+            el.textContent = graphemes.slice(0, charIdx).join('');
+        }
+        
+        let wait = isDeleting ? eraseSpeed : typeSpeed;
+        
+        if (!isDeleting && charIdx === graphemes.length) {
+            wait = delayBetween;
+            isDeleting = true;
+        } else if (isDeleting && charIdx === 0) {
+            isDeleting = false;
+            textIdx++;
+            wait = 500;
+        }
+        
+        setTimeout(run, wait);
+    }
+    
+    setTimeout(run, 600);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initTypewriter('typewriterLeft', [
+        "សូមស្វាគមន៍មកកាន់ POS!",
+        "កាហ្វេឆ្ងាញ់ជារៀងរាល់ថ្ងៃ!",
+        "Bird's Nest POS"
+    ], 80, 40, 3200);
+
+    setTimeout(function() {
+        initTypewriter('typewriterRight', [
+            "ត្រៀមរួចរាល់សម្រាប់បម្រើ!",
+            "សុវត្ថិភាព និងរហ័សទាន់ចិត្ត!",
+            "ប្រព័ន្ធ POS ទំនើបទាន់សម័យ"
+        ], 80, 40, 3200);
+    }, 1200);
 });
 </script>
 </body>

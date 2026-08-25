@@ -276,36 +276,172 @@ html, body {
     z-index: 2;
 }
 
+/* ── CHAT BOX SPEECH BUBBLE ── */
 .chat-bubble {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 10px 20px;
-    background: rgba(8, 24, 18, 0.95);
-    border: 1.5px solid var(--mint);
-    border-radius: 999px;
-    box-shadow: 0 0 25px rgba(0, 245, 160, 0.35);
+    padding: 11px 22px;
+    background: rgba(8, 20, 16, 0.92);
+    border: 2px solid var(--mint);
+    border-radius: 18px;
+    box-shadow: 
+        0 0 25px rgba(0, 245, 160, 0.35),
+        0 10px 30px rgba(0, 0, 0, 0.6),
+        inset 0 0 15px rgba(0, 245, 160, 0.08);
     backdrop-filter: blur(16px);
-    font-size: 13.5px;
+    -webkit-backdrop-filter: blur(16px);
+    font-size: 14px;
     font-weight: 700;
     color: #ffffff;
     white-space: nowrap;
+    user-select: none;
+    z-index: 3;
     animation: chatFloat 4.5s ease-in-out infinite alternate;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+
+.chat-bubble:hover {
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 
+        0 0 35px rgba(0, 245, 160, 0.55),
+        0 14px 32px rgba(0, 0, 0, 0.7),
+        inset 0 0 20px rgba(0, 245, 160, 0.15);
+}
+
+/* Chat bubble speech tail pointer */
+.chat-bubble::before,
+.chat-bubble::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+}
+
+/* Left Bubble: Tail on bottom-left pointing to barista */
+.side-left .chat-bubble {
+    border-bottom-left-radius: 6px;
+}
+.side-left .chat-bubble::before {
+    bottom: -13px;
+    left: 26px;
+    border-width: 13px 12px 0 0;
+    border-color: var(--mint) transparent transparent transparent;
+}
+.side-left .chat-bubble::after {
+    bottom: -9px;
+    left: 28px;
+    border-width: 10px 9px 0 0;
+    border-color: #081410 transparent transparent transparent;
+}
+
+/* Right Bubble: Tail on bottom-right pointing to barista */
+.side-right .chat-bubble {
+    border-bottom-right-radius: 6px;
+    animation-delay: -2.25s;
+}
+.side-right .chat-bubble::before {
+    bottom: -13px;
+    right: 26px;
+    border-width: 13px 0 0 12px;
+    border-color: var(--mint) transparent transparent transparent;
+}
+.side-right .chat-bubble::after {
+    bottom: -9px;
+    right: 28px;
+    border-width: 10px 0 0 9px;
+    border-color: #081410 transparent transparent transparent;
 }
 
 @keyframes chatFloat {
     0%   { transform: translateY(0px); }
-    50%  { transform: translateY(-8px); }
+    50%  { transform: translateY(-7px); }
     100% { transform: translateY(0px); }
+}
+
+.chat-bubble .chat-text {
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 12px rgba(0, 245, 160, 0.35);
+}
+
+.typewriter-cursor {
+    display: inline-block;
+    width: 2.5px;
+    height: 1.15em;
+    background-color: var(--mint);
+    margin-left: 3px;
+    vertical-align: -2px;
+    border-radius: 1px;
+    box-shadow: 0 0 8px var(--mint);
+    animation: cursorBlink 0.75s infinite ease-in-out;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0; }
+}
+
+.character-box {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .character-img {
     width: 310px;
     max-width: 100%;
+    max-height: 480px;
     height: auto;
+    object-fit: contain;
     filter: drop-shadow(0 25px 35px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 45px rgba(0, 245, 160, 0.25));
+    animation: characterFloat 5s ease-in-out infinite alternate;
+    user-select: none;
+    -webkit-user-drag: none;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s ease;
+}
+
+.character-box:hover .character-img {
+    filter: drop-shadow(0 30px 42px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 60px rgba(0, 245, 160, 0.45));
+    transform: scale(1.05) translateY(-6px);
+}
+
+.side-right .character-img {
+    animation-delay: -2.5s;
+}
+
+@keyframes characterFloat {
+    0%   { transform: translateY(0px); }
+    50%  { transform: translateY(-12px); }
+    100% { transform: translateY(0px); }
+}
+
+.character-glow {
+    position: absolute;
+    bottom: -16px;
+    width: 210px;
+    height: 40px;
+    background: radial-gradient(ellipse, rgba(0, 245, 160, 0.32) 0%, rgba(0, 245, 160, 0.08) 50%, transparent 70%);
+    filter: blur(14px);
+    pointer-events: none;
+    animation: shadowPulse 5s ease-in-out infinite alternate;
+}
+
+.side-right .character-glow {
+    animation-delay: -2.5s;
+}
+
+@keyframes shadowPulse {
+    0%   { transform: scale(1); opacity: 0.9; }
+    50%  { transform: scale(0.82); opacity: 0.45; }
+    100% { transform: scale(1); opacity: 0.9; }
 }
 
 .card {
@@ -559,8 +695,36 @@ html, body {
 .back-link:hover { color: var(--mint); }
 .year-text { color: #3b5249; font-size: 11px; font-weight: 700; font-family: monospace; }
 
+/* ── CYBER FLOOR NEON LINE UNDER 3D CARTOONS ── */
+.cyber-line-container {
+    position: absolute;
+    bottom: -55px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100vw;
+    max-width: 1750px;
+    height: 180px;
+    pointer-events: none;
+    z-index: 1;
+    overflow: visible;
+}
+
+.cyber-line-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+    animation: linePulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes linePulse {
+    0%   { opacity: 0.85; filter: drop-shadow(0 0 8px rgba(0, 245, 160, 0.4)); }
+    100% { opacity: 1;    filter: drop-shadow(0 0 20px rgba(0, 245, 160, 0.75)); }
+}
+
 @media (max-width: 1100px) {
     .side-character-col { display: none; }
+    .cyber-line-container { display: none; }
     .login-wrapper { justify-content: center; }
 }
 </style>
@@ -572,14 +736,49 @@ html, body {
 <div class="page">
     <div class="login-wrapper">
         
+        <!-- Cyber Neon Baseline Curve Directly Below 3D Cartoons (Split Left & Right) -->
+        <div class="cyber-line-container">
+            <svg class="cyber-line-svg" viewBox="0 0 1600 180" fill="none" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="neonCyberGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#00f5a0" stop-opacity="0" />
+                        <stop offset="6%" stop-color="#00f5a0" stop-opacity="0.35" />
+                        <stop offset="20%" stop-color="#00f5a0" stop-opacity="0.95" />
+                        <stop offset="33%" stop-color="#00f5a0" stop-opacity="0.2" />
+                        <stop offset="36%" stop-color="#00f5a0" stop-opacity="0" />
+                        <stop offset="64%" stop-color="#00f5a0" stop-opacity="0" />
+                        <stop offset="67%" stop-color="#00f5a0" stop-opacity="0.2" />
+                        <stop offset="80%" stop-color="#00f5a0" stop-opacity="0.95" />
+                        <stop offset="94%" stop-color="#00f5a0" stop-opacity="0.35" />
+                        <stop offset="100%" stop-color="#00f5a0" stop-opacity="0" />
+                    </linearGradient>
+                    <filter id="neonGlowWide" x="-20%" y="-100%" width="140%" height="300%">
+                        <feGaussianBlur stdDeviation="6" result="blur1" />
+                        <feGaussianBlur stdDeviation="14" result="blur2" />
+                        <feMerge>
+                            <feMergeNode in="blur2" />
+                            <feMergeNode in="blur1" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+                <!-- Wide ambient glow path (Ultra-smooth Left & Right wings) -->
+                <path d="M 0,20 C 120,20 200,110 330,110 L 560,110 M 1040,110 L 1260,110 C 1370,105 1450,115 1600,175"
+                      stroke="url(#neonCyberGrad)" stroke-width="7" opacity="0.32" filter="url(#neonGlowWide)" />
+                <!-- Core solid smooth neon path -->
+                <path d="M 0,20 C 120,20 200,110 330,110 L 560,110 M 1040,110 L 1260,110 C 1370,105 1450,115 1600,175"
+                      stroke="url(#neonCyberGrad)" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+        </div>
+        
         <!-- Left Side Character -->
         <div class="side-character-col side-left">
             <div class="chat-bubble">
-                <span style="color:var(--mint);font-size:10px;">●</span>
-                <span class="chat-text"><?= $step === 2 ? 'បង្កើតលេខសម្ងាត់ថ្មី! 🔒' : 'ភ្លេចលេខសម្ងាត់មែនទេ? 🔑' ?></span>
+                <span class="chat-text" id="typewriterLeft"><?= $step === 2 ? 'បង្កើតលេខសម្ងាត់ថ្មី! 🔒' : 'ភ្លេចលេខសម្ងាត់មែនទេ? 🔑' ?></span><span class="typewriter-cursor"></span>
             </div>
             <div class="character-box">
-                <img src="image/3d-cartoon-left.webp" alt="Bird's Nest Barista" class="character-img">
+                <img src="image/forgot-password-cartoon.webp" alt="Bird's Nest Forgot Password" class="character-img">
+                <div class="character-glow"></div>
             </div>
         </div>
 
@@ -714,11 +913,11 @@ html, body {
         <!-- Right Side Character -->
         <div class="side-character-col side-right">
             <div class="chat-bubble">
-                <span style="color:var(--mint);font-size:10px;">●</span>
-                <span class="chat-text">សុវត្ថិភាពខ្ពស់ 100%! 🛡️</span>
+                <span class="chat-text" id="typewriterRight">សុវត្ថិភាពខ្ពស់ 100%! 🛡️</span><span class="typewriter-cursor"></span>
             </div>
             <div class="character-box">
                 <img src="image/3d-cartoon-right.webp" alt="Bird's Nest Barista" class="character-img">
+                <div class="character-glow"></div>
             </div>
         </div>
 
@@ -755,6 +954,79 @@ if (newPassInput) {
         if (reqMix) reqMix.classList.toggle('met', (hasUpper || hasLower) && hasNum);
     });
 }
+
+// ── TYPEWRITER TEXT ANIMATION ──
+function initTypewriter(elementId, texts, typeSpeed = 75, eraseSpeed = 35, delayBetween = 3000) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    let textIdx = 0;
+    let charIdx = 0;
+    let isDeleting = false;
+    
+    function getGraphemes(str) {
+        if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+            try {
+                const seg = new Intl.Segmenter('km', { granularity: 'grapheme' });
+                return Array.from(seg.segment(str), s => s.segment);
+            } catch(e) {}
+        }
+        return Array.from(str);
+    }
+    
+    function run() {
+        const currentString = texts[textIdx % texts.length];
+        const graphemes = getGraphemes(currentString);
+        
+        if (isDeleting) {
+            charIdx--;
+            el.textContent = graphemes.slice(0, charIdx).join('');
+        } else {
+            charIdx++;
+            el.textContent = graphemes.slice(0, charIdx).join('');
+        }
+        
+        let wait = isDeleting ? eraseSpeed : typeSpeed;
+        
+        if (!isDeleting && charIdx === graphemes.length) {
+            wait = delayBetween;
+            isDeleting = true;
+        } else if (isDeleting && charIdx === 0) {
+            isDeleting = false;
+            textIdx++;
+            wait = 500;
+        }
+        
+        setTimeout(run, wait);
+    }
+    
+    setTimeout(run, 600);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const step = <?= (int)$step ?>;
+    if (step === 2) {
+        initTypewriter('typewriterLeft', [
+            "បង្កើតលេខសម្ងាត់ថ្មី!",
+            "បញ្ចូលលេខសម្ងាត់ពីអ៊ីមែល",
+            "កំណត់ពាក្យសម្ងាត់សុវត្ថិភាព"
+        ], 80, 40, 3200);
+    } else {
+        initTypewriter('typewriterLeft', [
+            "ភ្លេចលេខសម្ងាត់មែនទេ?",
+            "កុំបារម្ភ យើងជួយអ្នកបាន!",
+            "បញ្ចូលអ៊ីមែលបុគ្គលិក"
+        ], 80, 40, 3200);
+    }
+
+    setTimeout(function() {
+        initTypewriter('typewriterRight', [
+            "សុវត្ថិភាពខ្ពស់ 100%!",
+            "លេខកូដផ្ញើតាម Email",
+            "រហ័ស និងទុកចិត្តបាន!"
+        ], 80, 40, 3200);
+    }, 1200);
+});
 </script>
 </body>
 </html>
