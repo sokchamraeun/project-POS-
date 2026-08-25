@@ -591,6 +591,175 @@ html:not([data-theme="light"]) .theme-switch-slider {
     transform: translateX(2px);
 }
 
+/* ── LOGOUT MODAL (EMERALD DARK POS THEME) ── */
+.logout-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: rgba(3, 8, 6, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.logout-modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.logout-modal-card {
+    width: 100%;
+    max-width: 440px;
+    background: #091511;
+    border: 1px solid rgba(0, 245, 160, 0.25);
+    border-radius: 28px;
+    padding: 36px 32px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    box-shadow:
+        0 0 50px -10px rgba(0, 245, 160, 0.22),
+        0 30px 60px -15px rgba(0, 0, 0, 0.9),
+        inset 0 1px 1px rgba(255, 255, 255, 0.08);
+    transform: scale(0.93) translateY(15px);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Plus Jakarta Sans', sans-serif;
+}
+
+.logout-modal-overlay.active .logout-modal-card {
+    transform: scale(1) translateY(0);
+}
+
+.logout-icon-box {
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    background: rgba(0, 245, 160, 0.06);
+    border: 1.5px solid rgba(0, 245, 160, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #00f5a0;
+    box-shadow: 0 0 25px rgba(0, 245, 160, 0.18), inset 0 0 12px rgba(0, 245, 160, 0.08);
+    margin-bottom: 24px;
+    flex-shrink: 0;
+}
+
+.logout-icon-box svg {
+    color: #00f5a0;
+    filter: drop-shadow(0 0 6px rgba(0, 245, 160, 0.45));
+}
+
+.logout-modal-title {
+    font-size: 23px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+
+.logout-modal-sub {
+    font-size: 13.5px;
+    color: #708b82;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    font-weight: 400;
+}
+
+.logout-highlight-user {
+    color: #00f5a0;
+    font-weight: 700;
+}
+
+.logout-notice-pill {
+    width: 100%;
+    background: rgba(6, 17, 13, 0.85);
+    border: 1px solid rgba(0, 245, 160, 0.2);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #9cb1aa;
+    margin-bottom: 24px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+}
+
+.notice-shield-icon {
+    color: #f59e0b;
+    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
+    flex-shrink: 0;
+}
+
+.logout-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+}
+
+.logout-btn-cancel {
+    flex: 1;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+}
+
+.logout-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+}
+
+.logout-btn-confirm {
+    flex: 1;
+    height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #00f5a0 0%, #00d486 100%);
+    color: #041f15 !important;
+    font-size: 14.5px;
+    font-weight: 800;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(0, 245, 160, 0.35);
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-family: inherit;
+}
+
+.logout-btn-confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px rgba(0, 245, 160, 0.55);
+    filter: brightness(1.05);
+    color: #041f15 !important;
+}
+
 /* Collapsed State */
 .sidebar.collapsed {
     --sidebar-w: 72px;
@@ -1047,12 +1216,56 @@ html[data-theme="light"] .toast-dismiss:hover {
             <a href="profile.php" class="sidebar-user-name" title="View Profile">
                 <?= htmlspecialchars($_username) ?>
             </a>
-            <a class="sidebar-logout-btn" href="logout.php" title="Logout">
+            <a class="sidebar-logout-btn" href="logout.php" onclick="openLogoutModal(event)" title="Logout">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i>
             </a>
         </div>
     </div>
 </aside>
+
+<!-- Logout Confirmation Modal (Emerald Dark POS Theme) -->
+<div id="logoutModalOverlay" class="logout-modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="logout-modal-card">
+        <!-- Icon Box -->
+        <div class="logout-icon-box">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+        </div>
+
+        <!-- Title & Subtitle -->
+        <h2 class="logout-modal-title">ចាកចេញពីប្រព័ន្ធ?</h2>
+        <p class="logout-modal-sub">
+            តើអ្នកពិតជាចង់ចាកចេញពីគណនី <strong class="logout-highlight-user"><?= htmlspecialchars($_username ?? 'Root') ?></strong> មែនទេ?
+        </p>
+
+        <!-- Security / Data Saved Notice Pill -->
+        <div class="logout-notice-pill">
+            <svg class="notice-shield-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>ទិន្នន័យការលក់ទាំងអស់ត្រូវបានរក្សាទុក</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="logout-actions">
+            <button type="button" class="logout-btn-cancel" onclick="closeLogoutModal()">
+                បោះបង់ (Cancel)
+            </button>
+            <a href="logout.php" class="logout-btn-confirm" id="confirmLogoutLink">
+                <span>ចាកចេញ</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            </a>
+        </div>
+    </div>
+</div>
 
 <script>
 function closeSidebar() {
@@ -1548,4 +1761,52 @@ window.pollSidebarStockBadges = pollSidebarStockBadges;
 
 // Automatically poll sidebar badges across all pages every 8 seconds
 setInterval(pollSidebarStockBadges, 8000);
+
+// ── LOGOUT MODAL CONTROLLERS ──
+function openLogoutModal(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var modal = document.getElementById('logoutModalOverlay');
+    if (modal) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+    return false;
+}
+window.openLogoutModal = openLogoutModal;
+
+function closeLogoutModal() {
+    var modal = document.getElementById('logoutModalOverlay');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+window.closeLogoutModal = closeLogoutModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Intercept any logout link that hasn't already been bound
+    document.querySelectorAll('a[href="logout.php"], a[href$="/logout.php"]').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            if (btn.closest('#logoutModalOverlay')) return; // Allow confirmed logout
+            openLogoutModal(e);
+        });
+    });
+
+    // Close on backdrop click
+    var overlay = document.getElementById('logoutModalOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                closeLogoutModal();
+            }
+        });
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeLogoutModal();
+        }
+    });
+});
 </script>

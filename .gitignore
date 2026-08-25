@@ -6,6 +6,7 @@
 # bakong_config.local.php
 db_config.local.php
 cloudinary_config.local.php
+mail_config.local.php
 config.php
 
 # Database dump generated for migration (may contain live data)

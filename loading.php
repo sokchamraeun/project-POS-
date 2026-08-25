@@ -7,110 +7,73 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-$role     = $_SESSION['role'] ?? 'staff';
+$role     = strtolower($_SESSION['role'] ?? 'staff');
 $username = $_SESSION['username'] ?? 'User';
-
-$gold = '#d1904b';
-$glow = 'rgba(209,144,75,0.12)';
 
 $roles = [
     'admin' => [
-        'speed'     => 'normal',
-        'icon'      => 'fa-user-shield',
-        'color'     => $gold,
-        'glow'      => $glow,
-        'title'     => 'Admin Console',
-        'portal'    => 'Admin Portal',
-        'tagline'   => 'Full system access granted.',
-        'bar_label' => 'Setting up your console',
-        'dest'      => 'menu.php',
-        'duration'  => '1.8s',
-        'features'  => ['Manage staff, roles & permissions', 'System-wide settings & analytics', 'Full order & payment control'],
+        'badge'      => 'ADMIN',
+        'title'      => 'Admin Console',
+        'portal'     => "Bird's Nest Coffee",
+        'tagline'    => 'Full system access granted.',
+        'sync_title' => 'Syncing Store Data',
+        'sync_desc'  => 'Fetching latest menu, orders & prices...',
+        'dest'       => 'menu.php',
     ],
     'manager' => [
-        'speed'     => 'normal',
-        'icon'      => 'fa-user-tie',
-        'color'     => $gold,
-        'glow'      => $glow,
-        'title'     => 'Manager Portal',
-        'portal'    => 'Manager Portal',
-        'tagline'   => 'Shift overview is ready.',
-        'bar_label' => 'Loading operations hub',
-        'dest'      => 'menu.php',
-        'duration'  => '1.6s',
-        'features'  => ['Real-time sales monitoring', 'Reports & daily analytics', 'Staff & inventory oversight'],
-    ],
-    'staff' => [
-        'speed'     => 'skip',
-        'icon'      => 'fa-cash-register',
-        'color'     => $gold,
-        'glow'      => $glow,
-        'title'     => 'Cashier Station',
-        'portal'    => 'Cashier Portal',
-        'tagline'   => 'Ready to take orders.',
-        'bar_label' => 'Preparing your station',
-        'dest'      => 'menu.php',
-        'duration'  => '1.4s',
-        'features'  => ['Menu & order management', 'Payment processing', 'Loyalty card handling'],
-    ],
-    'barista' => [
-        'speed'     => 'skip',
-        'icon'      => 'fa-mug-hot',
-        'color'     => $gold,
-        'glow'      => $glow,
-        'title'     => 'Kitchen Display',
-        'portal'    => 'Barista Station',
-        'tagline'   => 'Orders coming right up.',
-        'bar_label' => 'Firing up the queue',
-        'dest'      => 'view_order.php',
-        'duration'  => '1.4s',
-        'features'  => ['Live order queue', 'Drink recipe reference', 'Order status updates'],
+        'badge'      => 'MANAGER',
+        'title'      => 'Manager Portal',
+        'portal'     => "Bird's Nest Coffee",
+        'tagline'    => 'Shift overview is ready.',
+        'sync_title' => 'Syncing Operations Data',
+        'sync_desc'  => 'Loading shifts, stock & analytics...',
+        'dest'       => 'menu.php',
     ],
     'supervisor' => [
-        'speed'     => 'normal',
-        'icon'      => 'fa-user-check',
-        'color'     => $gold,
-        'glow'      => $glow,
-        'title'     => 'Supervisor View',
-        'portal'    => 'Supervisor Portal',
-        'tagline'   => 'Shift oversight active.',
-        'bar_label' => 'Activating shift view',
-        'dest'      => 'menu.php',
-        'duration'  => '1.5s',
-        'features'  => ['Staff attendance tracking', 'Inventory & stock overview', 'Operational order control'],
+        'badge'      => 'SUPERVISOR',
+        'title'      => 'Supervisor View',
+        'portal'     => "Bird's Nest Coffee",
+        'tagline'    => 'Shift oversight active.',
+        'sync_title' => 'Verifying Shift Status',
+        'sync_desc'  => 'Loading staff & station access...',
+        'dest'       => 'menu.php',
+    ],
+    'staff' => [
+        'badge'      => 'STAFF',
+        'title'      => 'Cashier Station',
+        'portal'     => "Bird's Nest Coffee",
+        'tagline'    => 'Ready to take orders.',
+        'sync_title' => 'Syncing Menu & Register',
+        'sync_desc'  => 'Loading drink recipes & pricing...',
+        'dest'       => 'menu.php',
+    ],
+    'barista' => [
+        'badge'      => 'BARISTA',
+        'title'      => 'Kitchen Display',
+        'portal'     => "Bird's Nest Coffee",
+        'tagline'    => 'Live queue ready.',
+        'sync_title' => 'Connecting to Order Queue',
+        'sync_desc'  => 'Syncing pending drink tickets...',
+        'dest'       => 'view_order.php',
     ],
     'inventory_clerk' => [
-        'speed'     => 'medium',
-        'icon'      => 'fa-box-open',
-        'color'     => $gold,
-        'glow'      => $glow,
-        'title'     => 'Inventory Hub',
-        'portal'    => 'Inventory Portal',
-        'tagline'   => 'Stock levels syncing.',
-        'bar_label' => 'Syncing stock data',
-        'dest'      => 'menu.php',
-        'duration'  => '1.4s',
-        'features'  => ['Ingredient stock levels', 'Purchase order management', 'Supplier coordination'],
+        'badge'      => 'INVENTORY',
+        'title'      => 'Inventory Hub',
+        'portal'     => "Bird's Nest Coffee",
+        'tagline'    => 'Stock levels syncing.',
+        'sync_title' => 'Auditing Ingredient Stock',
+        'sync_desc'  => 'Syncing items, batches & reorders...',
+        'dest'       => 'menu.php',
     ],
 ];
 
-$cfg       = $roles[$role] ?? $roles['staff'];
-$speed     = $cfg['speed'] ?? 'normal';
-$color     = $cfg['color'];
-$glow      = $cfg['glow'];
-$icon      = $cfg['icon'];
-$title     = $cfg['title'];
-$portal    = $cfg['portal'];
-$tagline   = $cfg['tagline'];
-$bar_label = $cfg['bar_label'];
-$dest      = $cfg['dest'];
-$duration  = $cfg['duration'];
-$features  = $cfg['features'];
-
-if ($speed === 'skip') {
-    header("Location: " . $dest);
-    exit;
-}
+$cfg        = $roles[$role] ?? $roles['staff'];
+$badge      = $cfg['badge'];
+$title      = $cfg['title'];
+$tagline    = $cfg['tagline'];
+$sync_title = $cfg['sync_title'];
+$sync_desc  = $cfg['sync_desc'];
+$dest       = $cfg['dest'];
 
 // Greeting based on hour
 $hour = (int)date('H');
@@ -123,479 +86,520 @@ else                  $greeting = 'Good evening';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Loading — Bird's Nest Coffee</title>
-<script>if (localStorage.getItem('theme') === 'light') document.documentElement.setAttribute('data-theme','light');</script>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<title><?= htmlspecialchars($title) ?> — Bird's Nest Coffee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-    --accent: <?= $color ?>;
-    --glow:   <?= $glow ?>;
-    --bg:     #0b0b0b;
-    --surface:#111111;
-    --border: #1f1f1f;
-    --text:   #f0f0f0;
-    --muted:  #666;
+    --bg:          #040a08;
+    --card-bg:     #091511;
+    --card-border: rgba(0, 245, 160, 0.25);
+    --mint:        #00f5a0;
+    --mint-dim:    #00d486;
+    --mint-glow:   rgba(0, 245, 160, 0.35);
+    --mint-soft:   rgba(0, 245, 160, 0.12);
+    --text-main:   #ffffff;
+    --text-muted:  #708b82;
+    --text-dim:    #435c54;
+    --box-bg:      rgba(6, 17, 13, 0.85);
 }
-
-[data-theme="light"] {
-    --bg:     #ECEEF2;
-    --surface:#FFFFFF;
-    --border: #E2E5EA;
-    --text:   #111827;
-    --muted:  #5A6373;
-}
-[data-theme="light"] .grid-lines {
-    background-image:
-        linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
-}
-[data-theme="light"] .orb-1,
-[data-theme="light"] .orb-2 { opacity: 0.5; }
 
 html, body {
     height: 100%;
-    background: var(--bg);
-    font-family: 'Poppins', sans-serif;
-    color: var(--text);
+    background-color: var(--bg);
+    font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+    color: var(--text-main);
     overflow: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* ── Background glow orbs ── */
-.bg-orb {
+/* ── BACKGROUND GRID & AMBIENT GLOW ── */
+.bg-scene {
     position: fixed;
-    border-radius: 50%;
-    filter: blur(90px);
-    pointer-events: none;
+    inset: 0;
     z-index: 0;
-}
-.orb-1 {
-    width: 600px; height: 600px;
-    top: -150px; left: 50%;
-    transform: translateX(-50%);
-    background: var(--glow);
-    animation: orb-drift 8s ease-in-out infinite alternate;
-}
-.orb-2 {
-    width: 400px; height: 400px;
-    bottom: -100px; right: -100px;
-    background: var(--glow);
-    opacity: 0.5;
-    animation: orb-drift 10s ease-in-out infinite alternate-reverse;
+    background-color: var(--bg);
+    background-image: 
+        linear-gradient(rgba(0, 255, 170, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 170, 0.04) 1px, transparent 1px);
+    background-size: 36px 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-@keyframes orb-drift {
-    from { transform: translateX(-50%) translateY(0); }
-    to   { transform: translateX(-50%) translateY(30px); }
-}
-
-/* ── Grid lines ── */
-.grid-lines {
-    position: fixed; inset: 0; z-index: 0;
-    background-image:
-        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-    background-size: 60px 60px;
+.bg-scene::before {
+    content: '';
+    position: absolute;
+    width: 650px;
+    height: 650px;
+    background: radial-gradient(circle, rgba(0, 245, 160, 0.16) 0%, rgba(0, 180, 120, 0.04) 45%, transparent 70%);
+    filter: blur(50px);
     pointer-events: none;
 }
 
-/* ── Main layout ── */
-.wrapper {
-    position: relative; z-index: 1;
-    height: 100vh;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 0;
-    animation: fade-in 0.6s ease forwards;
+.bg-scene::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(3, 7, 5, 0.88) 100%);
+    pointer-events: none;
 }
 
-@keyframes fade-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Brand header ── */
-.brand {
-    display: flex; align-items: center; gap: 10px;
-    margin-bottom: 48px;
-    opacity: 0;
-    animation: fade-in 0.5s ease 0.2s forwards;
-}
-.brand-icon {
-    width: 36px; height: 36px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; color: var(--accent);
-}
-.brand-text { font-size: 13px; color: var(--muted); font-weight: 500; letter-spacing: 0.03em; }
-.brand-dot  { color: var(--border); }
-.brand-portal { color: var(--accent); }
-
-/* ── Progress ring ── */
-.ring-wrap {
+/* ── PAGE LAYOUT ── */
+.page {
     position: relative;
-    width: 140px; height: 140px;
-    margin-bottom: 32px;
-    opacity: 0;
-    animation: fade-in 0.5s ease 0.3s forwards;
-}
-.ring-svg {
-    position: absolute; inset: 0;
-    transform: rotate(-90deg);
-}
-.ring-track {
-    fill: none;
-    stroke: var(--border);
-    stroke-width: 3;
-}
-.ring-progress {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-dasharray: 376.99;
-    stroke-dashoffset: 376.99;
-    filter: drop-shadow(0 0 6px var(--accent));
+    z-index: 1;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
 }
 
-/* Idle spinner — shown before JS progress starts */
-.ring-spinner {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-dasharray: 70 306.99;
-    opacity: 0.35;
-    transform-origin: 65px 65px;
-    transform-box: fill-box;
-    animation: spinner-rotate 1.1s linear infinite;
+/* ── MAIN CARD ── */
+.loading-card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 28px;
+    padding: 34px 32px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    box-shadow: 
+        0 0 50px -10px rgba(0, 245, 160, 0.2),
+        0 30px 60px -15px rgba(0, 0, 0, 0.9),
+        inset 0 1px 1px rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    animation: cardAppear 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transition: opacity 0.4s ease, transform 0.4s ease;
 }
-@keyframes spinner-rotate {
+
+@keyframes cardAppear {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.loading-card.fade-exit {
+    opacity: 0;
+    transform: scale(0.97) translateY(-10px);
+}
+
+/* ── TOP PILL BADGE ── */
+.top-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    background: rgba(9, 23, 18, 0.9);
+    border: 1px solid rgba(0, 245, 160, 0.28);
+    border-radius: 999px;
+    box-shadow: 0 0 20px rgba(0, 245, 160, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    margin-bottom: 26px;
+}
+
+.top-pill .pill-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-main);
+    letter-spacing: 0.02em;
+}
+
+.top-pill .pill-brand svg {
+    color: var(--mint);
+    filter: drop-shadow(0 0 5px var(--mint));
+}
+
+.top-pill .role-badge {
+    background: rgba(0, 245, 160, 0.14);
+    border: 1px solid rgba(0, 245, 160, 0.4);
+    color: var(--mint);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* ── CENTER RADAR & SHIELD ── */
+.radar-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+/* Outer rotating dashed ring */
+.radar-outer-ring {
+    position: absolute;
+    inset: 0;
+    border: 1.5px dashed rgba(0, 245, 160, 0.35);
+    border-radius: 50%;
+    animation: radarSpin 14s linear infinite;
+}
+
+/* Middle pulse ring */
+.radar-mid-ring {
+    position: absolute;
+    inset: 12px;
+    border: 1px solid rgba(0, 245, 160, 0.2);
+    border-radius: 50%;
+    box-shadow: 0 0 15px rgba(0, 245, 160, 0.1);
+}
+
+/* Center circular core */
+.shield-core {
+    position: relative;
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 245, 160, 0.25) 0%, rgba(4, 26, 18, 0.95) 75%);
+    border: 1.5px solid rgba(0, 245, 160, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mint);
+    box-shadow: 
+        0 0 30px rgba(0, 245, 160, 0.4),
+        inset 0 0 15px rgba(0, 245, 160, 0.2);
+    animation: shieldPulse 3s ease-in-out infinite alternate;
+}
+
+.shield-core svg {
+    width: 28px;
+    height: 28px;
+    filter: drop-shadow(0 0 8px var(--mint));
+}
+
+@keyframes radarSpin {
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
 }
 
-.ring-inner {
-    position: absolute; inset: 14px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    flex-direction: column;
-    gap: 4px;
-}
-.ring-icon {
-    font-size: 32px;
-    color: var(--accent);
-    animation: icon-pulse 2s ease-in-out 0.5s infinite;
-}
-@keyframes icon-pulse {
-    0%, 100% { transform: scale(1);   opacity: 1; }
-    50%       { transform: scale(1.08); opacity: 0.85; }
+@keyframes shieldPulse {
+    0%   { transform: scale(1);   box-shadow: 0 0 25px rgba(0, 245, 160, 0.35); }
+    100% { transform: scale(1.05); box-shadow: 0 0 38px rgba(0, 245, 160, 0.55); }
 }
 
-/* ── Text block ── */
-.text-block {
-    text-align: center;
-    margin-bottom: 36px;
-    opacity: 0;
-    animation: fade-in 0.5s ease 0.4s forwards;
-}
-.role-title {
-    font-size: 26px; font-weight: 700;
+/* ── TITLE SECTION ── */
+.main-title {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-main);
     letter-spacing: -0.02em;
-    color: var(--text);
     margin-bottom: 6px;
-}
-.greeting-line {
-    font-size: 13px; color: var(--muted);
-    margin-bottom: 8px;
-}
-.greeting-line span { color: var(--text); font-weight: 500; }
-.tagline {
-    font-size: 13px;
-    color: var(--accent);
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    line-height: 1.2;
 }
 
-/* ── Features ── */
-.features {
-    display: flex; flex-direction: column; gap: 10px;
-    margin-bottom: 40px;
-    width: 280px;
+.greeting-text {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 400;
 }
-.feature-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 11px 16px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    font-size: 13px; color: var(--muted);
-    opacity: 0;
-    transform: translateX(-8px);
-    transition: border-color 0.3s, color 0.3s;
+
+.greeting-text strong {
+    color: var(--text-main);
+    font-weight: 700;
 }
-.feature-item.visible {
-    animation: feature-in 0.4s ease forwards;
+
+.tagline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--mint);
+    letter-spacing: 0.01em;
 }
-@keyframes feature-in {
-    from { opacity: 0; transform: translateX(-8px); }
-    to   { opacity: 1; transform: translateX(0); }
+
+.tagline-badge .status-dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--mint);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--mint);
+    display: inline-block;
 }
-.feature-item i {
-    font-size: 12px;
-    color: var(--accent);
-    width: 14px; text-align: center;
+
+/* ── SYNC TASK STATUS BOX ── */
+.sync-card {
+    width: 100%;
+    background: var(--box-bg);
+    border: 1px solid rgba(0, 245, 160, 0.22);
+    border-radius: 16px;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    margin-top: 24px;
+    margin-bottom: 22px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 10px 20px rgba(0, 0, 0, 0.4);
+}
+
+.sync-icon-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(0, 245, 160, 0.08);
+    border: 1.5px solid rgba(0, 245, 160, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mint);
+    box-shadow: 0 0 15px rgba(0, 245, 160, 0.2);
+    font-size: 17px;
     flex-shrink: 0;
 }
 
-/* ── Error message ── */
-.error-msg {
-    font-size: 11px;
-    color: #e67e5a;
-    text-align: center;
-    margin-bottom: 10px;
-    letter-spacing: 0.03em;
-    opacity: 0;
-    height: 0;
-    transition: opacity 0.4s, height 0.3s;
+.sync-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 }
-.error-msg.show { opacity: 1; height: 18px; }
 
-/* ── Progress bar ── */
-.bar-wrap {
-    width: 280px;
-    opacity: 0;
-    animation: fade-in 0.4s ease 0.1s forwards;
+.sync-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.3;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.2s ease;
 }
-.bar-label {
-    display: flex; justify-content: space-between;
-    font-size: 11px; color: var(--muted);
-    margin-bottom: 8px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+
+.sync-desc {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.2s ease;
 }
-.bar-track {
-    height: 3px;
-    background: var(--border);
+
+/* ── PROGRESS SECTION ── */
+.progress-section {
+    width: 100%;
+}
+
+.step-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mint-dim);
+    letter-spacing: 0.02em;
+    margin-bottom: 12px;
+    transition: opacity 0.2s ease;
+}
+
+.progress-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 99px;
     overflow: hidden;
-}
-.bar-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, white));
-    border-radius: 99px;
-    box-shadow: 0 0 8px var(--accent);
+    margin-bottom: 12px;
+    position: relative;
 }
 
-/* ── Fade-out ── */
-.wrapper.fade-out {
-    animation: fade-out 0.5s ease forwards;
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00d486 0%, #00f5a0 100%);
+    border-radius: 99px;
+    box-shadow: 0 0 12px rgba(0, 245, 160, 0.9);
+    transition: width 0.08s linear;
 }
-@keyframes fade-out {
-    from { opacity: 1; }
-    to   { opacity: 0; }
+
+.progress-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.progress-meta .meta-left {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.progress-meta .meta-right {
+    color: var(--mint);
+    font-size: 12px;
+    font-weight: 800;
+    font-family: 'Plus Jakarta Sans', monospace, sans-serif;
 }
 </style>
 </head>
 <body>
-<div class="bg-orb orb-1"></div>
-<div class="bg-orb orb-2"></div>
-<div class="grid-lines"></div>
 
-<div class="wrapper" id="wrapper">
+<div class="bg-scene"></div>
 
-    <div class="brand">
-        <div class="brand-icon"><i class="fa-solid fa-mug-saucer"></i></div>
-        <span class="brand-text">Bird's Nest Coffee <span class="brand-dot">·</span> <span class="brand-portal"><?= htmlspecialchars($portal) ?></span></span>
-    </div>
-
-    <div class="ring-wrap">
-        <svg class="ring-svg" viewBox="0 0 130 130">
-            <circle class="ring-track"    cx="65" cy="65" r="60"/>
-            <circle class="ring-spinner"  id="ringSpinner" cx="65" cy="65" r="60"/>
-            <circle class="ring-progress" id="ringProgress" cx="65" cy="65" r="60"/>
-        </svg>
-        <div class="ring-inner">
-            <i class="fa-solid <?= $icon ?> ring-icon"></i>
+<div class="page">
+    <div class="loading-card" id="card">
+        
+        <!-- Top Pill Badge -->
+        <div class="top-pill">
+            <div class="pill-brand">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                    <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                    <line x1="6" y1="1" x2="6" y2="4"></line>
+                    <line x1="10" y1="1" x2="10" y2="4"></line>
+                    <line x1="14" y1="1" x2="14" y2="4"></line>
+                </svg>
+                <span>Bird's Nest Coffee</span>
+            </div>
+            <span class="role-badge"><?= htmlspecialchars($badge) ?></span>
         </div>
-    </div>
 
-    <div class="text-block">
-        <div class="role-title"><?= htmlspecialchars($title) ?></div>
-        <div class="greeting-line"><?= $greeting ?>, <span><?= htmlspecialchars($username) ?></span></div>
-        <div class="tagline"><?= htmlspecialchars($tagline) ?></div>
-    </div>
-
-    <div class="features" id="features">
-        <?php foreach ($features as $f): ?>
-        <div class="feature-item">
-            <i class="fa-solid fa-check"></i>
-            <?= htmlspecialchars($f) ?>
+        <!-- Radar & Shield Core -->
+        <div class="radar-wrapper">
+            <div class="radar-outer-ring"></div>
+            <div class="radar-mid-ring"></div>
+            <div class="shield-core">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    <polyline points="9 12 11 14 15 10"></polyline>
+                </svg>
+            </div>
         </div>
-        <?php endforeach; ?>
-    </div>
 
-    <div class="error-msg" id="errorMsg"></div>
-
-    <div class="bar-wrap">
-        <div class="bar-label">
-            <span id="barLabel"><?= htmlspecialchars($bar_label) ?></span>
-            <span id="pct">0%</span>
+        <!-- Title & Subtitle -->
+        <h1 class="main-title"><?= htmlspecialchars($title) ?></h1>
+        <div class="greeting-text"><?= htmlspecialchars($greeting) ?>, <strong><?= htmlspecialchars($username) ?></strong></div>
+        <div class="tagline-badge">
+            <span class="status-dot"></span>
+            <span id="taglineText"><?= htmlspecialchars($tagline) ?></span>
         </div>
-        <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
-    </div>
 
+        <!-- Sync Task Status Card -->
+        <div class="sync-card">
+            <div class="sync-icon-box">
+                <i class="fa-solid fa-microchip"></i>
+            </div>
+            <div class="sync-info">
+                <div class="sync-title" id="syncTitle"><?= htmlspecialchars($sync_title) ?></div>
+                <div class="sync-desc" id="syncDesc"><?= htmlspecialchars($sync_desc) ?></div>
+            </div>
+        </div>
+
+        <!-- Progress Bar & Status -->
+        <div class="progress-section">
+            <div class="step-label" id="stepLabel">Connection verified — Initializing environment</div>
+            <div class="progress-track">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="progress-meta">
+                <span class="meta-left" id="metaStatus">ALMOST READY</span>
+                <span class="meta-right" id="pctText">0%</span>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 <script>
-const dest      = <?= json_encode($dest) ?>;
-const initLabel = <?= json_encode($bar_label) ?>;
-const role      = <?= json_encode($role) ?>;
-const speed     = <?= json_encode($speed) ?>;
+const dest = <?= json_encode($dest) ?>;
 
-const pctEl   = document.getElementById('pct');
-const barFill = document.getElementById('barFill');
-const barLabel= document.getElementById('barLabel');
-const ringEl  = document.getElementById('ringProgress');
-const spinEl  = document.getElementById('ringSpinner');
-const errEl   = document.getElementById('errorMsg');
-const DASH    = 376.99;
+const progressBar = document.getElementById('progressBar');
+const pctText     = document.getElementById('pctText');
+const stepLabel   = document.getElementById('stepLabel');
+const syncTitle   = document.getElementById('syncTitle');
+const syncDesc    = document.getElementById('syncDesc');
+const metaStatus  = document.getElementById('metaStatus');
+const card        = document.getElementById('card');
 
-// Stagger feature items in
-document.querySelectorAll('.feature-item').forEach((el, i) => {
-    setTimeout(() => el.classList.add('visible'), 250 + i * 210);
-});
+// Preload cache in background if available
+fetch('api/preload.php')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d) try { sessionStorage.setItem('cafe_preload', JSON.stringify(d)); } catch(_) {} })
+    .catch(() => {});
 
-// Animate bar + ring + counter in sync
-function smoothBar(from, to, ms) {
+// Smooth progress simulation
+function animateProgress(durationMs = 1700) {
     return new Promise(resolve => {
-        const t0 = performance.now();
-        function tick(now) {
-            const p    = Math.min((now - t0) / ms, 1);
-            const ease = p < 0.5 ? 2*p*p : -1 + (4 - 2*p)*p;
-            const val  = Math.round(from + (to - from) * ease);
-            barFill.style.width           = val + '%';
-            pctEl.textContent             = val + '%';
-            ringEl.style.strokeDashoffset = DASH * (1 - val / 100);
-            if (p < 1) requestAnimationFrame(tick);
-            else resolve();
+        const startTime = performance.now();
+        
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / durationMs, 1);
+            
+            // Custom easing curve (accelerates and slows near 90-100%)
+            const ease = progress < 0.7 
+                ? Math.pow(progress / 0.7, 1.2) * 0.75 
+                : 0.75 + Math.pow((progress - 0.7) / 0.3, 0.8) * 0.25;
+            
+            const currentPct = Math.round(ease * 100);
+            
+            progressBar.style.width = currentPct + '%';
+            pctText.textContent = currentPct + '%';
+            
+            // Contextual step messages
+            if (currentPct < 30) {
+                stepLabel.textContent = 'Verifying credentials & secure tokens...';
+                metaStatus.textContent = 'CONNECTING';
+            } else if (currentPct < 70) {
+                stepLabel.textContent = 'Syncing store catalog & prices...';
+                metaStatus.textContent = 'SYNCING';
+            } else if (currentPct < 95) {
+                stepLabel.textContent = 'Connection verified — Initializing environment';
+                metaStatus.textContent = 'ALMOST READY';
+            } else {
+                stepLabel.textContent = 'Ready — Launching portal...';
+                metaStatus.textContent = 'INITIALIZED';
+            }
+
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            } else {
+                progressBar.style.width = '100%';
+                pctText.textContent = '100%';
+                resolve();
+            }
         }
-        requestAnimationFrame(tick);
+        
+        requestAnimationFrame(update);
     });
 }
 
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// Update tagline with live data — shown data is gated by role
-function updateTagline(data) {
-    if (!data) return;
-    let text = '';
-
-    if (role === 'barista') {
-        text = data.queue_count > 0
-            ? data.queue_count + ' order' + (data.queue_count !== 1 ? 's' : '') + ' in queue'
-            : 'Queue is clear — ready to go';
-    } else if (role === 'inventory_clerk') {
-        text = data.low_stock > 0
-            ? data.low_stock + ' low stock alert' + (data.low_stock !== 1 ? 's' : '')
-            : 'All stock levels normal';
-    } else if (role === 'admin' || role === 'manager' || role === 'supervisor') {
-        const sales = '$' + parseFloat(data.sales_today || 0).toFixed(2);
-        text = data.active_orders + ' active · ' + sales + ' today';
-    }
-    // staff (cashier): tagline stays as-is — no revenue or analytics exposure
-
-    if (!text) return;
-    const taglineEl = document.querySelector('.tagline');
-    taglineEl.style.transition = 'opacity 0.25s';
-    taglineEl.style.opacity = '0';
-    setTimeout(() => { taglineEl.textContent = text; taglineEl.style.opacity = '1'; }, 260);
+async function startLoading() {
+    await animateProgress(1650);
+    
+    // Brief completion pause
+    await new Promise(r => setTimeout(r, 220));
+    
+    // Fade out card and redirect
+    card.classList.add('fade-exit');
+    setTimeout(() => {
+        window.location.href = dest;
+    }, 380);
 }
 
-async function run() {
-    // ── Fast: cashier (<1s total) ──────────────────────────────────────────
-    if (speed === 'fast') {
-        spinEl.style.display = 'none';
-        // Fire preload in background — don't block redirect on it
-        fetch('api/preload.php')
-            .then(r => r.ok ? r.json() : null)
-            .then(d => { if (d) try { sessionStorage.setItem('cafe_preload', JSON.stringify(d)); } catch(_) {} })
-            .catch(() => {});
-        barLabel.textContent = initLabel;
-        await smoothBar(0, 100, 500);
-        document.getElementById('wrapper').classList.add('fade-out');
-        setTimeout(() => { window.location.href = dest; }, 300);
-        return;
-    }
-
-    // ── Medium: inventory (~1.5s total) ───────────────────────────────────
-    if (speed === 'medium') {
-        spinEl.style.display = 'none';
-        barLabel.textContent = initLabel;
-        await smoothBar(0, 25, 200);
-
-        barLabel.textContent = 'Loading your data';
-        const fetchMed = fetch('api/preload.php')
-            .then(r => r.ok ? r.json() : Promise.reject(new Error('server')))
-            .then(data => {
-                try { sessionStorage.setItem('cafe_preload', JSON.stringify(data)); } catch(_) {}
-                updateTagline(data);
-            })
-            .catch(() => {
-                errEl.textContent = 'Connection issue — continuing anyway';
-                errEl.classList.add('show');
-            });
-
-        await Promise.all([fetchMed, smoothBar(25, 85, 600), wait(600)]);
-
-        barLabel.textContent = 'Almost ready';
-        await smoothBar(85, 100, 200);
-        await wait(100);
-
-        document.getElementById('wrapper').classList.add('fade-out');
-        setTimeout(() => { window.location.href = dest; }, 400);
-        return;
-    }
-
-    // ── Normal: admin / manager / supervisor ──────────────────────────────
-    await wait(600);
-    spinEl.style.display = 'none';
-
-    barLabel.textContent = initLabel;
-    await smoothBar(0, 18, 350);
-    await wait(350);
-
-    barLabel.textContent = 'Loading your data';
-    const fetchDone = fetch('api/preload.php')
-        .then(r => r.ok ? r.json() : Promise.reject(new Error('server')))
-        .then(data => {
-            try { sessionStorage.setItem('cafe_preload', JSON.stringify(data)); } catch(_) {}
-            updateTagline(data);
-        })
-        .catch(() => {
-            errEl.textContent = 'Connection issue — continuing anyway';
-            errEl.classList.add('show');
-        });
-
-    await Promise.all([fetchDone, smoothBar(18, 76, 700), wait(700)]);
-    await wait(200);
-
-    barLabel.textContent = 'Almost ready';
-    await smoothBar(76, 100, 450);
-    await wait(350);
-
-    document.getElementById('wrapper').classList.add('fade-out');
-    setTimeout(() => { window.location.href = dest; }, 500);
-}
-
-run();
+document.addEventListener('DOMContentLoaded', startLoading);
 </script>
 </body>
 </html>

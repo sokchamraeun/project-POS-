@@ -2,9 +2,8 @@
 declare(strict_types=1);
 
 /**
- * forgot_password.php — Interactive 2-Step Password Recovery
- * Step 1: Input Email -> Generates & sends temporary code to email -> Transitions immediately to Step 2
- * Step 2: Input Current/Temp Password from email + New Password + Confirm -> Saves and returns to Login
+ * reset_password.php — Secure Password Reset Endpoint
+ * Features: Token Hash Verification (SHA-256), 15-Minute Expiry Check, BCRYPT Hashing (Cost 12), Atomic PDO Transaction
  */
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -12,7 +11,6 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/mail_helper.php';
 require_once __DIR__ . '/lang.php';
 
 // Generate CSRF token if missing
@@ -20,140 +18,90 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-$step    = 1;
-$error   = '';
-$success = '';
+$rawToken    = trim((string)($_GET['token'] ?? $_POST['token'] ?? ''));
+$tokenHash   = !empty($rawToken) ? hash('sha256', $rawToken) : '';
+$error       = '';
+$tokenValid  = false;
+$resetRecord = null;
 
-// If arriving via fresh GET (or reset), clear any old session and start at Step 1
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    if (isset($_GET['reset']) || empty($_SESSION['fp_user_id']) || empty($_SESSION['fp_step']) || $_SESSION['fp_step'] != 2) {
-        unset($_SESSION['fp_step'], $_SESSION['fp_email'], $_SESSION['fp_username'], $_SESSION['fp_user_id']);
-        $step = 1;
-    } else {
-        $step = (int)$_SESSION['fp_step'];
+$pdo = Database::getPdo();
+
+// 1. Validate Token Expiration & Authenticity via SHA-256 Hash
+if (!empty($tokenHash)) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT pr.id, pr.user_id, pr.email, pr.expires_at, u.username, u.name
+            FROM password_resets pr
+            INNER JOIN users u ON u.user_id = pr.user_id
+            WHERE pr.token_hash = ? AND pr.expires_at > NOW()
+            LIMIT 1
+        ");
+        $stmt->execute([$tokenHash]);
+        $resetRecord = $stmt->fetch();
+
+        if ($resetRecord) {
+            $tokenValid = true;
+        } else {
+            $error = "តំណភ្ជាប់នេះមិនត្រឹមត្រូវ ឬបានផុតកំណត់រយៈពេល ១៥ នាទីហើយ (Invalid or expired reset link).";
+        }
+    } catch (Throwable $e) {
+        error_log("[Token Validation Error] " . $e->getMessage());
+        $error = "មានបញ្ហាបច្ចេកទេសក្នុងការផ្ទៀងផ្ទាត់តំណភ្ជាប់។";
     }
 } else {
-    $step = (int)($_SESSION['fp_step'] ?? 1);
+    $error = "មិនមាន token ត្រឹមត្រូវសម្រាប់កំណត់ពាក្យសម្ងាត់ឡើងវិញឡើយ (Missing reset token).";
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// 2. Handle Password Update Form Submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid && $resetRecord) {
     $submittedCsrf = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['csrf_token'], $submittedCsrf)) {
         $error = "សុពលភាពទម្រង់មិនត្រឹមត្រូវ សូមព្យាយាមម្តងទៀត (Invalid CSRF token).";
     } else {
-        $action = $_POST['action'] ?? '';
+        $newPass     = (string)($_POST['new_password'] ?? '');
+        $confirmPass = (string)($_POST['confirm_password'] ?? '');
 
-        // ── STEP 1: Find User by Email, Send Code, & Load Step 2 ──
-        if ($action === 'find_user') {
-            $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+        if (strlen($newPass) < 8) {
+            $error = "ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងហោចណាស់ 8 តួអក្សរឡើងទៅ (Min 8 chars).";
+        } elseif ($newPass !== $confirmPass) {
+            $error = "ការបញ្ជាក់ពាក្យសម្ងាត់មិនត្រូវគ្នាទេ (Passwords do not match).";
+        } else {
+            try {
+                // 3. Hash password using BCRYPT with cost factor 12
+                $hashedPassword = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
+                $userId = (int)$resetRecord['user_id'];
 
-            if (!$email) {
-                $error = "សូមបញ្ចូលអាសយដ្ឋានអ៊ីមែលត្រឹមត្រូវ (Please enter a valid email address).";
-                $step  = 1;
-            } else {
-                try {
-                    $pdo = Database::getPdo();
+                // 4. Atomic Database Transaction: Update password & Purge reset tokens
+                $pdo->beginTransaction();
 
-                    $stmt = $pdo->prepare("SELECT user_id, username, name, email FROM users WHERE email = ? AND is_active = 1 LIMIT 1");
-                    $stmt->execute([$email]);
-                    $user = $stmt->fetch();
+                $updStmt = $pdo->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?");
+                $updStmt->execute([$hashedPassword, $userId]);
 
-                    if (!$user) {
-                        $error = "រកមិនឃើញគណនីបុគ្គលិកជាមួយអ៊ីមែល " . htmlspecialchars($email) . " នេះទេ (No account found).";
-                        $step  = 1;
-                    } else {
-                        // 1. Generate clean 8-character temporary password (e.g. BN-489201)
-                        $tempPass = 'BN-' . random_int(100000, 999999);
-                        $hashedTemp = password_hash($tempPass, PASSWORD_BCRYPT, ['cost' => 12]);
-                        $userId = (int)$user['user_id'];
-                        $userName = (string)($user['name'] ?: $user['username']);
-                        $userEmail = (string)$user['email'];
+                $delStmt = $pdo->prepare("DELETE FROM password_resets WHERE user_id = ? OR email = ?");
+                $delStmt->execute([$userId, $resetRecord['email']]);
 
-                        // 2. Update user's temporary password in DB
-                        $updStmt = $pdo->prepare("UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?");
-                        $updStmt->execute([$hashedTemp, $userId]);
+                $pdo->commit();
 
-                        // 3. Dispatch Email with Temporary Password
-                        send_temporary_password_email($userEmail, $userName, $tempPass);
-
-                        // 4. Save session state & transition IMMEDIATELY to Step 2
-                        $_SESSION['fp_user_id']   = $userId;
-                        $_SESSION['fp_username']  = $userName;
-                        $_SESSION['fp_email']     = $userEmail;
-                        $_SESSION['fp_step']      = 2;
-                        $step = 2;
-                        $success = "យើងបានផ្ញើលេខសម្ងាត់បណ្តោះអាសន្នទៅកាន់អ៊ីមែល " . htmlspecialchars($userEmail) . " រួចរាល់ហើយ! សូមពិនិត្យមើល Email របស់អ្នក។";
-                    }
-                } catch (Throwable $e) {
-                    error_log("[Password Reset Error] " . $e->getMessage());
-                    $error = "មានបញ្ហាបច្ចេកទេសក្នុងការស្វែងរកគណនី សូមព្យាយាមម្តងទៀត។";
-                    $step  = 1;
+                // 5. Redirect to login with success indicator
+                header("Location: login.php?reset=success");
+                exit;
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
                 }
-            }
-        }
-
-        // ── STEP 2: Verify Current/Temp Password and Update to New Password ──
-        elseif ($action === 'update_password') {
-            $userId      = (int)($_SESSION['fp_user_id'] ?? 0);
-            $currentPass = trim((string)($_POST['current_password'] ?? ''));
-            $newPass     = (string)($_POST['new_password'] ?? '');
-            $confirmPass = (string)($_POST['confirm_password'] ?? '');
-
-            if (!$userId) {
-                $error = "វគ្គរបស់អ្នកបានផុតកំណត់ហើយ សូមបញ្ចូលអ៊ីមែលឡើងវិញ (Session expired).";
-                $step = 1;
-            } elseif (empty($currentPass)) {
-                $error = "សូមបញ្ចូលលេខសម្ងាត់បណ្តោះអាសន្នដែលទទួលបានពីអ៊ីមែល (Please enter temporary password from email).";
-                $step = 2;
-            } elseif (strlen($newPass) < 8) {
-                $error = "ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងហោចណាស់ 8 តួអក្សរឡើងទៅ (Min 8 chars).";
-                $step = 2;
-            } elseif ($newPass !== $confirmPass) {
-                $error = "ការបញ្ជាក់ពាក្យសម្ងាត់មិនត្រូវគ្នាទេ (Passwords do not match).";
-                $step = 2;
-            } else {
-                try {
-                    $pdo = Database::getPdo();
-
-                    // Verify current/temporary password against database
-                    $chkStmt = $pdo->prepare("SELECT password FROM users WHERE user_id = ? LIMIT 1");
-                    $chkStmt->execute([$userId]);
-                    $dbUser = $chkStmt->fetch();
-
-                    if (!$dbUser || !password_verify($currentPass, $dbUser['password'])) {
-                        $error = "លេខសម្ងាត់ចាស់/បណ្តោះអាសន្នមិនត្រឹមត្រូវទេ (Invalid password from email).";
-                        $step = 2;
-                    } else {
-                        // Hash new password using BCRYPT cost 12
-                        $newHash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
-                        $upd = $pdo->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?");
-                        $upd->execute([$newHash, $userId]);
-
-                        // Clean reset session
-                        unset($_SESSION['fp_user_id'], $_SESSION['fp_username'], $_SESSION['fp_email'], $_SESSION['fp_step']);
-
-                        header("Location: login.php?reset=success");
-                        exit;
-                    }
-                } catch (Throwable $e) {
-                    error_log("[Password Update Error] " . $e->getMessage());
-                    $error = "បរាជ័យក្នុងការផ្លាស់ប្តូរពាក្យសម្ងាត់ សូមព្យាយាមម្តងទៀត។";
-                    $step = 2;
-                }
+                error_log("[Password Update Error] " . $e->getMessage());
+                $error = "បរាជ័យក្នុងការផ្លាស់ប្តូរពាក្យសម្ងាត់ សូមព្យាយាមម្តងទៀត។";
             }
         }
     }
 }
-
-$fpEmail = htmlspecialchars((string)($_SESSION['fp_email'] ?? ''));
-$fpUser  = htmlspecialchars((string)($_SESSION['fp_username'] ?? ''));
 ?>
 <!DOCTYPE html>
 <html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ផ្លាស់ប្តូរលេខសម្ងាត់ — Bird's Nest Coffee POS</title>
+<title>កំណត់ពាក្យសម្ងាត់ថ្មី — Bird's Nest POS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -366,20 +314,6 @@ html, body {
     margin-bottom: 18px;
 }
 
-.success-box {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    background: rgba(0, 245, 160, 0.08);
-    border: 1px solid rgba(0, 245, 160, 0.35);
-    border-radius: 14px;
-    color: var(--mint);
-    font-size: 12.5px;
-    line-height: 1.5;
-    margin-bottom: 20px;
-}
-
 .field-group {
     margin-bottom: 16px;
 }
@@ -537,8 +471,7 @@ html, body {
         <!-- Left Side Character -->
         <div class="side-character-col side-left">
             <div class="chat-bubble">
-                <span style="color:var(--mint);font-size:10px;">●</span>
-                <span class="chat-text"><?= $step === 2 ? 'បង្កើតលេខសម្ងាត់ថ្មី! 🔒' : 'ភ្លេចលេខសម្ងាត់មែនទេ? 🔑' ?></span>
+                <span style="color:var(--mint);font-size:10px;">●</span> បង្កើតលេខសម្ងាត់ថ្មី! 🔒
             </div>
             <div class="character-box">
                 <img src="image/3d-cartoon-left.webp" alt="Bird's Nest Barista" class="character-img">
@@ -555,10 +488,10 @@ html, body {
                     </div>
                     <div class="brand-meta">
                         <div class="brand-title">BIRD'S NEST POS</div>
-                        <div class="brand-sub"><?= $step === 2 ? 'SECURITY UPDATE' : 'STAFF RECOVERY' ?></div>
+                        <div class="brand-sub">SECURITY UPDATE</div>
                     </div>
                 </div>
-                <div class="step-badge">STEP <?= $step === 2 ? '02' : '01' ?></div>
+                <div class="step-badge">STEP 02</div>
             </div>
 
             <?php if (!empty($error)): ?>
@@ -568,74 +501,28 @@ html, body {
             </div>
             <?php endif; ?>
 
-            <?php if (!empty($success)): ?>
-            <div class="success-box">
-                <i class="fa-solid fa-circle-check"></i>
-                <span><?= htmlspecialchars($success) ?></span>
-            </div>
-            <?php endif; ?>
-
-            <!-- ══════════════════════════════════════════════════════════ -->
-            <!-- ── STEP 1: Find User By Email ── -->
-            <!-- ══════════════════════════════════════════════════════════ -->
-            <?php if ($step === 1): ?>
+            <?php if ($tokenValid && $resetRecord): ?>
+            <!-- ── VALID TOKEN FORM ── -->
             <div class="heading-section">
-                <h1 class="main-title">ភ្លេចលេខសម្ងាត់ 🔐</h1>
-                <p class="sub-title">សូមបញ្ចូលអាសយដ្ឋានអ៊ីមែលរបស់អ្នកដើម្បីទទួលបានលេខសម្ងាត់បណ្តោះអាសន្នតាមរយៈ Email។</p>
+                <h1 class="main-title">ផ្លាស់ប្តូរលេខសម្ងាត់ 🗝️</h1>
+                <p class="sub-title">សូមកំណត់ពាក្យសម្ងាត់សុវត្ថិភាពថ្មីសម្រាប់គណនី <strong><?= htmlspecialchars($resetRecord['username']) ?></strong> (<?= htmlspecialchars($resetRecord['email']) ?>)។</p>
             </div>
 
             <form method="POST" autocomplete="off">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                <input type="hidden" name="action" value="find_user">
-                
-                <div class="field-group">
-                    <label class="field-label" for="email">EMAIL ADDRESS / អ៊ីមែលបុគ្គលិក</label>
-                    <div class="input-box" style="padding: 0;">
-                        <span class="input-icon"><i class="fa-solid fa-envelope"></i></span>
-                        <input type="email" name="email" id="email" placeholder="name@example.com" value="<?= $fpEmail ?>" required autofocus autocomplete="email" style="padding-left: 42px; padding-right: 16px;">
-                    </div>
-                </div>
+                <input type="hidden" name="token" value="<?= htmlspecialchars($rawToken) ?>">
 
-                <button type="submit" class="submit-btn">
-                    <span>ផ្ញើលេខសម្ងាត់ទៅអ៊ីមែល (Send Code to Email)</span>
-                    <i class="fa-solid fa-arrow-right"></i>
-                </button>
-            </form>
-
-            <!-- ══════════════════════════════════════════════════════════ -->
-            <!-- ── STEP 2: Change Password (MATCHING EXACT SCREENSHOT) ── -->
-            <!-- ══════════════════════════════════════════════════════════ -->
-            <?php elseif ($step === 2): ?>
-            <div class="heading-section">
-                <h1 class="main-title">ផ្លាស់ប្តូរលេខសម្ងាត់ 🗝️</h1>
-                <p class="sub-title">សូមបញ្ចូលលេខសម្ងាត់ចាស់ និងលេខសម្ងាត់ថ្មីរបស់អ្នកដើម្បីបន្តរៀបចំគណនី។</p>
-            </div>
-
-            <form method="POST" autocomplete="off" id="changePassForm">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
-                <input type="hidden" name="action" value="update_password">
-
-                <!-- 1. Current Password / Temp Password from Email -->
-                <div class="field-group">
-                    <label class="field-label" for="currPass">CURRENT PASSWORD / លេខសម្ងាត់ចាស់</label>
-                    <div class="input-box">
-                        <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
-                        <input type="password" name="current_password" id="currPass" placeholder="បញ្ចូលលេខសម្ងាត់បច្ចុប្បន្ន..." required autofocus>
-                        <button type="button" class="eye-btn" onclick="togglePass('currPass', 'eyeCurr')"><i class="fa-solid fa-eye" id="eyeCurr"></i></button>
-                    </div>
-                </div>
-
-                <!-- 2. New Password -->
+                <!-- New Password -->
                 <div class="field-group">
                     <label class="field-label" for="newPass">NEW PASSWORD / លេខសម្ងាត់ថ្មី</label>
                     <div class="input-box">
                         <span class="input-icon"><i class="fa-solid fa-shield-halved"></i></span>
-                        <input type="password" name="new_password" id="newPass" placeholder="យ៉ាងហោចណាស់ 8 តួអក្សរ..." required>
+                        <input type="password" name="new_password" id="newPass" placeholder="យ៉ាងហោចណាស់ 8 តួអក្សរ..." required autofocus>
                         <button type="button" class="eye-btn" onclick="togglePass('newPass', 'eyeNew')"><i class="fa-solid fa-eye" id="eyeNew"></i></button>
                     </div>
                 </div>
 
-                <!-- 3. Confirm New Password -->
+                <!-- Confirm Password -->
                 <div class="field-group">
                     <label class="field-label" for="confirmPass">CONFIRM NEW PASSWORD / បញ្ជាក់លេខសម្ងាត់ថ្មី</label>
                     <div class="input-box">
@@ -645,7 +532,7 @@ html, body {
                     </div>
                 </div>
 
-                <!-- Validation Checklist Box -->
+                <!-- Requirements Box -->
                 <div class="req-box">
                     <div class="req-item" id="reqLen">
                         <i class="fa-solid fa-check"></i>
@@ -662,6 +549,21 @@ html, body {
                     <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </form>
+
+            <?php else: ?>
+            <!-- ── INVALID OR EXPIRED TOKEN STATE ── -->
+            <div class="heading-section" style="text-align: center; margin-top: 10px;">
+                <div style="width:58px;height:58px;border-radius:18px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;">
+                    <i class="fa-solid fa-link-slash"></i>
+                </div>
+                <h1 class="main-title" style="justify-content: center; font-size: 21px;">តំណភ្ជាប់មិនត្រឹមត្រូវ</h1>
+                <p class="sub-title" style="margin-top: 8px;">តំណភ្ជាប់សម្រាប់កំណត់ពាក្យសម្ងាត់នេះបានផុតកំណត់ ឬត្រូវបានប្រើប្រាស់រួចហើយ។ សូមស្នើសុំតំណភ្ជាប់ថ្មី។</p>
+            </div>
+
+            <a href="forgot_password.php" class="submit-btn" style="margin-top: 24px;">
+                <span>ស្នើសុំតំណភ្ជាប់ម្តងទៀត (Request New Link)</span>
+                <i class="fa-solid fa-arrow-right"></i>
+            </a>
             <?php endif; ?>
 
             <div class="bottom-links">
@@ -676,8 +578,7 @@ html, body {
         <!-- Right Side Character -->
         <div class="side-character-col side-right">
             <div class="chat-bubble">
-                <span style="color:var(--mint);font-size:10px;">●</span>
-                <span class="chat-text">សុវត្ថិភាពខ្ពស់ 100%! 🛡️</span>
+                <span style="color:var(--mint);font-size:10px;">●</span> សុវត្ថិភាពខ្ពស់ 100%! 🛡️
             </div>
             <div class="character-box">
                 <img src="image/3d-cartoon-right.webp" alt="Bird's Nest Barista" class="character-img">

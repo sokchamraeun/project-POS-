@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '') {
             $name = $username;
         }
+        $email     = trim((string)($_POST['email'] ?? ''));
         $password  = (string)($_POST['password'] ?? '');
         $user_role = strtolower(trim((string)($_POST['role'] ?? 'staff')));
         $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
@@ -61,6 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Please provide a valid email address (e.g. name@example.com).'];
+            header("Location: users.php");
+            exit;
+        }
+
         if (strlen($password) < 4) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Password must be at least 4 characters long.'];
             header("Location: users.php");
@@ -76,9 +83,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
+        $chk_email->bind_param("s", $email);
+        $chk_email->execute();
+        if ($chk_email->get_result()->fetch_assoc()) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
+            header("Location: users.php");
+            exit;
+        }
+
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $ins = $conn->prepare("INSERT INTO users (username, name, password, role, is_active) VALUES (?, ?, ?, ?, ?)");
-        $ins->bind_param("ssssi", $username, $name, $hash, $user_role, $is_active);
+        $ins = $conn->prepare("INSERT INTO users (username, name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+        $ins->bind_param("sssssi", $username, $name, $email, $hash, $user_role, $is_active);
         if ($ins->execute()) {
             $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($name) . '" created successfully.'];
         } else {
@@ -95,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '') {
             $name = $username;
         }
+        $email     = trim((string)($_POST['email'] ?? ''));
         $password  = (string)($_POST['password'] ?? '');
         $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
 
@@ -139,6 +156,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Please provide a valid email address.'];
+            header("Location: users.php");
+            exit;
+        }
+
         $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) AND user_id != ? LIMIT 1");
         $chk->bind_param("si", $username, $target_id);
         $chk->execute();
@@ -148,6 +171,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        if ($email !== '') {
+            $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND user_id != ? LIMIT 1");
+            $chk_email->bind_param("si", $email, $target_id);
+            $chk_email->execute();
+            if ($chk_email->get_result()->fetch_assoc()) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
+                header("Location: users.php");
+                exit;
+            }
+        }
+
         if (!empty($password)) {
             if (strlen($password) < 4) {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'New password must be at least 4 characters long.'];
@@ -155,11 +189,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, role = ?, is_active = ?, password = ? WHERE user_id = ?");
-            $upd->bind_param("sssisi", $username, $name, $user_role, $is_active, $hash, $target_id);
+            $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ?, password = ? WHERE user_id = ?");
+            $upd->bind_param("ssssisi", $username, $name, $email, $user_role, $is_active, $hash, $target_id);
         } else {
-            $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, role = ?, is_active = ? WHERE user_id = ?");
-            $upd->bind_param("sssii", $username, $name, $user_role, $is_active, $target_id);
+            $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ? WHERE user_id = ?");
+            $upd->bind_param("ssssii", $username, $name, $email, $user_role, $is_active, $target_id);
         }
 
         if ($upd->execute()) {
@@ -217,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ── FETCH USERS LIST ──
-$users_result = $conn->query("SELECT user_id, username, COALESCE(NULLIF(name, ''), username) AS name, role, COALESCE(is_active, 1) AS is_active FROM users ORDER BY user_id ASC");
+$users_result = $conn->query("SELECT user_id, username, COALESCE(NULLIF(name, ''), username) AS name, COALESCE(email, '') AS email, role, COALESCE(is_active, 1) AS is_active FROM users ORDER BY user_id ASC");
 $users = $users_result ? $users_result->fetch_all(MYSQLI_ASSOC) : [];
 
 $role_meta = [
@@ -256,8 +290,8 @@ foreach ($users as $u) {
 @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
 
 :root {
-    --accent: #d1904b;
-    --accent-dark: #a0702a;
+    --accent: #10b981;
+    --accent-dark: #059669;
     --bg: #0c0c0c;
     --bg-card: #121212;
     --border: #1f1f1f;
@@ -308,41 +342,30 @@ body,
 }
 
 .um-wrapper {
-    padding: 12px 24px 32px 24px;
+    padding: 0 24px 24px;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box;
     flex: 1;
 }
 
-/* Stat Cards Grid - 3 Boxes */
 .um-stats-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
+    gap: 16px;
+    margin-bottom: 20px;
     width: 100% !important;
-    margin-bottom: 24px;
-}
-
-@media (max-width: 768px) {
-    .um-stats-grid { grid-template-columns: repeat(1, 1fr); gap: 12px; }
 }
 
 .um-stat-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 22px 24px;
+    padding: 18px 20px;
     display: flex;
     align-items: center;
-    gap: 20px;
-    backdrop-filter: blur(16px);
-    transition: all 0.2s ease;
-}
-
-.um-stat-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.15);
+    gap: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 [data-theme="light"] .um-stat-card {
@@ -352,21 +375,21 @@ body,
 }
 
 .um-stat-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    font-size: 18px;
     flex-shrink: 0;
 }
 
 .um-stat-value {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 800;
-    line-height: 1.2;
     color: var(--text);
+    line-height: 1.2;
 }
 
 [data-theme="light"] .um-stat-value {
@@ -374,40 +397,50 @@ body,
 }
 
 .um-stat-label {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-muted);
-    font-weight: 500;
+    font-weight: 600;
+    margin-top: 2px;
 }
 
 [data-theme="light"] .um-stat-label {
     color: #5A6373 !important;
 }
 
-/* Toolbar & Search Bar */
 .um-toolbar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     gap: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     width: 100% !important;
 }
 
 .um-search-box {
     position: relative;
     flex: 1;
+    max-width: 420px;
+}
+
+.um-search-box i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 14px;
 }
 
 .um-search-box input {
     width: 100%;
-    padding: 12px 16px 12px 42px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    padding: 10px 14px 10px 38px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
     color: var(--text);
-    font-size: 14px;
+    font-size: 13.5px;
     outline: none;
-    transition: border-color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 [data-theme="light"] .um-search-box input {
@@ -418,53 +451,38 @@ body,
 
 .um-search-box input:focus {
     border-color: var(--accent);
-}
-
-[data-theme="light"] .um-search-box input:focus {
-    border-color: #d1904b !important;
-}
-
-.um-search-box i {
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
 .btn-add-user {
-    background: var(--accent);
-    color: #000;
-    font-weight: 700;
-    padding: 12px 24px;
-    border-radius: 12px;
-    border: none;
-    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    background: #10b981;
+    color: #ffffff;
+    font-weight: 700;
     font-size: 13.5px;
+    border: none;
+    cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 4px 14px rgba(209, 144, 75, 0.25);
-    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28);
 }
 
 .btn-add-user:hover {
-    background: #e8a255;
+    background: #059669;
+    color: #ffffff;
     transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(209, 144, 75, 0.35);
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.38);
 }
 
-/* User Table */
 .um-table-card {
-    width: 100% !important;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 16px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    backdrop-filter: blur(16px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 [data-theme="light"] .um-table-card {
@@ -474,121 +492,26 @@ body,
 }
 
 .um-table {
-    width: 100% !important;
-    min-width: 480px;
+    width: 100%;
     border-collapse: collapse;
     text-align: left;
-    font-size: 14px;
-}
-
-/* Mobile & Small Screen Media Queries */
-@media (max-width: 640px) {
-    .um-wrapper {
-        padding: 12px 12px !important;
-    }
-
-    .um-stats-grid {
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 6px !important;
-        margin-bottom: 14px !important;
-    }
-
-    .um-stat-card {
-        padding: 10px 6px !important;
-        gap: 6px !important;
-        border-radius: 12px !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        text-align: center !important;
-    }
-
-    .um-stat-icon {
-        width: 34px !important;
-        height: 34px !important;
-        font-size: 15px !important;
-        border-radius: 8px !important;
-    }
-
-    .um-stat-value {
-        font-size: 18px !important;
-        font-weight: 800 !important;
-        line-height: 1.1 !important;
-    }
-
-    .um-stat-label {
-        font-size: 10px !important;
-        line-height: 1.1 !important;
-        white-space: nowrap !important;
-    }
-
-    .um-toolbar {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 10px !important;
-        margin-bottom: 12px !important;
-    }
-
-    .um-search-box {
-        width: 100% !important;
-    }
-
-    .btn-add-user {
-        width: 100% !important;
-        justify-content: center !important;
-        padding: 11px 16px !important;
-        font-size: 13px !important;
-    }
-
-    .col-username {
-        display: none !important;
-    }
-
-    .um-table-card {
-        border-radius: 12px !important;
-    }
-
-    .um-table {
-        min-width: 100% !important;
-        font-size: 12px !important;
-    }
-
-    .um-table th, .um-table td {
-        padding: 10px 8px !important;
-    }
-
-    .status-badge {
-        padding: 3px 8px !important;
-        font-size: 10.5px !important;
-        gap: 4px !important;
-    }
-
-    .btn-action-icon {
-        width: 32px !important;
-        height: 32px !important;
-        border-radius: 8px !important;
-    }
-
-    .um-modal-content {
-        padding: 18px !important;
-        max-width: 94% !important;
-        border-radius: 16px !important;
-    }
+    font-size: 13.5px;
 }
 
 .um-table th {
     padding: 16px 24px;
-    font-size: 11px;
+    font-size: 11.5px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--accent);
+    color: #64748b;
     background: #16161a;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     font-weight: 700;
 }
 
 [data-theme="light"] .um-table th {
     background: #F8FAFC !important;
-    color: #d1904b !important;
+    color: #64748b !important;
     border-bottom-color: #E2E5EA !important;
 }
 
@@ -669,7 +592,6 @@ body,
     color: #f87171 !important;
 }
 
-/* Modals */
 .um-modal-overlay {
     position: fixed;
     inset: 0;
@@ -698,25 +620,25 @@ body,
     max-width: 460px;
     padding: 28px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    transform: translateY(20px);
-    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: scale(0.95) translateY(10px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="light"] .um-modal-content {
     background: #FFFFFF !important;
-    border-color: #E2E5EA !important;
+    border-color: #E2E8F0 !important;
     color: #111827 !important;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1) !important;
 }
 
 .um-modal-overlay.active .um-modal-content {
-    transform: translateY(0);
+    transform: scale(1) translateY(0);
 }
 
 .um-modal-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: 20px;
 }
 
@@ -726,11 +648,7 @@ body,
     color: var(--text);
     display: flex;
     align-items: center;
-    gap: 10px;
-}
-
-[data-theme="light"] .um-modal-title {
-    color: #111827 !important;
+    gap: 8px;
 }
 
 .um-modal-close {
@@ -739,6 +657,11 @@ body,
     color: var(--text-muted);
     font-size: 18px;
     cursor: pointer;
+    padding: 4px;
+}
+
+.um-modal-close:hover {
+    color: var(--text);
 }
 
 .form-group {
@@ -755,26 +678,22 @@ body,
     letter-spacing: 0.04em;
 }
 
-[data-theme="light"] .form-group label {
-    color: #5A6373 !important;
-}
-
 .form-group input, .form-group select {
     width: 100%;
-    padding: 11px 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 10px 14px;
     border-radius: 10px;
-    color: #fff;
-    font-size: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font-size: 13.5px;
     outline: none;
+    transition: all 0.2s ease;
 }
 
-[data-theme="light"] .form-group input,
-[data-theme="light"] .form-group select {
+[data-theme="light"] .form-group input, [data-theme="light"] .form-group select {
     background: #F8FAFC !important;
-    border-color: #CDD0D8 !important;
-    color: #111827 !important;
+    border-color: #CBD5E1 !important;
+    color: #0F172A !important;
 }
 
 .form-group input:focus, .form-group select:focus {
@@ -792,10 +711,15 @@ body,
     padding: 12px;
     border-radius: 10px;
     border: none;
-    background: var(--accent);
-    color: #000;
+    background: #10b981;
+    color: #ffffff;
     font-weight: 700;
     cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.btn-submit:hover {
+    background: #059669;
 }
 
 .btn-cancel {
@@ -837,10 +761,10 @@ body,
             </div>
             <?php endif; ?>
 
-            <!-- Stat Cards Grid (3 Boxes Only) -->
+            <!-- Stat Cards Grid -->
             <div class="um-stats-grid">
                 <div class="um-stat-card">
-                    <div class="um-stat-icon" style="background: rgba(209, 144, 75, 0.15); color: #d1904b;">
+                    <div class="um-stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
                         <i class="fa-solid fa-users"></i>
                     </div>
                     <div>
@@ -874,7 +798,7 @@ body,
             <div class="um-toolbar">
                 <div class="um-search-box">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="userSearchInput" placeholder="Search by username, name, role, or status..." oninput="filterUserTable()">
+                    <input type="text" id="userSearchInput" placeholder="Search by username, name, email, or status..." oninput="filterUserTable()">
                 </div>
 
                 <button type="button" class="btn-add-user" onclick="openAddModal()">
@@ -887,17 +811,18 @@ body,
                 <table class="um-table" id="usersTable">
                     <thead>
                         <tr>
-                            <th style="width: 10%;">ID</th>
-                            <th class="col-username" style="width: 25%;">Username</th>
-                            <th style="width: 30%;">Name</th>
-                            <th style="width: 20%;">Status</th>
-                            <th style="width: 15%; text-align: right;">Action</th>
+                            <th style="width: 8%;">ID</th>
+                            <th class="col-username" style="width: 20%;">Username</th>
+                            <th style="width: 24%;">Name</th>
+                            <th style="width: 26%;">Email</th>
+                            <th style="width: 12%;">Status</th>
+                            <th style="width: 10%; text-align: right;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($users)): ?>
                         <tr>
-                            <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
                                 No users found in database.
                             </td>
                         </tr>
@@ -907,23 +832,27 @@ body,
                             $rMeta = $role_meta[$rKey] ?? ['label' => ucfirst($rKey), 'color' => '#a0a0ab', 'bg' => 'rgba(255,255,255,0.08)', 'icon' => 'fa-user'];
                             $isActive = (int)($u['is_active'] ?? 1) === 1;
                             $displayName = $u['name'] ?: $u['username'];
+                            $userEmail = $u['email'] ?: '—';
                         ?>
-                        <tr data-username="<?= he(strtolower($u['username'])) ?>" data-name="<?= he(strtolower($displayName)) ?>" data-role="<?= he(strtolower($rMeta['label'])) ?>" data-status="<?= $isActive ? 'active' : 'inactive' ?>">
+                        <tr data-username="<?= he(strtolower($u['username'])) ?>" data-name="<?= he(strtolower($displayName)) ?>" data-email="<?= he(strtolower($u['email'])) ?>" data-role="<?= he(strtolower($rMeta['label'])) ?>" data-status="<?= $isActive ? 'active' : 'inactive' ?>">
                             <td style="font-weight: 700; color: var(--accent);">#<?= sprintf('%03d', $u['user_id']) ?></td>
                             <td class="col-username">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <div style="font-weight: 700;"><?= he($u['username']) ?></div>
                                     <?php if ((int)$u['user_id'] === (int)$_SESSION['user_id']): ?>
-                                    <span style="font-size: 10px; color: var(--accent); background: rgba(209,144,75,0.15); padding: 1px 6px; border-radius: 4px;">You (Active Session)</span>
+                                    <span style="font-size: 10px; color: #10b981; background: rgba(16,185,129,0.15); padding: 1px 6px; border-radius: 4px; font-weight: 700;">You</span>
                                     <?php endif; ?>
                                 </div>
                             </td>
                             <td>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <div style="font-weight: 600; color: var(--text);"><?= he($displayName) ?></div>
-                                    <?php if ((int)$u['user_id'] === (int)$_SESSION['user_id']): ?>
-                                    <span style="font-size: 10px; color: var(--accent); background: rgba(209,144,75,0.15); padding: 1px 6px; border-radius: 4px;">You</span>
-                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px;">
+                                    <i class="fa-regular fa-envelope" style="color: #64748b; font-size: 12px;"></i>
+                                    <span><?= he($userEmail) ?></span>
                                 </div>
                             </td>
                             <td>
@@ -934,7 +863,7 @@ body,
                             </td>
                             <td style="text-align: right; white-space: nowrap;">
                                 <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; flex-wrap: nowrap; white-space: nowrap;">
-                                    <button type="button" class="btn-action-icon btn-action-edit" title="Edit User" onclick="openEditModal(<?= $u['user_id'] ?>, '<?= he($u['username']) ?>', '<?= he($u['name']) ?>', <?= $isActive ? 1 : 0 ?>)">
+                                    <button type="button" class="btn-action-icon btn-action-edit" title="Edit User" onclick="openEditModal(<?= $u['user_id'] ?>, '<?= he($u['username']) ?>', '<?= he($u['name']) ?>', '<?= he($u['email']) ?>', <?= $isActive ? 1 : 0 ?>)">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </button>
                                     <?php if ((int)$u['user_id'] !== (int)$_SESSION['user_id']): ?>
@@ -974,6 +903,11 @@ body,
             <div class="form-group">
                 <label>Full Name</label>
                 <input type="text" name="name" placeholder="e.g. Sok Visal" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" name="email" placeholder="e.g. staff@birdsnest.com" required autocomplete="off">
             </div>
 
             <div class="form-group">
@@ -1017,6 +951,11 @@ body,
             <div class="form-group">
                 <label>Full Name</label>
                 <input type="text" name="name" id="editName" placeholder="e.g. Sok Visal" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" name="email" id="editEmail" placeholder="e.g. staff@birdsnest.com" required autocomplete="off">
             </div>
 
             <div class="form-group">
@@ -1069,10 +1008,11 @@ function openAddModal() {
     document.getElementById('addUserModal').classList.add('active');
 }
 
-function openEditModal(id, username, name, isActive) {
+function openEditModal(id, username, name, email, isActive) {
     document.getElementById('editUserId').value = id;
     document.getElementById('editUsername').value = username;
     document.getElementById('editName').value = name;
+    document.getElementById('editEmail').value = email || '';
     document.getElementById('editUserActive').value = isActive;
     document.getElementById('editUserModal').classList.add('active');
 }
@@ -1094,9 +1034,10 @@ function filterUserTable() {
     rows.forEach(row => {
         const username = row.dataset.username || '';
         const name = row.dataset.name || '';
+        const email = row.dataset.email || '';
         const role = row.dataset.role || '';
         const status = row.dataset.status || '';
-        if (username.includes(query) || name.includes(query) || role.includes(query) || status.includes(query)) {
+        if (username.includes(query) || name.includes(query) || email.includes(query) || role.includes(query) || status.includes(query)) {
             row.style.display = '';
         } else {
             row.style.display = 'none';

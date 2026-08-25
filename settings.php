@@ -37,6 +37,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         header("Location: settings.php?saved=receipt");
         exit;
+    } elseif ($action === 'save_smtp') {
+        $smtp_enabled    = isset($_POST['smtp_enabled']) ? '1' : '0';
+        $smtp_host       = trim((string)($_POST['smtp_host'] ?? 'smtp.gmail.com'));
+        $smtp_port       = trim((string)($_POST['smtp_port'] ?? '587'));
+        $smtp_secure     = trim((string)($_POST['smtp_secure'] ?? 'tls'));
+        $smtp_user       = trim((string)($_POST['smtp_user'] ?? ''));
+        $smtp_pass       = trim((string)($_POST['smtp_pass'] ?? ''));
+        $mail_from_email = trim((string)($_POST['mail_from_email'] ?? ''));
+        $mail_from_name  = trim((string)($_POST['mail_from_name'] ?? "Bird's Nest Coffee POS"));
+
+        $stmt = $conn->prepare("INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        
+        $params = [
+            'smtp_enabled'    => $smtp_enabled,
+            'smtp_host'       => $smtp_host,
+            'smtp_port'       => $smtp_port,
+            'smtp_secure'     => $smtp_secure,
+            'smtp_user'       => $smtp_user,
+            'smtp_pass'       => $smtp_pass,
+            'mail_from_email' => $mail_from_email,
+            'mail_from_name'  => $mail_from_name,
+        ];
+
+        foreach ($params as $sk => $sv) {
+            $stmt->bind_param('ss', $sk, $sv);
+            $stmt->execute();
+        }
+
+        header("Location: settings.php?saved=smtp");
+        exit;
+    } elseif ($action === 'test_smtp') {
+        require_once __DIR__ . '/mail_helper.php';
+        $test_email = trim((string)($_POST['test_email'] ?? ''));
+        if (empty($test_email) || !filter_var($test_email, FILTER_VALIDATE_EMAIL)) {
+            $message      = $isKm ? 'សូមបញ្ចូលអាសយដ្ឋានអ៊ីមែលត្រឹមត្រូវដើម្បីធ្វើតេស្ត។' : 'Please enter a valid email address for testing.';
+            $message_type = 'error';
+        } else {
+            $test_res = send_app_email(
+                $test_email,
+                'Tester',
+                "Bird's Nest POS — Test Email",
+                "<div style='font-family:sans-serif;padding:20px;background:#0b1713;color:#fff;border-radius:12px;'><h2>☕ Bird's Nest Coffee POS</h2><p>This is a test email confirming that your email configuration works perfectly!</p></div>"
+            );
+            if ($test_res['success']) {
+                $message      = $isKm ? ('បានផ្ញើអ៊ីមែលតេស្តទៅកាន់ ' . htmlspecialchars($test_email) . ' ដោយជោគជ័យ!') : ('Test email sent successfully to ' . htmlspecialchars($test_email) . '!');
+                $message_type = 'success';
+            } else {
+                $message      = ($isKm ? 'បរាជ័យក្នុងការផ្ញើអ៊ីមែល៖ ' : 'Failed to send email: ') . htmlspecialchars($test_res['error'] ?? 'Unknown error');
+                $message_type = 'error';
+            }
+        }
     }
 }
 
@@ -44,6 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['saved'])) {
     if ($_GET['saved'] === 'exchange') {
         $message = $isKm ? 'បានរក្សាទុកអត្រាប្តូរប្រាក់ដោយជោគជ័យ។' : 'Exchange rate saved successfully.';
+    } elseif ($_GET['saved'] === 'smtp') {
+        $message = $isKm ? 'បានរក្សាទុកការកំណត់អ៊ីមែល SMTP ដោយជោគជ័យ។' : 'SMTP Email settings saved successfully.';
     } else {
         $message = $isKm ? 'បានរក្សាទុកព័ត៌មានវិក្កយបត្រ (ឈ្មោះហាង, ទីតាំង, ទូរស័ព្ទ, សារ) ដោយជោគជ័យ។' : 'Receipt details (Shop Name, Location, Phone, Footer) saved successfully.';
     }
@@ -64,6 +117,15 @@ $receipt_shop_name  = $settings_map['receipt_shop_name']  ?? 'The Bird Nest Cafe
 $receipt_location   = $settings_map['receipt_location']   ?? 'Phnom Penh';
 $receipt_phone      = $settings_map['receipt_phone']      ?? '+855 12 345 678';
 $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
+
+$smtp_enabled       = ($settings_map['smtp_enabled'] ?? '0') === '1';
+$smtp_host          = $settings_map['smtp_host']          ?? 'smtp.gmail.com';
+$smtp_port          = $settings_map['smtp_port']          ?? '587';
+$smtp_secure        = $settings_map['smtp_secure']        ?? 'tls';
+$smtp_user          = $settings_map['smtp_user']          ?? '';
+$smtp_pass          = $settings_map['smtp_pass']          ?? '';
+$mail_from_email    = $settings_map['mail_from_email']    ?? '';
+$mail_from_name     = $settings_map['mail_from_name']     ?? "Bird's Nest Coffee POS";
 ?>
 <!DOCTYPE html>
 <html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
@@ -588,6 +650,101 @@ i, .fa, .fa-solid, .fa-regular, .fa-brands, [class*="fa-"] {
                 <button type="submit" class="btn btn-save">
                     <i class="fa-solid fa-floppy-disk"></i> <?= $isKm ? 'រក្សាទុកអត្រាប្តូរប្រាក់' : 'Save Exchange Rate' ?>
                 </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- ── 3. EMAIL & SMTP CONFIGURATION FORM ── -->
+    <form method="POST">
+        <input type="hidden" name="action" value="save_smtp">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon"><i class="fa-solid fa-envelope"></i></div>
+                <div>
+                    <div class="card-title"><?= $isKm ? 'ការកំណត់ប្រព័ន្ធអ៊ីមែល (Email / SMTP Settings)' : 'Email / SMTP System Settings' ?></div>
+                    <div class="card-sub"><?= $isKm ? 'កំណត់រចនាសម្ព័ន្ធផ្ញើអ៊ីមែលសម្រាប់លេខសម្ងាត់បណ្តោះអាសន្ន និងការជូនដំណឹង' : 'Configure SMTP credentials for temporary passwords and system email alerts' ?></div>
+                </div>
+            </div>
+
+            <div class="card-inner">
+                <div class="field" style="margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; text-transform: none; font-size: 14px;">
+                        <input type="checkbox" name="smtp_enabled" value="1" <?= $smtp_enabled ? 'checked' : '' ?> style="width: 18px; height: 18px; accent-color: var(--accent);">
+                        <strong style="color: #fff;"><?= $isKm ? 'បើកដំណើរការ SMTP Email (Enable Custom SMTP)' : 'Enable Custom SMTP Delivery' ?></strong>
+                    </label>
+                    <div class="field-hint"><?= $isKm ? 'ប្រសិនបើបិទ ប្រព័ន្ធនឹងប្រើប្រាស់ PHP Native mail() ដោយស្វ័យប្រវត្តិ' : 'If disabled, system defaults to PHP native mail()' ?></div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label><i class="fa-solid fa-server"></i> SMTP Host</label>
+                        <input type="text" name="smtp_host" value="<?= htmlspecialchars($smtp_host) ?>" placeholder="e.g. smtp.gmail.com">
+                    </div>
+
+                    <div class="field">
+                        <label><i class="fa-solid fa-hashtag"></i> SMTP Port</label>
+                        <input type="number" name="smtp_port" value="<?= htmlspecialchars($smtp_port) ?>" placeholder="587 or 465">
+                    </div>
+
+                    <div class="field">
+                        <label><i class="fa-solid fa-shield-halved"></i> Encryption</label>
+                        <select name="smtp_secure" style="width:100%; padding:11px 14px; border-radius:10px; border:1px solid var(--panel-border); background:rgba(255,255,255,0.04); color:#fff; font-size:13.5px; outline:none;">
+                            <option value="tls" <?= $smtp_secure === 'tls' ? 'selected' : '' ?> style="background:#18181c; color:#fff;">TLS (Port 587)</option>
+                            <option value="ssl" <?= $smtp_secure === 'ssl' ? 'selected' : '' ?> style="background:#18181c; color:#fff;">SSL (Port 465)</option>
+                            <option value="none" <?= $smtp_secure === 'none' ? 'selected' : '' ?> style="background:#18181c; color:#fff;">None</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label><i class="fa-solid fa-user"></i> SMTP Username / Email</label>
+                        <input type="text" name="smtp_user" value="<?= htmlspecialchars($smtp_user) ?>" placeholder="your-email@gmail.com">
+                    </div>
+
+                    <div class="field">
+                        <label><i class="fa-solid fa-key"></i> SMTP Password / App Password</label>
+                        <input type="password" name="smtp_pass" value="<?= htmlspecialchars($smtp_pass) ?>" placeholder="Gmail 16-char App Password">
+                    </div>
+
+                    <div class="field">
+                        <label><i class="fa-solid fa-signature"></i> Sender Name</label>
+                        <input type="text" name="mail_from_name" value="<?= htmlspecialchars($mail_from_name) ?>" placeholder="Bird's Nest Coffee POS">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <div class="form-actions-info">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <?= $isKm ? 'រក្សាទុកព័ត៌មាន SMTP Email' : 'Saves SMTP Email Configuration' ?>
+                </div>
+                <button type="submit" class="btn btn-save">
+                    <i class="fa-solid fa-floppy-disk"></i> <?= $isKm ? 'រក្សាទុកការកំណត់ Email' : 'Save Email Settings' ?>
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- ── 4. TEST EMAIL FORM ── -->
+    <form method="POST">
+        <input type="hidden" name="action" value="test_smtp">
+        <div class="card" style="margin-top: -10px;">
+            <div class="card-header">
+                <div class="card-icon" style="background: rgba(0, 245, 160, 0.1); color: #00f5a0;"><i class="fa-solid fa-paper-plane"></i></div>
+                <div>
+                    <div class="card-title"><?= $isKm ? 'សាកល្បងផ្ញើអ៊ីមែល (Send Test Email)' : 'Send Test Email' ?></div>
+                    <div class="card-sub"><?= $isKm ? 'ផ្ញើអ៊ីមែលគំរូដើម្បីពិនិត្យមើលថាតើប្រព័ន្ធផ្ញើអ៊ីមែលដំណើរការត្រឹមត្រូវឬទេ' : 'Send a sample test email to verify your email delivery configuration' ?></div>
+                </div>
+            </div>
+            <div class="card-inner">
+                <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 250px;">
+                        <label style="display: block; font-size: 11.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Test Email Address</label>
+                        <input type="email" name="test_email" placeholder="name@example.com" value="<?= htmlspecialchars($smtp_user ?: 'sokchamraeunid@gmail.com') ?>" required style="width:100%; padding:11px 14px; border-radius:10px; border:1px solid var(--panel-border); background:rgba(255,255,255,0.04); color:#fff; font-size:13.5px; outline:none;">
+                    </div>
+                    <button type="submit" class="btn btn-save" style="background: #00f5a0; color: #03140c; border: none; font-weight: 700; height: 42px; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-paper-plane"></i> <?= $isKm ? 'ផ្ញើអ៊ីមែលតេស្ត (Send Test)' : 'Send Test Email' ?>
+                    </button>
+                </div>
             </div>
         </div>
     </form>
