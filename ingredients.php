@@ -911,10 +911,91 @@ $categoriesList = [
         }
         [data-theme="light"] .val-main-text { color: #111827 !important; }
         [data-theme="light"] .val-sub-text { color: #64748b !important; }
+        /* Action Buttons Base Styling */
+        .btn-action-neutral {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            border: 1px solid #2b2b36;
+            background-color: #1f1f26;
+            color: #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .btn-action-neutral:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .btn-action-neutral:active {
+            transform: translateY(0);
+        }
+
+        /* 1. History Button Hover (Sky Blue) */
+        .btn-act-history:hover {
+            background-color: rgba(14, 165, 233, 0.15) !important;
+            border-color: rgba(14, 165, 233, 0.5) !important;
+            color: #38bdf8 !important;
+            box-shadow: 0 4px 14px rgba(14, 165, 233, 0.25) !important;
+        }
+
+        /* 2. Edit Button Hover (Indigo) */
+        .btn-act-edit:hover {
+            background-color: rgba(99, 102, 241, 0.15) !important;
+            border-color: rgba(99, 102, 241, 0.5) !important;
+            color: #818cf8 !important;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25) !important;
+        }
+
+        /* 3. Restock Button Hover (Emerald Green) */
+        .btn-act-restock:hover {
+            background-color: rgba(16, 185, 129, 0.15) !important;
+            border-color: rgba(16, 185, 129, 0.5) !important;
+            color: #10b981 !important;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25) !important;
+        }
+
+        /* 4. Delete Button Hover (Rose Red) */
+        .btn-act-delete:hover {
+            background-color: rgba(239, 68, 68, 0.15) !important;
+            border-color: rgba(239, 68, 68, 0.5) !important;
+            color: #ef4444 !important;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25) !important;
+        }
+
+        /* Light Theme Action Button Overrides */
         [data-theme="light"] .btn-action-neutral {
-            background-color: #f1f5f9 !important;
-            color: #475569 !important;
-            border-color: #e2e4ea !important;
+            background-color: #f1f5f9;
+            color: #64748b;
+            border-color: #e2e4ea;
+        }
+        [data-theme="light"] .btn-act-history:hover {
+            background-color: #f0f9ff !important;
+            border-color: #38bdf8 !important;
+            color: #0284c7 !important;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2) !important;
+        }
+        [data-theme="light"] .btn-act-edit:hover {
+            background-color: #eef2ff !important;
+            border-color: #6366f1 !important;
+            color: #4f46e5 !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
+        }
+        [data-theme="light"] .btn-act-restock:hover {
+            background-color: #ecfdf5 !important;
+            border-color: #10b981 !important;
+            color: #059669 !important;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
+        }
+        [data-theme="light"] .btn-act-delete:hover {
+            background-color: #fef2f2 !important;
+            border-color: #ef4444 !important;
+            color: #dc2626 !important;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
         }
         [data-theme="light"] .btn-reset-filter {
             background-color: #f1f5f9 !important;
@@ -2357,10 +2438,10 @@ $categoriesList = [
                                 </td>
                                 <td class="py-3.5 px-3">
                                     <?php if ($isPkgSet): ?>
-                                        <div class="font-bold text-emerald-400 text-xs">$<?= number_format($cost, 4) ?> / set</div>
+                                        <div class="font-bold text-[var(--text-main)] text-xs">$<?= number_format($cost, 4) ?> / set</div>
                                     <?php else: ?>
                                         <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$<?= number_format($val, 2) ?></div>
-                                        <div class="text-[11px] font-bold text-[#34d399] mt-0.5">$<?= number_format($bulkPrice, 2) ?> / <?= $bulkUnit ?></div>
+                                        <div class="text-[11px] font-bold text-[var(--text-main)] mt-0.5">$<?= number_format($bulkPrice, 2) ?> / <?= $bulkUnit ?></div>
                                         <div class="text-[10px] text-[#8e8e9f]">$<?= number_format($cost, 4) ?> / <?= htmlspecialchars($item['unit']) ?> <span class="text-emerald-400/80 font-semibold">(≈ <?= $khrFormatted ?> ៛)</span></div>
                                     <?php endif; ?>
                                 </td>
@@ -2371,10 +2452,10 @@ $categoriesList = [
                                         </button>
                                     <?php else: ?>
                                         <div class="flex items-center justify-end gap-1.5">
-                                            <button type="button" onclick="openIngredientHistoryModal(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-sky-400 hover:bg-sky-500/15 border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក (Deduction History)') ?>"><i class="fa-solid fa-clock-rotate-left w-4 text-center"></i></button>
-                                            <button type="button" onclick="openEditStockModal(<?= $item['item_id'] ?>)" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_edit', 'Edit') ?>"><i class="fa-solid fa-pen-to-square w-4 text-center"></i></button>
-                                            <button type="button" onclick="openRestockModal(<?= $item['item_id'] ?>)" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_restock', 'Restock') ?>"><i class="fa-solid fa-plus w-4 text-center"></i></button>
-                                            <button type="button" onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_delete', 'Delete') ?>"><i class="fa-solid fa-trash-can w-4 text-center"></i></button>
+                                            <button type="button" onclick="openIngredientHistoryModal(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral btn-act-history" title="<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក (Deduction History)') ?>"><i class="fa-solid fa-clock-rotate-left w-4 text-center"></i></button>
+                                            <button type="button" onclick="openEditStockModal(<?= $item['item_id'] ?>)" class="btn-action-neutral btn-act-edit" title="<?= __('btn_edit', 'Edit') ?>"><i class="fa-solid fa-pen-to-square w-4 text-center"></i></button>
+                                            <button type="button" onclick="openRestockModal(<?= $item['item_id'] ?>)" class="btn-action-neutral btn-act-restock" title="<?= __('btn_restock', 'Restock') ?>"><i class="fa-solid fa-plus w-4 text-center"></i></button>
+                                            <button type="button" onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral btn-act-delete" title="<?= __('btn_delete', 'Delete') ?>"><i class="fa-solid fa-trash-can w-4 text-center"></i></button>
                                         </div>
                                     <?php endif; ?>
                                 </td>
@@ -3244,6 +3325,44 @@ $categoriesList = [
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL: DELETE INGREDIENT CONFIRMATION
+    ══════════════════════════════════════════════════════════════ -->
+    <div id="deleteIngredientModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+        <div class="modal-content glass-card max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 text-2xl shadow-lg shadow-rose-500/10">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            
+            <h3 class="text-lg font-black text-[var(--text-main)] mb-1.5" id="deleteModalTitle">
+                <?= current_lang() === 'km' ? 'លុបគ្រឿងផ្សំ?' : 'Archive / Delete Ingredient?' ?>
+            </h3>
+            
+            <p class="text-xs text-[#8e8e9f] mb-6 leading-relaxed">
+                <?= current_lang() === 'km' ? 'តើអ្នកពិតជាចង់លុបគ្រឿងផ្សំ' : 'Are you sure you want to archive' ?>
+                <strong class="text-rose-400 font-bold px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20" id="deleteItemNameDisplay"></strong> 
+                <?= current_lang() === 'km' ? 'នេះចេញពីស្តុកមែនទេ?' : 'from raw ingredients?' ?>
+            </p>
+            
+            <input type="hidden" id="deleteItemIdHidden" value="">
+            
+            <div class="flex items-center justify-center gap-3">
+                <button type="button" 
+                        onclick="closeModal('deleteIngredientModal')" 
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-[#202026] text-xs font-bold text-[#b4b4c2] hover:text-white hover:bg-[#2a2a34] border border-[#2e2e3e] transition-all cursor-pointer">
+                    <?= __('cancel', 'Cancel') ?>
+                </button>
+                <button type="button" 
+                        id="confirmDeleteSubmitBtn"
+                        onclick="executeDeleteItem()" 
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-600/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                    <span><?= current_lang() === 'km' ? 'យល់ព្រមលុប' : 'Yes, Delete' ?></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ── JavaScript Client Engine ── -->
     <script>
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -3536,7 +3655,7 @@ $categoriesList = [
                             </span>
                         </td>
                         <td class="py-3.5 px-3">
-                            <div class="font-bold text-emerald-400 text-xs">$${cost.toFixed(4)} / set</div>
+                            <div class="font-bold text-[var(--text-main)] text-xs">$${cost.toFixed(4)} / set</div>
                             <div class="text-[10px] text-emerald-500 font-semibold mt-0.5">(≈ ${khrCostText} ៛)</div>
                         </td>
                         <td class="py-3.5 px-4 text-right">
@@ -3578,32 +3697,32 @@ $categoriesList = [
                         </td>
                         <td class="py-3.5 px-3">
                             <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                            <div class="text-[11px] font-bold text-[#34d399] mt-0.5">$${bulkPrice.toFixed(2)} / ${bulkUnit}</div>
+                            <div class="text-[11px] font-bold text-[var(--text-main)] mt-0.5">$${bulkPrice.toFixed(2)} / ${bulkUnit}</div>
                             <div class="text-[10px] text-[#8e8e9f]">$${cost.toFixed(4)} / ${escapeHtml(item.unit)} <span class="text-emerald-400/80 font-semibold">(≈ ${khrCostText} ៛)</span></div>
                         </td>
                         <td class="py-3.5 px-4 text-right">
                             <div class="flex items-center justify-end gap-1.5">
                                 <button type="button" 
                                         onclick="openIngredientHistoryModal(${item.item_id}, '${escapeHtml(item.item_name).replace(/'/g, "\\'")}')" 
-                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-sky-400 hover:bg-sky-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                        class="btn-action-neutral btn-act-history" 
                                         title="${escapeHtml(I18N.history || 'Deduction History')}">
                                     <i class="fa-solid fa-clock-rotate-left w-4 text-center"></i>
                                 </button>
                                 <button type="button" 
                                         onclick="openEditStockModal(${item.item_id})" 
-                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
+                                        class="btn-action-neutral btn-act-edit" 
                                         title="${escapeHtml(I18N.edit)}">
                                     <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
                                 </button>
                                 <button type="button" 
                                         onclick="openRestockModal(${item.item_id})" 
-                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                        class="btn-action-neutral btn-act-restock" 
                                         title="${escapeHtml(I18N.restock)}">
                                     <i class="fa-solid fa-plus w-4 text-center"></i>
                                 </button>
                                 <button type="button" 
                                         onclick="confirmDeleteItem(${item.item_id}, '${escapeHtml(item.item_name).replace(/'/g, "\\'")}')" 
-                                        class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                        class="btn-action-neutral btn-act-delete" 
                                         title="${escapeHtml(I18N.delete)}">
                                     <i class="fa-solid fa-trash-can w-4 text-center"></i>
                                 </button>
@@ -4482,32 +4601,57 @@ $categoriesList = [
             }
         }
 
+        let pendingDeleteItemId = null;
+
         function confirmDeleteItem(itemId, itemName) {
-            if (!confirm(`Are you sure you want to archive '${itemName}' from raw ingredients?`)) return;
+            pendingDeleteItemId = itemId;
+            const hiddenInp = document.getElementById('deleteItemIdHidden');
+            const nameDisp = document.getElementById('deleteItemNameDisplay');
+            if (hiddenInp) hiddenInp.value = itemId;
+            if (nameDisp) nameDisp.textContent = itemName;
+            openModal('deleteIngredientModal');
+        }
 
-            const formData = new FormData();
-            formData.append('action', 'delete_item');
-            formData.append('item_id', itemId);
-            formData.append('csrf_token', CSRF_TOKEN);
+        async function executeDeleteItem() {
+            const itemId = document.getElementById('deleteItemIdHidden')?.value || pendingDeleteItemId;
+            if (!itemId) return;
 
-            fetch('ingredients.php', {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(r => r.json())
-            .then(res => {
+            const btn = document.getElementById('confirmDeleteSubmitBtn');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>${I18N.lang === 'km' ? 'កំពុងលុប...' : 'Deleting...'}</span>`;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete_item');
+                formData.append('item_id', itemId);
+                formData.append('csrf_token', CSRF_TOKEN);
+
+                const r = await fetch('ingredients.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const res = await r.json();
+
                 if (res.success) {
-                    showToast(res.message, 'success');
+                    closeModal('deleteIngredientModal');
+                    showToast(res.message || (I18N.lang === 'km' ? 'បានលុបគ្រឿងផ្សំដោយជោគជ័យ' : 'Ingredient archived successfully.'), 'success');
                     loadStockTable();
                 } else {
-                    showToast(res.message || 'Archive failed.', 'error');
+                    showToast(res.message || (I18N.lang === 'km' ? 'មិនអាចលុបបានទេ' : 'Archive failed.'), 'error');
                 }
-            })
-            .catch(err => {
+            } catch (err) {
                 console.error(err);
-                showToast('Network error.', 'error');
-            });
+                showToast(I18N.lang === 'km' ? 'កំហុសបណ្តាញ' : 'Network error.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            }
         }
 
         async function openAuditLogsModal() {

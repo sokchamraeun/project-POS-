@@ -152,17 +152,13 @@ function tenderChangeFormatted(changeUsd, rate, mode) {
 
   if (wholeDollars > 0 && rielPart > 0) {
     main = '$' + wholeDollars.toLocaleString() + ' + ៛ ' + rielPart.toLocaleString();
-    sub = isKm
-      ? ('អាប់: $' + wholeDollars.toLocaleString() + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
-      : ('Give: $' + wholeDollars.toLocaleString() + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
+    sub = '≈ $' + changeUsd.toFixed(2) + (isKm ? ' ដុល្លារ' : ' USD') + ' (៛ ' + changeKhr.toLocaleString() + ')';
   } else if (wholeDollars > 0) {
     main = '$' + wholeDollars.toLocaleString();
-    sub = isKm ? 'ក្រដាសប្រាក់ដុល្លារសុទ្ធ (៛ 0)' : 'Exact USD notes (៛ 0)';
+    sub = isKm ? 'លុយដុល្លារសុទ្ធ (៛ 0)' : 'Exact USD (៛ 0)';
   } else {
     main = '៛ ' + rielPart.toLocaleString();
-    sub = isKm
-      ? ('ក្រោម 10$: អាប់ជាប្រាក់រៀលសុទ្ធ (≈ $' + changeUsd.toFixed(2) + ')')
-      : ('Under $10: Return in Riel notes only (≈ $' + changeUsd.toFixed(2) + ')');
+    sub = '≈ $' + changeUsd.toFixed(2) + (isKm ? ' ដុល្លារ' : ' USD');
   }
 
   return {

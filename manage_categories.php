@@ -461,13 +461,6 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
 [data-theme="light"] .hover\:bg-\[\#202230\]:hover {
     background-color: #f1f5f9 !important;
 }
-[data-theme="light"] .toast {
-    background: #ffffff;
-    border-color: #e2e8f0;
-    color: #0f172a;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-
 /* Toast Alert */
 #toast-container {
     position: fixed;
@@ -477,6 +470,84 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+/* Category Action Buttons */
+.cat-action-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid #2c2d3e;
+    background: #1b1c27;
+    color: #94a3b8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.cat-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cat-action-btn:active {
+    transform: translateY(0);
+}
+
+.cat-action-edit:hover {
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: rgba(16, 185, 129, 0.5) !important;
+    color: #10b981 !important;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25) !important;
+}
+
+.cat-action-delete:hover {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border-color: rgba(239, 68, 68, 0.5) !important;
+    color: #ef4444 !important;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25) !important;
+}
+
+.cat-action-disabled {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+    color: #4b5563 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Light Theme Styling for Category Action Buttons */
+[data-theme="light"] .cat-action-btn {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #64748b !important;
+}
+
+[data-theme="light"] .cat-action-edit:hover {
+    background: #ecfdf5 !important;
+    border-color: #10b981 !important;
+    color: #059669 !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
+}
+
+[data-theme="light"] .cat-action-delete:hover {
+    background: #fef2f2 !important;
+    border-color: #ef4444 !important;
+    color: #dc2626 !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
+}
+
+[data-theme="light"] .cat-action-disabled {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    color: #cbd5e1 !important;
+}
+[data-theme="light"] .cat-row:hover {
+    background-color: #f1f5f9 !important;
 }
 .toast {
     background: #14151e;
@@ -745,7 +816,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                         <!-- Edit -->
                                         <button type="button" 
                                                 onclick="openEditCategoryModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>)" 
-                                                class="w-8 h-8 rounded-xl bg-[#1b1c27] hover:bg-[#252737] border border-[#2c2d3e] hover:border-emerald-500/40 text-[#b4b4c2] hover:text-white flex items-center justify-center transition-all duration-150 cursor-pointer shadow-xs" 
+                                                class="cat-action-btn cat-action-edit" 
                                                 title="<?= __('edit', 'Edit Category') ?>">
                                             <i class="fa-solid fa-pen text-xs"></i>
                                         </button>
@@ -753,22 +824,18 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                         <!-- Delete -->
                                         <?php if ((int)$c['product_count'] > 0): ?>
                                         <button type="button" 
-                                                class="w-8 h-8 rounded-xl bg-[#1b1c27]/40 border border-[#232433] text-[#4d4e60] cursor-not-allowed flex items-center justify-center shadow-2xs" 
+                                                class="cat-action-btn cat-action-disabled" 
                                                 disabled 
-                                                title="Cannot delete: <?= (int)$c['product_count'] ?> product(s) use this category">
+                                                title="<?= current_lang() === 'km' ? 'មិនអាចលុបបានទេ: មានទំនិញចំនួន ' . (int)$c['product_count'] . ' កំពុងប្រើប្រាស់ប្រភេទនេះ' : 'Cannot delete: ' . (int)$c['product_count'] . ' product(s) use this category' ?>">
                                             <i class="fa-solid fa-trash-can text-xs"></i>
                                         </button>
                                         <?php else: ?>
-                                        <form method="POST" class="inline" onsubmit="return deleteCategory(<?= (int)$c['category_id'] ?>, this, event);">
-                                            <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
-                                            <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="category_id" value="<?= (int)$c['category_id'] ?>">
-                                            <button type="submit" 
-                                                    class="w-8 h-8 rounded-xl bg-[#1b1c27] hover:bg-rose-500/20 border border-[#2c2d3e] hover:border-rose-500/40 text-[#b4b4c2] hover:text-rose-400 flex items-center justify-center transition-all duration-150 cursor-pointer shadow-xs" 
-                                                    title="<?= __('delete', 'Delete Category') ?>">
-                                                <i class="fa-solid fa-trash-can text-xs"></i>
-                                            </button>
-                                        </form>
+                                        <button type="button" 
+                                                onclick="openDeleteCategoryModal(<?= (int)$c['category_id'] ?>, '<?= addslashes(he($c['name'])) ?>')" 
+                                                class="cat-action-btn cat-action-delete" 
+                                                title="<?= __('delete', 'Delete Category') ?>">
+                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        </button>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -1022,6 +1089,44 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL 3: DELETE CATEGORY CONFIRMATION
+══════════════════════════════════════════════════════════════ -->
+<div id="deleteCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm transition-opacity duration-200 hidden">
+    <div class="bg-[#14151e] border border-[#232433] max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-center">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 text-2xl shadow-lg shadow-rose-500/10">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        
+        <h3 class="text-lg font-black text-white mb-1.5">
+            <?= current_lang() === 'km' ? 'លុបប្រភេទទំនិញ?' : 'Delete Category?' ?>
+        </h3>
+        
+        <p class="text-xs text-[#8e8e9f] mb-6 leading-relaxed">
+            <?= current_lang() === 'km' ? 'តើអ្នកពិតជាចង់លុបប្រភេទ' : 'Are you sure you want to delete' ?>
+            <strong class="text-rose-400 font-bold px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20" id="deleteCatNameDisplay"></strong> 
+            <?= current_lang() === 'km' ? 'នេះមែនទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។' : 'category? This action cannot be undone.' ?>
+        </p>
+        
+        <input type="hidden" id="deleteCatIdHidden" value="">
+        
+        <div class="flex items-center justify-center gap-3">
+            <button type="button" 
+                    onclick="closeDeleteCategoryModal()" 
+                    class="flex-1 py-2.5 px-4 rounded-xl bg-[#1b1c27] text-xs font-bold text-[#c7c7d4] hover:text-white hover:bg-[#252737] border border-[#2c2d3e] transition-all cursor-pointer">
+                <?= current_lang() === 'km' ? 'បោះបង់' : 'Cancel' ?>
+            </button>
+            <button type="button" 
+                    id="confirmDeleteCatBtn"
+                    onclick="executeDeleteCategory()" 
+                    class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-600/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+                <span><?= current_lang() === 'km' ? 'យល់ព្រមលុប' : 'Yes, Delete' ?></span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <div id="toast-container"></div>
 
 <!-- Cropper.js Scripts -->
@@ -1227,24 +1332,49 @@ async function toggleCategoryActive(catId, btn, ev) {
     }
 }
 
-function deleteCategory(id, formElement, e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
-    if (!confirm('<?= current_lang() === "km" ? "តើអ្នកពិតជាចង់លុបប្រភេទនេះមែនទេ?" : "Delete this category? This cannot be undone." ?>')) {
-        return false;
+let pendingDeleteCatId = null;
+
+function openDeleteCategoryModal(id, name) {
+    pendingDeleteCatId = id;
+    const hiddenInp = document.getElementById('deleteCatIdHidden');
+    const nameDisp = document.getElementById('deleteCatNameDisplay');
+    if (hiddenInp) hiddenInp.value = id;
+    if (nameDisp) nameDisp.textContent = name;
+    document.getElementById('deleteCategoryModal')?.classList.remove('hidden');
+}
+
+function closeDeleteCategoryModal() {
+    document.getElementById('deleteCategoryModal')?.classList.add('hidden');
+}
+
+async function executeDeleteCategory() {
+    const id = document.getElementById('deleteCatIdHidden')?.value || pendingDeleteCatId;
+    if (!id) return;
+
+    const btn = document.getElementById('confirmDeleteCatBtn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span><?= current_lang() === 'km' ? 'កំពុងលុប...' : 'Deleting...' ?></span>`;
     }
 
-    const row = formElement.closest('tr');
-    const formData = new FormData(formElement);
-    formData.append('ajax', '1');
+    try {
+        const formData = new FormData();
+        formData.append('csrf_token', '<?= he($_SESSION['csrf_token']) ?>');
+        formData.append('action', 'delete');
+        formData.append('category_id', id);
+        formData.append('ajax', '1');
 
-    fetch('manage_categories.php', {
-        method: 'POST',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
+        const res = await fetch('manage_categories.php', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        });
+        const data = await res.json();
+
         if (data.success) {
+            closeDeleteCategoryModal();
+            const row = document.querySelector(`tr.cat-row button[onclick*="openDeleteCategoryModal(${id}"]`)?.closest('tr');
             if (row) {
                 row.style.transition = 'all 0.3s ease';
                 row.style.opacity = '0';
@@ -1257,16 +1387,19 @@ function deleteCategory(id, formElement, e) {
             if (totalEl && data.total_count !== undefined) totalEl.textContent = data.total_count;
             if (activeEl && data.active_count !== undefined) activeEl.textContent = data.active_count;
             if (inactiveEl && data.inactive_count !== undefined) inactiveEl.textContent = data.inactive_count;
-            showToast(data.msg || 'Category deleted.', 'success');
+            showToast(data.msg || (I18N?.lang === 'km' ? 'បានលុបប្រភេទទំនិញដោយជោគជ័យ' : 'Category deleted.'), 'success');
         } else {
             showToast(data.msg || 'Error deleting category.', 'error');
         }
-    })
-    .catch(err => {
+    } catch (err) {
+        console.error(err);
         showToast('Error processing delete request.', 'error');
-    });
-
-    return false;
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
 }
 
 let sortAsc = true;

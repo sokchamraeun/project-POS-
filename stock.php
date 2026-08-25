@@ -1120,10 +1120,63 @@ $stockItems = $initStmt->fetchAll();
         }
         [data-theme="light"] .val-main-text { color: #111827 !important; }
         [data-theme="light"] .val-sub-text { color: #64748b !important; }
+        /* Action Buttons Base Styling */
+        .btn-action-neutral {
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            border: 1px solid #2b2b36;
+            background-color: #1f1f26;
+            color: #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .btn-action-neutral:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .btn-action-neutral:active {
+            transform: translateY(0);
+        }
+
+        /* 1. Edit Button Hover (Indigo) */
+        .btn-act-edit:hover {
+            background-color: rgba(99, 102, 241, 0.15) !important;
+            border-color: rgba(99, 102, 241, 0.5) !important;
+            color: #818cf8 !important;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25) !important;
+        }
+
+        /* 2. Delete Button Hover (Rose Red) */
+        .btn-act-delete:hover {
+            background-color: rgba(239, 68, 68, 0.15) !important;
+            border-color: rgba(239, 68, 68, 0.5) !important;
+            color: #ef4444 !important;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25) !important;
+        }
+
+        /* Light Theme Action Button Overrides */
         [data-theme="light"] .btn-action-neutral {
-            background-color: #f1f5f9 !important;
-            color: #475569 !important;
-            border-color: #e2e4ea !important;
+            background-color: #f1f5f9;
+            color: #64748b;
+            border-color: #e2e4ea;
+        }
+        [data-theme="light"] .btn-act-edit:hover {
+            background-color: #eef2ff !important;
+            border-color: #6366f1 !important;
+            color: #4f46e5 !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
+        }
+        [data-theme="light"] .btn-act-delete:hover {
+            background-color: #fef2f2 !important;
+            border-color: #ef4444 !important;
+            color: #dc2626 !important;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2) !important;
         }
         [data-theme="light"] .btn-reset-filter {
             background-color: #f1f5f9 !important;
@@ -1881,14 +1934,14 @@ $stockItems = $initStmt->fetchAll();
                                         <!-- Edit -->
                                         <button type="button" 
                                                 onclick="openEditStockModal(<?= $item['item_id'] ?>)" 
-                                                class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
+                                                class="btn-action-neutral btn-act-edit" 
                                                 title="<?= __('btn_edit', 'Edit') ?>">
                                             <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
                                         </button>
                                         <!-- Delete -->
                                         <button type="button" 
                                                 onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" 
-                                                class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                                class="btn-action-neutral btn-act-delete" 
                                                 title="<?= __('btn_delete', 'Delete') ?>">
                                             <i class="fa-solid fa-trash-can w-4 text-center"></i>
                                         </button>
@@ -2660,6 +2713,44 @@ $stockItems = $initStmt->fetchAll();
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL: DELETE DIRECT DRINK CONFIRMATION
+    ══════════════════════════════════════════════════════════════ -->
+    <div id="deleteStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+        <div class="modal-content glass-card max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 text-2xl shadow-lg shadow-rose-500/10">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            
+            <h3 class="text-lg font-black text-[var(--text-main)] mb-1.5" id="deleteModalTitle">
+                <?= current_lang() === 'km' ? 'លុបទំនិញពីស្តុក?' : 'Archive / Delete Direct Drink?' ?>
+            </h3>
+            
+            <p class="text-xs text-[#8e8e9f] mb-6 leading-relaxed">
+                <?= current_lang() === 'km' ? 'តើអ្នកពិតជាចង់លុបទំនិញ' : 'Are you sure you want to archive' ?>
+                <strong class="text-rose-400 font-bold px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20" id="deleteItemNameDisplay"></strong> 
+                <?= current_lang() === 'km' ? 'នេះចេញពីស្តុកទំនិញស្រាប់មែនទេ?' : 'from direct drinks stock?' ?>
+            </p>
+            
+            <input type="hidden" id="deleteItemIdHidden" value="">
+            
+            <div class="flex items-center justify-center gap-3">
+                <button type="button" 
+                        onclick="closeModal('deleteStockModal')" 
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-[#202026] text-xs font-bold text-[#b4b4c2] hover:text-white hover:bg-[#2a2a34] border border-[#2e2e3e] transition-all cursor-pointer">
+                    <?= __('cancel', 'Cancel') ?>
+                </button>
+                <button type="button" 
+                        id="confirmDeleteSubmitBtn"
+                        onclick="executeDeleteItem()" 
+                        class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-600/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                    <span><?= current_lang() === 'km' ? 'យល់ព្រមលុប' : 'Yes, Delete' ?></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ── JavaScript Client Engine ── -->
     <script>
         const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -2998,13 +3089,13 @@ $stockItems = $initStmt->fetchAll();
                             </button>
                             <button type="button" 
                                     onclick="openEditStockModal(${item.item_id})" 
-                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
+                                    class="btn-action-neutral btn-act-edit" 
                                     title="${escapeHtml(I18N.edit)}">
                                 <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
                             </button>
                             <button type="button" 
                                     onclick="confirmDeleteItem(${item.item_id}, '${escapeHtml(item.item_name).replace(/'/g, "\\'")}')" 
-                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
+                                    class="btn-action-neutral btn-act-delete" 
                                     title="${escapeHtml(I18N.delete)}">
                                 <i class="fa-solid fa-trash-can w-4 text-center"></i>
                             </button>
@@ -3617,32 +3708,57 @@ $stockItems = $initStmt->fetchAll();
             }
         }
 
+        let pendingDeleteItemId = null;
+
         function confirmDeleteItem(itemId, itemName) {
-            if (!confirm(`Are you sure you want to archive '${itemName}' from direct drinks stock?`)) return;
+            pendingDeleteItemId = itemId;
+            const hiddenInp = document.getElementById('deleteItemIdHidden');
+            const nameDisp = document.getElementById('deleteItemNameDisplay');
+            if (hiddenInp) hiddenInp.value = itemId;
+            if (nameDisp) nameDisp.textContent = itemName;
+            openModal('deleteStockModal');
+        }
 
-            const formData = new FormData();
-            formData.append('action', 'delete_item');
-            formData.append('item_id', itemId);
-            formData.append('csrf_token', CSRF_TOKEN);
+        async function executeDeleteItem() {
+            const itemId = document.getElementById('deleteItemIdHidden')?.value || pendingDeleteItemId;
+            if (!itemId) return;
 
-            fetch('stock.php', {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(r => r.json())
-            .then(res => {
+            const btn = document.getElementById('confirmDeleteSubmitBtn');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>${I18N.lang === 'km' ? 'កំពុងលុប...' : 'Deleting...'}</span>`;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete_item');
+                formData.append('item_id', itemId);
+                formData.append('csrf_token', CSRF_TOKEN);
+
+                const r = await fetch('stock.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const res = await r.json();
+
                 if (res.success) {
-                    showToast(res.message, 'success');
+                    closeModal('deleteStockModal');
+                    showToast(res.message || (I18N.lang === 'km' ? 'បានលុបទំនិញដោយជោគជ័យ' : 'Item archived successfully.'), 'success');
                     loadStockTable();
                 } else {
-                    showToast(res.message || 'Archive failed.', 'error');
+                    showToast(res.message || (I18N.lang === 'km' ? 'មិនអាចលុបបានទេ' : 'Archive failed.'), 'error');
                 }
-            })
-            .catch(err => {
+            } catch (err) {
                 console.error(err);
-                showToast('Network error.', 'error');
-            });
+                showToast(I18N.lang === 'km' ? 'កំហុសបណ្តាញ' : 'Network error.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            }
         }
 
         async function openAuditLogsModal() {

@@ -1916,7 +1916,7 @@ $defaultMilk = 'Fresh Milk';
         color: #b91c1c !important;
     }
     #cashPaymentModal #cpmChangeUsd {
-        color: #059669;
+        color: #000000 !important;
         font-weight: 900;
     }
     #cashPaymentModal #cpmChangeBox.cpm-short #cpmChangeUsd {
@@ -3380,7 +3380,7 @@ $defaultMilk = 'Fresh Milk';
                 <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-900 cpm-change-lbl" id="cpmChangeTitle"><?= __('cpm_change_to_return', 'Change to Return') ?></span>
                 <div class="text-xs font-bold text-emerald-700 truncate mt-0.5" id="cpmChangeKhr">លុយគ្រប់គ្រាន់ (៛ 0)</div>
               </div>
-              <div class="text-3xl font-black text-emerald-600 text-right tracking-tight whitespace-nowrap" id="cpmChangeUsd">$0.00</div>
+              <div class="text-3xl font-black text-black text-right tracking-tight whitespace-nowrap" id="cpmChangeUsd">$0.00</div>
             </div>
           </div>
 
@@ -5558,17 +5558,13 @@ function cpmUpdateDualDisplay(updateInputs) {
       }
       if (wholeDollars > 0 && rielPart > 0) {
         if (changeUsdEl) changeUsdEl.textContent = '$' + wholeDollars.toLocaleString() + ' + ៛ ' + rielPart.toLocaleString();
-        if (changeKhrEl) changeKhrEl.textContent = window.CPM_IS_KM
-          ? ('អាប់: $' + wholeDollars.toLocaleString() + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
-          : ('Give: $' + wholeDollars.toLocaleString() + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
+        if (changeKhrEl) changeKhrEl.textContent = '≈ $' + cleanChangeUsd.toFixed(2) + (window.CPM_IS_KM ? ' ដុល្លារ' : ' USD') + ' (៛ ' + cleanChangeKhr.toLocaleString() + ')';
       } else if (wholeDollars > 0) {
         if (changeUsdEl) changeUsdEl.textContent = '$' + wholeDollars.toLocaleString();
-        if (changeKhrEl) changeKhrEl.textContent = i18n.exact_usd_notes || 'Exact USD notes (៛ 0)';
+        if (changeKhrEl) changeKhrEl.textContent = i18n.exact_usd_notes || 'Exact USD (៛ 0)';
       } else {
         if (changeUsdEl) changeUsdEl.textContent = '៛ ' + rielPart.toLocaleString();
-        if (changeKhrEl) changeKhrEl.textContent = window.CPM_IS_KM
-          ? ('ក្រោម 10$: អាប់ជាប្រាក់រៀលសុទ្ធ (≈ $' + cleanChangeUsd.toFixed(2) + ')')
-          : ('Under $10: Return in Riel notes only (≈ $' + cleanChangeUsd.toFixed(2) + ')');
+        if (changeKhrEl) changeKhrEl.textContent = '≈ $' + cleanChangeUsd.toFixed(2) + (window.CPM_IS_KM ? ' ដុល្លារ' : ' USD');
       }
     }
   }

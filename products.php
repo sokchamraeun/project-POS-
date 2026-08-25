@@ -4744,7 +4744,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <div class="ep-field">
                         <label class="ep-label" for="epName"><?= $isKm ? 'ឈ្មោះទំនិញ' : 'Product Name' ?> <span style="color:#ef4444;">*</span></label>
                         <div id="epDirectPickerWrap" style="display:none;">
-                            <select id="epDirectSelect" onchange="onSelectEpDirectDrink(this)" class="ep-select" style="font-weight:600;color:#ffffff;">
+                            <select id="epDirectSelect" onchange="onSelectEpDirectDrink(this)" class="ep-select" style="font-weight:600;">
                                 <option value=""><?= $isKm ? '-- ជ្រើសរើសទំនិញពីស្តុក --' : '-- Select Stock Drink --' ?></option>
                             </select>
                         </div>
@@ -4793,7 +4793,7 @@ input:checked + .ep-slider:before { transform: translateX(20px); }
                     <div class="ep-field">
                         <div class="ep-status-row">
                             <div>
-                                <strong style="font-size:12.5px;color:#ffffff;display:block;"><?= $isKm ? 'បង្ហាញលើម៉ឺនុយ' : 'Show on Menu' ?></strong>
+                                <strong style="font-size:12.5px;display:block;"><?= $isKm ? 'បង្ហាញលើម៉ឺនុយ' : 'Show on Menu' ?></strong>
                             </div>
                             <label class="ep-switch">
                                 <input type="checkbox" id="epAvailable" name="is_available" value="1">
