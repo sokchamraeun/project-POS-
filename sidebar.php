@@ -324,72 +324,164 @@ html[data-theme="light"] .sidebar .nav-item.active i,
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* ── Smooth Global Theme Transition Effect (Targeted for max performance) ── */
+html.theme-transitioning,
+html.theme-transitioning body,
+html.theme-transitioning .pos-layout,
+html.theme-transitioning .menu-panel,
+html.theme-transitioning .menu-scroll,
+html.theme-transitioning .cat-filter-bar,
+html.theme-transitioning .pkg-filter-group,
+html.theme-transitioning .product-card,
+html.theme-transitioning .cart-panel,
+html.theme-transitioning .sidebar,
+html.theme-transitioning .main-content,
+html.theme-transitioning .card,
+html.theme-transitioning header {
+    transition: background-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+                background 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Theme Segmented Switcher */
 .sidebar-theme-switch {
     display: flex;
     align-items: center;
-    background: rgba(15, 23, 42, 0.6);
+    position: relative;
+    background: #090e1a;
     border: 1px solid rgba(255, 255, 255, 0.14) !important;
-    border-radius: 12px !important;
+    border-radius: 9999px !important;
     padding: 3px !important;
-    gap: 3px !important;
     width: 100%;
     box-sizing: border-box;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+    isolation: isolate;
+    overflow: hidden;
+    cursor: pointer;
 }
+
+/* Sliding active pill indicator (Spring motion) */
+.theme-switch-slider {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc(50% - 3px);
+    border-radius: 9999px;
+    background: #141c2e;
+    border: 1.5px solid rgba(251, 191, 36, 0.75);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 16px rgba(251, 191, 36, 0.35);
+    transform: translateX(0);
+    transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+                border-color 0.35s ease,
+                box-shadow 0.35s ease,
+                background-color 0.35s ease;
+    pointer-events: none;
+    z-index: 0;
+    will-change: transform;
+}
+
+/* When Light mode is active: slider on the LEFT */
+[data-theme="light"] .theme-switch-slider,
+.sidebar-theme-switch[data-theme-active="light"] .theme-switch-slider {
+    transform: translateX(0) !important;
+    border-color: rgba(251, 191, 36, 0.75) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 16px rgba(251, 191, 36, 0.4) !important;
+}
+
+/* When Dark mode is active: slider on the RIGHT */
+[data-theme="dark"] .theme-switch-slider,
+.sidebar-theme-switch[data-theme-active="dark"] .theme-switch-slider,
+html:not([data-theme="light"]) .theme-switch-slider {
+    transform: translateX(100%) !important;
+    border-color: rgba(56, 189, 248, 0.65) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 16px rgba(56, 189, 248, 0.35) !important;
+}
+
 .theme-switch-btn {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 7px;
-    padding: 6.5px 10px !important;
-    border-radius: 9px !important;
-    background: transparent;
-    border: 1px solid transparent !important;
+    padding: 7px 12px !important;
+    border-radius: 9999px !important;
+    background: transparent !important;
+    border: none !important;
     color: #94a3b8 !important;
     font-size: 13px !important;
     font-weight: 600 !important;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transition: color 0.3s ease, font-weight 0.3s ease !important;
     user-select: none;
     -webkit-user-select: none;
+    position: relative;
+    z-index: 1;
 }
+
 .theme-switch-btn:hover {
-    color: #ffffff !important;
-    background: rgba(255, 255, 255, 0.05);
+    color: #f1f5f9 !important;
 }
+
 .theme-switch-btn .theme-switch-icon {
-    font-size: 13.5px !important;
-    transition: transform 0.2s ease, color 0.2s ease !important;
+    font-size: 14px !important;
+    transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1),
+                color 0.35s ease,
+                filter 0.35s ease !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* Active Segment State */
-.theme-switch-btn.active {
-    background: #162238 !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
-}
-
-/* Active Dark State (Bright Cyan/Teal glow) */
-.theme-switch-btn.theme-switch-dark.active {
-    color: #2dd4bf !important;
-    background: #152238 !important;
-    border-color: rgba(45, 212, 191, 0.3) !important;
-}
-.theme-switch-btn.theme-switch-dark.active .theme-switch-icon {
-    color: #2dd4bf !important;
-    transform: scale(1.08);
-}
-
-/* Active Light State (Warm Amber glow) */
+/* Active Segment Text States */
 .theme-switch-btn.theme-switch-light.active {
     color: #fbbf24 !important;
-    background: #1e293b !important;
-    border-color: rgba(251, 191, 36, 0.3) !important;
+    font-weight: 700 !important;
 }
+
 .theme-switch-btn.theme-switch-light.active .theme-switch-icon {
     color: #fbbf24 !important;
-    transform: scale(1.08);
+    transform: rotate(45deg) scale(1.15);
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+    animation: sunPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-switch-btn.theme-switch-dark.active {
+    color: #38bdf8 !important;
+    font-weight: 700 !important;
+}
+
+.theme-switch-btn.theme-switch-dark.active .theme-switch-icon {
+    color: #38bdf8 !important;
+    transform: rotate(-15deg) scale(1.15);
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
+    animation: moonPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes sunPop {
+    0% { transform: rotate(0deg) scale(0.8); }
+    50% { transform: rotate(70deg) scale(1.25); }
+    100% { transform: rotate(45deg) scale(1.15); }
+}
+
+@keyframes moonPop {
+    0% { transform: rotate(0deg) scale(0.8); }
+    50% { transform: rotate(-30deg) scale(1.25); }
+    100% { transform: rotate(-15deg) scale(1.15); }
+}
+
+@keyframes sunPop {
+    0% { transform: rotate(0deg) scale(0.8); }
+    50% { transform: rotate(70deg) scale(1.25); }
+    100% { transform: rotate(45deg) scale(1.15); }
+}
+
+@keyframes moonPop {
+    0% { transform: rotate(0deg) scale(0.8); }
+    50% { transform: rotate(-30deg) scale(1.25); }
+    100% { transform: rotate(-15deg) scale(1.15); }
 }
 
 /* Language Selector Card */
@@ -902,6 +994,7 @@ html[data-theme="light"] .toast-dismiss:hover {
     <div class="sidebar-footer">
         <!-- Theme Mode Switcher -->
         <div class="sidebar-theme-switch" id="sidebarThemeSwitch">
+            <div class="theme-switch-slider" id="themeSwitchSlider"></div>
             <button type="button" class="theme-switch-btn theme-switch-light" id="themeBtnLight" onclick="setAppTheme('light')" title="<?= current_lang() === 'km' ? 'ប្តូរទៅពន្លឺ (Light Mode)' : 'Switch to Light Mode' ?>">
                 <i class="fa-solid fa-sun theme-switch-icon"></i>
                 <span class="theme-switch-label"><?= current_lang() === 'km' ? 'ពន្លឺ' : 'Light' ?></span>
@@ -1180,11 +1273,22 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Global Theme Toggle & Sync System ──
 window.setAppTheme = function(theme) {
     var html = document.documentElement;
+    if (html.getAttribute('data-theme') === theme) return;
+
+    // Trigger smooth global page animation
+    html.classList.add('theme-transitioning');
+
     html.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
     syncThemeUI(theme);
     if (typeof initCharts === 'function') initCharts();
+
+    // Clean up class after animation completes so hover/scroll aren't throttled
+    clearTimeout(window.__themeTransitionTimer);
+    window.__themeTransitionTimer = setTimeout(function() {
+        html.classList.remove('theme-transitioning');
+    }, 450);
 };
 
 window.toggleTheme = function() {
@@ -1209,6 +1313,11 @@ function syncThemeUI(theme) {
             darkBtn.classList.add('active');
             lightBtn.classList.remove('active');
         }
+    }
+
+    var switchContainer = document.getElementById('sidebarThemeSwitch');
+    if (switchContainer) {
+        switchContainer.setAttribute('data-theme-active', theme);
     }
 
     document.querySelectorAll('#topThemeIcon, #themeIcon, #sidebarThemeIcon, #themeToggle i').forEach(function(icon) {

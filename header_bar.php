@@ -47,6 +47,8 @@ if (typeof window.toggleTheme !== 'function') {
         var html = document.documentElement;
         var isLight = html.getAttribute('data-theme') === 'light';
         var nextTheme = isLight ? 'dark' : 'light';
+        
+        html.classList.add('theme-transitioning');
         html.setAttribute('data-theme', nextTheme);
         localStorage.setItem('theme', nextTheme);
 
@@ -57,6 +59,11 @@ if (typeof window.toggleTheme !== 'function') {
             txt.textContent = nextTheme === 'light' ? 'Light' : 'Dark';
         });
         if (typeof initCharts === 'function') initCharts();
+
+        clearTimeout(window.__themeTransitionTimer);
+        window.__themeTransitionTimer = setTimeout(function() {
+            html.classList.remove('theme-transitioning');
+        }, 450);
     };
 }
 document.addEventListener('DOMContentLoaded', function() {

@@ -233,18 +233,47 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+        :root, [data-theme="dark"], html:not([data-theme="light"]) {
+            --bg-main: #0b0c10;
+            --bg-card: #14151e;
+            --bg-card-hover: #191a26;
+            --bg-input: #1b1c27;
+            --bg-subtle: #101118;
+            --border-color: #232433;
+            --border-input: #2c2d3e;
+            --text-main: #f8fafc;
+            --text-muted: #8e8e9f;
+            --text-sub: #c7c7d4;
+            --accent: #10b981;
+            --accent-hover: #059669;
+        }
+
+        [data-theme="light"], html[data-theme="light"] {
+            --bg-main: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8fafc;
+            --bg-input: #f8fafc;
+            --bg-subtle: #f8fafc;
+            --border-color: #e2e8f0;
+            --border-input: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-sub: #334155;
+            --accent: #10b981;
+            --accent-hover: #059669;
+        }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, .app-layout, .app-main, .rep-page-wrapper {
-            background-color: #f8fafc !important;
+            background-color: var(--bg-main) !important;
             background-image: none !important;
-            color: #0f172a;
+            color: var(--text-main);
         }
         body, input, select, textarea, button, table {
             font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -262,44 +291,106 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
         }
 
+        /* Light Theme Overrides */
+        [data-theme="light"] body,
+        [data-theme="light"] .app-layout,
+        [data-theme="light"] .app-main,
+        [data-theme="light"] .rep-page-wrapper {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .bg-\[\#14151e\] {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+        }
+        [data-theme="light"] .bg-\[\#1b1c27\] {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .bg-\[\#101118\] {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] thead tr.bg-\[\#101118\] {
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] th {
+            color: #64748b !important;
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] .text-white {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .text-\[\#8e8e9f\],
+        [data-theme="light"] .text-\[\#78788c\],
+        [data-theme="light"] .text-\[\#606175\] {
+            color: #64748b !important;
+        }
+        [data-theme="light"] .text-\[\#c7c7d4\] {
+            color: #334155 !important;
+        }
+        [data-theme="light"] .placeholder-\[\#68687a\]::placeholder {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] .border-\[\#232433\],
+        [data-theme="light"] .border-\[\#2c2d3e\],
+        [data-theme="light"] .divide-\[\#1e1f2c\] > :not([hidden]) ~ :not([hidden]) {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] tr.border-b {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] .hover\:bg-\[\#191a26\]:hover,
+        [data-theme="light"] .hover\:bg-\[\#1b1c27\]:hover,
+        [data-theme="light"] .hover\:bg-\[\#252737\]:hover {
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] #reportOrdersContainer::-webkit-scrollbar-track { background: #f8fafc; }
+        [data-theme="light"] #reportOrdersContainer::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        [data-theme="light"] #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
         /* Custom Scrollbar matching Daily Summary */
         ::-webkit-scrollbar,
         #reportOrdersContainer::-webkit-scrollbar { width: 7px; height: 7px; }
         ::-webkit-scrollbar-track,
-        #reportOrdersContainer::-webkit-scrollbar-track { background: #f8fafc; }
+        #reportOrdersContainer::-webkit-scrollbar-track { background: #14151e; }
         ::-webkit-scrollbar-thumb,
         #reportOrdersContainer::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
+            background: #2c2d3e;
             border-radius: 9999px;
         }
         ::-webkit-scrollbar-thumb:hover,
-        #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #3e4056; }
 
         @media print {
             .sidebar, .print-hide, aside, #sidebar { display: none !important; }
             .app-main { overflow: visible !important; height: auto !important; padding: 0 !important; }
-            body, .app-layout, .rep-page-wrapper { background: #fff !important; }
+            body, .app-layout, .rep-page-wrapper { background: #fff !important; color: #000 !important; }
             #reportOrdersCard { border: none !important; box-shadow: none !important; }
             #reportOrdersContainer { max-height: none !important; overflow: visible !important; }
         }
     </style>
 </head>
 <body>
-<div class="flex h-screen w-screen overflow-hidden app-layout" style="background-color: #f8fafc !important;">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
     <?php require_once __DIR__ . '/sidebar.php'; ?>
 
-    <div class="app-main flex-1 h-screen overflow-hidden flex flex-col" style="background-color: #f8fafc !important;">
-        <div class="rep-page-wrapper w-full h-full p-4 md:p-6 bg-[#f8fafc] flex flex-col gap-4 overflow-hidden" style="background-color: #f8fafc !important;">
+    <div class="app-main flex-1 h-screen overflow-hidden flex flex-col">
+        <div class="rep-page-wrapper w-full h-full p-4 md:p-6 flex flex-col gap-4 overflow-hidden">
 
             <!-- TOP BREADCRUMBS & ACTION BUTTONS -->
             <div class="flex items-center justify-between gap-4 pb-0.5 flex-shrink-0 print-hide">
                 <!-- Breadcrumbs -->
                 <div class="flex items-center gap-2 text-xs md:text-sm font-medium">
-                    <span class="text-slate-400"><?= $isKm ? 'របាយការណ៍' : 'Reports' ?></span>
-                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
-                    <span class="text-slate-400"><?= $isKm ? 'ការលក់' : 'Sales' ?></span>
-                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
-                    <span class="text-slate-900 font-bold"><?= $isKm ? 'ការវិភាគ & នាំចេញ' : 'Analytics & Export' ?></span>
+                    <span class="text-[#8e8e9f]"><?= $isKm ? 'របាយការណ៍' : 'Reports' ?></span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-[#606175]"></i>
+                    <span class="text-[#8e8e9f]"><?= $isKm ? 'ការលក់' : 'Sales' ?></span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-[#606175]"></i>
+                    <span class="text-white font-bold"><?= $isKm ? 'ការវិភាគ & នាំចេញ' : 'Analytics & Export' ?></span>
                 </div>
 
                 <!-- Action Buttons -->
@@ -314,42 +405,42 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     $pdf_url = 'report_pdf.php?' . http_build_query($pdf_params);
                     ?>
                     <a href="<?= htmlspecialchars($pdf_url) ?>" target="_blank" 
-                       class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
-                        <i class="fa-solid fa-print text-slate-400 text-xs"></i>
+                       class="inline-flex items-center gap-2 px-3.5 py-2 bg-[#14151e] hover:bg-[#1b1c27] text-white text-xs md:text-sm font-semibold rounded-xl border border-[#2c2d3e] hover:border-emerald-500/40 shadow-sm transition cursor-pointer">
+                        <i class="fa-solid fa-print text-emerald-400 text-xs"></i>
                         <span><?= $isKm ? 'បោះពុម្ព (PDF)' : 'Print (PDF)' ?></span>
                     </a>
                 </div>
             </div>
 
             <!-- FILTER CARD -->
-            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-5 flex-shrink-0 print-hide">
+            <div class="bg-[#14151e] border border-[#232433] rounded-2xl shadow-lg p-4 md:p-5 flex-shrink-0 print-hide">
                 <form method="GET" action="report.php" id="analyticsReportFilterForm" class="flex flex-col gap-3.5">
                     <!-- Row 1: 6 Filter Columns -->
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <!-- 1. Start Date & Time -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date & Time' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date & Time' ?></label>
                             <div class="relative">
                                 <input type="datetime-local" id="fromDateTimeInput" name="from_datetime" value="<?= htmlspecialchars($fromDateTimeInputVal) ?>" onchange="this.form.submit()"
-                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                       class="w-full px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                             </div>
                         </div>
 
                         <!-- 2. End Date & Time -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date & Time' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date & Time' ?></label>
                             <div class="relative">
                                 <input type="datetime-local" id="toDateTimeInput" name="to_datetime" value="<?= htmlspecialchars($toDateTimeInputVal) ?>" onchange="this.form.submit()"
-                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                       class="w-full px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                             </div>
                         </div>
 
                         <!-- 3. Select Month -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ជ្រើសរើសខែ' : 'Select Month' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'ជ្រើសរើសខែ' : 'Select Month' ?></label>
                             <div class="relative">
                                 <select name="month_select" id="monthSelect" onchange="handleMonthSelect(this.value)" 
-                                        class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                        class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="">-- <?= $isKm ? 'គ្រប់ខែ' : 'All Months' ?> --</option>
                                     <?php for ($m = 1; $m <= 12; $m++): ?>
                                         <?php 
@@ -361,16 +452,16 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                         <option value="<?= $mVal ?>" <?= $selectedMonth === $mVal ? 'selected' : '' ?>><?= $mLabel ?></option>
                                     <?php endfor; ?>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
 
                         <!-- 4. Quick Range -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
                             <div class="relative">
                                 <select name="quick_range" id="quickRangeSelect" onchange="handleQuickRangeChange(this.value)" 
-                                        class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                        class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="">-- <?= $isKm ? 'ជ្រើសរើស' : 'Select' ?> --</option>
                                     <option value="today" <?= $quickRange === 'today' ? 'selected' : '' ?>><?= $isKm ? 'ថ្ងៃនេះ (Today)' : 'Today' ?></option>
                                     <option value="yesterday" <?= $quickRange === 'yesterday' ? 'selected' : '' ?>><?= $isKm ? 'ម្សិលមិញ (Yesterday)' : 'Yesterday' ?></option>
@@ -379,15 +470,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     <option value="year" <?= ($quickRange === 'year' || $quickRange === 'this_year') ? 'selected' : '' ?>><?= $isKm ? 'ឆ្នាំនេះ (This Year)' : 'This Year' ?></option>
                                     <option value="all" <?= $quickRange === 'all' ? 'selected' : '' ?>><?= $isKm ? 'ទាំងអស់ (All Time)' : 'All Time' ?></option>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
 
                         <!-- 5. Staff -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
                             <div class="relative">
-                                <select name="user_id" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                <select name="user_id" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="0">All Staff</option>
                                     <?php foreach ($staffList as $st): ?>
                                     <option value="<?= (int)$st['user_id'] ?>" <?= $filterUser === (int)$st['user_id'] ? 'selected' : '' ?>>
@@ -395,15 +486,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
 
                         <!-- 6. Category -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ប្រភេទទំនិញ' : 'Category' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'ប្រភេទទំនិញ' : 'Category' ?></label>
                             <div class="relative">
-                                <select name="category" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                <select name="category" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="">All Categories</option>
                                     <?php foreach ($categoryList as $cat): ?>
                                     <option value="<?= htmlspecialchars($cat['slug'] ?: $cat['name']) ?>" <?= $filterCategory === ($cat['slug'] ?: $cat['name']) ? 'selected' : '' ?>>
@@ -411,28 +502,28 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
                     </div>
 
                     <!-- Row 2: Search Input & Action Buttons -->
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-[#232433]">
                         <!-- Left: Search Box -->
                         <div class="relative flex-1 max-w-sm">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78788c] text-xs pointer-events-none"></i>
                             <input type="text" id="tableSearchInput" name="search" value="<?= htmlspecialchars($searchQuery) ?>" oninput="filterTableClientSide()"
                                    placeholder="<?= $isKm ? 'ស្វែងរកទំនិញ, ប្រភេទ...' : 'Search product, category...' ?>"
-                                   class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 transition">
+                                   class="w-full pl-9 pr-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-medium text-white placeholder-[#68687a] focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition">
                         </div>
 
                         <!-- Right: Reset & Filter Button -->
                         <div class="flex items-center justify-end gap-3.5">
-                            <a href="report.php" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
+                            <a href="report.php" class="text-xs font-bold text-[#8e8e9f] hover:text-white transition cursor-pointer">
                                 <?= $isKm ? 'កំណត់ឡើងវិញ' : 'Reset' ?>
                             </a>
                             <button type="submit" 
-                                    class="inline-flex items-center gap-2 px-5 py-2 bg-[#0b1329] hover:bg-[#162238] text-white text-xs font-bold rounded-xl shadow-sm transition hover:shadow cursor-pointer">
+                                    class="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition cursor-pointer">
                                 <i class="fa-solid fa-filter text-[11px]"></i>
                                 <span><?= $isKm ? 'ស្វែងរកទិន្នន័យ' : 'Filter' ?></span>
                             </button>
@@ -442,30 +533,30 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             </div>
 
             <!-- DATA TABLE CARD WITH VERTICAL SCROLL -->
-            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
+            <div class="bg-[#14151e] border border-[#232433] rounded-2xl shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
                 <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="reportOrdersContainer">
                     <table class="w-full text-left border-collapse" id="reportOrdersTable">
-                        <thead class="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_#f1f5f9]">
-                            <tr class="border-b border-slate-100 bg-white">
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'PRODUCT NAME' ?></th>
-                                <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រភេទ' : 'CATEGORY' ?></th>
-                                <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំនួនលក់' : 'QTY SOLD' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើម/កែវ' : 'COST / UNIT' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'តម្លៃលក់/កែវ' : 'PRICE / UNIT' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំណូលសរុប (REV)' : 'REVENUE' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'TOTAL COST' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'PROFIT' ?></th>
+                        <thead class="sticky top-0 bg-[#101118] z-20 shadow-[0_1px_0_0_#232433]">
+                            <tr class="border-b border-[#232433] bg-[#101118]">
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'PRODUCT NAME' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រភេទ' : 'CATEGORY' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំនួនលក់' : 'QTY SOLD' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើម' : 'COST / UNIT' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'តម្លៃលក់' : 'PRICE / UNIT' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំណូលសរុប (REV)' : 'REVENUE' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'TOTAL COST' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'PROFIT' ?></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50">
+                        <tbody class="divide-y divide-[#1e1f2c]">
                             <?php if (empty($productsList)): ?>
                             <tr id="noDataRow">
-                                <td colspan="8" class="text-center py-16 px-4 text-slate-400">
-                                    <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl">
+                                <td colspan="8" class="text-center py-16 px-4 text-[#8e8e9f]">
+                                    <div class="w-14 h-14 rounded-full bg-[#1b1c27] flex items-center justify-center mx-auto mb-3 text-[#78788c] text-xl">
                                         <i class="fa-solid fa-folder-open"></i>
                                     </div>
-                                    <div class="font-bold text-slate-700 text-sm mb-1"><?= $isKm ? 'គ្មានទិន្នន័យការលក់' : 'No product sales recorded' ?></div>
-                                    <div class="text-xs text-slate-400"><?= $isKm ? 'សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting the date range or filters' ?></div>
+                                    <div class="font-bold text-white text-sm mb-1"><?= $isKm ? 'គ្មានទិន្នន័យការលក់' : 'No product sales recorded' ?></div>
+                                    <div class="text-xs text-[#8e8e9f]"><?= $isKm ? 'សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting the date range or filters' ?></div>
                                 </td>
                             </tr>
                             <?php else: ?>
@@ -481,42 +572,42 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     $profit      = (float)$p['total_profit'];
                                     $isProfitPos = ($profit >= 0);
                                 ?>
-                                <tr class="border-b border-slate-100 hover:bg-slate-50/70 transition-colors product-item-row">
+                                <tr class="border-b border-[#1e1f2c] hover:bg-[#191a26] transition-colors product-item-row">
                                     <!-- 1. Product Name with Dot Indicator -->
-                                    <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">
+                                    <td class="py-4 px-6 text-xs font-bold text-white whitespace-nowrap">
                                         <div class="flex items-center gap-2.5">
-                                            <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0 shadow-xs"></span>
+                                            <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-xs"></span>
                                             <span><?= $pName ?></span>
                                         </div>
                                     </td>
                                     <!-- 2. Category Pill Badge -->
                                     <td class="py-4 px-6 text-center whitespace-nowrap">
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70 text-slate-700 text-xs font-bold">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
                                             <?= $catName ?>
                                         </span>
                                     </td>
                                     <!-- 3. Qty Sold -->
-                                    <td class="py-4 px-6 text-center text-xs font-black text-slate-800 whitespace-nowrap">
+                                    <td class="py-4 px-6 text-center text-xs font-black text-white whitespace-nowrap">
                                         <?= number_format($qtySold) ?>
                                     </td>
                                     <!-- 4. Cost / Unit -->
-                                    <td class="py-4 px-6 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                    <td class="py-4 px-6 text-right text-xs font-semibold text-[#8e8e9f] whitespace-nowrap">
                                         $<?= number_format($costUnit, 2) ?>
                                     </td>
                                     <!-- 5. Price / Unit -->
-                                    <td class="py-4 px-6 text-right text-xs font-semibold text-slate-700 whitespace-nowrap">
+                                    <td class="py-4 px-6 text-right text-xs font-semibold text-[#c7c7d4] whitespace-nowrap">
                                         $<?= number_format($priceUnit, 2) ?>
                                     </td>
                                     <!-- 6. Total Revenue -->
-                                    <td class="py-4 px-6 text-right text-xs font-black text-slate-900 whitespace-nowrap">
+                                    <td class="py-4 px-6 text-right text-xs font-black text-white whitespace-nowrap">
                                         $<?= number_format($revTotal, 2) ?>
                                     </td>
                                     <!-- 7. Total Cost -->
-                                    <td class="py-4 px-6 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                    <td class="py-4 px-6 text-right text-xs font-semibold text-[#8e8e9f] whitespace-nowrap">
                                         $<?= number_format($costTotal, 2) ?>
                                     </td>
                                     <!-- 8. Profit -->
-                                    <td class="py-4 px-6 text-right text-xs font-black whitespace-nowrap <?= $isProfitPos ? 'text-emerald-600' : 'text-rose-600' ?>">
+                                    <td class="py-4 px-6 text-right text-xs font-black whitespace-nowrap <?= $isProfitPos ? 'text-emerald-400' : 'text-rose-400' ?>">
                                         <?= ($isProfitPos ? '+' : '') . '$' . number_format($profit, 2) ?>
                                     </td>
                                 </tr>
@@ -527,26 +618,26 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                 </div>
 
                 <!-- TABLE SUMMARY FOOTER -->
-                <div class="p-4 md:p-5 bg-white border-t border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
+                <div class="p-4 md:p-5 bg-[#101118] border-t border-[#232433] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
                     <!-- Left: Date Range & Product Count -->
-                    <div class="flex flex-col gap-0.5 text-xs text-slate-500">
-                        <div><?= $isKm ? 'ចន្លោះកាលបរិច្ឆេទ:' : 'Date Range:' ?> <span class="font-bold text-slate-700"><?= date('j/n/Y', strtotime($fromDate)) ?> — <?= date('j/n/Y', strtotime($toDate)) ?></span></div>
-                        <div><?= $isKm ? 'ចំនួនមុខទំនិញសរុប:' : 'Total Products Count:' ?> <span class="font-bold text-slate-700"><?= number_format($totalDistinctProducts) ?> <?= $isKm ? 'មុខ' : 'items' ?></span></div>
+                    <div class="flex flex-col gap-0.5 text-xs text-[#8e8e9f]">
+                        <div><?= $isKm ? 'ចន្លោះកាលបរិច្ឆេទ:' : 'Date Range:' ?> <span class="font-bold text-white"><?= date('j/n/Y', strtotime($fromDate)) ?> — <?= date('j/n/Y', strtotime($toDate)) ?></span></div>
+                        <div><?= $isKm ? 'ចំនួនមុខទំនិញសរុប:' : 'Total Products Count:' ?> <span class="font-bold text-white"><?= number_format($totalDistinctProducts) ?> <?= $isKm ? 'មុខ' : 'items' ?></span></div>
                     </div>
 
                     <!-- Right: Units, Total Profit & Total Sales -->
                     <div class="flex items-center gap-7 sm:gap-10 self-end md:self-auto flex-wrap">
                         <div class="text-left sm:text-right">
-                            <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំនួនលក់សរុប' : 'TOTAL UNITS' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight"><?= number_format($totalUnitsSold) ?></div>
+                            <div class="text-[11px] font-extrabold text-[#8e8e9f] uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំនួនលក់សរុប' : 'TOTAL UNITS' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-white tracking-tight leading-tight"><?= number_format($totalUnitsSold) ?></div>
                         </div>
                         <div class="text-left sm:text-right">
-                            <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'TOTAL PROFIT' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-[#059669] tracking-tight leading-tight"><?= ($totalProfit >= 0 ? '+' : '') . '$' . number_format($totalProfit, 2) ?></div>
+                            <div class="text-[11px] font-extrabold text-[#8e8e9f] uppercase tracking-wider mb-0.5"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'TOTAL PROFIT' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-emerald-400 tracking-tight leading-tight"><?= ($totalProfit >= 0 ? '+' : '') . '$' . number_format($totalProfit, 2) ?></div>
                         </div>
                         <div class="text-left sm:text-right">
-                            <div class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំណូលសរុប' : 'TOTAL SALES' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight"><?= '$' . number_format($totalRevenue, 2) ?></div>
+                            <div class="text-[11px] font-extrabold text-[#8e8e9f] uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំណូលសរុប' : 'TOTAL SALES' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-white tracking-tight leading-tight"><?= '$' . number_format($totalRevenue, 2) ?></div>
                         </div>
                     </div>
                 </div>

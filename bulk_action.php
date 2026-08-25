@@ -13,14 +13,126 @@ $ph = implode(',', array_fill(0, count($ids), '?'));
 $types = str_repeat('i', count($ids));
 
 if ($action === 'delete') {
-    // Remove image files
-    $sel = $conn->prepare("SELECT image FROM products WHERE product_id IN ($ph)");
+    // 1. Remove product images and collect names/images
+    $sel = $conn->prepare("SELECT name, image FROM products WHERE product_id IN ($ph)");
     $sel->bind_param($types, ...$ids);
     $sel->execute();
     $rows = $sel->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    $prodImages = [];
+    $prodNames  = [];
     foreach ($rows as $r) {
-        if (!empty($r['image'])) cloudinary_delete_image($r['image']);
+        if (!empty($r['image'])) {
+            $img = trim($r['image']);
+            cloudinary_delete_image($img);
+            $prodImages[] = $img;
+        }
+        if (!empty($r['name'])) {
+            $prodNames[] = trim($r['name']);
+            $cleanName = preg_replace('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', '', $r['name']);
+            $cleanName = trim(preg_replace('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', '', $cleanName));
+            if (!empty($cleanName)) $prodNames[] = $cleanName;
+        }
     }
+
+    // 2. Find linked stock items
+    $stockItemIds = [];
+    $recSel = $conn->prepare("SELECT item_id FROM product_recipes WHERE product_id IN ($ph)");
+    if ($recSel) {
+        $recSel->bind_param($types, ...$ids);
+        $recSel->execute();
+        $rRes = $recSel->get_result();
+        while ($rRow = $rRes->fetch_assoc()) {
+            if (!empty($rRow['item_id'])) {
+                $stockItemIds[] = (int)$rRow['item_id'];
+            }
+        }
+    }
+
+    if (!empty($prodNames) || !empty($prodImages)) {
+        $allNames = array_values(array_unique(array_filter($prodNames)));
+        $allImgs  = array_values(array_unique(array_filter($prodImages)));
+        
+        $whereClauses = [];
+        $params = [];
+        $paramTypes = '';
+        
+        if (!empty($allNames)) {
+            $nPh = implode(',', array_fill(0, count($allNames), '?'));
+            $whereClauses[] = "LOWER(REPLACE(item_name, ' ', '')) IN ($nPh)";
+            foreach ($allNames as $nm) {
+                $params[] = strtolower(str_replace(' ', '', $nm));
+                $paramTypes .= 's';
+            }
+        }
+        if (!empty($allImgs)) {
+            $iPh = implode(',', array_fill(0, count($allImgs), '?'));
+            $whereClauses[] = "image IN ($iPh) OR image_box IN ($iPh)";
+            foreach ($allImgs as $im) {
+                $params[] = $im;
+                $paramTypes .= 's';
+            }
+            foreach ($allImgs as $im) {
+                $params[] = $im;
+                $paramTypes .= 's';
+            }
+        }
+        
+        if (!empty($whereClauses)) {
+            $stkSql = "SELECT item_id FROM stock_items WHERE " . implode(' OR ', $whereClauses);
+            $stkStmt = $conn->prepare($stkSql);
+            if ($stkStmt) {
+                $stkStmt->bind_param($paramTypes, ...$params);
+                $stkStmt->execute();
+                $sRes = $stkStmt->get_result();
+                while ($sRow = $sRes->fetch_assoc()) {
+                    $stockItemIds[] = (int)$sRow['item_id'];
+                }
+            }
+        }
+    }
+
+    $hasUnitDeletes = false;
+    $hasBoxDeletes  = false;
+    foreach ($rows as $r) {
+        $pName = $r['name'] ?? '';
+        $isB = preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $pName) ||
+               preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $pName) ||
+               preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $pName);
+        if ($isB) {
+            $hasBoxDeletes = true;
+        } else {
+            $hasUnitDeletes = true;
+        }
+    }
+
+    $stockItemIds = array_values(array_unique(array_filter($stockItemIds)));
+    if (!empty($stockItemIds)) {
+        $sPh = implode(',', array_fill(0, count($stockItemIds), '?'));
+        $sTypes = str_repeat('i', count($stockItemIds));
+        
+        $fetchImages = $conn->prepare("SELECT item_id, image, image_box FROM stock_items WHERE item_id IN ($sPh)");
+        $fetchImages->bind_param($sTypes, ...$stockItemIds);
+        $fetchImages->execute();
+        $itemsWithImages = $fetchImages->get_result()->fetch_all(MYSQLI_ASSOC);
+        
+        foreach ($itemsWithImages as $it) {
+            $sId = (int)$it['item_id'];
+            if ($hasUnitDeletes && !empty($it['image'])) {
+                cloudinary_delete_image($it['image']);
+                $conn->query("UPDATE stock_items SET image = NULL WHERE item_id = {$sId}");
+            }
+            if ($hasBoxDeletes && !empty($it['image_box'])) {
+                cloudinary_delete_image($it['image_box']);
+                $conn->query("UPDATE stock_items SET image_box = NULL WHERE item_id = {$sId}");
+            }
+        }
+    }
+
+    // 3. Delete recipes and products
+    $delRec = $conn->prepare("DELETE FROM product_recipes WHERE product_id IN ($ph)");
+    $delRec->bind_param($types, ...$ids);
+    $delRec->execute();
 
     $del = $conn->prepare("DELETE FROM products WHERE product_id IN ($ph)");
     $del->bind_param($types, ...$ids);

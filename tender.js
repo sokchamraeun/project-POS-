@@ -151,12 +151,12 @@ function tenderChangeFormatted(changeUsd, rate, mode) {
   var sub = '';
 
   if (wholeDollars > 0 && rielPart > 0) {
-    main = '$' + wholeDollars + ' + ៛ ' + rielPart.toLocaleString();
+    main = '$' + wholeDollars.toLocaleString() + ' + ៛ ' + rielPart.toLocaleString();
     sub = isKm
-      ? ('អាប់: $' + wholeDollars + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
-      : ('Give: $' + wholeDollars + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
+      ? ('អាប់: $' + wholeDollars.toLocaleString() + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
+      : ('Give: $' + wholeDollars.toLocaleString() + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
   } else if (wholeDollars > 0) {
-    main = '$' + wholeDollars.toFixed(2);
+    main = '$' + wholeDollars.toLocaleString();
     sub = isKm ? 'ក្រដាសប្រាក់ដុល្លារសុទ្ធ (៛ 0)' : 'Exact USD notes (៛ 0)';
   } else {
     main = '៛ ' + rielPart.toLocaleString();

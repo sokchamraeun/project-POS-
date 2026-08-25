@@ -224,6 +224,21 @@ while ($row = mysqli_fetch_assoc($result)) {
     $productsById[$pId] = $row;
 }
 
+/* ── PACKAGE FILTER COUNTS ── */
+$pkg_all_count  = count($flat_products);
+$pkg_box_count  = 0;
+$pkg_unit_count = 0;
+foreach ($flat_products as $_fp) {
+    $_isB = preg_match('/\((?:Box|កេស|កេសធំ|កាតុង|Carton|Case|Pack|យួរ|Package|កញ្ចប់|Dozen|ឡូ|Crate|ស្នោ)\)/ui', $_fp['name']) ||
+            preg_match('/\b(?:Box|Carton|Case|Pack|Package|Dozen|Crate)\b/ui', $_fp['name']) ||
+            preg_match('/(?:កេស|កាតុង|យួរ|កញ្ចប់|ឡូ|ស្នោ)/u', $_fp['name']);
+    if ($_isB) {
+        $pkg_box_count++;
+    } else {
+        $pkg_unit_count++;
+    }
+}
+
 /* ── SIZES PER PRODUCT (removed) ── */
 $sizesByProduct = [];
 
@@ -378,8 +393,156 @@ $defaultMilk = 'Fresh Milk';
     .brand img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border,#e5e7eb); flex-shrink: 0; }
     .brand-name { font-size: 15px; font-weight: 700; white-space: nowrap; color: var(--text,#1a1410); }
     .search-form  { display: flex; align-items: center; gap: 8px; width: 100%; }
-    .search-inner { display: flex; align-items: center; gap: 8px; flex: 1; border-radius: 50px; padding: 7px 14px; background: var(--bg-input,#f3f4f6); border: 1px solid var(--border,#e5e7eb); }
-    .search-inner input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Poppins',sans-serif; font-size: 13px; color: var(--text,#1a1410); }
+    .search-inner {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      flex: 1;
+      height: 42px;
+      border-radius: 9999px;
+      padding: 4px 16px 4px 5px;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      box-sizing: border-box;
+    }
+
+    .search-inner:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    }
+
+    .search-inner:focus-within {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3.5px rgba(99, 102, 241, 0.12), 0 4px 16px rgba(99, 102, 241, 0.08);
+      background: #ffffff;
+    }
+
+    .search-icon-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      background: #f5f3ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #6366f1;
+      font-size: 13.5px;
+      flex-shrink: 0;
+      transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .search-icon-badge i {
+      color: #6366f1 !important;
+      transition: color 0.22s ease;
+    }
+
+    .search-inner:hover .search-icon-badge {
+      background: #ede9fe;
+      transform: scale(1.05);
+    }
+
+    .search-inner:hover .search-icon-badge i {
+      color: #4f46e5 !important;
+    }
+
+    .search-inner:focus-within .search-icon-badge {
+      background: #ede9fe;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+      transform: scale(1.05);
+    }
+
+    .search-inner:focus-within .search-icon-badge i {
+      color: #4f46e5 !important;
+    }
+
+    .search-inner input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #1e293b;
+      min-width: 0;
+    }
+
+    .search-inner input::placeholder {
+      color: #94a3b8;
+      font-weight: 400;
+    }
+
+    .search-scan-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      flex-shrink: 0;
+      cursor: pointer;
+      padding: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .search-scan-btn:hover {
+      color: #6366f1;
+      transform: scale(1.1);
+    }
+
+    /* Search Bar Dark Mode */
+    [data-theme="dark"] .search-inner {
+      background: #090d16;
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="dark"] .search-inner:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    [data-theme="dark"] .search-inner:focus-within {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3.5px rgba(99, 102, 241, 0.22), 0 8px 24px rgba(0, 0, 0, 0.6);
+      background: #090d16;
+    }
+
+    [data-theme="dark"] .search-icon-badge {
+      background: rgba(99, 102, 241, 0.14);
+    }
+
+    [data-theme="dark"] .search-icon-badge i {
+      color: #818cf8 !important;
+    }
+
+    [data-theme="dark"] .search-inner:hover .search-icon-badge,
+    [data-theme="dark"] .search-inner:focus-within .search-icon-badge {
+      background: rgba(99, 102, 241, 0.24);
+      transform: scale(1.05);
+    }
+
+    [data-theme="dark"] .search-inner:hover .search-icon-badge i,
+    [data-theme="dark"] .search-inner:focus-within .search-icon-badge i {
+      color: #a5b4fc !important;
+    }
+
+    [data-theme="dark"] .search-inner input {
+      color: #f8fafc;
+    }
+
+    [data-theme="dark"] .search-inner input::placeholder {
+      color: #64748b;
+    }
+
+    [data-theme="dark"] .search-scan-btn {
+      color: #64748b;
+    }
+
+    [data-theme="dark"] .search-scan-btn:hover {
+      color: #a5b4fc;
+    }
+
     .sort-select { border-radius: 50px; padding: 7px 12px; border: 1px solid var(--border,#e5e7eb); background: var(--bg-input,#f3f4f6); font-family: 'Poppins',sans-serif; font-size: 12px; outline: none; cursor: pointer; flex-shrink: 0; }
     .btn-nav { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 50px; border: 1px solid var(--border,#e5e7eb); background: var(--bg-input,#f3f4f6); text-decoration: none; color: var(--text-sec,#5a4a3a); font-size: 13px; font-weight: 500; white-space: nowrap; transition: all .25s; }
     .btn-nav:hover { background: #d1904b; color: #fff; border-color: #d1904b; }
@@ -655,57 +818,164 @@ $defaultMilk = 'Fresh Milk';
       background: #334155 !important;
     }
 
-    /* Segmented Control for Unit / Box */
+    /* ── Segmented Control for Unit / Box ── */
+    /* LIGHT MODE -> STYLE 3: FLOATING TAB WITH COUNT BADGES */
     .pkg-filter-group {
       display: inline-flex;
       align-items: center;
-      padding: 3px;
-      border-radius: 14px;
-      background: #f1f5f9;
-      border: 1.5px solid #e2e8f0;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      position: relative;
+      padding: 3.5px;
+      gap: 3px;
+      height: 42px;
+      border-radius: 9999px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      isolation: isolate;
+      box-sizing: border-box;
     }
 
+    /* Moving Slider Thumb Indicator */
+    .pkg-filter-slider {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 9999px;
+      background: #ecfdf5;
+      border: 1.5px solid #a7f3d0;
+      box-shadow: 0 1px 3px rgba(16, 185, 129, 0.1);
+      transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  width 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  height 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  background 0.35s ease,
+                  border-color 0.35s ease,
+                  box-shadow 0.35s ease;
+      pointer-events: none;
+      z-index: 0;
+      will-change: transform, width;
+      box-sizing: border-box;
+      opacity: 0;
+    }
+
+    /* DARK MODE -> EMERALD #10B981 GLOW */
     [data-theme="dark"] .pkg-filter-group {
-      background: #1e293b;
-      border-color: #334155;
+      background: #090d16;
+      border-color: rgba(255, 255, 255, 0.09);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    [data-theme="dark"] .pkg-filter-slider {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+      border: 1.5px solid rgba(16, 185, 129, 0.5) !important;
+      box-shadow: 0 4px 18px rgba(16, 185, 129, 0.55), 0 0 0 1px rgba(16, 185, 129, 0.25) !important;
     }
 
     .pkg-btn {
+      position: relative;
+      z-index: 1;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 7px;
-      padding: 6px 14px;
-      height: 34px;
-      border-radius: 11px;
-      font-size: 12.5px;
-      font-weight: 700;
-      color: #64748b;
-      background: transparent;
-      border: none;
+      padding: 0 14px;
+      height: 35px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      background: transparent !important;
+      border: 1.5px solid transparent !important;
+      box-shadow: none !important;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: color 0.25s ease, transform 0.15s ease;
       user-select: none;
       white-space: nowrap;
       outline: none;
+      box-sizing: border-box;
     }
 
-    [data-theme="dark"] .pkg-btn {
-      color: #94a3b8;
+    .pkg-btn:active {
+      transform: scale(0.96);
     }
 
     .pkg-btn:hover {
       color: #0f172a;
     }
 
+    .pkg-btn i {
+      font-size: 12.5px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.25s ease;
+    }
+
+    .pkg-btn .pkg-icon-svg {
+      display: inline-block;
+      vertical-align: middle;
+      stroke: currentColor;
+      flex-shrink: 0;
+      transition: stroke 0.25s ease;
+    }
+
+    /* Active text states in Light mode */
+    .pkg-btn.active {
+      color: #065f46 !important;
+      font-weight: 700;
+    }
+
+    .pkg-btn.active i,
+    .pkg-btn.active .pkg-icon-svg {
+      color: #10b981 !important;
+      stroke: #10b981 !important;
+    }
+
+    .pkg-count-badge {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #059669;
+      color: #ffffff !important;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1.5px 7px;
+      border-radius: 9999px;
+      min-width: 19px;
+      line-height: 1.2;
+      box-shadow: 0 1px 3px rgba(5, 150, 105, 0.35);
+      margin-left: 2px;
+      flex-shrink: 0;
+    }
+
+    .pkg-btn.active .pkg-count-badge {
+      display: inline-flex;
+    }
+
+    /* Active text states in Dark mode */
+    [data-theme="dark"] .pkg-btn {
+      color: #94a3b8;
+    }
+
     [data-theme="dark"] .pkg-btn:hover {
       color: #ffffff;
     }
 
-    .pkg-btn.active {
-      background: #10b981;
+    [data-theme="dark"] .pkg-btn.active {
       color: #ffffff !important;
-      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35);
+      font-weight: 700;
+    }
+
+    [data-theme="dark"] .pkg-btn.active i,
+    [data-theme="dark"] .pkg-btn.active .pkg-icon-svg {
+      color: #ffffff !important;
+      stroke: #ffffff !important;
+    }
+
+    [data-theme="dark"] .pkg-btn.active .pkg-count-badge {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 
     .menu-panel .cat-nav {
@@ -808,23 +1078,23 @@ $defaultMilk = 'Fresh Milk';
       font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
     }
     .cp-title i {
-      color: #c8863f;
+      color: #10b981;
       font-size: 1.15rem;
     }
     .cp-count {
-      background: #c8863f;
+      background: #10b981;
       color: #fff;
       border-radius: 9999px;
       padding: 3px 14px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       line-height: 1.4;
       font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
-      box-shadow: 0 1px 3px rgba(200, 134, 63, 0.2);
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
     }
     .cp-clear-btn {
       background: transparent; border: 1px solid rgba(231,76,60,.5); color: #e74c3c;
@@ -882,12 +1152,24 @@ $defaultMilk = 'Fresh Milk';
       appearance: textfield !important;
       -webkit-appearance: none !important;
     }
-    html.dark .cp-qty input[type="number"], body.dark .cp-qty input[type="number"] {
+    [data-theme="dark"] .cp-qty input[type="number"],
+    html[data-theme="dark"] .cp-qty input[type="number"],
+    html.dark .cp-qty input[type="number"],
+    body.dark .cp-qty input[type="number"] {
       color: #ffffff !important;
+    }
+    [data-theme="dark"] .cp-qty button {
+      color: #10b981 !important;
+    }
+    [data-theme="dark"] .cp-qty button:hover {
+      background: rgba(16, 185, 129, 0.2) !important;
     }
     #modalQtyInput {
       color: #0f172a !important;
       font-weight: 900 !important;
+    }
+    [data-theme="dark"] #modalQtyInput {
+      color: #ffffff !important;
     }
     .cp-qty input[type="number"]::-webkit-inner-spin-button,
     .cp-qty input[type="number"]::-webkit-outer-spin-button,
@@ -1244,15 +1526,15 @@ $defaultMilk = 'Fresh Milk';
     .cp-total-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
     .cp-total-row .lbl { font-size: 13px; font-weight: 600; color: var(--text-sec,#5a4a3a); letter-spacing: .04em; text-transform: uppercase; }
     .cp-total-row .amt { font-size: 30px; font-weight: 900; color: #d1904b; letter-spacing: -.02em; }
-    /* ── 3D Tactile Confirm Order Button ── */
+    /* ── 3D Tactile Confirm Order Button (#10B981 Emerald) ── */
     .cp-confirm-btn {
       width: 100%;
       padding: 14px 18px;
-      background: linear-gradient(180deg, #f5b974 0%, #d1904b 50%, #ad6d28 100%);
-      border: 1px solid #f8cd99;
-      border-top: 1px solid #ffe3c0;
+      background: linear-gradient(180deg, #34d399 0%, #10b981 50%, #059669 100%);
+      border: 1px solid #6ee7b7;
+      border-top: 1px solid #a7f3d0;
       border-radius: 14px;
-      color: #140c02;
+      color: #ffffff;
       font-weight: 800;
       font-size: 15px;
       cursor: pointer;
@@ -1262,21 +1544,21 @@ $defaultMilk = 'Fresh Milk';
       gap: 10px;
       font-family: 'Poppins',sans-serif;
       letter-spacing: .02em;
-      box-shadow: 0 4.5px 0 #7c4511, 0 8px 22px rgba(209, 144, 75, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+      box-shadow: 0 4.5px 0 #047857, 0 8px 22px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
       transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
       user-select: none;
       position: relative;
     }
     .cp-confirm-btn:hover {
-      background: linear-gradient(180deg, #ffd094 0%, #e09d57 50%, #c47c2c 100%);
+      background: linear-gradient(180deg, #6ee7b7 0%, #10b981 50%, #047857 100%);
       transform: translateY(-2px);
-      box-shadow: 0 6.5px 0 #7c4511, 0 12px 28px rgba(209, 144, 75, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-      color: #100a02;
+      box-shadow: 0 6.5px 0 #047857, 0 12px 28px rgba(16, 185, 129, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      color: #ffffff;
     }
     .cp-confirm-btn:active {
       transform: translateY(3.5px) scale(0.98);
-      box-shadow: 0 1px 0 #7c4511, inset 0 2px 5px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 1px 0 #047857, inset 0 2px 5px rgba(0, 0, 0, 0.25);
     }
     .cp-confirm-btn:disabled {
       opacity: .5;
@@ -1306,32 +1588,73 @@ $defaultMilk = 'Fresh Milk';
     .cp-shortcuts kbd { background: var(--bg-input,#f3f4f6); border: 1px solid var(--border,#e5e7eb); border-radius: 4px; padding: 2px 5px; font-size: 9px; font-weight: 700; color: var(--text-sec,#5a4a3a); font-family: 'Poppins',sans-serif; letter-spacing: .03em; }
 
     /* ── Dark theme overrides ── */
-    [data-theme="dark"] body { background: #0c0c0c; }
-    [data-theme="dark"] .menu-header { background: rgba(14,14,14,.96); border-color: #252525; }
-    [data-theme="dark"] .menu-panel .cat-nav { background: rgba(14,14,14,.96); border-color: #252525; }
-    [data-theme="dark"] .cart-panel { background: #151515; border-left: 1px solid rgba(209,144,75,.14); }
-    [data-theme="dark"] .cp-header { border-color: #282828; background: #191919; }
-    [data-theme="dark"] .cp-body { background: #151515; }
-    [data-theme="dark"] .cp-item { border-color: #232323; }
-    [data-theme="dark"] .cp-item:hover { background: #1d1d1d; }
-    [data-theme="dark"] .cp-summary { border-color: #232323; }
-    [data-theme="dark"] .cp-section { border-color: #232323; }
-    [data-theme="dark"] .cp-footer { background: #191919; border-color: #282828; }
+    [data-theme="dark"] body,
+    [data-theme="dark"] .pos-layout,
+    [data-theme="dark"] .menu-panel,
+    [data-theme="dark"] .menu-scroll,
+    [data-theme="dark"] .menu-main { background: #080c14 !important; }
+    [data-theme="dark"] .menu-header { background: rgba(8, 12, 20, 0.96) !important; border-color: rgba(255, 255, 255, 0.07) !important; }
+    [data-theme="dark"] .menu-panel .cat-nav { background: rgba(8, 12, 20, 0.96) !important; border-color: rgba(255, 255, 255, 0.07) !important; }
+    [data-theme="dark"] .cart-panel { background: #080c14 !important; border-left: 1px solid rgba(255, 255, 255, 0.06) !important; }
+    [data-theme="dark"] .cp-header { border-color: rgba(255, 255, 255, 0.07) !important; background: #0c121e !important; }
+    [data-theme="dark"] .cp-body { background: #080c14 !important; }
+    [data-theme="dark"] .cp-item { border-color: rgba(255, 255, 255, 0.06) !important; background: #0e1422 !important; }
+    [data-theme="dark"] .cp-item:hover { background: #131b2e !important; }
+    [data-theme="dark"] .cp-summary { border-color: rgba(255, 255, 255, 0.06) !important; }
+    [data-theme="dark"] .cp-section { border-color: rgba(255, 255, 255, 0.06) !important; }
+    [data-theme="dark"] .cp-footer { background: #0c121e !important; border-color: rgba(255, 255, 255, 0.07) !important; }
     [data-theme="dark"] .cp-form-group input,
     [data-theme="dark"] .cp-form-group select,
     [data-theme="dark"] .cp-disc-inputs input,
     [data-theme="dark"] .cp-split-row input,
-    [data-theme="dark"] .cp-change-calc input { background: #1a1a1a; color: #f0f0f0; border-color: #252525; color-scheme: dark; }
-    [data-theme="dark"] .cp-qty { background: #0c0c0c; border-color: #252525; }
-    [data-theme="dark"] .cp-pay-method { background: #1e1e1e; border-color: #2d2d2d; color: #aaa; }
-    [data-theme="dark"] .cp-pay-method:hover { background: rgba(209,144,75,.07); border-color: rgba(209,144,75,.4); }
-    [data-theme="dark"] .cp-pay-method.selected { background: rgba(209,144,75,.14); border-color: #d1904b; color: #f0f0f0; box-shadow: 0 0 0 2px rgba(209,144,75,.2); }
-    [data-theme="dark"] .cp-drink-btn { background: #1e1e1e; border-color: #2d2d2d; color: #aaa; }
-    [data-theme="dark"] .cp-drink-btn.active { background: rgba(209,144,75,.14); border-color: #d1904b; box-shadow: 0 0 0 2px rgba(209,144,75,.15); }
-    [data-theme="dark"] .cp-split-inputs { background: #1a1a1a; border-color: #252525; }
-    [data-theme="dark"] .cp-change-calc { background: rgba(85,224,135,.03); }
-    [data-theme="dark"] .cp-discount-toggle { border-color: #363636; }
-    [data-theme="dark"] #cpDiscountForm { background: rgba(209,144,75,.06); border-color: rgba(209,144,75,.25); }
+    [data-theme="dark"] .cp-change-calc input { background: #101726 !important; color: #f8fafc !important; border-color: rgba(255, 255, 255, 0.08) !important; color-scheme: dark; }
+    [data-theme="dark"] .cp-qty { background: #101726 !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+    [data-theme="dark"] .cp-pay-method { background: #101726 !important; border-color: rgba(255, 255, 255, 0.08) !important; color: #94a3b8 !important; }
+    [data-theme="dark"] .cp-pay-method:hover { background: rgba(16, 185, 129, 0.1) !important; border-color: rgba(16, 185, 129, 0.4) !important; }
+    [data-theme="dark"] .cp-pay-method.selected { background: rgba(16, 185, 129, 0.18) !important; border-color: #10b981 !important; color: #ffffff !important; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25) !important; }
+    [data-theme="dark"] .cp-drink-btn { background: #101726 !important; border-color: rgba(255, 255, 255, 0.08) !important; color: #94a3b8 !important; }
+    [data-theme="dark"] .cp-drink-btn.active { background: rgba(16, 185, 129, 0.18) !important; border-color: #10b981 !important; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important; }
+    [data-theme="dark"] .cp-split-inputs { background: #101726 !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+    [data-theme="dark"] .cp-change-calc { background: rgba(16, 185, 129, 0.05) !important; }
+    [data-theme="dark"] .cp-discount-toggle { border-color: rgba(255, 255, 255, 0.1) !important; }
+    [data-theme="dark"] #cpDiscountForm { background: rgba(16, 185, 129, 0.06) !important; border-color: rgba(16, 185, 129, 0.25) !important; }
+
+    /* Product card & category dark theme styling */
+    [data-theme="dark"] .product-card {
+        background: #0e1422 !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+    }
+    [data-theme="dark"] .product-card:hover {
+        border-color: rgba(16, 185, 129, 0.45) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 15px rgba(16, 185, 129, 0.15) !important;
+        transform: translateY(-3px) !important;
+    }
+    [data-theme="dark"] .product-card .card-title,
+    [data-theme="dark"] .product-card h3 {
+        color: #f8fafc !important;
+    }
+    [data-theme="dark"] .product-card .card-price,
+    [data-theme="dark"] .product-card .price-current,
+    [data-theme="dark"] .product-card .price-val {
+        color: #10b981 !important;
+        font-weight: 800 !important;
+    }
+    [data-theme="dark"] .cat-header h2,
+    [data-theme="dark"] .cat-header-title {
+        color: #f8fafc !important;
+    }
+    [data-theme="dark"] .cat-header .cat-icon {
+        color: #06b6d4 !important;
+    }
+    [data-theme="dark"] .cat-count-badge {
+        color: #94a3b8 !important;
+    }
+    [data-theme="dark"] #cpCartTotal,
+    [data-theme="dark"] .cp-grand-total {
+        color: #10b981 !important;
+    }
 
     /* ── Cash Payment Settlement Modal (POS Layout) ── */
     #cashPaymentModal {
@@ -1424,8 +1747,31 @@ $defaultMilk = 'Fresh Milk';
     }
     #cashPaymentModal #cpmCardUsd.active-currency input,
     #cashPaymentModal #cpmCardUsd:focus-within input,
-    #cashPaymentModal #cpmCardUsd input {
+    #cashPaymentModal #cpmCardUsd input,
+    #cashPaymentModal #cpmCardKhr.active-currency input,
+    #cashPaymentModal #cpmCardKhr:focus-within input,
+    #cashPaymentModal #cpmCardKhr input {
         color: #0f172a !important;
+        font-family: 'Poppins', 'Inter', -apple-system, sans-serif !important;
+        font-variant-numeric: tabular-nums !important;
+        letter-spacing: -0.02em !important;
+    }
+    #cashPaymentModal #cpmUsdPrefix,
+    #cashPaymentModal #cpmKhrPrefix {
+        font-size: 26px !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        transition: color 0.2s ease;
+    }
+    #cashPaymentModal #cpmUsdPrefix {
+        font-family: 'Poppins', 'Inter', sans-serif !important;
+    }
+    #cashPaymentModal #cpmKhrPrefix {
+        font-family: 'Kantumruy Pro', 'Siemreap', 'Battambang', 'Hanuman', 'Poppins', sans-serif !important;
+        font-size: 28px !important;
+        font-weight: 800 !important;
     }
     #cashPaymentModal #cpmCardUsd.active-currency #cpmUsdPrefix,
     #cashPaymentModal #cpmCardUsd:focus-within #cpmUsdPrefix {
@@ -1437,11 +1783,6 @@ $defaultMilk = 'Fresh Milk';
         background: #ffffff !important;
         border-color: #10b981 !important;
         box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-    }
-    #cashPaymentModal #cpmCardKhr.active-currency input,
-    #cashPaymentModal #cpmCardKhr:focus-within input,
-    #cashPaymentModal #cpmCardKhr input {
-        color: #0f172a !important;
     }
     #cashPaymentModal #cpmCardKhr.active-currency #cpmKhrPrefix,
     #cashPaymentModal #cpmCardKhr:focus-within #cpmKhrPrefix {
@@ -1645,101 +1986,223 @@ $defaultMilk = 'Fresh Milk';
         border-radius: 12px;
     }
 
-    /* Dark Theme Overrides */
+    /* ── Cohesive Emerald & Cyan Glass Dark Theme for Payment Modal ── */
+    [data-theme="dark"] #cashPaymentModal {
+        background: rgba(4, 7, 13, 0.8) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+    }
     [data-theme="dark"] #cashPaymentModal .cpm-card {
-        background: #111827 !important;
-        border-color: #1f2937 !important;
+        background: rgba(11, 17, 28, 0.92) !important;
+        border: 1px solid rgba(255, 255, 255, 0.09) !important;
         color: #f8fafc !important;
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8) !important;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.85), 0 0 40px rgba(16, 185, 129, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        border-radius: 28px !important;
     }
-    [data-theme="dark"] #cashPaymentModal .bg-white {
-        background: #1e293b !important;
-        border-color: #334155 !important;
+    [data-theme="dark"] #cashPaymentModal .cpm-modal-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
     }
+    [data-theme="dark"] #cashPaymentModal .cpm-modal-header #cpmModalHeaderIconBox {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 182, 212, 0.15) 100%) !important;
+        border: 1px solid rgba(16, 185, 129, 0.35) !important;
+        color: #34d399 !important;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.25) !important;
+        border-radius: 16px !important;
+    }
+    [data-theme="dark"] #cashPaymentModal .bg-white,
     [data-theme="dark"] #cashPaymentModal .bg-slate-50\/50,
     [data-theme="dark"] #cashPaymentModal .bg-slate-50,
     [data-theme="dark"] #cashPaymentModal .bg-slate-100 {
-        background: #0f172a !important;
-        border-color: #334155 !important;
+        background: rgba(16, 24, 40, 0.65) !important;
+        border: 1px solid rgba(255, 255, 255, 0.07) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+        border-radius: 20px !important;
+    }
+    [data-theme="dark"] #cashPaymentModal thead,
+    [data-theme="dark"] #cashPaymentModal thead tr {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+    }
+    [data-theme="dark"] #cashPaymentModal thead th {
+        background: transparent !important;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+    }
+    [data-theme="dark"] #cashPaymentModal .cpm-table-head {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        color: #94a3b8 !important;
+    }
+    [data-theme="dark"] #cashPaymentModal .cpm-table-head > div {
+        color: #94a3b8 !important;
+    }
+    [data-theme="dark"] #cashPaymentModal #cpmItemCount {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+        color: #94a3b8 !important;
     }
     [data-theme="dark"] #cashPaymentModal .text-slate-900,
     [data-theme="dark"] #cashPaymentModal .text-slate-800 {
-        color: #ffffff !important;
+        color: #f8fafc !important;
     }
     [data-theme="dark"] #cashPaymentModal .text-slate-500,
     [data-theme="dark"] #cashPaymentModal .text-slate-600 {
-        color: #cbd5e1 !important;
+        color: #94a3b8 !important;
     }
     [data-theme="dark"] #cashPaymentModal .border-slate-100,
     [data-theme="dark"] #cashPaymentModal .border-slate-200,
     [data-theme="dark"] #cashPaymentModal .divide-slate-50 > * {
-        border-color: #334155 !important;
+        border-color: rgba(255, 255, 255, 0.05) !important;
     }
     [data-theme="dark"] #cashPaymentModal .cpm-item-qty {
-        background: #334155 !important;
-        color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.07) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: #f8fafc !important;
+        border-radius: 8px !important;
     }
+    [data-theme="dark"] #cashPaymentModal #cpmRatePill {
+        background: rgba(6, 182, 212, 0.12) !important;
+        border: 1px solid rgba(6, 182, 212, 0.28) !important;
+        color: #22d3ee !important;
+        font-weight: 750 !important;
+        box-shadow: 0 0 10px rgba(6, 182, 212, 0.15) !important;
+    }
+
+    /* Dual Input Cards */
     [data-theme="dark"] #cashPaymentModal #cpmCardUsd,
     [data-theme="dark"] #cashPaymentModal #cpmCardKhr {
-        background: #0f172a !important;
-        border-color: #334155 !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
+    [data-theme="dark"] #cashPaymentModal #cpmCardUsd.active-currency,
     [data-theme="dark"] #cashPaymentModal #cpmCardUsd:focus-within,
+    [data-theme="dark"] #cashPaymentModal #cpmCardKhr.active-currency,
     [data-theme="dark"] #cashPaymentModal #cpmCardKhr:focus-within {
-        background: #1e293b !important;
+        background: rgba(16, 185, 129, 0.06) !important;
         border-color: #10b981 !important;
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25) !important;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2), 0 0 20px rgba(16, 185, 129, 0.15) !important;
     }
+    [data-theme="dark"] #cashPaymentModal #cpmCardUsd label,
+    [data-theme="dark"] #cashPaymentModal #cpmCardKhr label {
+        color: #ffffff !important;
+        font-weight: 800 !important;
+    }
+    [data-theme="dark"] #cashPaymentModal #cpmCardUsd label span,
+    [data-theme="dark"] #cashPaymentModal #cpmCardKhr label span {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    }
+    [data-theme="dark"] #cashPaymentModal #cpmCardUsd input,
+    [data-theme="dark"] #cashPaymentModal #cpmCardKhr input,
     [data-theme="dark"] #cashPaymentModal #cpmReceivedUsdInput,
     [data-theme="dark"] #cashPaymentModal #cpmReceivedKhrInput {
         color: #ffffff !important;
+        font-weight: 800 !important;
     }
+    [data-theme="dark"] #cashPaymentModal #cpmUsdPrefix,
+    [data-theme="dark"] #cashPaymentModal #cpmKhrPrefix {
+        color: #10b981 !important;
+        text-shadow: 0 0 10px rgba(16, 185, 129, 0.35) !important;
+    }
+
+    /* Total Received Banner */
     [data-theme="dark"] #cashPaymentModal #cpmTotalRecBanner {
-        background: #1e293b !important;
-        border-color: #334155 !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.07) !important;
+        border-radius: 14px !important;
+    }
+    [data-theme="dark"] #cashPaymentModal #cpmTotalRecLabel,
+    [data-theme="dark"] #cashPaymentModal #cpmTotalRecText,
+    [data-theme="dark"] #cashPaymentModal #cpmTotalRecIcon {
+        color: #ffffff !important;
+        font-weight: 800 !important;
     }
     [data-theme="dark"] #cashPaymentModal #cpmTotalReceivedUsd {
         color: #ffffff !important;
+        font-weight: 800 !important;
     }
     [data-theme="dark"] #cashPaymentModal #cpmTotalReceivedKhr {
         color: #94a3b8 !important;
     }
+
+    /* Change Result Box */
     [data-theme="dark"] #cashPaymentModal #cpmChangeBox {
-        background: #064e3b !important;
-        border-color: #059669 !important;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.08) 100%) !important;
+        border: 1.5px solid rgba(16, 185, 129, 0.35) !important;
+        box-shadow: 0 0 25px rgba(16, 185, 129, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px !important;
     }
-    [data-theme="dark"] #cashPaymentModal #cpmChangeBox .cpm-change-lbl,
+    [data-theme="dark"] #cashPaymentModal #cpmChangeBox .cpm-change-lbl {
+        color: #34d399 !important;
+        font-weight: 700 !important;
+    }
     [data-theme="dark"] #cashPaymentModal #cpmChangeBox #cpmChangeUsd,
     [data-theme="dark"] #cashPaymentModal #cpmChangeBox #cpmChangeKhr {
-        color: #34d399 !important;
+        color: #10b981 !important;
+        text-shadow: 0 0 18px rgba(16, 185, 129, 0.4) !important;
+        font-weight: 900 !important;
     }
 
-    /* Dark Theme Overrides for Bakong Mode */
-    [data-theme="dark"] #cashPaymentModal #cpmMethodCash {
-        background: #0f172a !important;
-        border-color: #334155 !important;
-        color: #94a3b8 !important;
-    }
+    /* Method Buttons */
+    [data-theme="dark"] #cashPaymentModal #cpmMethodCash,
     [data-theme="dark"] #cashPaymentModal #cpmMethodBakong {
-        background: #0f172a !important;
-        border-color: #334155 !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.07) !important;
         color: #94a3b8 !important;
+        border-radius: 14px !important;
     }
     [data-theme="dark"] #cashPaymentModal #cpmMethodCash:hover {
-        background: #064e3b !important;
-        border-color: #059669 !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+        border-color: rgba(16, 185, 129, 0.4) !important;
         color: #34d399 !important;
     }
     [data-theme="dark"] #cashPaymentModal #cpmMethodBakong:hover {
-        background: #4c0519 !important;
-        border-color: #e11d48 !important;
+        background: rgba(225, 29, 72, 0.1) !important;
+        border-color: rgba(225, 29, 72, 0.4) !important;
         color: #f43f5e !important;
     }
+    [data-theme="dark"] #cashPaymentModal #cpmMethodCash.cpm-method-active {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.12) 100%) !important;
+        border-color: #10b981 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 18px rgba(16, 185, 129, 0.25) !important;
+    }
     [data-theme="dark"] #cashPaymentModal #cpmMethodBakong.cpm-method-active {
-        background: linear-gradient(135deg, #e11d48 0%, #9f1239 100%) !important;
+        background: linear-gradient(135deg, rgba(225, 29, 72, 0.22) 0%, rgba(159, 18, 57, 0.12) 100%) !important;
         border-color: #e11d48 !important;
         color: #ffffff !important;
-        box-shadow: 0 4px 16px rgba(225, 29, 72, 0.45) !important;
+        box-shadow: 0 4px 18px rgba(225, 29, 72, 0.4) !important;
+    }
+
+    /* Cancel & Confirm Buttons */
+    [data-theme="dark"] #cashPaymentModal .btn-cpm-cancel,
+    [data-theme="dark"] #cashPaymentModal #cpmNormalActions .btn-cpm-cancel,
+    [data-theme="dark"] #cashPaymentModal #cpmBakongActions button:first-child {
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+    [data-theme="dark"] #cashPaymentModal .btn-cpm-cancel:hover,
+    [data-theme="dark"] #cashPaymentModal #cpmBakongActions button:first-child:hover {
+        background: rgba(255, 255, 255, 0.12) !important;
+        color: #ffffff !important;
+    }
+    [data-theme="dark"] #cashPaymentModal #cpmBtnConfirm,
+    [data-theme="dark"] #cashPaymentModal #cpmApplyBtn {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        border-radius: 16px !important;
+    }
+    [data-theme="dark"] #cashPaymentModal #cpmBtnConfirm:hover,
+    [data-theme="dark"] #cashPaymentModal #cpmApplyBtn:hover {
+        background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+        box-shadow: 0 6px 25px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+        transform: translateY(-1px) !important;
     }
     [data-theme="dark"] #cashPaymentModal #cpmApplyBtn.bakong-mode {
         background: linear-gradient(135deg, #e11d48 0%, #9f1239 100%) !important;
@@ -1864,7 +2327,6 @@ $defaultMilk = 'Fresh Milk';
       border-color: #e5e7eb !important;
     }
 
-    [data-theme="light"] .search-inner,
     [data-theme="light"] .sort-select,
     [data-theme="light"] .btn-nav,
     [data-theme="light"] .btn-theme {
@@ -2034,12 +2496,14 @@ $defaultMilk = 'Fresh Milk';
 <!-- HEADER -->
 <header class="menu-header">
   <div class="header-center">
-    <form class="search-form" method="GET" id="searchForm">
+    <form class="search-form" method="GET" id="searchForm" onsubmit="event.preventDefault();">
       <div class="search-inner">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" name="search" placeholder="<?= __('search_products', 'Search drinks...') ?>" value="<?= e($search_term) ?>" id="searchInput" autocomplete="off">
+        <div class="search-icon-badge">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </div>
+        <input type="text" name="search" placeholder="<?= $isKm ? 'ស្វែងរកតាមឈ្មោះ...' : 'Search by name...' ?>" value="<?= e($search_term) ?>" id="searchInput" autocomplete="off">
         <?php if (!empty($search_term)): ?>
-        <a href="menu.php" class="search-clear"><i class="fa-solid fa-xmark"></i></a>
+        <a href="menu.php" class="search-clear" title="Clear"><i class="fa-solid fa-xmark"></i></a>
         <?php endif; ?>
       </div>
     </form>
@@ -2172,29 +2636,33 @@ $defaultMilk = 'Fresh Milk';
 
       <!-- 2. Unit vs Box Filter Segmented Control -->
       <div class="pkg-filter-group" id="pkgFilterGroup">
+        <div class="pkg-filter-slider" id="pkgFilterSlider"></div>
         <button type="button" 
                 onclick="setPackageFilter('all', this)" 
                 id="pkgBtnAll"
                 class="pkg-btn active"
                 title="<?= $isKm ? 'បង្ហាញទំនិញទាំងអស់' : 'Show All Drinks & Items' ?>">
-          <i class="fa-solid fa-layer-group text-[11px]"></i>
+          <i class="fa-solid fa-layer-group"></i>
           <span><?= $isKm ? 'ទាំងអស់' : 'All' ?></span>
+          <span class="pkg-count-badge" id="pkgCountAll"><?= $pkg_all_count ?></span>
         </button>
         <button type="button" 
                 onclick="setPackageFilter('unit', this)" 
                 id="pkgBtnUnit"
                 class="pkg-btn"
                 title="<?= $isKm ? 'បង្ហាញតែទំនិញលក់រាយ (កំប៉ុង/ដប/កែវ)' : 'Loose / Single Units' ?>">
-          <i class="fa-solid fa-wine-glass text-[11px]"></i>
+          <svg class="pkg-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l1.2 11.2a2 2 0 0 0 2 1.8h5.6a2 2 0 0 0 2-1.8L18 8"/><path d="M5 8h14"/><path d="M14 2l-2 6"/></svg>
           <span><?= $isKm ? 'លក់រាយ' : 'Retail' ?></span>
+          <span class="pkg-count-badge" id="pkgCountUnit"><?= $pkg_unit_count ?></span>
         </button>
         <button type="button" 
                 onclick="setPackageFilter('box', this)" 
                 id="pkgBtnBox"
                 class="pkg-btn"
                 title="<?= $isKm ? 'បង្ហាញតែទំនិញលក់ដុំ (កេស / យួរ / កាតុង)' : 'Wholesale / Box' ?>">
-          <i class="fa-solid fa-boxes-stacked text-[11px]"></i>
+          <i class="fa-solid fa-cubes"></i>
           <span><?= $isKm ? 'លក់ដុំ' : 'Wholesale' ?></span>
+          <span class="pkg-count-badge" id="pkgCountBox"><?= $pkg_box_count ?></span>
         </button>
       </div>
     </div>
@@ -2773,7 +3241,7 @@ $defaultMilk = 'Fresh Milk';
                   <span class="text-2xl font-black text-emerald-500 mr-2 select-none" id="cpmUsdPrefix">$</span>
                   <input type="text" id="cpmReceivedUsdInput" 
                          class="w-full bg-transparent text-3xl font-black text-slate-900 text-right focus:outline-none tracking-tight"
-                         placeholder="0.00" oninput="cpmOnManualUsdInput(this.value)">
+                         placeholder="0.00" oninput="cpmOnManualUsdInput(this.value, this)">
                 </div>
               </div>
 
@@ -2781,7 +3249,7 @@ $defaultMilk = 'Fresh Milk';
               <div class="p-3 rounded-2xl bg-slate-50 border-2 border-slate-200/80 transition-all shadow-sm flex flex-col justify-between gap-1 relative" id="cpmCardKhr">
                 <div class="flex items-center justify-between">
                   <label for="cpmReceivedKhrInput" class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer">
-                    <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-black shadow-sm">៛</span>
+                    <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-black shadow-sm" style="font-family:'Kantumruy Pro', sans-serif;">៛</span>
                     <?= $isKm ? 'ប្រាក់រៀលទទួល (៛)' : __('cpm_received_khr', 'Received Riel (៛)') ?>
                   </label>
                   <button type="button" onclick="cpmClearKhrInput()" class="text-[11px] font-bold text-slate-400 hover:text-rose-500 transition flex items-center gap-1 cursor-pointer" title="Clear Riel">
@@ -2792,7 +3260,7 @@ $defaultMilk = 'Fresh Milk';
                   <span class="text-2xl font-black text-slate-400 mr-2 select-none" id="cpmKhrPrefix">៛</span>
                   <input type="text" id="cpmReceivedKhrInput" 
                          class="w-full bg-transparent text-3xl font-black text-slate-800 text-right focus:outline-none tracking-tight"
-                         placeholder="0" oninput="cpmOnManualKhrInput(this.value)">
+                         placeholder="0" oninput="cpmOnManualKhrInput(this.value, this)">
                 </div>
               </div>
 
@@ -4851,9 +5319,26 @@ function cpmClearActiveInput() {
   cpmClearKhrInput();
 }
 
-function cpmOnManualUsdInput(val) {
+function formatNumberWithCommas(val, isDecimal) {
+  if (val === undefined || val === null || val === '') return '';
+  var str = val.toString().replace(/,/g, '');
+  if (isDecimal) {
+    var parts = str.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (parts.length > 2) parts = [parts[0], parts.slice(1).join('')];
+    return parts.join('.');
+  } else {
+    var intPart = str.split('.')[0];
+    return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+}
+
+function cpmOnManualUsdInput(val, el) {
   if (cpmState.method === 'bakong') return;
-  var clean = val.replace(/[^0-9.]/g, '');
+  if (!el && typeof event !== 'undefined' && event.target) el = event.target;
+  
+  var raw = (val || '').toString().replace(/,/g, '');
+  var clean = raw.replace(/[^0-9.]/g, '');
   var parts = clean.split('.');
   if (parts.length > 2) clean = parts[0] + '.' + parts.slice(1).join('');
   
@@ -4861,8 +5346,6 @@ function cpmOnManualUsdInput(val) {
   if (num > 10000) {
     clean = '10000';
     num = 10000;
-    var inUsd = document.getElementById('cpmReceivedUsdInput');
-    if (inUsd) inUsd.value = clean;
     if (typeof showToast === 'function') {
       showToast(window.CPM_IS_KM ? '⚠️ កំណត់ត្រឹមអតិបរមា $10,000' : '⚠️ Maximum limit is $10,000', 'warning');
     }
@@ -4876,19 +5359,44 @@ function cpmOnManualUsdInput(val) {
   }
   
   cpmState.usdStr = clean;
+  
+  // Format with thousand separator commas (e.g. 10,000)
+  var formatted = formatNumberWithCommas(clean, true);
+  if (el) {
+    var oldVal = el.value;
+    var oldCursor = el.selectionEnd || oldVal.length;
+    var digitsBeforeCursor = oldVal.slice(0, oldCursor).replace(/,/g, '').length;
+    
+    el.value = formatted;
+    
+    var newCursor = 0;
+    var digitsCount = 0;
+    for (var i = 0; i < formatted.length; i++) {
+      if (formatted[i] !== ',') digitsCount++;
+      if (digitsCount === digitsBeforeCursor) {
+        newCursor = i + 1;
+        break;
+      }
+    }
+    if (newCursor > 0 && newCursor <= formatted.length) {
+      el.setSelectionRange(newCursor, newCursor);
+    }
+  }
+  
   cpmUpdateDualDisplay(false);
 }
 
-function cpmOnManualKhrInput(val) {
+function cpmOnManualKhrInput(val, el) {
   if (cpmState.method === 'bakong') return;
-  var clean = val.replace(/[^0-9]/g, '');
+  if (!el && typeof event !== 'undefined' && event.target) el = event.target;
+  
+  var raw = (val || '').toString().replace(/,/g, '');
+  var clean = raw.replace(/[^0-9]/g, '');
   var num = parseInt(clean, 10) || 0;
   
   if (num > 10000000) {
     clean = '10000000';
     num = 10000000;
-    var inKhr = document.getElementById('cpmReceivedKhrInput');
-    if (inKhr) inKhr.value = clean;
     if (typeof showToast === 'function') {
       showToast(window.CPM_IS_KM ? '⚠️ កំណត់ត្រឹមអតិបរមា ៛10,000,000' : '⚠️ Maximum limit is 10,000,000 Riel', 'warning');
     }
@@ -4902,6 +5410,30 @@ function cpmOnManualKhrInput(val) {
   }
   
   cpmState.khrStr = clean;
+  
+  // Format with thousand separator commas (e.g. 10,000,000)
+  var formatted = formatNumberWithCommas(clean, false);
+  if (el) {
+    var oldVal = el.value;
+    var oldCursor = el.selectionEnd || oldVal.length;
+    var digitsBeforeCursor = oldVal.slice(0, oldCursor).replace(/,/g, '').length;
+    
+    el.value = formatted;
+    
+    var newCursor = 0;
+    var digitsCount = 0;
+    for (var i = 0; i < formatted.length; i++) {
+      if (formatted[i] !== ',') digitsCount++;
+      if (digitsCount === digitsBeforeCursor) {
+        newCursor = i + 1;
+        break;
+      }
+    }
+    if (newCursor > 0 && newCursor <= formatted.length) {
+      el.setSelectionRange(newCursor, newCursor);
+    }
+  }
+  
   cpmUpdateDualDisplay(false);
 }
 
@@ -4911,8 +5443,8 @@ function cpmUpdateDualDisplay(updateInputs) {
   var inKhr = document.getElementById('cpmReceivedKhrInput');
 
   if (updateInputs) {
-    if (inUsd) inUsd.value = cpmState.usdStr;
-    if (inKhr) inKhr.value = cpmState.khrStr;
+    if (inUsd) inUsd.value = cpmState.usdStr ? formatNumberWithCommas(cpmState.usdStr, true) : '';
+    if (inKhr) inKhr.value = cpmState.khrStr ? formatNumberWithCommas(cpmState.khrStr, false) : '';
   }
 
   var numUsd = parseFloat(cpmState.usdStr) || 0;
@@ -5025,12 +5557,12 @@ function cpmUpdateDualDisplay(updateInputs) {
         if (rielPart >= (10 * rate)) { wholeDollars += 10; rielPart = 0; }
       }
       if (wholeDollars > 0 && rielPart > 0) {
-        if (changeUsdEl) changeUsdEl.textContent = '$' + wholeDollars + ' + ៛ ' + rielPart.toLocaleString();
+        if (changeUsdEl) changeUsdEl.textContent = '$' + wholeDollars.toLocaleString() + ' + ៛ ' + rielPart.toLocaleString();
         if (changeKhrEl) changeKhrEl.textContent = window.CPM_IS_KM
-          ? ('អាប់: $' + wholeDollars + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
-          : ('Give: $' + wholeDollars + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
+          ? ('អាប់: $' + wholeDollars.toLocaleString() + ' USD (ក្រដាស 10$) + ៛ ' + rielPart.toLocaleString() + ' រៀល')
+          : ('Give: $' + wholeDollars.toLocaleString() + ' USD ($10 notes) + ៛ ' + rielPart.toLocaleString() + ' KHR');
       } else if (wholeDollars > 0) {
-        if (changeUsdEl) changeUsdEl.textContent = '$' + wholeDollars.toFixed(2);
+        if (changeUsdEl) changeUsdEl.textContent = '$' + wholeDollars.toLocaleString();
         if (changeKhrEl) changeKhrEl.textContent = i18n.exact_usd_notes || 'Exact USD notes (៛ 0)';
       } else {
         if (changeUsdEl) changeUsdEl.textContent = '៛ ' + rielPart.toLocaleString();
@@ -6390,16 +6922,61 @@ function selectCategoryFilter(catKey, catLabel, catCount) {
   }, 900);
 }
 
+function updatePkgFilterSlider(btn) {
+  var slider = document.getElementById('pkgFilterSlider');
+  if (!slider) return;
+  if (!btn || !btn.classList.contains('pkg-btn')) {
+    btn = document.querySelector('.pkg-btn.active') || document.getElementById('pkgBtnAll');
+  }
+  if (!btn) return;
+
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      slider.style.width = btn.offsetWidth + 'px';
+      slider.style.height = btn.offsetHeight + 'px';
+      slider.style.transform = 'translate3d(' + btn.offsetLeft + 'px, ' + btn.offsetTop + 'px, 0)';
+      slider.style.opacity = '1';
+    });
+  });
+}
+
 function setPackageFilter(pkgType, btn) {
   currentPackageFilter = pkgType;
   
   document.querySelectorAll('.pkg-btn').forEach(function(b) {
     b.classList.remove('active');
   });
-  if (btn) btn.classList.add('active');
+  if (btn) {
+    btn.classList.add('active');
+    updatePkgFilterSlider(btn);
+  }
 
   applyMenuFilters();
 }
+
+window.addEventListener('resize', function() {
+  updatePkgFilterSlider();
+});
+
+// Auto-recalculate package slider when theme changes (light/dark)
+if (typeof MutationObserver !== 'undefined') {
+  var _pkgThemeObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      if (m.attributeName === 'data-theme') {
+        setTimeout(function() {
+          updatePkgFilterSlider();
+        }, 50);
+      }
+    });
+  });
+  _pkgThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    updatePkgFilterSlider();
+  }, 60);
+});
 
 function applyMenuFilters() {
   var searchInput = document.getElementById('searchInput');

@@ -114,26 +114,26 @@ foreach ($staff_rows as $sr) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(209, 144, 75, 0.12);
-    border: 1px solid rgba(209, 144, 75, 0.25);
-    color: #d1904b;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: #10b981;
     font-size: 13px;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 .er-btn-icon-view:hover {
-    background: #d1904b;
+    background: #10b981;
     color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(209, 144, 75, 0.3);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 [data-theme="light"] .er-btn-icon-view {
-    background: rgba(184, 115, 51, 0.1);
-    border-color: rgba(184, 115, 51, 0.3);
-    color: #b87333;
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #059669;
 }
 [data-theme="light"] .er-btn-icon-view:hover {
-    background: #b87333;
+    background: #059669;
     color: #fff;
 }
 
@@ -184,8 +184,8 @@ foreach ($staff_rows as $sr) {
 }
 .som-close-btn:hover {
     color: var(--text, #fff);
-    background: rgba(209, 144, 75, 0.2);
-    border-color: var(--accent, #d1904b);
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--accent, #10b981);
 }
 .som-body {
     padding: 14px 18px;
@@ -217,8 +217,8 @@ foreach ($staff_rows as $sr) {
 }
 .som-table th {
     padding: 8px 10px;
-    background: rgba(209, 144, 75, 0.15);
-    color: var(--accent, #d1904b);
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent, #10b981);
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -252,9 +252,9 @@ foreach ($staff_rows as $sr) {
     transition: all 0.2s;
 }
 .som-btn-close:hover {
-    background: var(--accent, #d1904b);
+    background: var(--accent, #10b981);
     color: #fff;
-    border-color: var(--accent, #d1904b);
+    border-color: var(--accent, #10b981);
 }
 
 /* Light theme overrides */
@@ -466,11 +466,11 @@ function viewStaffOrders(userId, username) {
             rowsHtml += `
                 <tr>
                     <td style="text-align:center; font-weight:600; color: var(--text-muted, #94a3b8); width:32px;">${idx + 1}</td>
-                    <td style="font-weight:700; color: var(--accent, #d1904b); font-family: monospace; width:80px;">${escapeHtml(orderDisplayNum)}</td>
+                    <td style="font-weight:700; color: var(--accent, #10b981); font-family: monospace; width:80px;">${escapeHtml(orderDisplayNum)}</td>
                     <td style="font-size:11px; color: var(--text-muted, #94a3b8); width:115px;">${escapeHtml(o.order_date)}</td>
                     <td style="font-weight:600;">${escapeHtml(o.items_summary || '—')}</td>
                     <td style="text-align:center; text-transform:capitalize; width:75px;">${escapeHtml(o.payment_method || 'Cash')}</td>
-                    <td style="text-align:right; font-weight:700; color: var(--accent, #d1904b); width:75px;">$${amt.toFixed(2)}</td>
+                    <td style="text-align:right; font-weight:700; color: var(--accent, #10b981); width:75px;">$${amt.toFixed(2)}</td>
                 </tr>`;
         });
 

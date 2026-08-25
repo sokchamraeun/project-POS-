@@ -84,26 +84,45 @@ if ($action === ""):
     @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
     /* ── RESET & ROOT ── */
     :root {
-        --accent: #d1904b;
-        --accent-light: #e8b87a;
-        --accent-dark: #a0702a;
-        --bg: #0c0c0c;
-        --bg-card: #121212;
-        --bg-card-hover: #181818;
-        --border: #1f1f1f;
-        --border-hover: #2a2a2a;
-        --text: #f5f5f5;
-        --text-muted: #888888;
+        --accent: #10b981;
+        --accent-light: #34d399;
+        --accent-dark: #059669;
+        --bg: #080c14;
+        --bg-card: #0e1422;
+        --bg-card-hover: #131b2e;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-hover: rgba(16, 185, 129, 0.4);
+        --text: #f8fafc;
+        --text-muted: #94a3b8;
         --text-light: #ffffff;
-        --success: #55e087;
-        --warning: #f39c12;
-        --danger: #ff5c5c;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+
+        /* ── VO System Tokens (Dark Mode Default) ── */
+        --vo-bg: #080c14;
+        --vo-card-bg: rgba(14, 20, 34, 0.75);
+        --vo-card-border: rgba(255, 255, 255, 0.08);
+        --vo-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        --vo-card-hover: rgba(20, 28, 48, 0.85);
+        --vo-title: #ffffff;
+        --vo-sub: #cbd5e1;
+        --vo-muted: #94a3b8;
+        --vo-input-bg: #101726;
+        --vo-input-border: rgba(255, 255, 255, 0.08);
+        --vo-pill-bg: #101726;
+        --vo-table-head-bg: rgba(14, 20, 34, 0.95);
+        --vo-table-head-border: rgba(255, 255, 255, 0.08);
+        --vo-table-row-border: rgba(255, 255, 255, 0.04);
+        --vo-table-row-hover: rgba(255, 255, 255, 0.03);
+        --vo-badge-bg: rgba(255, 255, 255, 0.06);
+        --vo-badge-border: rgba(255, 255, 255, 0.09);
         
         /* ── Shadow System ── */
         --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
         --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
         --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
-        --shadow-accent: 0 4px 20px rgba(209, 144, 75, 0.15);
+        --shadow-accent: 0 4px 20px rgba(16, 185, 129, 0.2);
         
         /* ── Transitions ── */
         --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -119,6 +138,24 @@ if ($action === ""):
         --text: #111827;
         --text-muted: #5A6373;
         --text-light: #0B0F19;
+
+        --vo-bg: #f8fafc;
+        --vo-card-bg: #ffffff;
+        --vo-card-border: rgba(226, 232, 240, 0.9);
+        --vo-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        --vo-card-hover: #f1f5f9;
+        --vo-title: #0f172a;
+        --vo-sub: #334155;
+        --vo-muted: #64748b;
+        --vo-input-bg: #ffffff;
+        --vo-input-border: #e2e8f0;
+        --vo-pill-bg: #f1f5f9;
+        --vo-table-head-bg: #f8fafc;
+        --vo-table-head-border: #e2e8f0;
+        --vo-table-row-border: #f1f5f9;
+        --vo-table-row-hover: #f8fafc;
+        --vo-badge-bg: #f1f5f9;
+        --vo-badge-border: #e2e8f0;
     }
 
     * { 
@@ -132,9 +169,9 @@ if ($action === ""):
     .app-layout,
     .app-main,
     .vo-page-wrapper {
-        background-color: #f8fafc !important;
+        background-color: var(--vo-bg) !important;
         background-image: none !important;
-        color: #0f172a;
+        color: var(--vo-title);
     }
     body, input, select, textarea, button, table {
         font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -1191,22 +1228,28 @@ if ($action === ""):
     /* Date Filter Range Pills */
     .vo-date-pill {
         background: transparent !important;
-        border: 1px solid transparent !important;
+        border: none !important;
         color: #94a3b8 !important;
-        font-weight: 500 !important;
-        border-radius: 8px !important;
+        font-weight: 700 !important;
+        border-radius: 9999px !important;
         box-shadow: none !important;
         transition: all 0.18s ease;
     }
     .vo-date-pill:hover {
-        color: #0f172a !important;
+        color: #ffffff !important;
     }
     .vo-date-pill.active {
-        background: #0f172a !important;
         color: #ffffff !important;
-        border-color: #0f172a !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
         font-weight: 700 !important;
+    }
+    [data-theme="light"] .vo-date-pill {
+        color: #64748b !important;
+    }
+    [data-theme="light"] .vo-date-pill:hover {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .vo-date-pill.active {
+        color: #ffffff !important;
     }
 
     /* Action Buttons in Light Mode */
@@ -1460,6 +1503,188 @@ if ($action === ""):
         box-shadow: var(--shadow-accent);
     }
 
+    /* ── Date Filter Segmented Group (Smooth Sliding Pill) ── */
+    .vo-date-pill-group {
+      display: inline-flex;
+      align-items: center;
+      position: relative;
+      padding: 4px;
+      gap: 3px;
+      height: 42px;
+      border-radius: 9999px !important;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      isolation: isolate;
+      box-sizing: border-box;
+    }
+
+    /* Moving Slider Thumb Indicator */
+    .vo-date-slider {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 9999px !important;
+      background: #059669;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.35);
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+      z-index: 0;
+      will-change: transform, width;
+      box-sizing: border-box;
+      opacity: 0;
+    }
+
+    /* DARK MODE */
+    [data-theme="dark"] .vo-date-pill-group {
+      background: #090d16;
+      border-color: rgba(255, 255, 255, 0.09);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    [data-theme="dark"] .vo-date-slider {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 4px 18px rgba(5, 150, 105, 0.55), 0 0 0 1px rgba(16, 185, 129, 0.25);
+    }
+
+    .vo-date-pill {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 18px;
+      height: 34px;
+      border-radius: 9999px !important;
+      font-size: 13px;
+      font-weight: 700;
+      color: #94a3b8 !important;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      cursor: pointer;
+      transition: color 0.22s ease, transform 0.15s ease;
+      user-select: none;
+      white-space: nowrap;
+      outline: none;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    .vo-date-pill:active {
+      transform: scale(0.96);
+    }
+
+    .vo-date-pill:hover {
+      color: #ffffff !important;
+    }
+
+    .vo-date-pill.active {
+      color: #ffffff !important;
+      font-weight: 700;
+    }
+
+    [data-theme="light"] .vo-date-pill {
+      color: #64748b !important;
+    }
+
+    [data-theme="light"] .vo-date-pill:hover {
+      color: #0f172a !important;
+    }
+
+    [data-theme="light"] .vo-date-pill.active {
+      color: #ffffff !important;
+      font-weight: 700;
+    }
+
+    /* ── Typography & Semantic Classes ── */
+    .vo-title { color: var(--vo-title) !important; }
+    .vo-sub { color: var(--vo-sub) !important; }
+    .vo-muted { color: var(--vo-muted) !important; }
+
+    /* ── Modern Glass Cards ── */
+    .vo-glass-card {
+        background: var(--vo-card-bg) !important;
+        border: 1px solid var(--vo-card-border) !important;
+        box-shadow: var(--vo-card-shadow) !important;
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+        border-radius: 24px;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .vo-glass-card:hover {
+        border-color: rgba(16, 185, 129, 0.35) !important;
+    }
+
+    .vo-kpi-icon-orders {
+        background: rgba(139, 92, 246, 0.15) !important;
+        border: 1px solid rgba(139, 92, 246, 0.3) !important;
+        color: #a78bfa !important;
+    }
+    .vo-kpi-icon-rev {
+        background: rgba(16, 185, 129, 0.15) !important;
+        border: 1px solid rgba(16, 185, 129, 0.3) !important;
+        color: #34d399 !important;
+    }
+
+    .vo-search-input {
+        background: var(--vo-input-bg) !important;
+        border: 1px solid var(--vo-input-border) !important;
+        color: var(--vo-title) !important;
+    }
+    .vo-search-input::placeholder {
+        color: var(--vo-muted) !important;
+    }
+
+    /* Table & Scrollbar Styles in Dark Mode */
+    #ordersTableCard table thead {
+        background: var(--vo-table-head-bg) !important;
+        border-bottom: 1px solid var(--vo-table-head-border) !important;
+    }
+    #ordersTableCard table thead th {
+        color: var(--vo-muted) !important;
+        font-weight: 700 !important;
+        background: transparent !important;
+    }
+    #ordersTableCard table tbody tr {
+        border-bottom: 1px solid var(--vo-table-row-border) !important;
+        transition: background-color 0.15s ease;
+    }
+    #ordersTableCard table tbody tr:hover {
+        background-color: var(--vo-table-row-hover) !important;
+    }
+    #ordersTableCard table tbody td {
+        color: var(--vo-title);
+    }
+
+    /* Table count badge */
+    #ordersTableCard table tbody td button {
+        background: var(--vo-badge-bg) !important;
+        border: 1px solid var(--vo-badge-border) !important;
+        color: var(--vo-title) !important;
+    }
+    #ordersTableCard table tbody td button:hover {
+        background: rgba(16, 185, 129, 0.15) !important;
+        border-color: rgba(16, 185, 129, 0.35) !important;
+        color: #34d399 !important;
+    }
+
+    /* Scrollbar */
+    #ordersBody::-webkit-scrollbar { width: 6px; height: 6px; }
+    #ordersBody::-webkit-scrollbar-track { background: transparent; }
+    #ordersBody::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 9999px;
+    }
+    #ordersBody::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+    [data-theme="light"] #ordersBody::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+    }
+
     /* ── Page Wrapper & Layout ── */
     .vo-page-wrapper {
         padding: 0;
@@ -1472,7 +1697,7 @@ if ($action === ""):
     }
 
     .app-main, .main-content-container, main {
-        padding: 20px 28px !important;
+        padding: 0 !important;
         height: 100vh !important;
         max-height: 100vh !important;
         overflow: hidden !important;
@@ -2695,9 +2920,9 @@ body.barista-mode { padding: 0; }
 </head>
 <body>
 <?php $r = $_SESSION['role'] ?? ''; ?>
-<div class="flex h-screen w-screen overflow-hidden app-layout" style="background-color: <?= $r === 'barista' ? '#09090b' : '#f8fafc' ?> !important;">
+<div class="flex h-screen w-screen overflow-hidden app-layout">
 <?php require_once __DIR__ . '/sidebar.php'; ?>
-<div class="app-main flex-1 h-screen overflow-hidden flex flex-col" style="background-color: <?= $r === 'barista' ? '#09090b' : '#f8fafc' ?> !important;">
+<div class="app-main flex-1 h-screen overflow-hidden flex flex-col">
 
 <?php if ($r === 'barista'): ?>
 <!-- Coffee Steam Animation -->
@@ -2905,54 +3130,37 @@ function showClockToast(msg, isErr) {
 </div>
 <?php else: ?>
 <?php $isKm = (current_lang() === 'km'); ?>
-<style>
-.vo-date-pill {
-  color: #64748b;
-  font-weight: 700;
-  transition: all 0.2s ease;
-}
-.vo-date-pill:hover {
-  color: #0f172a;
-  background-color: #f8fafc;
-}
-.vo-date-pill.active {
-  background-color: #059669 !important;
-  color: #ffffff !important;
-  font-weight: 800 !important;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3) !important;
-}
-</style>
-<div class="vo-page-wrapper w-full h-full p-4 md:p-6 lg:p-7 bg-[#f8fafc] flex flex-col gap-5 overflow-hidden" style="background-color: #f8fafc !important;">
+<div class="vo-page-wrapper w-full h-full p-4 md:p-6 lg:p-7 flex flex-col gap-5 overflow-hidden">
 
   <!-- TOP HEADER BAR -->
   <div class="flex items-center justify-between gap-4 pb-0.5 flex-shrink-0">
-    <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+    <h1 class="text-xl md:text-2xl font-black vo-title tracking-tight">
       <?= $isKm ? 'បញ្ជីការកុម្ម៉ង់' : __('nav_orders', 'Orders') ?>
     </h1>
   </div>
 
-  <!-- TOP 2 METRIC CARDS (ELEVATED CARDS) -->
+  <!-- TOP 2 METRIC CARDS (ELEVATED GLASS CARDS) -->
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-shrink-0">
     
     <!-- 1. Total Orders Card -->
-    <div class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300 group">
-      <div class="w-12 h-12 rounded-2xl bg-slate-100/90 border border-slate-200 text-slate-500 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
+    <div class="vo-glass-card p-5 md:p-6 flex items-center gap-4 group">
+      <div class="w-12 h-12 rounded-2xl vo-kpi-icon-orders flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
         <i class="fa-regular fa-file-lines"></i>
       </div>
       <div class="flex flex-col min-w-0">
-        <span class="text-xs font-bold text-slate-400 truncate tracking-wide"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
-        <span class="text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="stat-count-all-orders">0</span>
+        <span class="text-xs font-bold vo-muted truncate tracking-wide"><?= $isKm ? 'ការកុម្ម៉ង់ទាំងអស់' : 'Total Orders' ?></span>
+        <span class="text-2xl md:text-3xl font-black vo-title leading-tight mt-0.5 tracking-tight" id="stat-count-all-orders">0</span>
       </div>
     </div>
 
     <!-- 2. Today's Total Revenue Card -->
-    <div class="bg-white border border-slate-200/90 rounded-3xl p-5 md:p-6 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-emerald-300 group">
-      <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-xl flex-shrink-0 font-black group-hover:scale-105 transition-all duration-200 shadow-2xs">
+    <div class="vo-glass-card p-5 md:p-6 flex items-center gap-4 group">
+      <div class="w-12 h-12 rounded-2xl vo-kpi-icon-rev flex items-center justify-center text-xl flex-shrink-0 font-black group-hover:scale-105 transition-all duration-200 shadow-2xs">
         <i class="fa-solid fa-dollar-sign"></i>
       </div>
       <div class="flex flex-col min-w-0">
-        <span class="text-xs font-bold text-slate-400 truncate tracking-wide"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
-        <span class="text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="stat-count-total-price">$0.00</span>
+        <span class="text-xs font-bold vo-muted truncate tracking-wide"><?= $isKm ? 'ចំណូលសរុបថ្ងៃនេះ' : "Today's Revenue" ?></span>
+        <span class="text-2xl md:text-3xl font-black text-emerald-500 leading-tight mt-0.5 tracking-tight" id="stat-count-total-price">$0.00</span>
       </div>
     </div>
 
@@ -2962,27 +3170,28 @@ function showClockToast(msg, isErr) {
   <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4 flex-shrink-0">
     <!-- Left: Search Box -->
     <div class="relative flex-1 max-w-sm">
-      <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+      <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 vo-muted text-xs pointer-events-none"></i>
       <input type="text" id="searchInput" 
              placeholder="<?= $isKm ? 'ស្វែងរកតាមឈ្មោះ, លេខកុម្ម៉ង់...' : 'Search by name, order #...' ?>"
              oninput="searchOrders()" 
-             class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 shadow-xs transition-all">
+             class="vo-search-input w-full pl-10 pr-4 py-2.5 rounded-full text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all">
     </div>
 
     <!-- Right: Date Range Segmented Switcher -->
     <div class="flex items-center gap-3 flex-wrap justify-between md:justify-end">
       <!-- Date Segmented Pills -->
-      <div class="inline-flex items-center p-1.5 bg-white border border-slate-200 rounded-full gap-1 shadow-xs" id="voDatePillsDesktop">
-        <button type="button" onclick="filterDateRange('all', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer active"><?= $isKm ? 'ទាំងអស់' : 'All' ?></button>
-        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
-        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
-        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
+      <div class="vo-date-pill-group" id="voDatePillsDesktop">
+        <div class="vo-date-slider" id="voDateSlider"></div>
+        <button type="button" onclick="filterDateRange('all', this)" class="vo-date-pill active"><?= $isKm ? 'ទាំងអស់' : 'All' ?></button>
+        <button type="button" onclick="filterDateRange('today', this)" class="vo-date-pill"><?= $isKm ? 'ថ្ងៃនេះ' : 'Today' ?></button>
+        <button type="button" onclick="filterDateRange('week', this)" class="vo-date-pill"><?= $isKm ? 'សប្តាហ៍នេះ' : 'This Week' ?></button>
+        <button type="button" onclick="filterDateRange('month', this)" class="vo-date-pill"><?= $isKm ? 'ខែនេះ' : 'This Month' ?></button>
       </div>
     </div>
   </div>
 
   <!-- TABLE CONTAINER CARD WITH INTERNAL SCROLL -->
-  <div class="bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md transition-all duration-300 flex-1 min-h-0 flex flex-col overflow-hidden" id="ordersTableCard">
+  <div class="vo-glass-card flex-1 min-h-0 flex flex-col overflow-hidden" id="ordersTableCard">
     <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="ordersBody"></div>
   </div>
 
@@ -3805,6 +4014,24 @@ function updateCounts(orders) {
     if (elPrice) elPrice.textContent = '$' + totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function updateVoDateSlider(btn) {
+    const slider = document.getElementById('voDateSlider');
+    if (!slider) return;
+    if (!btn || !btn.classList.contains('vo-date-pill')) {
+        btn = document.querySelector('.vo-date-pill.active') || document.querySelector('.vo-date-pill');
+    }
+    if (!btn) return;
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            slider.style.width = btn.offsetWidth + 'px';
+            slider.style.height = btn.offsetHeight + 'px';
+            slider.style.transform = `translate3d(${btn.offsetLeft}px, ${btn.offsetTop}px, 0)`;
+            slider.style.opacity = '1';
+        });
+    });
+}
+
 function filterDateRange(range, btn) {
     currentDateRange = range || 'all';
     currentPage = 1;
@@ -3819,15 +4046,38 @@ function filterDateRange(range, btn) {
     document.querySelectorAll('.vo-date-pill').forEach(b => b.classList.remove('active'));
     if (btn) {
         btn.classList.add('active');
+        updateVoDateSlider(btn);
     } else {
         const matchingBtn = Array.from(document.querySelectorAll('.vo-date-pill')).find(b => b.getAttribute('onclick')?.includes(`'${currentDateRange}'`));
-        if (matchingBtn) matchingBtn.classList.add('active');
+        if (matchingBtn) {
+            matchingBtn.classList.add('active');
+            updateVoDateSlider(matchingBtn);
+        }
     }
 
     renderTableView();
     applyFilters();
     loadOrders();
 }
+
+window.addEventListener('resize', () => {
+    updateVoDateSlider();
+});
+
+if (typeof MutationObserver !== 'undefined') {
+    const _voThemeObs = new MutationObserver(mutations => {
+        mutations.forEach(m => {
+            if (m.attributeName === 'data-theme') {
+                setTimeout(updateVoDateSlider, 50);
+            }
+        });
+    });
+    _voThemeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(updateVoDateSlider, 60);
+});
 
 // ── Clean Modern Table View Renderer (Full Scrollable Orders) ──
 function renderTableView() {
@@ -3912,17 +4162,17 @@ function renderTableView() {
 
         return `
             <tr class="border-b border-slate-100/80 hover:bg-emerald-50/20 transition-colors duration-150" id="row-${o.order_id}">
-                <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap">${orderNoPadded}</td>
+                <td class="py-4 px-6 text-xs font-black vo-title whitespace-nowrap">${orderNoPadded}</td>
                 <td class="py-4 px-6 whitespace-nowrap">${itemsSummary}</td>
-                <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap">${totalFormatted}</td>
-                <td class="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap">${escapeHtml(dtFormatted)}</td>
-                <td class="py-4 px-6 text-xs text-slate-700 font-medium whitespace-nowrap">${staffName}</td>
+                <td class="py-4 px-6 text-xs font-black text-emerald-500 whitespace-nowrap">${totalFormatted}</td>
+                <td class="py-4 px-6 text-xs vo-muted font-medium whitespace-nowrap">${escapeHtml(dtFormatted)}</td>
+                <td class="py-4 px-6 text-xs vo-sub font-medium whitespace-nowrap">${staffName}</td>
                 <td class="py-4 px-6 text-center whitespace-nowrap">
                     <div class="inline-flex items-center justify-center gap-2">
-                        <button type="button" onclick="openOrderProductsModal(${Number(o.order_id)})" class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200/70 hover:border-rose-200 text-[#8B2635] inline-flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" title="View Details">
+                        <button type="button" onclick="openOrderProductsModal(${Number(o.order_id)})" class="w-8 h-8 rounded-xl vo-action-btn inline-flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" title="View Details">
                             <i class="fa-regular fa-eye text-xs"></i>
                         </button>
-                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200/70 hover:border-indigo-200 text-[#4338CA] inline-flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" title="Print Receipt">
+                        <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="w-8 h-8 rounded-xl vo-action-btn inline-flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" title="Print Receipt">
                             <i class="fa-solid fa-print text-xs"></i>
                         </button>
                     </div>
@@ -3933,17 +4183,17 @@ function renderTableView() {
 
     container.innerHTML = `
         <table class="w-full text-left border-collapse">
-            <thead class="sticky top-0 bg-slate-50/95 backdrop-blur z-10 border-b border-slate-200">
+            <thead class="sticky top-0 z-10 border-b">
                 <tr class="bg-transparent">
-                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.no}</th>
-                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.item}</th>
-                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.total_price}</th>
-                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.time}</th>
-                    <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.place_by}</th>
-                    <th class="py-4 px-6 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">${window.I18N.action}</th>
+                    <th class="py-4 px-6 text-xs font-bold uppercase tracking-wider">${window.I18N.no}</th>
+                    <th class="py-4 px-6 text-xs font-bold uppercase tracking-wider">${window.I18N.item}</th>
+                    <th class="py-4 px-6 text-xs font-bold uppercase tracking-wider">${window.I18N.total_price}</th>
+                    <th class="py-4 px-6 text-xs font-bold uppercase tracking-wider">${window.I18N.time}</th>
+                    <th class="py-4 px-6 text-xs font-bold uppercase tracking-wider">${window.I18N.place_by}</th>
+                    <th class="py-4 px-6 text-center text-xs font-bold uppercase tracking-wider">${window.I18N.action}</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100/70">
+            <tbody class="divide-y">
                 ${rowsHtml}
             </tbody>
         </table>

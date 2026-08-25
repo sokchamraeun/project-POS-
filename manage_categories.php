@@ -374,8 +374,32 @@ $inactiveCats = $totalCats - $activeCats;
 <!-- Cropper.js & Product Cropper Assets -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
 <link rel="stylesheet" href="assets/css/product_cropper.css">
+<script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
+:root, [data-theme="dark"], html:not([data-theme="light"]) {
+    --bg-main: #0b0c10;
+    --bg-card: #14151e;
+    --bg-card-hover: #191a26;
+    --border-color: #232433;
+    --border-hover: #35364c;
+    --text-main: #f8fafc;
+    --text-muted: #8e8e9f;
+    --accent: #10b981;
+    --accent-hover: #059669;
+}
+[data-theme="light"], html[data-theme="light"] {
+    --bg-main: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f5f9;
+    --border-color: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --accent: #10b981;
+    --accent-hover: #059669;
+}
+
 body, input, select, textarea, button, table {
     font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -390,6 +414,60 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
 }
 
+/* Light Theme Overrides */
+[data-theme="light"] body,
+[data-theme="light"] .app-layout,
+[data-theme="light"] .app-main,
+[data-theme="light"] main {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+}
+[data-theme="light"] .bg-\[\#14151e\] {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+[data-theme="light"] .bg-\[\#1b1c27\] {
+    background-color: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+[data-theme="light"] .bg-\[\#101118\],
+[data-theme="light"] .bg-\[\#101118\]\/50 {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+[data-theme="light"] .text-white {
+    color: #0f172a !important;
+}
+[data-theme="light"] .text-\[\#e2e8f0\] {
+    color: #1e293b !important;
+}
+[data-theme="light"] .text-\[\#8e8e9f\],
+[data-theme="light"] .text-\[\#78788c\] {
+    color: #64748b !important;
+}
+[data-theme="light"] .text-\[\#c7c7d4\] {
+    color: #334155 !important;
+}
+[data-theme="light"] .border-\[\#232433\],
+[data-theme="light"] .border-\[\#2c2d3e\],
+[data-theme="light"] .divide-\[\#1e1f2c\] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #f1f5f9 !important;
+}
+[data-theme="light"] .hover\:bg-\[\#191a26\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1e1f2d\]:hover,
+[data-theme="light"] .hover\:bg-\[\#252737\]:hover,
+[data-theme="light"] .hover\:bg-\[\#202230\]:hover {
+    background-color: #f1f5f9 !important;
+}
+[data-theme="light"] .toast {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #0f172a;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
 /* Toast Alert */
 #toast-container {
     position: fixed;
@@ -401,11 +479,11 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     gap: 10px;
 }
 .toast {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: #14151e;
+    border: 1px solid #28293d;
     border-radius: 16px;
     padding: 12px 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -414,7 +492,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     opacity: 0;
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 13.5px;
-    color: #1e293b;
+    color: #f8fafc;
     font-weight: 600;
 }
 .toast.show {
@@ -448,7 +526,8 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #cbd5e1;
+    background-color: #222332;
+    border: 1px solid #33344a;
     transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 30px;
 }
@@ -457,44 +536,45 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     content: "";
     height: 20px;
     width: 20px;
-    left: 3px;
-    bottom: 3px;
+    left: 2px;
+    bottom: 2px;
     background-color: white;
     transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 .ios-switch input:checked + .ios-slider {
-    background-color: #4f46e5;
+    background-color: #10b981;
+    border-color: #10b981;
 }
 .ios-switch input:checked + .ios-slider:before {
     transform: translateX(22px);
 }
 </style>
 </head>
-<body class="bg-[#f8fafc] text-slate-900 h-screen overflow-hidden antialiased">
+<body class="bg-[#0b0c10] text-[#e2e8f0] h-screen overflow-hidden antialiased">
 <div class="flex h-screen w-screen overflow-hidden">
     <!-- Sidebar -->
     <?php require_once __DIR__ . '/sidebar.php'; ?>
 
     <!-- Main Content -->
-    <main class="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-7 bg-[#f8fafc]">
+    <main class="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-7 bg-[#0b0c10]">
         <div class="w-full space-y-5 md:space-y-6">
 
             <!-- 1. Header Row -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 class="text-2xl md:text-[26px] font-black text-slate-900 tracking-tight leading-tight">
+                    <h1 class="text-2xl md:text-[26px] font-black text-white tracking-tight leading-tight">
                         <?= current_lang() === 'km' ? 'គ្រប់គ្រងប្រភេទទំនិញ' : __('manage_categories', 'Manage Categories') ?>
                     </h1>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5">
+                    <p class="text-xs text-[#8e8e9f] font-medium mt-0.5">
                         Bird's Nest Coffee &rsaquo; <?= current_lang() === 'km' ? 'កាតាឡុក' : __('catalog', 'Catalog') ?>
                     </p>
                 </div>
                 <div>
                     <button type="button" 
                             onclick="openAddCategoryModal()" 
-                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#d97706] hover:bg-[#b45309] text-white text-xs md:text-sm font-bold shadow-md shadow-amber-500/20 transition-all transform active:scale-95 cursor-pointer">
+                            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs md:text-sm font-bold shadow-lg shadow-emerald-500/25 transition-all transform active:scale-95 cursor-pointer">
                         <i class="fa-solid fa-plus text-xs"></i>
                         <span><?= current_lang() === 'km' ? 'បន្ថែមប្រភេទ' : __('add_category', 'Add Category') ?></span>
                     </button>
@@ -505,64 +585,64 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <!-- Card 1: Total Categories -->
                 <div onclick="setCatFilter('all')" 
-                     class="vo-stat-box bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-indigo-300 cursor-pointer group" 
+                     class="vo-stat-box bg-[#14151e] rounded-3xl p-5 md:p-6 border border-[#232433] shadow-lg flex items-center gap-4 transition-all duration-300 hover:shadow-emerald-500/5 hover:-translate-y-1 hover:border-emerald-500/40 cursor-pointer group" 
                      data-filter="all">
-                    <div class="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
+                    <div class="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/30 text-sky-400 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-sm">
                         <i class="fa-solid fa-layer-group"></i>
                     </div>
                     <div>
-                        <span class="block text-xs font-bold text-slate-400 tracking-wide"><?= current_lang() === 'km' ? 'ប្រភេទទាំងអស់' : __('all_categories', 'All Categories') ?></span>
-                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="statTotalCats"><?= $totalCats ?></span>
-                        <span class="block text-[11px] font-medium text-slate-400 mt-0.5"><?= current_lang() === 'km' ? 'សរុបក្នុងប្រព័ន្ធ' : 'Total in system' ?></span>
+                        <span class="block text-xs font-bold text-[#8e8e9f] tracking-wide"><?= current_lang() === 'km' ? 'ប្រភេទទាំងអស់' : __('all_categories', 'All Categories') ?></span>
+                        <span class="block text-2xl md:text-3xl font-black text-white leading-tight mt-0.5 tracking-tight" id="statTotalCats"><?= $totalCats ?></span>
+                        <span class="block text-[11px] font-medium text-[#8e8e9f] mt-0.5"><?= current_lang() === 'km' ? 'សរុបក្នុងប្រព័ន្ធ' : 'Total in system' ?></span>
                     </div>
                 </div>
 
                 <!-- Card 2: Active Categories -->
                 <div onclick="setCatFilter('active')" 
-                     class="vo-stat-box bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-emerald-300 cursor-pointer group" 
+                     class="vo-stat-box bg-[#14151e] rounded-3xl p-5 md:p-6 border border-[#232433] shadow-lg flex items-center gap-4 transition-all duration-300 hover:shadow-emerald-500/5 hover:-translate-y-1 hover:border-emerald-500/40 cursor-pointer group" 
                      data-filter="active">
-                    <div class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-sm">
                         <i class="fa-solid fa-circle-check"></i>
                     </div>
                     <div>
-                        <span class="block text-xs font-bold text-slate-400 tracking-wide"><?= current_lang() === 'km' ? 'សកម្ម' : __('active', 'Active') ?></span>
-                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="statActiveCats"><?= $activeCats ?></span>
-                        <span class="block text-[11px] font-medium text-slate-400 mt-0.5"><?= current_lang() === 'km' ? 'បង្ហាញក្នុងម៉ឺនុយ' : 'Visible on menu' ?></span>
+                        <span class="block text-xs font-bold text-[#8e8e9f] tracking-wide"><?= current_lang() === 'km' ? 'សកម្ម' : __('active', 'Active') ?></span>
+                        <span class="block text-2xl md:text-3xl font-black text-white leading-tight mt-0.5 tracking-tight" id="statActiveCats"><?= $activeCats ?></span>
+                        <span class="block text-[11px] font-medium text-[#8e8e9f] mt-0.5"><?= current_lang() === 'km' ? 'បង្ហាញក្នុងម៉ឺនុយ' : 'Visible on menu' ?></span>
                     </div>
                 </div>
 
                 <!-- Card 3: Inactive Categories -->
                 <div onclick="setCatFilter('inactive')" 
-                     class="vo-stat-box bg-white rounded-3xl p-5 md:p-6 border border-slate-200/90 shadow-xs flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-rose-300 cursor-pointer group" 
+                     class="vo-stat-box bg-[#14151e] rounded-3xl p-5 md:p-6 border border-[#232433] shadow-lg flex items-center gap-4 transition-all duration-300 hover:shadow-rose-500/5 hover:-translate-y-1 hover:border-rose-500/40 cursor-pointer group" 
                      data-filter="inactive">
-                    <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-2xs">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-all duration-200 shadow-sm">
                         <i class="fa-solid fa-circle-exclamation"></i>
                     </div>
                     <div>
-                        <span class="block text-xs font-bold text-slate-400 tracking-wide"><?= current_lang() === 'km' ? 'អសកម្ម' : __('inactive', 'Inactive') ?></span>
-                        <span class="block text-2xl md:text-3xl font-black text-slate-900 leading-tight mt-0.5 tracking-tight" id="statInactiveCats"><?= $inactiveCats ?></span>
-                        <span class="block text-[11px] font-medium text-slate-400 mt-0.5"><?= current_lang() === 'km' ? 'លាក់ពីការពិនិត្យ' : 'Hidden from menu' ?></span>
+                        <span class="block text-xs font-bold text-[#8e8e9f] tracking-wide"><?= current_lang() === 'km' ? 'អសកម្ម' : __('inactive', 'Inactive') ?></span>
+                        <span class="block text-2xl md:text-3xl font-black text-white leading-tight mt-0.5 tracking-tight" id="statInactiveCats"><?= $inactiveCats ?></span>
+                        <span class="block text-[11px] font-medium text-[#8e8e9f] mt-0.5"><?= current_lang() === 'km' ? 'លាក់ពីការពិនិត្យ' : 'Hidden from menu' ?></span>
                     </div>
                 </div>
             </div>
 
             <!-- 3. Main Categories Table Card -->
-            <div class="bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all duration-300 p-5 md:p-6 space-y-5">
+            <div class="bg-[#14151e] rounded-3xl border border-[#232433] shadow-xl p-5 md:p-6 space-y-5">
                 <!-- Search & Actions Bar -->
                 <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div class="relative w-full sm:w-80">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78788c] text-xs"></i>
                         <input type="text" 
                                id="catSearchInput" 
                                oninput="filterCategoriesLive()" 
                                placeholder="<?= current_lang() === 'km' ? 'ស្វែងរកប្រភេទ...' : 'Search categories...' ?>" 
-                               class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-xs transition">
+                               class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] text-xs font-semibold text-white placeholder-[#78788c] focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 shadow-xs transition">
                     </div>
                     <div class="flex items-center gap-2 self-end sm:self-auto">
                         <button type="button" 
                                 onclick="toggleSortOrder()" 
-                                class="px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center gap-2 shadow-xs transition cursor-pointer">
-                            <i class="fa-solid fa-arrow-down-short-wide text-slate-400 text-xs"></i>
+                                class="px-4 py-2.5 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] text-xs font-bold text-[#c7c7d4] hover:text-white hover:bg-[#222332] flex items-center gap-2 shadow-xs transition cursor-pointer">
+                            <i class="fa-solid fa-arrow-down-short-wide text-[#78788c] text-xs"></i>
                             <span><?= current_lang() === 'km' ? 'តម្រៀប' : 'Filter / Sort' ?></span>
                         </button>
                     </div>
@@ -572,7 +652,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse" id="categoriesTable">
                         <thead>
-                            <tr class="border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                            <tr class="border-b border-[#232433] text-[#8e8e9f] text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                 <th class="py-4 px-4 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'លេខរៀង' : __('col_no', 'No.') ?></th>
                                 <th class="py-4 px-3 text-center whitespace-nowrap"><?= current_lang() === 'km' ? 'រូបភាព' : __('image', 'Image') ?></th>
                                 <th class="py-4 px-4 text-left whitespace-nowrap"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : __('category_name', 'Category Name') ?></th>
@@ -582,14 +662,14 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                 <th class="py-4 px-4 text-right whitespace-nowrap"><?= current_lang() === 'km' ? 'សកម្មភាព' : __('actions', 'Actions') ?></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100/80 text-slate-700" id="categoriesTbody">
+                        <tbody class="divide-y divide-[#1e1f2c] text-[#e2e8f0]" id="categoriesTbody">
                             <?php foreach ($categories as $i => $c): ?>
-                            <tr class="cat-row hover:bg-emerald-50/20 transition-colors duration-150 <?= $c['is_active'] ? '' : 'opacity-60 bg-slate-50/30' ?>" 
+                            <tr class="cat-row hover:bg-[#191a26] transition-colors duration-150 <?= $c['is_active'] ? '' : 'opacity-60 bg-[#101118]/50' ?>" 
                                 data-active="<?= (int)$c['is_active'] ?>"
                                 data-name="<?= he(strtolower($c['name'])) ?>"
                                 data-slug="<?= he(strtolower($c['slug'])) ?>">
                                 <!-- No. -->
-                                <td class="py-4 px-3 text-center font-black text-xs text-slate-400">
+                                <td class="py-4 px-3 text-center font-black text-xs text-[#78788c]">
                                     <?= sprintf('#%02d', $i + 1) ?>
                                 </td>
 
@@ -598,11 +678,11 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                     <div class="flex items-center justify-center">
                                         <?php $__icon = $c['icon'] ?: 'fa-circle'; ?>
                                         <?php if (str_contains($__icon, '/')): ?>
-                                        <div class="w-12 h-12 rounded-2xl bg-slate-50 overflow-hidden border border-slate-200/80 shadow-2xs flex items-center justify-center p-0.5">
+                                        <div class="w-12 h-12 rounded-2xl bg-[#1b1c27] overflow-hidden border border-[#2c2d3e] shadow-sm flex items-center justify-center p-0.5">
                                             <img src="<?= he($__icon) ?>" alt="<?= he($c['name']) ?>" class="w-full h-full object-cover rounded-[14px]">
                                         </div>
                                         <?php else: ?>
-                                        <div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center text-lg shadow-2xs">
+                                        <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-lg shadow-sm">
                                             <i class="fa-solid <?= he($__icon) ?>"></i>
                                         </div>
                                         <?php endif; ?>
@@ -612,10 +692,10 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                 <!-- Name & Subtitle -->
                                 <td class="py-4 px-4">
                                     <div>
-                                        <div class="text-sm font-bold text-slate-900 tracking-tight">
+                                        <div class="text-sm font-bold text-white tracking-tight">
                                             <?= he($c['name']) ?>
                                         </div>
-                                        <div class="text-xs text-slate-400 font-normal mt-0.5">
+                                        <div class="text-xs text-[#8e8e9f] font-normal mt-0.5">
                                             <?= he(!empty($c['description']) ? $c['description'] : getCategorySubtitle($c['name'], $c['slug'])) ?>
                                         </div>
                                     </div>
@@ -623,7 +703,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
 
                                 <!-- Total Products Count Badge -->
                                 <td class="py-4 px-4 text-center">
-                                    <span class="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200/60 shadow-2xs">
+                                    <span class="inline-flex items-center px-3 py-1 bg-[#1b1c27] text-[#c7c7d4] font-bold rounded-xl text-xs border border-[#2c2d3e]">
                                         <?= (int)$c['product_count'] ?> <?= current_lang() === 'km' ? 'មុខ' : 'items' ?>
                                     </span>
                                 </td>
@@ -632,19 +712,19 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                 <td class="py-4 px-4 text-center">
                                     <div class="inline-flex items-center justify-center gap-1.5 flex-wrap">
                                         <?php if ($c['offer_sweetness']): ?>
-                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/70 rounded-xl text-[11px] font-bold shadow-2xs">
+                                        <span class="px-2.5 py-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-xl text-[11px] font-bold shadow-2xs">
                                             Sugar
                                         </span>
                                         <?php endif; ?>
 
                                         <?php if ($c['offer_ice']): ?>
-                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/70 rounded-xl text-[11px] font-bold shadow-2xs">
+                                        <span class="px-2.5 py-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-xl text-[11px] font-bold shadow-2xs">
                                             <?= current_lang() === 'km' ? 'កម្រិតទឹកកក' : 'Ice Level' ?>
                                         </span>
                                         <?php endif; ?>
 
                                         <?php if (!$c['offer_sweetness'] && !$c['offer_ice']): ?>
-                                        <span class="text-slate-300 text-xs font-medium">-</span>
+                                        <span class="text-[#68687a] text-xs font-medium">-</span>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -653,8 +733,8 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                 <td class="py-4 px-4 text-center">
                                     <button type="button" 
                                             onclick="toggleCategoryActive(<?= (int)$c['category_id'] ?>, this, event)"
-                                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer <?= $c['is_active'] ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' ?>">
-                                        <span class="w-1.5 h-1.5 rounded-full <?= $c['is_active'] ? 'bg-emerald-500' : 'bg-rose-500' ?>"></span>
+                                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer <?= $c['is_active'] ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25' ?>">
+                                        <span class="w-1.5 h-1.5 rounded-full <?= $c['is_active'] ? 'bg-emerald-400' : 'bg-rose-400' ?>"></span>
                                         <span><?= $c['is_active'] ? (current_lang() === 'km' ? 'បើក' : 'Active') : (current_lang() === 'km' ? 'បិទ' : 'Inactive') ?></span>
                                     </button>
                                 </td>
@@ -665,7 +745,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                         <!-- Edit -->
                                         <button type="button" 
                                                 onclick="openEditCategoryModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>)" 
-                                                class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200/70 hover:border-amber-200 text-slate-500 hover:text-amber-700 flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" 
+                                                class="w-8 h-8 rounded-xl bg-[#1b1c27] hover:bg-[#252737] border border-[#2c2d3e] hover:border-emerald-500/40 text-[#b4b4c2] hover:text-white flex items-center justify-center transition-all duration-150 cursor-pointer shadow-xs" 
                                                 title="<?= __('edit', 'Edit Category') ?>">
                                             <i class="fa-solid fa-pen text-xs"></i>
                                         </button>
@@ -673,7 +753,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                         <!-- Delete -->
                                         <?php if ((int)$c['product_count'] > 0): ?>
                                         <button type="button" 
-                                                class="w-8 h-8 rounded-xl bg-slate-50/50 border border-slate-100 text-slate-300 cursor-not-allowed flex items-center justify-center shadow-2xs" 
+                                                class="w-8 h-8 rounded-xl bg-[#1b1c27]/40 border border-[#232433] text-[#4d4e60] cursor-not-allowed flex items-center justify-center shadow-2xs" 
                                                 disabled 
                                                 title="Cannot delete: <?= (int)$c['product_count'] ?> product(s) use this category">
                                             <i class="fa-solid fa-trash-can text-xs"></i>
@@ -684,7 +764,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="category_id" value="<?= (int)$c['category_id'] ?>">
                                             <button type="submit" 
-                                                    class="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200/70 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-all duration-150 cursor-pointer shadow-2xs" 
+                                                    class="w-8 h-8 rounded-xl bg-[#1b1c27] hover:bg-rose-500/20 border border-[#2c2d3e] hover:border-rose-500/40 text-[#b4b4c2] hover:text-rose-400 flex items-center justify-center transition-all duration-150 cursor-pointer shadow-xs" 
                                                     title="<?= __('delete', 'Delete Category') ?>">
                                                 <i class="fa-solid fa-trash-can text-xs"></i>
                                             </button>
@@ -699,7 +779,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
                 </div>
 
                 <!-- 4. Footer Summary -->
-                <div class="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                <div class="pt-4 border-t border-[#232433] flex items-center justify-between text-xs text-[#8e8e9f] font-semibold">
                     <div>
                         <?= current_lang() === 'km' ? "បង្ហាញ {$totalCats} នៃ {$totalCats} ប្រភេទ" : "Showing {$totalCats} of {$totalCats} categories" ?>
                     </div>
@@ -713,70 +793,70 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
 <!-- ══════════════════════════════════════════════════════════════
      MODAL 1: ADD CATEGORY MODAL
 ══════════════════════════════════════════════════════════════ -->
-<div id="addCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200 hidden">
-    <div class="max-w-md w-full bg-white rounded-[28px] shadow-2xl overflow-hidden border border-slate-100 relative">
+<div id="addCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm transition-opacity duration-200 hidden">
+    <div class="max-w-md w-full bg-[#14151e] rounded-[28px] shadow-2xl overflow-hidden border border-[#2b2c3e] relative text-white">
         <!-- Modal Header -->
-        <div class="px-6 py-5 bg-[#0f172a] text-white flex items-center justify-between relative">
+        <div class="px-6 py-5 bg-[#0f1017] border-b border-[#232433] text-white flex items-center justify-between relative">
             <div class="flex items-center gap-3">
-                <div class="w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg shadow-inner">
+                <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-lg shadow-inner">
                     <i class="fa-solid fa-shapes"></i>
                 </div>
                 <div>
                     <h3 class="text-base font-bold text-white tracking-tight"><?= current_lang() === 'km' ? 'បន្ថែមប្រភេទថ្មី' : 'Add New Category' ?></h3>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5"><?= current_lang() === 'km' ? 'បង្កើតប្រភេទមុខទំនិញថ្មី និងជម្រើស' : 'Create a new menu item category & modifiers' ?></p>
+                    <p class="text-xs text-[#8e8e9f] font-medium mt-0.5"><?= current_lang() === 'km' ? 'បង្កើតប្រភេទមុខទំនិញថ្មី និងជម្រើស' : 'Create a new menu item category & modifiers' ?></p>
                 </div>
             </div>
-            <button type="button" onclick="closeAddCategoryModal()" class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer text-sm">
+            <button type="button" onclick="closeAddCategoryModal()" class="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-[#8e8e9f] hover:text-white flex items-center justify-center transition cursor-pointer text-sm">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
         <!-- Form -->
-        <form method="POST" class="p-6 space-y-4 bg-white" enctype="multipart/form-data">
+        <form method="POST" class="p-6 space-y-4 bg-[#14151e]" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
             <input type="hidden" name="action" value="create">
 
             <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : 'Category Name' ?> <span class="text-rose-500">*</span></label>
+                <label class="block text-xs font-bold text-[#e2e8f0] mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : 'Category Name' ?> <span class="text-rose-500">*</span></label>
                 <input type="text" 
                        name="name" 
                        id="add_cat_name" 
                        required 
                        placeholder="e.g. Smoothies" 
-                       class="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs placeholder-slate-400">
+                       class="w-full px-4 py-3 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] text-xs md:text-sm font-bold text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 shadow-xs placeholder-[#68687a]">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះជាភាសាខ្មែរ / ការពិពណ៌នា' : 'Khmer Subtitle / Description' ?></label>
+                <label class="block text-xs font-bold text-[#e2e8f0] mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះជាភាសាខ្មែរ / ការពិពណ៌នា' : 'Khmer Subtitle / Description' ?></label>
                 <input type="text" 
                        name="description" 
                        id="add_cat_desc" 
                        placeholder="e.g. ភេសជ្ជៈក្រឡុក និងទឹកផ្លែឈើ" 
-                       class="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs placeholder-slate-400">
+                       class="w-full px-4 py-3 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] text-xs md:text-sm font-medium text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 shadow-xs placeholder-[#68687a]">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1.5"><?= current_lang() === 'km' ? 'រូបភាព' : 'Category Image / Icon' ?></label>
-                <div class="flex items-center gap-3.5 p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-                    <div class="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden shrink-0 cursor-pointer shadow-xs relative group hover:ring-2 hover:ring-indigo-500/30 transition" 
+                <label class="block text-xs font-bold text-[#e2e8f0] mb-1.5"><?= current_lang() === 'km' ? 'រូបភាព' : 'Category Image / Icon' ?></label>
+                <div class="flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] shadow-sm">
+                    <div class="w-16 h-16 rounded-2xl bg-[#14151e] border border-[#2c2d3e] flex items-center justify-center text-[#78788c] overflow-hidden shrink-0 cursor-pointer shadow-xs relative group hover:ring-2 hover:ring-emerald-500/40 transition" 
                          onclick="document.getElementById('add_cat_icon').click()" 
                          id="add_cat_icon_box"
                          title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាព' : 'Click to choose image' ?>">
                         <img id="add_cat_icon_preview" src="" alt="Preview" class="w-full h-full object-cover hidden">
-                        <div id="add_cat_icon_placeholder" class="text-xl text-slate-400 flex flex-col items-center">
+                        <div id="add_cat_icon_placeholder" class="text-xl text-[#78788c] flex flex-col items-center">
                             <i class="fa-solid fa-image"></i>
                         </div>
-                        <div class="absolute inset-0 bg-slate-950/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs">
+                        <div class="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs">
                             <i class="fa-solid fa-camera"></i>
                         </div>
                     </div>
                     <div class="flex-1 min-w-0 flex items-center gap-2">
                         <input type="file" name="icon" id="add_cat_icon" accept="image/*" class="hidden">
-                        <button type="button" onclick="document.getElementById('add_cat_icon').click()" class="flex-1 py-3 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs cursor-pointer transition">
-                            <i class="fa-solid fa-cloud-arrow-up text-indigo-500 text-xs"></i>
-                            <span id="add_cat_file_name" class="truncate"><?= current_lang() === 'km' ? 'ជ្រើសរើសរូបភាព...' : 'Choose Image...' ?></span>
+                        <button type="button" onclick="document.getElementById('add_cat_icon').click()" class="flex-1 py-3 px-4 rounded-xl bg-[#14151e] hover:bg-[#202230] border border-[#2c2d3e] text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer transition">
+                            <i class="fa-solid fa-cloud-arrow-up text-emerald-400 text-xs"></i>
+                            <span id="add_cat_file_name" class="truncate text-white"><?= current_lang() === 'km' ? 'ជ្រើសរើសរូបភាព...' : 'Choose Image...' ?></span>
                         </button>
-                        <button type="button" id="add_cat_crop_btn" onclick="reCropCurrentImage('add_cat_icon_preview', 'add_cat_icon', 'add_cat_file_name')" class="py-3 px-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-600 hover:bg-indigo-100 hidden items-center justify-center gap-1.5 cursor-pointer transition" title="Crop Image">
+                        <button type="button" id="add_cat_crop_btn" onclick="reCropCurrentImage('add_cat_icon_preview', 'add_cat_icon', 'add_cat_file_name')" class="py-3 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-400 hover:bg-emerald-500/25 hidden items-center justify-center gap-1.5 cursor-pointer transition" title="Crop Image">
                             <i class="fa-solid fa-crop-simple text-xs"></i>
                         </button>
                     </div>
@@ -784,15 +864,15 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             </div>
 
             <!-- Customization Options (Modifiers) -->
-            <div class="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
-                <div class="text-xs font-bold text-slate-800"><?= current_lang() === 'km' ? 'ជម្រើសបន្ថែមសម្រាប់ភេសជ្ជៈ:' : 'Drink Modifiers:' ?></div>
+            <div class="p-4 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] shadow-sm space-y-3">
+                <div class="text-xs font-bold text-[#e2e8f0]"><?= current_lang() === 'km' ? 'ជម្រើសបន្ថែមសម្រាប់ភេសជ្ជៈ:' : 'Drink Modifiers:' ?></div>
                 <div class="grid grid-cols-2 gap-3">
-                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/70 cursor-pointer font-bold text-xs text-slate-800 hover:bg-slate-100/80 transition select-none">
-                        <input type="checkbox" name="offer_sweetness" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-0 cursor-pointer">
+                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#14151e] border border-[#2c2d3e] cursor-pointer font-bold text-xs text-white hover:bg-[#1e1f2d] transition select-none">
+                        <input type="checkbox" name="offer_sweetness" checked class="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500">
                         <span><?= current_lang() === 'km' ? 'កម្រិតស្ករ' : 'Sugar Level' ?></span>
                     </label>
-                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/70 cursor-pointer font-bold text-xs text-slate-800 hover:bg-slate-100/80 transition select-none">
-                        <input type="checkbox" name="offer_ice" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-0 cursor-pointer">
+                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#14151e] border border-[#2c2d3e] cursor-pointer font-bold text-xs text-white hover:bg-[#1e1f2d] transition select-none">
+                        <input type="checkbox" name="offer_ice" checked class="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500">
                         <span><?= current_lang() === 'km' ? 'កម្រិតទឹកកក' : 'Ice Level' ?></span>
                     </label>
                 </div>
@@ -801,7 +881,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             <!-- Active Status (iOS Toggle) -->
             <div class="flex items-center justify-between pt-1">
                 <div>
-                    <div class="text-xs font-bold text-slate-900"><?= current_lang() === 'km' ? 'បើកដំណើរការ (បង្ហាញក្នុងម៉ឺនុយ)' : 'Active (Visible on menu)' ?></div>
+                    <div class="text-xs font-bold text-white"><?= current_lang() === 'km' ? 'បើកដំណើរការ (បង្ហាញក្នុងម៉ឺនុយ)' : 'Active (Visible on menu)' ?></div>
                 </div>
                 <label class="ios-switch">
                     <input type="checkbox" name="is_active" id="add_is_active" checked>
@@ -810,14 +890,14 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             </div>
 
             <!-- Footer -->
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-[#232433]">
                 <button type="button" 
                         onclick="closeAddCategoryModal()" 
-                        class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+                        class="px-5 py-2.5 rounded-xl bg-[#1b1c27] hover:bg-[#252737] text-[#c7c7d4] hover:text-white border border-[#2c2d3e] text-xs font-bold transition cursor-pointer">
                     <?= current_lang() === 'km' ? 'បោះបង់' : 'Cancel' ?>
                 </button>
                 <button type="submit" 
-                        class="px-6 py-2.5 rounded-xl bg-[#5046e5] hover:bg-[#4338ca] text-white text-xs font-bold shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer transition">
+                        class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer transition">
                     <i class="fa-solid fa-check text-xs"></i>
                     <span><?= current_lang() === 'km' ? 'រក្សាទុក' : 'Save Category' ?></span>
                 </button>
@@ -829,70 +909,70 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
 <!-- ══════════════════════════════════════════════════════════════
      MODAL 2: EDIT CATEGORY MODAL
 ══════════════════════════════════════════════════════════════ -->
-<div id="editCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200 hidden">
-    <div class="max-w-md w-full bg-white rounded-[28px] shadow-2xl overflow-hidden border border-slate-100 relative">
+<div id="editCategoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm transition-opacity duration-200 hidden">
+    <div class="max-w-md w-full bg-[#14151e] rounded-[28px] shadow-2xl overflow-hidden border border-[#2b2c3e] relative text-white">
         <!-- Modal Header -->
-        <div class="px-6 py-5 bg-[#0f172a] text-white flex items-center justify-between relative">
+        <div class="px-6 py-5 bg-[#0f1017] border-b border-[#232433] text-white flex items-center justify-between relative">
             <div class="flex items-center gap-3">
-                <div class="w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg shadow-inner">
+                <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-lg shadow-inner">
                     <i class="fa-solid fa-pen-to-square"></i>
                 </div>
                 <div>
                     <h3 class="text-base font-bold text-white tracking-tight"><?= current_lang() === 'km' ? 'កែប្រែប្រភេទ' : 'Edit Category' ?></h3>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5"><?= current_lang() === 'km' ? 'កែសម្រួលព័ត៌មានប្រភេទទំនិញ និងជម្រើស' : 'Update category details & modifiers' ?></p>
+                    <p class="text-xs text-[#8e8e9f] font-medium mt-0.5"><?= current_lang() === 'km' ? 'កែសម្រួលព័ត៌មានប្រភេទទំនិញ និងជម្រើស' : 'Update category details & modifiers' ?></p>
                 </div>
             </div>
-            <button type="button" onclick="closeEditCategoryModal()" class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer text-sm">
+            <button type="button" onclick="closeEditCategoryModal()" class="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-[#8e8e9f] hover:text-white flex items-center justify-center transition cursor-pointer text-sm">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
         <!-- Form -->
-        <form method="POST" class="p-6 space-y-4 bg-white" enctype="multipart/form-data">
+        <form method="POST" class="p-6 space-y-4 bg-[#14151e]" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="<?= he($_SESSION['csrf_token']) ?>">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="category_id" id="edit_cat_id">
 
             <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : 'Category Name' ?> <span class="text-rose-500">*</span></label>
+                <label class="block text-xs font-bold text-[#e2e8f0] mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះប្រភេទ' : 'Category Name' ?> <span class="text-rose-500">*</span></label>
                 <input type="text" 
                        name="name" 
                        id="edit_cat_name" 
                        required 
-                       class="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs placeholder-slate-400">
+                       class="w-full px-4 py-3 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] text-xs md:text-sm font-bold text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 shadow-xs placeholder-[#68687a]">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះជាភាសាខ្មែរ / ការពិពណ៌នា' : 'Khmer Subtitle / Description' ?></label>
+                <label class="block text-xs font-bold text-[#e2e8f0] mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះជាភាសាខ្មែរ / ការពិពណ៌នា' : 'Khmer Subtitle / Description' ?></label>
                 <input type="text" 
                        name="description" 
                        id="edit_cat_desc" 
                        placeholder="e.g. ភេសជ្ជៈត្រជាក់គ្រប់ប្រភេទ" 
-                       class="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs placeholder-slate-400">
+                       class="w-full px-4 py-3 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] text-xs md:text-sm font-medium text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 shadow-xs placeholder-[#68687a]">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-800 mb-1.5"><?= current_lang() === 'km' ? 'រូបភាព' : 'Category Image / Icon' ?></label>
-                <div class="flex items-center gap-3.5 p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-                    <div class="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden shrink-0 cursor-pointer shadow-xs relative group hover:ring-2 hover:ring-indigo-500/30 transition" 
+                <label class="block text-xs font-bold text-[#e2e8f0] mb-1.5"><?= current_lang() === 'km' ? 'រូបភាព' : 'Category Image / Icon' ?></label>
+                <div class="flex items-center gap-3.5 p-3.5 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] shadow-sm">
+                    <div class="w-16 h-16 rounded-2xl bg-[#14151e] border border-[#2c2d3e] flex items-center justify-center text-[#78788c] overflow-hidden shrink-0 cursor-pointer shadow-xs relative group hover:ring-2 hover:ring-emerald-500/40 transition" 
                          onclick="document.getElementById('edit_cat_icon').click()" 
                          id="edit_cat_icon_box"
                          title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាព' : 'Click to change image' ?>">
                         <img id="edit_cat_icon_preview" src="" alt="Preview" class="w-full h-full object-cover hidden">
-                        <div id="edit_cat_icon_placeholder" class="text-xl text-slate-400 flex flex-col items-center">
+                        <div id="edit_cat_icon_placeholder" class="text-xl text-[#78788c] flex flex-col items-center">
                             <i class="fa-solid fa-image"></i>
                         </div>
-                        <div class="absolute inset-0 bg-slate-950/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs">
+                        <div class="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs">
                             <i class="fa-solid fa-camera"></i>
                         </div>
                     </div>
                     <div class="flex-1 min-w-0 flex items-center gap-2">
                         <input type="file" name="icon" id="edit_cat_icon" accept="image/*" class="hidden">
-                        <button type="button" onclick="document.getElementById('edit_cat_icon').click()" class="flex-1 py-3 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs cursor-pointer transition">
-                            <i class="fa-solid fa-cloud-arrow-up text-indigo-500 text-xs"></i>
-                            <span id="edit_cat_file_name" class="truncate"><?= current_lang() === 'km' ? 'ប្តូររូបភាព...' : 'Change Image...' ?></span>
+                        <button type="button" onclick="document.getElementById('edit_cat_icon').click()" class="flex-1 py-3 px-4 rounded-xl bg-[#14151e] hover:bg-[#202230] border border-[#2c2d3e] text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer transition">
+                            <i class="fa-solid fa-cloud-arrow-up text-emerald-400 text-xs"></i>
+                            <span id="edit_cat_file_name" class="truncate text-white"><?= current_lang() === 'km' ? 'ប្តូររូបភាព...' : 'Change Image...' ?></span>
                         </button>
-                        <button type="button" id="edit_cat_crop_btn" onclick="reCropCurrentImage('edit_cat_icon_preview', 'edit_cat_icon', 'edit_cat_file_name')" class="py-3 px-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-600 hover:bg-indigo-100 hidden items-center justify-center gap-1.5 cursor-pointer transition" title="Crop Image">
+                        <button type="button" id="edit_cat_crop_btn" onclick="reCropCurrentImage('edit_cat_icon_preview', 'edit_cat_icon', 'edit_cat_file_name')" class="py-3 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-400 hover:bg-emerald-500/25 hidden items-center justify-center gap-1.5 cursor-pointer transition" title="Crop Image">
                             <i class="fa-solid fa-crop-simple text-xs"></i>
                         </button>
                     </div>
@@ -900,15 +980,15 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             </div>
 
             <!-- Customization Options (Modifiers) -->
-            <div class="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
-                <div class="text-xs font-bold text-slate-800"><?= current_lang() === 'km' ? 'ជម្រើសបន្ថែមសម្រាប់ភេសជ្ជៈ:' : 'Drink Modifiers:' ?></div>
+            <div class="p-4 rounded-2xl bg-[#1b1c27] border border-[#2c2d3e] shadow-sm space-y-3">
+                <div class="text-xs font-bold text-[#e2e8f0]"><?= current_lang() === 'km' ? 'ជម្រើសបន្ថែមសម្រាប់ភេសជ្ជៈ:' : 'Drink Modifiers:' ?></div>
                 <div class="grid grid-cols-2 gap-3">
-                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/70 cursor-pointer font-bold text-xs text-slate-800 hover:bg-slate-100/80 transition select-none">
-                        <input type="checkbox" name="offer_sweetness" id="edit_offer_sweetness" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 cursor-pointer">
+                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#14151e] border border-[#2c2d3e] cursor-pointer font-bold text-xs text-white hover:bg-[#1e1f2d] transition select-none">
+                        <input type="checkbox" name="offer_sweetness" id="edit_offer_sweetness" class="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500">
                         <span><?= current_lang() === 'km' ? 'កម្រិតស្ករ' : 'Sugar Level' ?></span>
                     </label>
-                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/70 cursor-pointer font-bold text-xs text-slate-800 hover:bg-slate-100/80 transition select-none">
-                        <input type="checkbox" name="offer_ice" id="edit_offer_ice" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 cursor-pointer">
+                    <label class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#14151e] border border-[#2c2d3e] cursor-pointer font-bold text-xs text-white hover:bg-[#1e1f2d] transition select-none">
+                        <input type="checkbox" name="offer_ice" id="edit_offer_ice" class="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer accent-emerald-500">
                         <span><?= current_lang() === 'km' ? 'កម្រិតទឹកកក' : 'Ice Level' ?></span>
                     </label>
                 </div>
@@ -917,7 +997,7 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             <!-- Active Status (iOS Toggle) -->
             <div class="flex items-center justify-between pt-1">
                 <div>
-                    <div class="text-xs font-bold text-slate-900"><?= current_lang() === 'km' ? 'បើកដំណើរការ (បង្ហាញក្នុងម៉ឺនុយ)' : 'Active (Visible on menu)' ?></div>
+                    <div class="text-xs font-bold text-white"><?= current_lang() === 'km' ? 'បើកដំណើរការ (បង្ហាញក្នុងម៉ឺនុយ)' : 'Active (Visible on menu)' ?></div>
                 </div>
                 <label class="ios-switch">
                     <input type="checkbox" name="is_active" id="edit_is_active">
@@ -926,14 +1006,14 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
             </div>
 
             <!-- Footer -->
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-[#232433]">
                 <button type="button" 
                         onclick="closeEditCategoryModal()" 
-                        class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+                        class="px-5 py-2.5 rounded-xl bg-[#1b1c27] hover:bg-[#252737] text-[#c7c7d4] hover:text-white border border-[#2c2d3e] text-xs font-bold transition cursor-pointer">
                     <?= current_lang() === 'km' ? 'បោះបង់' : 'Cancel' ?>
                 </button>
                 <button type="submit" 
-                        class="px-6 py-2.5 rounded-xl bg-[#5046e5] hover:bg-[#4338ca] text-white text-xs font-bold shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer transition">
+                        class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer transition">
                     <i class="fa-solid fa-check text-xs"></i>
                     <span><?= current_lang() === 'km' ? 'រក្សាទុក' : 'Save Changes' ?></span>
                 </button>
@@ -1088,7 +1168,7 @@ function setCatFilter(filter) {
     document.querySelectorAll('.vo-stat-box').forEach(box => {
         const isActive = box.getAttribute('data-filter') === filter;
         box.classList.toggle('ring-2', isActive);
-        box.classList.toggle('ring-indigo-500/20', isActive);
+        box.classList.toggle('ring-emerald-500/40', isActive);
     });
     document.querySelectorAll('#categoriesTbody .cat-row').forEach(row => {
         const isRowActive = Number(row.getAttribute('data-active')) === 1;
@@ -1119,15 +1199,15 @@ async function toggleCategoryActive(catId, btn, ev) {
             const enText = isAct ? 'Active' : 'Inactive';
             const text = '<?= current_lang() ?>' === 'km' ? kmText : enText;
             
-            btn.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer ${isAct ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'}`;
-            btn.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${isAct ? 'bg-emerald-500' : 'bg-rose-500'}"></span><span>${text}</span>`;
+            btn.className = `inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${isAct ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25'}`;
+            btn.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${isAct ? 'bg-emerald-400' : 'bg-rose-400'}"></span><span>${text}</span>`;
             
             const row = btn.closest('tr');
             if (row) {
                 row.dataset.active = data.is_active;
                 row.setAttribute('data-active', data.is_active);
                 row.classList.toggle('opacity-60', !isAct);
-                row.classList.toggle('bg-slate-50/30', !isAct);
+                row.classList.toggle('bg-[#101118]/50', !isAct);
             }
 
             const activeVal = document.getElementById('statActiveCats');

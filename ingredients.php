@@ -804,9 +804,9 @@ $categoriesList = [
             --surface-hover: #202028;
             --border: #24242b;
             --border-subtle: #1c1c22;
-            --accent: #d1904b;
-            --accent-hover: #e5a15a;
-            --accent-glow: rgba(209, 144, 75, 0.25);
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --accent-glow: rgba(16, 185, 129, 0.25);
             --text-main: #f4f4f6;
             --text-muted: #8e8e9f;
             --sidebar-w: 256px;
@@ -819,9 +819,9 @@ $categoriesList = [
             --surface-hover: #f1f5f9;
             --border: #e2e4ea;
             --border-subtle: #ebedf2;
-            --accent: #c47c2c;
-            --accent-hover: #ad6b22;
-            --accent-glow: rgba(196, 124, 44, 0.18);
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --accent-glow: rgba(16, 185, 129, 0.18);
             --text-main: #111827;
             --text-muted: #64748b;
         }
@@ -858,7 +858,7 @@ $categoriesList = [
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .glass-card:hover {
-            border-color: rgba(209, 144, 75, 0.35);
+            border-color: rgba(16, 185, 129, 0.35);
         }
 
         html[data-theme="light"] body,
@@ -986,7 +986,7 @@ $categoriesList = [
             background-color: #141418;
             border: 1px solid #282834;
         }
-        .pricing-header-title { color: #d1904b; }
+        .pricing-header-title { color: #10b981; }
         .pricing-header-sub { color: #8e8e9f; }
         .pricing-calc-input {
             background-color: #18181f;
@@ -994,10 +994,10 @@ $categoriesList = [
             color: var(--text-main, #ffffff);
         }
         .pricing-calc-input-highlight {
-            border-color: rgba(209, 144, 75, 0.45);
+            border-color: rgba(16, 185, 129, 0.45);
             color: #ffffff;
         }
-        .pricing-dollar-icon { color: #d1904b; }
+        .pricing-dollar-icon { color: #10b981; }
         .pricing-dollar-icon-muted { color: #8e8e9f; }
         .pricing-calc-preview {
             border-top: 1px solid #23232c;
@@ -1009,17 +1009,17 @@ $categoriesList = [
         /* Light Mode Styling for Pricing Calculator Box */
         [data-theme="light"] .pricing-calc-box,
         html[data-theme="light"] .pricing-calc-box {
-            background-color: #fffdf7 !important;
-            border: 1px solid #fed7aa !important;
-            box-shadow: 0 1px 4px rgba(209, 144, 75, 0.08) !important;
+            background-color: #f0fdf4 !important;
+            border: 1px solid #bbf7d0 !important;
+            box-shadow: 0 1px 4px rgba(16, 185, 129, 0.08) !important;
         }
         [data-theme="light"] .pricing-header-title,
         html[data-theme="light"] .pricing-header-title {
-            color: #b45309 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] .pricing-header-sub,
         html[data-theme="light"] .pricing-header-sub {
-            color: #78716c !important;
+            color: #64748b !important;
         }
         [data-theme="light"] .pricing-calc-box .modal-label,
         html[data-theme="light"] .pricing-calc-box .modal-label {
@@ -1034,13 +1034,13 @@ $categoriesList = [
         [data-theme="light"] .pricing-calc-input-highlight,
         html[data-theme="light"] .pricing-calc-input-highlight {
             background-color: #ffffff !important;
-            border: 1.5px solid #d1904b !important;
+            border: 1.5px solid #10b981 !important;
             color: #0f172a !important;
-            box-shadow: 0 0 0 1px rgba(209, 144, 75, 0.2) !important;
+            box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2) !important;
         }
         [data-theme="light"] .pricing-dollar-icon,
         html[data-theme="light"] .pricing-dollar-icon {
-            color: #d1904b !important;
+            color: #10b981 !important;
         }
         [data-theme="light"] .pricing-dollar-icon-muted,
         html[data-theme="light"] .pricing-dollar-icon-muted {
@@ -1065,7 +1065,7 @@ $categoriesList = [
         ══════════════════════════════════════════════════════════════ */
         select optgroup {
             background-color: #1e293b;
-            color: #f59e0b;
+            color: #34d399;
             font-weight: 700;
         }
         select option {
@@ -1074,8 +1074,8 @@ $categoriesList = [
         }
         [data-theme="light"] select optgroup,
         html[data-theme="light"] select optgroup {
-            background-color: #f4efe9 !important;
-            color: #c47c2c !important;
+            background-color: #f0fdf4 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] select option,
         html[data-theme="light"] select option {
@@ -1095,15 +1095,15 @@ $categoriesList = [
             border-color: #252530;
         }
         #addStockModal .stockin-title {
-            color: #f59e0b;
+            color: #ffffff;
         }
         #addStockModal .stockin-sub {
             color: #8e8e9f;
         }
         #addStockModal .stockin-badge {
-            background: rgba(245, 158, 11, 0.12);
-            color: #f59e0b;
-            border: 1px solid rgba(245, 158, 11, 0.3);
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
         }
         #addStockModal .stockin-label {
             color: #cbd5e1;
@@ -1119,9 +1119,9 @@ $categoriesList = [
         }
         #addStockModal .stockin-input:focus {
             background-color: #1e1e28;
-            border-color: #f59e0b !important;
+            border-color: #10b981 !important;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
         }
         #addStockModal .stockin-density-box {
             background-color: rgba(30, 41, 59, 0.4);
@@ -1129,14 +1129,14 @@ $categoriesList = [
             color: #cbd5e1;
         }
         #addStockModal .stockin-conv-box {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.03) 100%);
-            border: 1.5px solid rgba(245, 158, 11, 0.25);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.03) 100%);
+            border: 1.5px solid rgba(16, 185, 129, 0.25);
         }
         #addStockModal .stockin-conv-title {
-            color: #f59e0b;
+            color: #34d399;
         }
         #addStockModal .stockin-conv-formula {
-            color: #fbbf24;
+            color: #10b981;
         }
         #addStockModal .stockin-stat-card {
             background-color: #1a1a22;
@@ -1161,15 +1161,15 @@ $categoriesList = [
             color: #ffffff;
         }
         #addStockModal .btn-stockin-submit {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: #0f172a;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
             font-weight: 800;
-            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
         }
         #addStockModal .btn-stockin-submit:hover {
-            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
             transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
         }
 
         /* ── LIGHT MODE OVERRIDES ── */
@@ -1188,13 +1188,13 @@ $categoriesList = [
         }
         [data-theme="light"] #addStockModal .stockin-icon-wrap,
         html[data-theme="light"] #addStockModal .stockin-icon-wrap {
-            background-color: #fef3c7 !important;
-            border-color: #fde68a !important;
-            color: #d97706 !important;
+            background-color: #dcfce7 !important;
+            border-color: #bbf7d0 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] #addStockModal .stockin-title,
         html[data-theme="light"] #addStockModal .stockin-title {
-            color: #b45309 !important;
+            color: #065f46 !important;
         }
         [data-theme="light"] #addStockModal .stockin-sub,
         html[data-theme="light"] #addStockModal .stockin-sub {
@@ -1202,9 +1202,9 @@ $categoriesList = [
         }
         [data-theme="light"] #addStockModal .stockin-badge,
         html[data-theme="light"] #addStockModal .stockin-badge {
-            background-color: #fef3c7 !important;
-            color: #b45309 !important;
-            border-color: #fde68a !important;
+            background-color: #dcfce7 !important;
+            color: #047857 !important;
+            border-color: #bbf7d0 !important;
         }
         [data-theme="light"] #addStockModal .stockin-label,
         html[data-theme="light"] #addStockModal .stockin-label {
@@ -1220,8 +1220,8 @@ $categoriesList = [
         [data-theme="light"] #addStockModal .stockin-input:focus,
         html[data-theme="light"] #addStockModal .stockin-input:focus {
             background-color: #ffffff !important;
-            border-color: #d97706 !important;
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18) !important;
+            border-color: #059669 !important;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18) !important;
         }
         [data-theme="light"] #addStockModal .stockin-input::placeholder,
         html[data-theme="light"] #addStockModal .stockin-input::placeholder {
@@ -1229,13 +1229,13 @@ $categoriesList = [
         }
         [data-theme="light"] #addStockModal select#packageType,
         html[data-theme="light"] #addStockModal select#packageType {
-            color: #b45309 !important;
+            color: #047857 !important;
             font-weight: 700 !important;
         }
         [data-theme="light"] #addStockModal select optgroup,
         html[data-theme="light"] #addStockModal select optgroup {
             background-color: #f8fafc !important;
-            color: #b45309 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] #addStockModal select option,
         html[data-theme="light"] #addStockModal select option {
@@ -1271,25 +1271,25 @@ $categoriesList = [
         }
         [data-theme="light"] #addStockModal .stockin-density-box span.font-semibold,
         html[data-theme="light"] #addStockModal .stockin-density-box span.font-semibold {
-            color: #b45309 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] #addStockModal .stockin-conv-box,
         html[data-theme="light"] #addStockModal .stockin-conv-box {
-            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
-            border-color: #fcd34d !important;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+            border-color: #86efac !important;
         }
         [data-theme="light"] #addStockModal .stockin-conv-title,
         html[data-theme="light"] #addStockModal .stockin-conv-title {
-            color: #92400e !important;
+            color: #065f46 !important;
         }
         [data-theme="light"] #addStockModal .stockin-conv-formula,
         html[data-theme="light"] #addStockModal .stockin-conv-formula {
-            color: #b45309 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] #addStockModal .stockin-stat-card,
         html[data-theme="light"] #addStockModal .stockin-stat-card {
             background-color: #ffffff !important;
-            border-color: #fde68a !important;
+            border-color: #bbf7d0 !important;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
         }
         [data-theme="light"] #addStockModal .stockin-stat-label,
@@ -1321,9 +1321,9 @@ $categoriesList = [
         }
         [data-theme="light"] #addStockModal .btn-stockin-submit,
         html[data-theme="light"] #addStockModal .btn-stockin-submit {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
             color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3) !important;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3) !important;
         }
 
         /* ══════════════════════════════════════════════════════════════
@@ -1511,13 +1511,13 @@ $categoriesList = [
             transition: all 0.15s ease;
         }
         .pkg-input:focus {
-            border-color: #d1904b !important;
+            border-color: #10b981 !important;
             outline: none;
-            box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.2);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
         }
         .pkg-summary-box {
             background: linear-gradient(135deg, #15151a 0%, #191921 100%);
-            border: 1.5px solid rgba(209, 144, 75, 0.35);
+            border: 1.5px solid rgba(16, 185, 129, 0.35);
         }
         .pkg-kpi-card {
             background-color: #141418;
@@ -1526,11 +1526,11 @@ $categoriesList = [
         .btn-pkg-add {
             background-color: #24242e;
             border: 1px solid #343444;
-            color: #d1904b;
+            color: #10b981;
         }
         .btn-pkg-add:hover {
             background-color: #2e2e3a;
-            color: #e5a15a;
+            color: #34d399;
         }
         .btn-pkg-cancel {
             background-color: #202026;
@@ -1581,19 +1581,19 @@ $categoriesList = [
         }
         [data-theme="light"] #packagingCostModal .pkg-input:focus,
         html[data-theme="light"] #packagingCostModal .pkg-input:focus {
-            border-color: #d1904b !important;
-            box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.2) !important;
+            border-color: #10b981 !important;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
         }
         [data-theme="light"] #packagingCostModal .pkg-summary-box,
         html[data-theme="light"] #packagingCostModal .pkg-summary-box {
-            background: linear-gradient(135deg, #fffbf5 0%, #fff7ed 100%) !important;
-            border: 1.5px solid #fed7aa !important;
-            box-shadow: 0 4px 16px rgba(209, 144, 75, 0.08) !important;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+            border: 1.5px solid #86efac !important;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.08) !important;
         }
         [data-theme="light"] #packagingCostModal .pkg-kpi-card,
         html[data-theme="light"] #packagingCostModal .pkg-kpi-card {
             background-color: #ffffff !important;
-            border: 1px solid #fed7aa !important;
+            border: 1px solid #bbf7d0 !important;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
         }
         [data-theme="light"] #packagingCostModal .pkg-kpi-card .card-kpi-val,
@@ -1602,13 +1602,13 @@ $categoriesList = [
         }
         [data-theme="light"] #packagingCostModal .btn-pkg-add,
         html[data-theme="light"] #packagingCostModal .btn-pkg-add {
-            background-color: #fff7ed !important;
-            border-color: #fed7aa !important;
-            color: #c2410c !important;
+            background-color: #f0fdf4 !important;
+            border-color: #bbf7d0 !important;
+            color: #047857 !important;
         }
         [data-theme="light"] #packagingCostModal .btn-pkg-add:hover,
         html[data-theme="light"] #packagingCostModal .btn-pkg-add:hover {
-            background-color: #ffedd5 !important;
+            background-color: #dcfce7 !important;
         }
         [data-theme="light"] #packagingCostModal .btn-pkg-cancel,
         html[data-theme="light"] #packagingCostModal .btn-pkg-cancel {
@@ -1623,16 +1623,16 @@ $categoriesList = [
             color: #0f172a !important;
         }
 
-        /* ══ Amber Table Row Hover Effect ══ */
+        /* ══ Emerald Table Row Hover Effect ══ */
         .row-hover {
             transition: background-color 0.18s ease-in-out, border-color 0.18s ease-in-out;
         }
         .row-hover:hover {
-            background-color: rgba(209, 144, 75, 0.09) !important;
+            background-color: rgba(16, 185, 129, 0.08) !important;
         }
         html[data-theme="light"] .row-hover:hover,
         [data-theme="light"] .row-hover:hover {
-            background-color: rgba(209, 144, 75, 0.14) !important;
+            background-color: rgba(16, 185, 129, 0.1) !important;
         }
 
         /* ========== STATS BAR (5 CARDS GRID) ========== */
@@ -1707,14 +1707,14 @@ $categoriesList = [
 
         .stat-card:hover {
             transform: translateY(-3px);
-            border-color: rgba(209, 144, 75, 0.4);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(209, 144, 75, 0.1);
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.1);
         }
 
         .stat-card.active {
-            border-color: #d1904b;
-            background: rgba(209, 144, 75, 0.12);
-            box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.12);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
         }
         .stat-card.total.active {
             border-color: #a78bfa;
@@ -1875,9 +1875,9 @@ $categoriesList = [
             color: #ffffff;
         }
         .hist-filter-tab.active {
-            background: rgba(209, 144, 75, 0.15);
-            color: #d1904b;
-            border-color: rgba(209, 144, 75, 0.35);
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.35);
         }
         [data-theme="light"] .hist-filter-tab {
             background: #f3f4f6;
@@ -1889,9 +1889,9 @@ $categoriesList = [
             color: #111827;
         }
         [data-theme="light"] .hist-filter-tab.active {
-            background: rgba(209, 144, 75, 0.12);
-            color: #b46d23;
-            border-color: rgba(209, 144, 75, 0.4);
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+            border-color: rgba(16, 185, 129, 0.4);
         }
 
         /* ══════════════════════════════════════════════════════════════
@@ -1918,7 +1918,7 @@ $categoriesList = [
             color: #ffffff;
         }
         .hist-search-box:focus {
-            border-color: #d1904b;
+            border-color: #10b981;
         }
         .hist-table-wrap {
             background-color: #141418;
@@ -2023,7 +2023,7 @@ $categoriesList = [
         }
         [data-theme="light"] #ingredientHistoryModal .hist-search-box:focus,
         html[data-theme="light"] #ingredientHistoryModal .hist-search-box:focus {
-            border-color: #d1904b !important;
+            border-color: #10b981 !important;
             background-color: #ffffff !important;
         }
         [data-theme="light"] #ingredientHistoryModal .hist-table-wrap,
@@ -2136,22 +2136,22 @@ $categoriesList = [
                     <!-- Packaging Set Cost Button -->
                     <button type="button" 
                             onclick="openPackagingCostModal()" 
-                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#d1904b] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm"
+                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#10b981] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm"
                             title="<?= __('packaging_modal_sub', 'Calculate & manage total packaging cost per cup') ?>">
-                        <i class="fa-solid fa-box-open text-[#d1904b]"></i>
+                        <i class="fa-solid fa-box-open text-[#10b981]"></i>
                         <span><?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់សរុប (Cost per Set)') ?></span>
                     </button>
 
                     <button type="button" 
                             onclick="openAuditLogsModal()" 
-                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#d1904b] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
-                        <i class="fa-solid fa-clock-rotate-left text-[#d1904b]"></i>
+                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#10b981] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-clock-rotate-left text-[#10b981]"></i>
                         <span><?= __('audit_and_logs', 'Audit & Logs') ?></span>
                     </button>
 
                     <button type="button" 
                             onclick="openAddStockModal()" 
-                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#d1904b] to-[#e5a15a] text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-lg shadow-[#d1904b]/20">
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-lg shadow-[#10b981]/25">
                         <i class="fa-solid fa-plus text-sm"></i>
                         <span><?= __('add_raw_ingredient', 'Add Raw Ingredient') ?></span>
                     </button>
@@ -2221,7 +2221,7 @@ $categoriesList = [
                         <input type="text" 
                                id="stockSearchInput" 
                                placeholder="<?= __('search_ingredients_ph', 'Search ingredients by name, category, notes...') ?>" 
-                               class="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-sm text-[var(--text-main)] placeholder-[#727282] focus:outline-none focus:border-[#d1904b] focus:ring-1 focus:ring-[#d1904b] transition-all">
+                               class="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-sm text-[var(--text-main)] placeholder-[#727282] focus:outline-none focus:border-[#10b981] focus:ring-1 focus:ring-[#10b981] transition-all">
                         <button type="button" 
                                 id="clearSearchBtn" 
                                 onclick="clearSearch()" 
@@ -2235,7 +2235,7 @@ $categoriesList = [
                         <div class="relative min-w-[170px]">
                             <select id="categoryFilter" 
                                     onchange="loadStockTable()" 
-                                    class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b] cursor-pointer">
+                                    class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#10b981] cursor-pointer">
                                 <option value="all"><?= __('all_categories', 'All Ingredient Categories') ?></option>
                                 <option value="Liquids"><?= __('cat_liquids', 'ទឹក') ?></option>
                                 <option value="Beans"><?= __('cat_beans', 'គ្រាប់') ?></option>
@@ -2251,7 +2251,7 @@ $categoriesList = [
                         <div class="relative min-w-[150px]">
                             <select id="sortSelector" 
                                     onchange="loadStockTable()" 
-                                    class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b] cursor-pointer">
+                                    class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#10b981] cursor-pointer">
                                 <option value="name_asc"><?= __('sort_name_asc', 'Name: A to Z') ?></option>
                                 <option value="name_desc"><?= __('sort_name_desc', 'Name: Z to A') ?></option>
                                 <option value="qty_asc"><?= __('sort_qty_asc', 'Qty: Low to High') ?></option>
@@ -2265,7 +2265,7 @@ $categoriesList = [
                         <!-- Reset / Refresh Button -->
                         <button type="button" 
                                 onclick="resetFilters()" 
-                                class="btn-reset-filter w-9 h-9 rounded-xl bg-[#141418] border border-[#252530] text-[#8e8e9f] hover:text-[#d1904b] hover:border-[#d1904b] flex items-center justify-center transition-all cursor-pointer" 
+                                class="btn-reset-filter w-9 h-9 rounded-xl bg-[#141418] border border-[#252530] text-[#8e8e9f] hover:text-[#10b981] hover:border-[#10b981] flex items-center justify-center transition-all cursor-pointer" 
                                 title="Reset Filters and Refresh Table">
                             <i class="fa-solid fa-arrows-rotate text-xs"></i>
                         </button>
@@ -2316,9 +2316,9 @@ $categoriesList = [
                             ?>
                             <tr class="row-hover group" data-item-id="<?= $item['item_id'] ?>">
                                 <td class="py-3.5 px-4">
-                                    <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate flex items-center gap-2">
+                                    <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#10b981] transition-colors truncate flex items-center gap-2">
                                         <?php if ($isPkgSet): ?>
-                                            <i class="fa-solid fa-box-open text-[#d1904b] text-xs"></i>
+                                            <i class="fa-solid fa-box-open text-[#10b981] text-xs"></i>
                                         <?php endif; ?>
                                         <span><?= htmlspecialchars($item['item_name']) ?></span>
                                     </div>
@@ -2348,7 +2348,7 @@ $categoriesList = [
                                 </td>
                                 <td class="py-3.5 px-3">
                                     <?php if ($isPkgSet): ?>
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#d1904b]/10 text-[#d1904b] border border-[#d1904b]/20">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                             <i class="fa-solid fa-calculator text-[10px]"></i> <?= __('auto_calculated_set', 'គិតតាមរូបមន្ត (Auto Set)') ?>
                                         </span>
                                     <?php else: ?>
@@ -2357,53 +2357,24 @@ $categoriesList = [
                                 </td>
                                 <td class="py-3.5 px-3">
                                     <?php if ($isPkgSet): ?>
-                                        <div class="font-bold text-[#d1904b] text-xs">$<?= number_format($cost, 4) ?> / set</div>
-                                        <div class="text-[10px] text-amber-500 font-semibold mt-0.5">(≈ <?= $khrFormatted ?> ៛)</div>
+                                        <div class="font-bold text-emerald-400 text-xs">$<?= number_format($cost, 4) ?> / set</div>
                                     <?php else: ?>
                                         <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$<?= number_format($val, 2) ?></div>
-                                        <div class="text-[11px] font-bold text-[#d1904b] mt-0.5">$<?= number_format($bulkPrice, 2) ?> / <?= $bulkUnit ?></div>
-                                        <div class="text-[10px] text-[#8e8e9f]">$<?= number_format($cost, 4) ?> / <?= htmlspecialchars($item['unit']) ?> <span class="text-amber-500 font-semibold">(≈ <?= $khrFormatted ?> ៛)</span></div>
+                                        <div class="text-[11px] font-bold text-[#34d399] mt-0.5">$<?= number_format($bulkPrice, 2) ?> / <?= $bulkUnit ?></div>
+                                        <div class="text-[10px] text-[#8e8e9f]">$<?= number_format($cost, 4) ?> / <?= htmlspecialchars($item['unit']) ?> <span class="text-emerald-400/80 font-semibold">(≈ <?= $khrFormatted ?> ៛)</span></div>
                                     <?php endif; ?>
                                 </td>
                                 <td class="py-3.5 px-4 text-right">
                                     <?php if ($isPkgSet): ?>
-                                        <button type="button" 
-                                                onclick="openPackagingCostModal()" 
-                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d1904b]/15 hover:bg-[#d1904b]/25 text-[#d1904b] border border-[#d1904b]/30 text-xs font-bold transition-all cursor-pointer shadow-sm"
-                                                title="<?= __('packaging_modal_sub', 'Calculate & manage total packaging cost per cup') ?>">
-                                            <i class="fa-solid fa-gear text-xs"></i>
-                                            <span><?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់') ?></span>
+                                        <button type="button" onclick="openPackagingCostModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer shadow-sm">
+                                            <i class="fa-solid fa-gear text-xs"></i> <span><?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់') ?></span>
                                         </button>
                                     <?php else: ?>
                                         <div class="flex items-center justify-end gap-1.5">
-                                            <!-- Deduction History -->
-                                            <button type="button" 
-                                                    onclick="openIngredientHistoryModal(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" 
-                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-sky-400 hover:bg-sky-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                                    title="<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក (Deduction History)') ?>">
-                                                <i class="fa-solid fa-clock-rotate-left w-4 text-center"></i>
-                                            </button>
-                                            <!-- Edit -->
-                                            <button type="button" 
-                                                    onclick="openEditStockModal(<?= $item['item_id'] ?>)" 
-                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" 
-                                                    title="<?= __('btn_edit', 'Edit') ?>">
-                                                <i class="fa-solid fa-pen-to-square w-4 text-center"></i>
-                                            </button>
-                                            <!-- Quick Restock -->
-                                            <button type="button" 
-                                                    onclick="openRestockModal(<?= $item['item_id'] ?>)" 
-                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                                    title="<?= __('btn_restock', 'Restock') ?>">
-                                                <i class="fa-solid fa-plus w-4 text-center"></i>
-                                            </button>
-                                            <!-- Delete -->
-                                            <button type="button" 
-                                                    onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" 
-                                                    class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" 
-                                                    title="<?= __('btn_delete', 'Delete') ?>">
-                                                <i class="fa-solid fa-trash-can w-4 text-center"></i>
-                                            </button>
+                                            <button type="button" onclick="openIngredientHistoryModal(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-sky-400 hover:bg-sky-500/15 border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក (Deduction History)') ?>"><i class="fa-solid fa-clock-rotate-left w-4 text-center"></i></button>
+                                            <button type="button" onclick="openEditStockModal(<?= $item['item_id'] ?>)" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-white hover:bg-[#282832] border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_edit', 'Edit') ?>"><i class="fa-solid fa-pen-to-square w-4 text-center"></i></button>
+                                            <button type="button" onclick="openRestockModal(<?= $item['item_id'] ?>)" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#b4b4c2] hover:text-emerald-400 hover:bg-emerald-500/15 border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_restock', 'Restock') ?>"><i class="fa-solid fa-plus w-4 text-center"></i></button>
+                                            <button type="button" onclick="confirmDeleteItem(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral p-1.5 rounded-lg bg-[#1f1f26] text-[#8e8e9f] hover:text-rose-400 hover:bg-rose-500/15 border border-[#2b2b36] transition-all cursor-pointer" title="<?= __('btn_delete', 'Delete') ?>"><i class="fa-solid fa-trash-can w-4 text-center"></i></button>
                                         </div>
                                     <?php endif; ?>
                                 </td>
@@ -2412,15 +2383,10 @@ $categoriesList = [
                         </tbody>
                     </table>
                 </div>
-
-                <!-- Table Footer Info -->
                 <div class="table-header-cell px-4 py-3 bg-[#141418] border-t border-[#24242b] flex items-center justify-between text-xs text-[#8e8e9f]">
-                    <div id="tableRecordCount">
-                        <?= __('showing_ingredients_count', 'Showing raw ingredients') ?>: <?= count($stockItems) ?>
-                    </div>
+                    <div id="tableRecordCount"><?= __('showing_ingredients_count', 'Showing raw ingredients') ?>: <?= count($stockItems) ?></div>
                 </div>
             </div>
-
         </main>
     </div>
 
@@ -2429,11 +2395,10 @@ $categoriesList = [
     ══════════════════════════════════════════════════════════════ -->
     <div id="addStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
         <div class="modal-content glass-card max-w-2xl w-full p-6 sm:p-7 rounded-3xl shadow-2xl relative flex flex-col max-h-[90vh]">
-            
             <!-- Header -->
             <div class="modal-header flex items-center justify-between pb-4 border-b shrink-0">
                 <div class="flex items-center gap-3">
-                    <div class="stockin-icon-wrap w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl shadow-sm">
+                    <div class="stockin-icon-wrap w-11 h-11 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl shadow-sm">
                         <i class="fa-solid fa-box-open"></i>
                     </div>
                     <div>
@@ -2569,7 +2534,7 @@ $categoriesList = [
                         <div class="relative">
                             <input type="number" id="volumePerUnit" value="320" step="any" min="0.001" oninput="calculateLiveStock();" required
                                    class="stockin-input w-full px-3.5 py-2.5 rounded-xl font-bold pr-12 text-xs">
-                            <span id="unitVolSuffix" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-extrabold text-[#d97706] dark:text-amber-400">ml</span>
+                            <span id="unitVolSuffix" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-extrabold text-emerald-500 dark:text-emerald-400">ml</span>
                         </div>
                     </div>
                     <div>
@@ -2578,7 +2543,7 @@ $categoriesList = [
                                 តម្លៃទិញសរុប (Total Cost) <span class="text-rose-500">*</span>
                             </label>
                             <div class="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-[#1a1a22] border border-slate-200 dark:border-[#2d2d3b] shrink-0">
-                                <button type="button" id="currBtnUsd" onclick="setAddCurrency('USD')" class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#d97706] text-white shadow-xs cursor-pointer transition-all">USD ($)</button>
+                                <button type="button" id="currBtnUsd" onclick="setAddCurrency('USD')" class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#10b981] text-white shadow-xs cursor-pointer transition-all">USD ($)</button>
                                 <button type="button" id="currBtnKhr" onclick="setAddCurrency('KHR')" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 dark:text-[#8e8e9f] hover:text-slate-900 dark:hover:text-white cursor-pointer transition-all">KHR (៛)</button>
                             </div>
                         </div>
@@ -2880,7 +2845,7 @@ $categoriesList = [
                     <select name="item_id" 
                             id="wasteItemSelect" 
                             required 
-                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                         <option value="">-- Choose Ingredient --</option>
                         <?php foreach ($stockItems as $it): ?>
                         <option value="<?= $it['item_id'] ?>">
@@ -2916,7 +2881,7 @@ $categoriesList = [
                 <div>
                     <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('notes', 'Notes') ?></label>
                     <input type="text" name="notes" placeholder="e.g. Steam pitcher dropped during rush" 
-                           class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                           class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                 </div>
 
                 <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
@@ -2941,7 +2906,7 @@ $categoriesList = [
         <div class="modal-content glass-card max-w-lg w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative">
             <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-[#10b981] flex items-center justify-center text-sm font-bold">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </div>
                     <h3 class="modal-title text-base font-bold text-white"><?= __('btn_edit', 'Edit Ingredient Details') ?></h3>
@@ -2962,13 +2927,13 @@ $categoriesList = [
                            id="editItemName" 
                            name="item_name" 
                            required 
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-sm text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_category', 'Category') ?> <span class="text-rose-400">*</span></label>
-                        <select id="editCategory" name="category" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                        <select id="editCategory" name="category" required class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                             <option value="Liquids"><?= __('cat_liquids', 'ទឹក') ?></option>
                             <option value="Beans"><?= __('cat_beans', 'គ្រាប់') ?></option>
                             <option value="Packaging"><?= __('cat_packaging', 'កែវ & ការវេចខ្ចប់') ?></option>
@@ -2978,7 +2943,7 @@ $categoriesList = [
 
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_unit', 'Measurement Unit') ?> <span class="text-rose-400">*</span></label>
-                        <select id="editUnit" name="unit" required onchange="handleUnitChange('edit')" class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                        <select id="editUnit" name="unit" required onchange="handleUnitChange('edit')" class="w-full px-3.5 py-2.5 rounded-xl bg-[#141418] border border-[#282834] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                             <option value="g">g (Grams)</option>
                             <option value="ml">ml (Milliliters)</option>
                             <option value="pcs">pcs (Pieces)</option>
@@ -2994,7 +2959,7 @@ $categoriesList = [
                                min="0" 
                                id="editQuantity" 
                                name="quantity" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                     </div>
                     <div>
                         <label class="modal-label block text-xs font-semibold text-[#b4b4c2] mb-1"><?= __('col_alert_threshold', 'Alert Threshold') ?></label>
@@ -3003,14 +2968,14 @@ $categoriesList = [
                                min="0" 
                                id="editAlertLevel" 
                                name="alert_level" 
-                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]">
+                               class="w-full px-3 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#10b981]">
                     </div>
                 </div>
 
                 <!-- Pricing Section: Price per KG/L + Base Unit Cost -->
                 <div class="pricing-calc-box p-3.5 rounded-xl space-y-2.5">
                     <div class="flex items-center justify-between text-xs">
-                        <span class="pricing-header-title font-bold flex items-center gap-1.5">
+                        <span class="pricing-header-title font-bold flex items-center gap-1.5 text-emerald-400">
                             <i class="fa-solid fa-calculator"></i>
                             <span id="editPricingSectionTitle"><?= __('cost_per_kg_l', 'Price per 1 KG / 1 Liter') ?></span>
                         </span>
@@ -3023,14 +2988,14 @@ $categoriesList = [
                                 <span id="editBulkCostLabelText"><?= __('cost_per_1kg', 'Price per 1 KG ($)') ?></span> <span class="text-rose-400">*</span>
                             </label>
                             <div class="relative">
-                                <span class="pricing-dollar-icon absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold">$</span>
+                                <span class="pricing-dollar-icon absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#10b981]">$</span>
                                 <input type="number" 
                                        step="any" 
                                        min="0" 
                                        id="editBulkCostInput" 
                                        placeholder="e.g. 12.00" 
                                        oninput="syncCostInputs('edit', 'bulk')" 
-                                       class="pricing-calc-input pricing-calc-input-highlight w-full pl-7 pr-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-[#d1904b] focus:ring-1 focus:ring-[#d1904b]">
+                                       class="pricing-calc-input pricing-calc-input-highlight w-full pl-7 pr-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-[#10b981] focus:ring-1 focus:ring-[#10b981]">
                             </div>
                         </div>
 
@@ -3047,13 +3012,13 @@ $categoriesList = [
                                        name="cost_per_unit" 
                                        value="0.0000" 
                                        oninput="syncCostInputs('edit', 'base')" 
-                                       class="pricing-calc-input w-full pl-7 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#d1904b]">
+                                       class="pricing-calc-input w-full pl-7 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#10b981]">
                             </div>
                         </div>
                     </div>
                     
                     <div id="editCostPreviewPill" class="pricing-calc-preview text-[11px] flex items-center justify-between pt-1">
-                        <span>Live Unit Cost: <strong class="font-mono" id="editLiveBaseCostDisplay">$0.0000 / g</strong></span>
+                        <span>Live Unit Cost: <strong class="font-mono text-emerald-400" id="editLiveBaseCostDisplay">$0.0000 / g</strong></span>
                         <span class="formula-text text-[10px]" id="editLiveFormulaText">1 kg @ $0.00</span>
                     </div>
                 </div>
@@ -3063,7 +3028,7 @@ $categoriesList = [
                     <textarea id="editNotes" 
                               name="notes" 
                               rows="2" 
-                              class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#d1904b]"></textarea>
+                              class="w-full px-3.5 py-2 rounded-xl bg-[#141418] border border-[#282834] text-xs text-[var(--text-main)] focus:outline-none focus:border-[#10b981]"></textarea>
                 </div>
 
                 <div class="modal-footer flex items-center justify-end gap-2.5 pt-3 border-t border-[#252530]">
@@ -3074,7 +3039,7 @@ $categoriesList = [
                     </button>
                     <button type="submit" 
                             id="editStockSubmitBtn" 
-                            class="px-5 py-2 rounded-xl bg-[#d1904b] hover:bg-[#e5a15a] text-black text-xs font-bold transition-all shadow-md shadow-[#d1904b]/20 cursor-pointer">
+                            class="px-5 py-2 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold transition-all shadow-md shadow-emerald-500/20 cursor-pointer">
                         <?= __('btn_update_drink', 'Update Ingredient') ?>
                     </button>
                 </div>
@@ -3089,7 +3054,7 @@ $categoriesList = [
         <div class="modal-content glass-card max-w-4xl w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh]">
             <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-[#10b981] flex items-center justify-center text-sm font-bold">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                     </div>
                     <div>
@@ -3104,7 +3069,7 @@ $categoriesList = [
 
             <div class="overflow-y-auto flex-1 space-y-4 pr-1" id="auditLogsContent">
                 <div class="text-center py-8 text-[#8e8e9f]">
-                    <i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i>
+                    <i class="fa-solid fa-spinner fa-spin text-2xl text-[#10b981] mb-2"></i>
                     <p>Loading audit ledger...</p>
                 </div>
             </div>
@@ -3127,7 +3092,7 @@ $categoriesList = [
             <!-- Modal Header -->
             <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-[#d1904b]/20 text-[#d1904b] border border-[#d1904b]/30 flex items-center justify-center text-base font-bold shadow-sm">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-[#10b981] border border-emerald-500/30 flex items-center justify-center text-base font-bold shadow-sm">
                         <i class="fa-solid fa-box-open"></i>
                     </div>
                     <div>
@@ -3144,7 +3109,7 @@ $categoriesList = [
             <div class="overflow-y-auto flex-1 space-y-4 pr-1">
                 <div class="flex items-center justify-between">
                     <span class="text-xs font-bold uppercase tracking-wider text-[#b4b4c2] flex items-center gap-2">
-                        <i class="fa-solid fa-layer-group text-[#d1904b]"></i> <?= __('packaging_item_name', 'Packaging Materials Breakdown') ?>
+                        <i class="fa-solid fa-layer-group text-[#10b981]"></i> <?= __('packaging_item_name', 'Packaging Materials Breakdown') ?>
                     </span>
                     <button type="button" 
                             onclick="addPackagingRow()" 
@@ -3178,7 +3143,7 @@ $categoriesList = [
                             <span class="text-xs font-semibold text-[#8e8e9f] block"><?= __('packaging_total_per_cup', 'Total Packaging Cost per 1 Cup') ?></span>
                             <div class="flex items-baseline gap-2 mt-0.5">
                                 <span class="text-2xl font-black text-emerald-500 font-mono" id="pkgTotalPerCupUsd">$0.0000</span>
-                                <span class="text-sm font-bold text-amber-500 font-mono" id="pkgTotalPerCupKhr">≈ 0 ៛ (Riel)</span>
+                                <span class="text-sm font-bold text-emerald-400 font-mono" id="pkgTotalPerCupKhr">≈ 0 ៛ (Riel)</span>
                             </div>
                         </div>
                         <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center text-lg shadow-sm">
@@ -3189,11 +3154,11 @@ $categoriesList = [
                     <div class="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--border,#252530)]">
                         <div class="pkg-kpi-card p-2.5 rounded-lg">
                             <span class="text-[11px] text-[#8e8e9f] font-medium block"><?= __('packaging_100_cups', 'Cost for 100 Cups') ?></span>
-                            <div class="card-kpi-val text-sm font-bold font-mono mt-0.5" id="pkg100CupsVal">$0.00 <span class="text-[11px] font-normal text-amber-500">(≈ 0 ៛)</span></div>
+                            <div class="card-kpi-val text-sm font-bold font-mono mt-0.5" id="pkg100CupsVal">$0.00 <span class="text-[11px] font-normal text-emerald-400">(≈ 0 ៛)</span></div>
                         </div>
                         <div class="pkg-kpi-card p-2.5 rounded-lg">
                             <span class="text-[11px] text-[#8e8e9f] font-medium block"><?= __('packaging_1000_cups', 'Cost for 1,000 Cups') ?></span>
-                            <div class="card-kpi-val text-sm font-bold font-mono mt-0.5" id="pkg1000CupsVal">$0.00 <span class="text-[11px] font-normal text-amber-500">(≈ 0 ៛)</span></div>
+                            <div class="card-kpi-val text-sm font-bold font-mono mt-0.5" id="pkg1000CupsVal">$0.00 <span class="text-[11px] font-normal text-emerald-400">(≈ 0 ៛)</span></div>
                         </div>
                     </div>
                 </div>
@@ -3209,7 +3174,7 @@ $categoriesList = [
                 <button type="button" 
                         id="savePackagingSetBtn" 
                         onclick="savePackagingSet()" 
-                        class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-[#d1904b] to-[#e5a15a] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-md">
+                        class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-500/20">
                     <i class="fa-solid fa-floppy-disk"></i>
                     <span><?= __('packaging_save_btn', 'Save Packaging Set Cost') ?></span>
                 </button>
@@ -3232,7 +3197,7 @@ $categoriesList = [
                         <div class="flex items-center gap-2 flex-wrap">
                             <h3 class="modal-title text-base font-bold flex items-center gap-2">
                                 <span><?= __('ingredient_history_title', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក') ?>:</span>
-                                <span id="historyIngTitleName" class="text-[#d1904b]">--</span>
+                                <span id="historyIngTitleName" class="text-[#10b981]">--</span>
                             </h3>
                             <span id="historyIngUnitBadge" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#202028] text-[#8e8e9f] border border-[#2b2b36]">--</span>
                         </div>
@@ -3259,7 +3224,7 @@ $categoriesList = [
             <!-- Content Area (Scrollable Table) -->
             <div class="overflow-y-auto flex-1 pr-1 mt-2.5 custom-modal-scroll" id="historyModalBody">
                 <div class="text-center py-10 text-[#8e8e9f]">
-                    <i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i>
+                    <i class="fa-solid fa-spinner fa-spin text-2xl text-[#10b981] mb-2"></i>
                     <p class="text-xs">Loading deduction history...</p>
                 </div>
             </div>
@@ -3501,12 +3466,12 @@ $categoriesList = [
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="8" class="py-12 text-center text-[#8e8e9f]">
-                            <div class="w-12 h-12 rounded-full bg-[#1e1e24] text-[#d1904b] mx-auto flex items-center justify-center text-xl mb-3">
+                            <div class="w-12 h-12 rounded-full bg-[#1e1e24] text-[#10b981] mx-auto flex items-center justify-center text-xl mb-3">
                                 <i class="fa-solid fa-seedling"></i>
                             </div>
                             <div class="text-sm font-bold text-white mb-1">${escapeHtml(I18N.noIngredientsFound)}</div>
                             <p class="text-xs text-[#7d7d8e] max-w-sm mx-auto mb-4">No ingredients matched your current filters. Try resetting filters or adding a new raw ingredient.</p>
-                            <button type="button" onclick="openAddStockModal()" class="px-4 py-2 rounded-xl bg-[#d1904b] text-black text-xs font-bold hover:bg-[#e5a15a] cursor-pointer">
+                            <button type="button" onclick="openAddStockModal()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] text-white text-xs font-bold hover:brightness-110 cursor-pointer shadow-md shadow-emerald-500/20">
                                 <i class="fa-solid fa-plus mr-1"></i> ${escapeHtml(I18N.addRawIngredient)}
                             </button>
                         </td>
@@ -3549,8 +3514,8 @@ $categoriesList = [
                     html += `
                     <tr class="row-hover group" data-item-id="${item.item_id}">
                         <td class="py-3.5 px-4">
-                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate flex items-center gap-2">
-                                <i class="fa-solid fa-box-open text-[#d1904b] text-xs"></i>
+                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#10b981] transition-colors truncate flex items-center gap-2">
+                                <i class="fa-solid fa-box-open text-[#10b981] text-xs"></i>
                                 <span>${escapeHtml(item.item_name)}</span>
                             </div>
                         </td>
@@ -3566,18 +3531,18 @@ $categoriesList = [
                             <span class="text-xs font-medium text-[#8e8e9f]">-</span>
                         </td>
                         <td class="py-3.5 px-3">
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#d1904b]/10 text-[#d1904b] border border-[#d1904b]/20">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                 <i class="fa-solid fa-calculator text-[10px]"></i> ${I18N.lang === 'km' ? 'គិតតាមរូបមន្ត (Auto Set)' : 'Auto Set'}
                             </span>
                         </td>
                         <td class="py-3.5 px-3">
-                            <div class="font-bold text-[#d1904b] text-xs">$${cost.toFixed(4)} / set</div>
-                            <div class="text-[10px] text-amber-500 font-semibold mt-0.5">(≈ ${khrCostText} ៛)</div>
+                            <div class="font-bold text-emerald-400 text-xs">$${cost.toFixed(4)} / set</div>
+                            <div class="text-[10px] text-emerald-500 font-semibold mt-0.5">(≈ ${khrCostText} ៛)</div>
                         </td>
                         <td class="py-3.5 px-4 text-right">
                             <button type="button" 
                                     onclick="openPackagingCostModal()" 
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#d1904b]/15 hover:bg-[#d1904b]/25 text-[#d1904b] border border-[#d1904b]/30 text-xs font-bold transition-all cursor-pointer shadow-sm" 
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer shadow-sm" 
                                     title="${escapeHtml(I18N.packagingSetCost)}">
                                 <i class="fa-solid fa-gear text-xs"></i>
                                 <span>${escapeHtml(I18N.packagingSetCost)}</span>
@@ -3589,7 +3554,7 @@ $categoriesList = [
                     html += `
                     <tr class="row-hover group" data-item-id="${item.item_id}">
                         <td class="py-3.5 px-4">
-                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
+                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#10b981] transition-colors truncate">
                                 ${escapeHtml(item.item_name)}
                             </div>
                         </td>
@@ -3613,8 +3578,8 @@ $categoriesList = [
                         </td>
                         <td class="py-3.5 px-3">
                             <div class="val-main-text text-[var(--text-main)] font-bold text-xs">$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                            <div class="text-[11px] font-bold text-[#d1904b] mt-0.5">$${bulkPrice.toFixed(2)} / ${bulkUnit}</div>
-                            <div class="text-[10px] text-[#8e8e9f]">$${cost.toFixed(4)} / ${escapeHtml(item.unit)} <span class="text-amber-500 font-semibold">(≈ ${khrCostText} ៛)</span></div>
+                            <div class="text-[11px] font-bold text-[#34d399] mt-0.5">$${bulkPrice.toFixed(2)} / ${bulkUnit}</div>
+                            <div class="text-[10px] text-[#8e8e9f]">$${cost.toFixed(4)} / ${escapeHtml(item.unit)} <span class="text-emerald-400/80 font-semibold">(≈ ${khrCostText} ៛)</span></div>
                         </td>
                         <td class="py-3.5 px-4 text-right">
                             <div class="flex items-center justify-end gap-1.5">
@@ -3899,7 +3864,7 @@ $categoriesList = [
                 currInput.value = 'KHR';
                 if (suffix) suffix.textContent = '៛ KHR';
                 if (btnKhr) {
-                    btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#d97706] text-white shadow-xs cursor-pointer transition-all';
+                    btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#10b981] text-white shadow-xs cursor-pointer transition-all';
                 }
                 if (btnUsd) {
                     btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 dark:text-[#8e8e9f] hover:text-slate-900 dark:hover:text-white cursor-pointer transition-all';
@@ -3913,7 +3878,7 @@ $categoriesList = [
                 currInput.value = 'USD';
                 if (suffix) suffix.textContent = '$ USD';
                 if (btnUsd) {
-                    btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#d97706] text-white shadow-xs cursor-pointer transition-all';
+                    btnUsd.className = 'px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#10b981] text-white shadow-xs cursor-pointer transition-all';
                 }
                 if (btnKhr) {
                     btnKhr.className = 'px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 dark:text-[#8e8e9f] hover:text-slate-900 dark:hover:text-white cursor-pointer transition-all';
@@ -4548,7 +4513,7 @@ $categoriesList = [
         async function openAuditLogsModal() {
             openModal('auditLogsModal');
             const container = document.getElementById('auditLogsContent');
-            container.innerHTML = `<div class="text-center py-8 text-[#8e8e9f]"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i><p>Loading audit ledger...</p></div>`;
+            container.innerHTML = `<div class="text-center py-8 text-[#8e8e9f]"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#10b981] mb-2"></i><p>Loading audit ledger...</p></div>`;
 
             try {
                 const res = await fetch('ingredients.php?action=get_audit_logs');
@@ -4830,7 +4795,7 @@ $categoriesList = [
             if (body) {
                 body.innerHTML = `
                     <div class="text-center py-12 text-[#8e8e9f]">
-                        <i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i>
+                        <i class="fa-solid fa-spinner fa-spin text-2xl text-[#10b981] mb-2"></i>
                         <p class="text-xs">Loading deduction logs for ${escapeHtml(itemName)}...</p>
                     </div>
                 `;
@@ -4945,7 +4910,7 @@ $categoriesList = [
                         <!-- 3. Product Name -->
                         <td class="py-3 px-4">
                             <div class="hist-row-prod font-bold text-xs flex items-center gap-2">
-                                <i class="fa-solid fa-mug-hot text-[#d1904b] text-xs"></i>
+                                <i class="fa-solid fa-mug-hot text-[#10b981] text-xs"></i>
                                 <span>${escapeHtml(prodName)}</span>
                             </div>
                         </td>

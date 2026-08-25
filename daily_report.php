@@ -287,32 +287,134 @@ if ($_is_mgr) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
+        :root, [data-theme="dark"], html:not([data-theme="light"]) {
+            --bg-main: #0b0c10;
+            --bg-card: #14151e;
+            --bg-card-hover: #191a26;
+            --bg-input: #1b1c27;
+            --bg-subtle: #101118;
+            --border-color: #232433;
+            --border-input: #2c2d3e;
+            --text-main: #f8fafc;
+            --text-muted: #8e8e9f;
+            --text-sub: #c7c7d4;
+            --accent: #10b981;
+            --accent-hover: #059669;
+        }
+
+        [data-theme="light"], html[data-theme="light"] {
+            --bg-main: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8fafc;
+            --bg-input: #f8fafc;
+            --bg-subtle: #f8fafc;
+            --border-color: #e2e8f0;
+            --border-input: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-sub: #334155;
+            --accent: #10b981;
+            --accent-hover: #059669;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, .app-layout, .app-main, .rep-page-wrapper {
-            background-color: #f8fafc !important;
+            background-color: var(--bg-main) !important;
             background-image: none !important;
-            color: #0f172a;
+            color: var(--text-main);
             font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
         }
+
+        /* Light Theme Overrides */
+        [data-theme="light"] body,
+        [data-theme="light"] .app-layout,
+        [data-theme="light"] .app-main,
+        [data-theme="light"] .rep-page-wrapper {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .bg-\[\#14151e\] {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+        }
+        [data-theme="light"] .bg-\[\#1b1c27\] {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .bg-\[\#101118\] {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] thead tr.bg-\[\#101118\] {
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] th {
+            color: #64748b !important;
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] .text-white {
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .text-\[\#8e8e9f\],
+        [data-theme="light"] .text-\[\#78788c\],
+        [data-theme="light"] .text-\[\#606175\] {
+            color: #64748b !important;
+        }
+        [data-theme="light"] .text-\[\#c7c7d4\] {
+            color: #334155 !important;
+        }
+        [data-theme="light"] .placeholder-\[\#68687a\]::placeholder {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] .border-\[\#232433\],
+        [data-theme="light"] .border-\[\#2c2d3e\],
+        [data-theme="light"] .divide-\[\#1e1f2c\] > :not([hidden]) ~ :not([hidden]) {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] tr.border-b {
+            border-color: #e2e8f0 !important;
+        }
+        [data-theme="light"] .hover\:bg-\[\#191a26\]:hover,
+        [data-theme="light"] .hover\:bg-\[\#1b1c27\]:hover,
+        [data-theme="light"] .hover\:bg-\[\#252737\]:hover {
+            background-color: #f8fafc !important;
+        }
+        [data-theme="light"] .products-list-modal {
+            background: rgba(15, 23, 42, 0.45);
+        }
+        [data-theme="light"] .products-list-modal .products-modal-dialog {
+            background: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+        }
+        [data-theme="light"] #reportOrdersContainer::-webkit-scrollbar-track { background: #f8fafc; }
+        [data-theme="light"] #reportOrdersContainer::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        [data-theme="light"] #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar,
         #reportOrdersContainer::-webkit-scrollbar { width: 7px; height: 7px; }
         ::-webkit-scrollbar-track,
-        #reportOrdersContainer::-webkit-scrollbar-track { background: #f8fafc; }
+        #reportOrdersContainer::-webkit-scrollbar-track { background: #14151e; }
         ::-webkit-scrollbar-thumb,
-        #reportOrdersContainer::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        #reportOrdersContainer::-webkit-scrollbar-thumb { background: #2c2d3e; border-radius: 9999px; }
         ::-webkit-scrollbar-thumb:hover,
-        #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        #reportOrdersContainer::-webkit-scrollbar-thumb:hover { background: #3e4056; }
 
         @media print {
             .print-hide, aside, #sidebar, .sidebar { display: none !important; }
-            body, .app-layout, .app-main, .rep-page-wrapper { background: #fff !important; }
+            body, .app-layout, .app-main, .rep-page-wrapper { background: #fff !important; color: #000 !important; }
             #reportOrdersCard { border: none !important; box-shadow: none !important; }
         }
 
@@ -320,7 +422,7 @@ if ($_is_mgr) {
             position: fixed;
             inset: 0;
             z-index: 9999;
-            background: rgba(15, 23, 42, 0.45);
+            background: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
             display: none;
@@ -339,13 +441,14 @@ if ($_is_mgr) {
         }
 
         .products-list-modal .products-modal-dialog {
-            background: #ffffff;
+            background: #14151e;
             border-radius: 24px;
             padding: 24px 28px;
             width: 100%;
             max-width: 520px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(241, 245, 249, 1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            border: 1px solid #28293d;
+            color: #f8fafc;
             transform: scale(0.96) translateY(6px);
             transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -355,22 +458,22 @@ if ($_is_mgr) {
         }
     </style>
 </head>
-<body style="background-color: #f8fafc !important;">
-<div class="flex h-screen w-screen overflow-hidden app-layout" style="background-color: #f8fafc !important;">
+<body>
+<div class="flex h-screen w-screen overflow-hidden app-layout">
     <?php require_once __DIR__ . '/sidebar.php'; ?>
 
-    <div class="app-main flex-1 h-screen overflow-hidden flex flex-col" style="background-color: #f8fafc !important;">
-        <div class="rep-page-wrapper w-full h-full p-4 md:p-6 bg-[#f8fafc] flex flex-col gap-4 overflow-hidden" style="background-color: #f8fafc !important;">
+    <div class="app-main flex-1 h-screen overflow-hidden flex flex-col">
+        <div class="rep-page-wrapper w-full h-full p-4 md:p-6 flex flex-col gap-4 overflow-hidden">
 
             <!-- TOP BREADCRUMBS & ACTION BUTTONS -->
             <div class="flex items-center justify-between gap-4 pb-0.5 flex-shrink-0 print-hide">
                 <!-- Breadcrumbs -->
                 <div class="flex items-center gap-2 text-xs md:text-sm font-medium">
-                    <span class="text-slate-400"><?= $isKm ? 'របាយការណ៍' : 'Reports' ?></span>
-                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
-                    <span class="text-slate-400">Sales</span>
-                    <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
-                    <span class="text-slate-900 font-bold"><?= $isKm ? 'របាយការណ៍លក់' : 'Sales Report' ?></span>
+                    <span class="text-[#8e8e9f]"><?= $isKm ? 'របាយការណ៍' : 'Reports' ?></span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-[#606175]"></i>
+                    <span class="text-[#8e8e9f]">Sales</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] text-[#606175]"></i>
+                    <span class="text-white font-bold"><?= $isKm ? 'របាយការណ៍លក់' : 'Sales Report' ?></span>
                 </div>
 
                 <!-- Action Buttons -->
@@ -388,42 +491,42 @@ if ($_is_mgr) {
                     $pdf_url = 'daily_report_pdf.php?' . http_build_query($pdf_params);
                     ?>
                     <a href="<?= htmlspecialchars($pdf_url) ?>" target="_blank" 
-                       class="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold rounded-xl border border-slate-200 shadow-sm transition cursor-pointer">
-                        <i class="fa-solid fa-print text-slate-400 text-xs"></i>
+                       class="inline-flex items-center gap-2 px-3.5 py-2 bg-[#14151e] hover:bg-[#1b1c27] text-white text-xs md:text-sm font-semibold rounded-xl border border-[#2c2d3e] hover:border-emerald-500/40 shadow-sm transition cursor-pointer">
+                        <i class="fa-solid fa-print text-emerald-400 text-xs"></i>
                         <span><?= $isKm ? 'បោះពុម្ព (PDF)' : 'Print (PDF)' ?></span>
                     </a>
                 </div>
             </div>
 
             <!-- FILTER CARD -->
-            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-5 flex-shrink-0 print-hide">
+            <div class="bg-[#14151e] border border-[#232433] rounded-2xl shadow-lg p-4 md:p-5 flex-shrink-0 print-hide">
                 <form method="GET" action="daily_report.php" id="salesReportFilterForm" class="flex flex-col gap-3.5">
                     <!-- Row 1: 5 Filter Columns -->
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                         <!-- 1. Start Date & Time -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date & Time' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'ចាប់ពីថ្ងៃ' : 'From Date & Time' ?></label>
                             <div class="relative">
                                 <input type="datetime-local" id="fromDateTimeInput" name="from_datetime" value="<?= htmlspecialchars($fromDateTimeInputVal) ?>" onchange="this.form.submit()"
-                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                       class="w-full px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                             </div>
                         </div>
 
                         <!-- 2. End Date & Time -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date & Time' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'ដល់ថ្ងៃ' : 'To Date & Time' ?></label>
                             <div class="relative">
                                 <input type="datetime-local" id="toDateTimeInput" name="to_datetime" value="<?= htmlspecialchars($toDateTimeInputVal) ?>" onchange="this.form.submit()"
-                                       class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                       class="w-full px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                             </div>
                         </div>
 
                         <!-- 3. Quick Range -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'កាលបរិច្ឆេទលឿន' : 'Quick Range' ?></label>
                             <div class="relative">
                                 <select name="quick_range" id="quickRangeSelect" onchange="handleQuickRangeChange(this.value)" 
-                                        class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                        class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="">-- <?= $isKm ? 'ជ្រើសរើស' : 'Select' ?> --</option>
                                     <option value="today" <?= $quickRange === 'today' ? 'selected' : '' ?>><?= $isKm ? 'ថ្ងៃនេះ (Today)' : 'Today' ?></option>
                                     <option value="yesterday" <?= $quickRange === 'yesterday' ? 'selected' : '' ?>><?= $isKm ? 'ម្សិលមិញ (Yesterday)' : 'Yesterday' ?></option>
@@ -431,15 +534,15 @@ if ($_is_mgr) {
                                     <option value="month" <?= $quickRange === 'month' ? 'selected' : '' ?>><?= $isKm ? 'ខែនេះ (This Month)' : 'This Month' ?></option>
                                     <option value="year" <?= $quickRange === 'year' ? 'selected' : '' ?>><?= $isKm ? 'ឆ្នាំនេះ (This Year)' : 'This Year' ?></option>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
 
                         <!-- 4. Staff -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'បុគ្គលិក (Staff)' : 'Staff' ?></label>
                             <div class="relative">
-                                <select name="user_id" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                <select name="user_id" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="0">All Staff</option>
                                     <?php foreach ($staffList as $st): ?>
                                     <option value="<?= (int)$st['user_id'] ?>" <?= $filterUser === (int)$st['user_id'] ? 'selected' : '' ?>>
@@ -447,42 +550,42 @@ if ($_is_mgr) {
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
 
                         <!-- 5. Payment Method -->
                         <div class="flex flex-col gap-1">
-                            <label class="text-[11px] font-bold text-slate-600"><?= $isKm ? 'វិធីទូទាត់' : 'Payment Method' ?></label>
+                            <label class="text-[11px] font-bold text-[#8e8e9f]"><?= $isKm ? 'វិធីទូទាត់' : 'Payment Method' ?></label>
                             <div class="relative">
-                                <select name="payment_method" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 pr-7 focus:outline-none focus:border-slate-400 focus:bg-white transition cursor-pointer">
+                                <select name="payment_method" onchange="this.form.submit()" class="w-full appearance-none px-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-semibold text-white pr-7 focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition cursor-pointer">
                                     <option value="all" <?= $paymentMethod === 'all' ? 'selected' : '' ?>>All Methods</option>
                                     <option value="Cash" <?= $paymentMethod === 'Cash' ? 'selected' : '' ?>>Cash</option>
                                     <option value="Bakong" <?= $paymentMethod === 'Bakong' ? 'selected' : '' ?>>Bakong</option>
                                     <option value="PayLater" <?= $paymentMethod === 'PayLater' ? 'selected' : '' ?>>Pay Later</option>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78788c] text-[10px] pointer-events-none"></i>
                             </div>
                         </div>
                     </div>
 
                     <!-- Row 2: Search Input & Action Buttons -->
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1 border-t border-[#232433]">
                         <!-- Left: Search Box -->
                         <div class="relative flex-1 max-w-sm">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78788c] text-xs pointer-events-none"></i>
                             <input type="text" id="tableSearchInput" name="search" value="<?= htmlspecialchars($searchQuery) ?>" oninput="filterTableClientSide()"
                                    placeholder="<?= $isKm ? 'ស្វែងរកតាមលេខ Order, អតិថិជន...' : 'Search order #, customer...' ?>"
-                                   class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 transition">
+                                   class="w-full pl-9 pr-3 py-2 bg-[#1b1c27] border border-[#2c2d3e] rounded-xl text-xs font-medium text-white placeholder-[#68687a] focus:outline-none focus:border-[#10b981] focus:ring-2 focus:ring-emerald-500/20 transition">
                         </div>
 
                         <!-- Right: Reset & Filter Button -->
                         <div class="flex items-center justify-end gap-3.5">
-                            <a href="daily_report.php" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer">
+                            <a href="daily_report.php" class="text-xs font-bold text-[#8e8e9f] hover:text-white transition cursor-pointer">
                                 <?= $isKm ? 'កំណត់ឡើងវិញ' : 'Reset' ?>
                             </a>
                             <button type="submit" 
-                                    class="inline-flex items-center gap-2 px-5 py-2 bg-[#0b1329] hover:bg-[#162238] text-white text-xs font-bold rounded-xl shadow-sm transition hover:shadow cursor-pointer">
+                                    class="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition cursor-pointer">
                                 <i class="fa-solid fa-filter text-[11px]"></i>
                                 <span><?= $isKm ? 'ស្វែងរកទិន្នន័យ' : 'Filter' ?></span>
                             </button>
@@ -492,30 +595,30 @@ if ($_is_mgr) {
             </div>
 
             <!-- DATA TABLE CARD WITH VERTICAL SCROLL -->
-            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
+            <div class="bg-[#14151e] border border-[#232433] rounded-2xl shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
                 <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="reportOrdersContainer">
                     <table class="w-full text-left border-collapse" id="reportOrdersTable">
-                        <thead class="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_#f1f5f9]">
-                            <tr class="border-b border-slate-100 bg-white">
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'លេខ ORDER' : 'ORDER NO' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'កាលបរិច្ឆេទ' : 'DATE & TIME' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'អតិថិជន' : 'CUSTOMER' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'តម្លៃ' : 'TOTAL' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ' : 'PROFIT' ?></th>
-                                <th class="py-3.5 px-6 text-center text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញ' : 'ITEMS' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'វិធីទូទាត់' : 'PAYMENT' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'អ្នកលក់' : 'CASHIER' ?></th>
+                        <thead class="sticky top-0 bg-[#101118] z-20 shadow-[0_1px_0_0_#232433]">
+                            <tr class="border-b border-[#232433] bg-[#101118]">
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'លេខ ORDER' : 'ORDER NO' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'កាលបរិច្ឆេទ' : 'DATE & TIME' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'អតិថិជន' : 'CUSTOMER' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'តម្លៃ' : 'TOTAL' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ' : 'PROFIT' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញ' : 'ITEMS' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'វិធីទូទាត់' : 'PAYMENT' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'អ្នកលក់' : 'CASHIER' ?></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50">
+                        <tbody class="divide-y divide-[#1e1f2c]">
                             <?php if (empty($ordersList)): ?>
                             <tr id="noDataRow">
-                                <td colspan="8" class="text-center py-16 px-4 text-slate-400">
-                                    <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400 text-xl">
+                                <td colspan="8" class="text-center py-16 px-4 text-[#8e8e9f]">
+                                    <div class="w-14 h-14 rounded-full bg-[#1b1c27] flex items-center justify-center mx-auto mb-3 text-[#78788c] text-xl">
                                         <i class="fa-solid fa-folder-open"></i>
                                     </div>
-                                    <div class="font-bold text-slate-700 text-sm mb-1"><?= $isKm ? 'គ្មានទិន្នន័យការលក់' : 'No sales records found' ?></div>
-                                    <div class="text-xs text-slate-400"><?= $isKm ? 'សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting the date range or filters' ?></div>
+                                    <div class="font-bold text-white text-sm mb-1"><?= $isKm ? 'គ្មានទិន្នន័យការលក់' : 'No sales records found' ?></div>
+                                    <div class="text-xs text-[#8e8e9f]"><?= $isKm ? 'សូមជ្រើសរើសកាលបរិច្ឆេទផ្សេង ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting the date range or filters' ?></div>
                                 </td>
                             </tr>
                             <?php else: ?>
@@ -527,33 +630,33 @@ if ($_is_mgr) {
                                     $totalFormatted = '$' . number_format((float)$o['total'], 2);
                                     $profitVal       = (float)($o['total_profit'] ?? 0);
                                     $profitFormatted = ($profitVal >= 0 ? '$' : '-$') . number_format(abs($profitVal), 2);
-                                    $profitClass     = $profitVal < 0 ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold';
+                                    $profitClass     = $profitVal < 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
                                     $itemsCount      = (int)$o['total_items'];
                                     $sellerName      = $o['seller_name'];
                                     
                                     // Payment Method badge
                                     $pmLower = strtolower($o['payment_method'] ?? 'cash');
                                     if (strpos($pmLower, 'bakong') !== false || strpos($pmLower, 'khqr') !== false || strpos($pmLower, 'qr') !== false) {
-                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-700 text-xs font-bold"><i class="fa-solid fa-qrcode text-[10px]"></i> Bakong</span>';
+                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold"><i class="fa-solid fa-qrcode text-[10px]"></i> Bakong</span>';
                                     } elseif (strpos($pmLower, 'later') !== false || strpos($pmLower, 'credit') !== false) {
-                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-700 text-xs font-bold"><i class="fa-regular fa-clock text-[10px]"></i> Pay Later</span>';
+                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold"><i class="fa-regular fa-clock text-[10px]"></i> Pay Later</span>';
                                     } else {
-                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/70 text-emerald-700 text-xs font-bold"><i class="fa-solid fa-money-bill-wave text-[10px]"></i> Cash</span>';
+                                        $pmBadge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold"><i class="fa-solid fa-money-bill-wave text-[10px]"></i> Cash</span>';
                                     }
                                 ?>
-                                <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors cursor-pointer" onclick="openReportOrderDetails(<?= (int)$o['order_id'] ?>)" title="<?= $isKm ? 'ចុចដើម្បីមើលព័ត៌មានលម្អិតមុខទំនិញ' : 'Click to view product details' ?>">
-                                    <td class="py-4 px-6 text-xs font-bold text-slate-900 whitespace-nowrap">
-                                        <span class="hover:text-emerald-600 transition-colors font-bold"><?= $orderNoPadded ?></span>
+                                <tr class="border-b border-[#1e1f2c] hover:bg-[#191a26] transition-colors cursor-pointer" onclick="openReportOrderDetails(<?= (int)$o['order_id'] ?>)" title="<?= $isKm ? 'ចុចដើម្បីមើលព័ត៌មានលម្អិតមុខទំនិញ' : 'Click to view product details' ?>">
+                                    <td class="py-4 px-6 text-xs font-bold text-white whitespace-nowrap">
+                                        <span class="hover:text-emerald-400 transition-colors font-bold"><?= $orderNoPadded ?></span>
                                     </td>
-                                    <td class="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap"><?= htmlspecialchars($dtFormatted) ?></td>
-                                    <td class="py-4 px-6 text-xs font-semibold text-slate-700 whitespace-nowrap"><?= htmlspecialchars($customerName) ?></td>
-                                    <td class="py-4 px-6 text-xs font-black text-slate-900 whitespace-nowrap"><?= $totalFormatted ?></td>
+                                    <td class="py-4 px-6 text-xs text-[#8e8e9f] font-medium whitespace-nowrap"><?= htmlspecialchars($dtFormatted) ?></td>
+                                    <td class="py-4 px-6 text-xs font-semibold text-[#c7c7d4] whitespace-nowrap"><?= htmlspecialchars($customerName) ?></td>
+                                    <td class="py-4 px-6 text-xs font-black text-white whitespace-nowrap"><?= $totalFormatted ?></td>
                                     <td class="py-4 px-6 text-xs whitespace-nowrap <?= $profitClass ?>"><?= $profitFormatted ?></td>
-                                    <td class="py-4 px-6 text-center text-xs font-semibold text-slate-600 whitespace-nowrap">
-                                        <span class="inline-flex items-center justify-center min-w-[24px] px-2 py-0.5 rounded-full bg-slate-100 font-semibold text-xs text-slate-700"><?= $itemsCount ?></span>
+                                    <td class="py-4 px-6 text-center text-xs font-semibold text-[#c7c7d4] whitespace-nowrap">
+                                        <span class="inline-flex items-center justify-center min-w-[24px] px-2 py-0.5 rounded-full bg-[#1b1c27] border border-[#2c2d3e] font-semibold text-xs text-white"><?= $itemsCount ?></span>
                                     </td>
                                     <td class="py-4 px-6 whitespace-nowrap"><?= $pmBadge ?></td>
-                                    <td class="py-4 px-6 text-xs font-medium text-slate-500 whitespace-nowrap"><?= htmlspecialchars($sellerName) ?></td>
+                                    <td class="py-4 px-6 text-xs font-medium text-[#8e8e9f] whitespace-nowrap"><?= htmlspecialchars($sellerName) ?></td>
                                 </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -562,28 +665,28 @@ if ($_is_mgr) {
                 </div>
 
                 <!-- TABLE SUMMARY FOOTER -->
-                <div class="p-4 md:p-5 bg-white border-t border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
+                <div class="p-4 md:p-5 bg-[#101118] border-t border-[#232433] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 flex-shrink-0">
                     <!-- Left: Date Range & Order Count -->
-                    <div class="flex flex-col gap-0.5 text-xs text-slate-500">
-                        <div><?= $isKm ? 'ចន្លោះកាលបរិច្ឆេទ:' : 'Date Range:' ?> <span class="font-bold text-slate-700"><?= date('j/n/Y', strtotime($fromDate)) ?> — <?= date('j/n/Y', strtotime($toDate)) ?></span></div>
-                        <div><?= $isKm ? 'ចំនួនប្រតិបត្តិការសរុប (Orders):' : 'Total Orders Count:' ?> <span class="font-bold text-slate-700"><?= number_format($totalOrdersCount) ?></span></div>
+                    <div class="flex flex-col gap-0.5 text-xs text-[#8e8e9f]">
+                        <div><?= $isKm ? 'ចន្លោះកាលបរិច្ឆេទ:' : 'Date Range:' ?> <span class="font-bold text-white"><?= date('j/n/Y', strtotime($fromDate)) ?> — <?= date('j/n/Y', strtotime($toDate)) ?></span></div>
+                        <div><?= $isKm ? 'ចំនួនប្រតិបត្តិការសរុប (Orders):' : 'Total Orders Count:' ?> <span class="font-bold text-white"><?= number_format($totalOrdersCount) ?></span></div>
                     </div>
 
                     <!-- Right: Total Items, Total Sales & Total Profit -->
                     <div class="flex items-center gap-8 self-end md:self-auto">
                         <div class="text-right">
-                            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញសរុប' : 'Total Items' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-slate-900 leading-tight"><?= number_format($totalItemsSold) ?></div>
+                            <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញសរុប' : 'Total Items' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-white leading-tight"><?= number_format($totalItemsSold) ?></div>
                         </div>
                         <div class="text-right">
-                            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ការលក់សរុប' : 'Total Sales' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-slate-900 leading-tight"><?= '$' . number_format($totalSalesAmount, 2) ?></div>
+                            <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ការលក់សរុប' : 'Total Sales' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-white leading-tight"><?= '$' . number_format($totalSalesAmount, 2) ?></div>
                         </div>
                         <div class="text-right">
-                            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit' ?></div>
+                            <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit' ?></div>
                             <?php 
                                 $totalProfitFmt   = ($totalProfitAmount >= 0 ? '$' : '-$') . number_format(abs($totalProfitAmount), 2);
-                                $totalProfitClass = $totalProfitAmount < 0 ? 'text-rose-600' : 'text-emerald-600';
+                                $totalProfitClass = $totalProfitAmount < 0 ? 'text-rose-400' : 'text-emerald-400';
                             ?>
                             <div class="text-xl md:text-2xl font-black <?= $totalProfitClass ?> leading-tight"><?= $totalProfitFmt ?></div>
                         </div>
@@ -669,21 +772,21 @@ function renderOrderProductsModal(o) {
         const lineTotal = unitPrice * qty;
 
         const customOpts = [i.size, i.sweetness, i.ice, i.milk].concat(i.addons || []).filter(Boolean).join(', ');
-        const subtextHtml = customOpts ? `<div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(customOpts)}</div>` : '';
+        const subtextHtml = customOpts ? `<div class="text-[11px] text-[#8e8e9f] mt-0.5">${escapeHtml(customOpts)}</div>` : '';
 
         return `
-            <tr class="border-b border-slate-50 last:border-b-0">
+            <tr class="border-b border-[#1e1f2c] last:border-b-0">
                 <td class="py-3 px-1 text-left">
-                    <div class="font-normal text-slate-800 text-xs md:text-sm leading-snug">${escapeHtml(i.product_name || i.name || 'Product')}</div>
+                    <div class="font-normal text-white text-xs md:text-sm leading-snug">${escapeHtml(i.product_name || i.name || 'Product')}</div>
                     ${subtextHtml}
                 </td>
                 <td class="py-3 px-3 text-center">
-                    <span class="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded bg-slate-100 text-slate-700 font-normal text-xs">${qty}</span>
+                    <span class="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-lg bg-[#1b1c27] border border-[#2c2d3e] text-white font-normal text-xs">${qty}</span>
                 </td>
-                <td class="py-3 px-3 text-right text-slate-600 font-normal whitespace-nowrap text-xs">
+                <td class="py-3 px-3 text-right text-[#8e8e9f] font-normal whitespace-nowrap text-xs">
                     $${unitPrice.toFixed(2)}
                 </td>
-                <td class="py-3 px-1 text-right font-normal text-slate-800 whitespace-nowrap text-xs md:text-sm">
+                <td class="py-3 px-1 text-right font-bold text-white whitespace-nowrap text-xs md:text-sm">
                     $${lineTotal.toFixed(2)}
                 </td>
             </tr>
@@ -692,23 +795,23 @@ function renderOrderProductsModal(o) {
 
     content.innerHTML = `
         <!-- Modal Header -->
-        <div class="flex items-start justify-between pb-3 border-b border-slate-100 flex-shrink-0">
+        <div class="flex items-start justify-between pb-3 border-b border-[#232433] flex-shrink-0">
             <div>
                 <div class="flex items-center gap-2.5">
-                    <h3 class="text-base font-extrabold text-slate-900">
+                    <h3 class="text-base font-extrabold text-white">
                         ${currentIsKm ? 'ព័ត៌មានលម្អិតមុខទំនិញ' : 'Order Product Details'}
                     </h3>
-                    <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200/80 text-xs font-bold tracking-wide">
+                    <span class="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-bold tracking-wide">
                         ${escapeHtml(orderNoPadded)}
                     </span>
                 </div>
-                <div class="text-xs text-slate-400 font-normal mt-1 flex items-center gap-1.5 flex-wrap">
+                <div class="text-xs text-[#8e8e9f] font-normal mt-1 flex items-center gap-1.5 flex-wrap">
                     <span>${escapeHtml(dtFormatted)}</span>
                     <span>•</span>
                     <span>${currentIsKm ? 'បង្កើតដោយ' : 'Created by'}: ${escapeHtml(staffName)}</span>
                 </div>
             </div>
-            <button type="button" onclick="closeOrderProductsModal()" class="w-7 h-7 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 inline-flex items-center justify-center transition cursor-pointer" title="Close">
+            <button type="button" onclick="closeOrderProductsModal()" class="w-7 h-7 rounded-lg hover:bg-[#1b1c27] text-[#8e8e9f] hover:text-white inline-flex items-center justify-center transition cursor-pointer" title="Close">
                 <i class="fa-solid fa-xmark text-sm"></i>
             </button>
         </div>
@@ -717,39 +820,39 @@ function renderOrderProductsModal(o) {
         <div class="overflow-y-auto max-h-[50vh] my-2 min-h-0">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="border-b border-t border-slate-100 text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                    <tr class="border-b border-t border-[#232433] text-[11px] text-[#8e8e9f] font-bold uppercase tracking-wider">
                         <th class="py-2.5 px-1 text-left font-bold">${currentIsKm ? 'មុខទំនិញ (ITEM)' : 'ITEM'}</th>
                         <th class="py-2.5 px-3 text-center font-bold">${currentIsKm ? 'ចំនួន (QTY)' : 'QTY'}</th>
                         <th class="py-2.5 px-3 text-right font-bold">${currentIsKm ? 'តម្លៃរាយ' : 'PRICE'}</th>
                         <th class="py-2.5 px-1 text-right font-bold">${currentIsKm ? 'សរុប' : 'TOTAL'}</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-50">
-                    ${itemsRowsHtml || `<tr><td colspan="4" class="text-center py-6 text-slate-400 text-xs">${currentIsKm ? 'មិនមានមុខទំនិញទេ' : 'No items found'}</td></tr>`}
+                <tbody class="divide-y divide-[#1e1f2c]">
+                    ${itemsRowsHtml || `<tr><td colspan="4" class="text-center py-6 text-[#8e8e9f] text-xs">${currentIsKm ? 'មិនមានមុខទំនិញទេ' : 'No items found'}</td></tr>`}
                 </tbody>
             </table>
         </div>
 
         <!-- Totals Calculation -->
-        <div class="pt-3 border-t border-slate-100 space-y-1.5 text-xs flex-shrink-0">
+        <div class="pt-3 border-t border-[#232433] space-y-1.5 text-xs flex-shrink-0">
             ${totalDisc > 0 ? `
-            <div class="flex justify-between items-center text-slate-500">
+            <div class="flex justify-between items-center text-[#8e8e9f]">
                 <span>${currentIsKm ? 'ការបញ្ចុះតម្លៃ (Discount)' : 'Discount'}</span>
-                <span class="font-bold text-rose-500">-$${totalDisc.toFixed(2)}</span>
+                <span class="font-bold text-rose-400">-$${totalDisc.toFixed(2)}</span>
             </div>
             ` : ''}
             <div class="flex justify-between items-center pt-1">
-                <span class="text-xs md:text-sm font-black text-slate-900">${currentIsKm ? 'តម្លៃសរុបចុងក្រោយ (Grand Total)' : 'Grand Total'}</span>
-                <span class="text-sm md:text-base font-black text-emerald-600">$${grandTotal.toFixed(2)}</span>
+                <span class="text-xs md:text-sm font-black text-white">${currentIsKm ? 'តម្លៃសរុបចុងក្រោយ (Grand Total)' : 'Grand Total'}</span>
+                <span class="text-sm md:text-base font-black text-emerald-400">$${grandTotal.toFixed(2)}</span>
             </div>
         </div>
 
         <!-- Footer Action Buttons -->
         <div class="mt-5 pt-2 flex items-center justify-end gap-3 flex-shrink-0">
-            <button type="button" onclick="closeOrderProductsModal()" class="px-5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 text-xs font-bold transition shadow-sm cursor-pointer">
+            <button type="button" onclick="closeOrderProductsModal()" class="px-5 py-2 rounded-xl bg-[#1b1c27] hover:bg-[#252737] border border-[#2c2d3e] text-[#c7c7d4] hover:text-white text-xs font-bold transition shadow-sm cursor-pointer">
                 ${currentIsKm ? 'បិទ (Close)' : 'Close'}
             </button>
-            <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer">
+            <button type="button" onclick="printReceipt(${Number(o.order_id)})" class="px-5 py-2 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition flex items-center gap-1.5 cursor-pointer">
                 <i class="fa-solid fa-print text-xs"></i>
                 <span>${currentIsKm ? 'បោះពុម្ព (Print)' : 'Print'}</span>
             </button>

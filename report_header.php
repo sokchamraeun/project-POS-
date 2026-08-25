@@ -54,7 +54,7 @@ html, body {
     transition: color 0.2s;
 }
 .er-breadcrumb a:hover {
-    color: var(--accent, #d1904b);
+    color: var(--accent, #10b981);
 }
 .er-breadcrumb .er-sep {
     color: #555;
@@ -132,12 +132,12 @@ html, body {
     opacity: 0.8;
 }
 .er-input:focus, .er-select:focus {
-    border-color: var(--accent, #d1904b);
-    box-shadow: 0 0 0 2px rgba(209,144,75,0.25);
+    border-color: var(--accent, #10b981);
+    box-shadow: 0 0 0 2px rgba(16,185,129,0.25);
 }
 .er-btn-filter {
-    background: #d1904b;
-    color: #000;
+    background: #10b981;
+    color: #fff;
     font-weight: 800;
     font-size: 0.95rem;
     padding: 0.6rem 1.75rem;
@@ -155,7 +155,7 @@ html, body {
     gap: 0.5rem;
 }
 .er-btn-filter:hover {
-    background: #e5a15a;
+    background: #059669;
     transform: translateY(-1px);
 }
 
@@ -182,8 +182,8 @@ html, body {
 }
 .er-btn-icon:hover {
     background: #252532;
-    color: var(--accent, #d1904b);
-    border-color: var(--accent, #d1904b);
+    color: var(--accent, #10b981);
+    border-color: var(--accent, #10b981);
 }
 .er-search-box {
     position: relative;
@@ -577,7 +577,7 @@ html, body {
 .er-summary-stat-item .stat-val {
     font-size: 1.2rem;
     font-weight: 700;
-    color: var(--accent, #d1904b);
+    color: var(--accent, #10b981);
 }
 
 .er-btn-preset {
@@ -598,8 +598,8 @@ html, body {
 }
 .er-btn-preset:hover {
     background: #252532;
-    border-color: var(--accent, #d1904b);
-    color: var(--accent, #d1904b);
+    border-color: var(--accent, #10b981);
+    color: var(--accent, #10b981);
     transform: translateY(-1px);
 }
 
@@ -619,9 +619,9 @@ html, body {
     padding: 0;
 }
 .er-sidebar-toggle:hover {
-    background: rgba(209, 144, 75, 0.15);
-    border-color: var(--accent, #d1904b);
-    color: var(--accent, #d1904b);
+    background: rgba(16, 185, 129, 0.15);
+    border-color: var(--accent, #10b981);
+    color: var(--accent, #10b981);
 }
 [data-theme="light"] .er-sidebar-toggle {
     background: #ede8e0 !important;
@@ -1146,6 +1146,8 @@ if (typeof window.toggleTheme !== 'function') {
         var html = document.documentElement;
         var isLight = html.getAttribute('data-theme') === 'light';
         var nextTheme = isLight ? 'dark' : 'light';
+
+        html.classList.add('theme-transitioning');
         html.setAttribute('data-theme', nextTheme);
         localStorage.setItem('theme', nextTheme);
 
@@ -1156,6 +1158,11 @@ if (typeof window.toggleTheme !== 'function') {
             txt.textContent = nextTheme === 'light' ? 'Light' : 'Dark';
         });
         if (typeof initCharts === 'function') initCharts();
+
+        clearTimeout(window.__themeTransitionTimer);
+        window.__themeTransitionTimer = setTimeout(function() {
+            html.classList.remove('theme-transitioning');
+        }, 450);
     };
 }
 (function() {

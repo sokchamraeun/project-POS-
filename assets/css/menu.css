@@ -25,20 +25,21 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0c0c0c;
-  --bg-card: #161616;
-  --bg-card-hover: #1e1e1e;
-  --bg-input: #1a1a1a;
-  --bg-header: rgba(14,14,14,0.96);
-  --border: #252525;
-  --border-hover: #333;
-  --text: #f0f0f0;
-  --text-sec: #aaa;
-  --text-muted: #555;
-  --text-inv: #000;
+  --bg: #080c14;
+  --bg-card: #0e1422;
+  --bg-card-hover: #131b2e;
+  --bg-input: #101726;
+  --bg-header: rgba(8, 12, 20, 0.96);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(16, 185, 129, 0.4);
+  --text: #f8fafc;
+  --text-sec: #94a3b8;
+  --text-muted: #64748b;
+  --text-inv: #ffffff;
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 20px rgba(0,0,0,0.5);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
+  --shadow-accent: 0 8px 24px rgba(0,0,0,0.45), 0 0 15px rgba(16, 185, 129, 0.15);
 }
 
 /* ── RESET & BASE ── */
@@ -2024,24 +2025,24 @@ body {
 }
 
 .cp-title i {
-  color: #c8863f;
+  color: #10b981;
   font-size: 1.15rem;
 }
 
 .cp-count {
-  background: #c8863f;
+  background: #10b981;
   color: #ffffff;
   border-radius: 9999px;
   padding: 3px 14px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1.4;
   font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
-  box-shadow: 0 1px 3px rgba(200, 134, 63, 0.2);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
 }
 
 

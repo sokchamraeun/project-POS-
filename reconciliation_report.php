@@ -300,12 +300,12 @@ if ($is_ajax) {
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a0a0a;--surface:#111;--surface2:#161616;--border:rgba(255,255,255,.07);
-  --amber:#d1904b;--amber-dim:rgba(209,144,75,.12);--amber-border:rgba(209,144,75,.2);
-  --green:#22c55e;--green-dim:rgba(34,197,94,.1);--green-border:rgba(34,197,94,.2);
+  --bg:#0b0c10;--surface:#14151e;--surface2:#191a26;--border:#232433;
+  --amber:#10b981;--amber-dim:rgba(16,185,129,.12);--amber-border:rgba(16,185,129,.25);
+  --green:#10b981;--green-dim:rgba(16,185,129,.1);--green-border:rgba(16,185,129,.25);
   --red:#ef4444;--red-dim:rgba(239,68,68,.1);--red-border:rgba(239,68,68,.2);
   --yellow:#f59e0b;--yellow-dim:rgba(245,158,11,.1);--yellow-border:rgba(245,158,11,.2);
-  --text:#f0f0f0;--muted:#555;--muted2:#888;
+  --text:#f0f0f0;--muted:#8e8e9f;--muted2:#a0a0b2;
   --radius:14px;
 }
 @keyframes fadeInUp {from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -315,7 +315,7 @@ if ($is_ajax) {
 
 body{
   font-family:'Poppins',sans-serif;
-  background:radial-gradient(ellipse 80% 40% at 50% 0%,rgba(209,144,75,.07) 0%,transparent 100%),#0a0a0a;
+  background:radial-gradient(ellipse 80% 40% at 50% 0%,rgba(16,185,129,.07) 0%,transparent 100%),#0b0c10;
   color:var(--text);min-height:100vh;
 }
 
@@ -330,10 +330,10 @@ body{
 .topbar-left{display:flex;align-items:center;gap:14px}
 .back-btn{
   display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:10px;
-  background:rgba(209,144,75,.08);border:1px solid rgba(209,144,75,.35);
-  color:#d1904b;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;
+  background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.35);
+  color:#10b981;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;
 }
-.back-btn:hover{background:rgba(209,144,75,.16);border-color:#d1904b}
+.back-btn:hover{background:rgba(16,185,129,.16);border-color:#10b981}
 .page-title{font-size:18px;font-weight:700;color:var(--text)}
 .page-sub{font-size:12px;color:var(--muted);margin-top:1px}
 

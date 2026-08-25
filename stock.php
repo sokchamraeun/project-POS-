@@ -290,6 +290,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         if ($action === 'get_item' || $action === 'get_single_item') {
             $itemId = (int)($_GET['item_id'] ?? ($_POST['item_id'] ?? 0));
             $stmt = $pdo->prepare("SELECT s.*, 
+                           COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+                           COALESCE(NULLIF(s.image_box, ''), '') AS image_box,
                            COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
                            COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box
                     FROM stock_items s 
@@ -300,6 +302,13 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
             if (!$item) {
                 sendJsonResponse(['success' => false, 'message' => 'Drink item not found.'], 404);
+            }
+
+            if (!empty($item['image'])) {
+                $item['image'] = get_image_url($item['image']);
+            }
+            if (!empty($item['image_box'])) {
+                $item['image_box'] = get_image_url($item['image_box']);
             }
 
             sendJsonResponse(['success' => true, 'item' => $item]);
@@ -402,28 +411,29 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                     $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $image_path]);
                 }
 
-                // 2. Auto Create / Update BOX Product
-                $bPrice = $sellPriceBox > 0 ? $sellPriceBox : ($uPrice * $rate);
-                $bCost = $costBox > 0 ? $costBox : ($uCost * $rate);
-                $bImage = !empty($image_box_path) ? $image_box_path : $image_path;
+                // 2. Auto Create / Update BOX Product ONLY if image_box is provided
+                if (!empty($image_box_path)) {
+                    $bPrice = $sellPriceBox > 0 ? $sellPriceBox : ($uPrice * $rate);
+                    $bCost = $costBox > 0 ? $costBox : ($uCost * $rate);
+                    $bImage = $image_box_path;
 
-                $bCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) IN (
-                    LOWER(REPLACE(?, ' ', '')),
-                    LOWER(REPLACE(?, ' ', '')),
-                    LOWER(REPLACE(?, ' ', '')),
-                    LOWER(REPLACE(?, ' ', ''))
-                ) LIMIT 1");
-                $bCheck->execute([$boxName, $boxNameEn, $name . ' (កេស)', $name . ' (យួរ)']);
-                $existingBoxProd = $bCheck->fetch();
+                    $bCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) IN (
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', ''))
+                    ) LIMIT 1");
+                    $bCheck->execute([$boxName, $boxNameEn, $name . ' (កេស)', $name . ' (យួរ)']);
+                    $existingBoxProd = $bCheck->fetch();
 
-                if ($existingBoxProd) {
-                    $bImgFinal = !empty($bImage) ? $bImage : $existingBoxProd['image'];
-                    $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                    $bUpd->execute([$boxName, $bPrice, $bCost, $bImgFinal, $existingBoxProd['product_id']]);
-                } else {
-                    $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
-                    $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
-                    $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
+                    if ($existingBoxProd) {
+                        $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                        $bUpd->execute([$boxName, $bPrice, $bCost, $bImage, $existingBoxProd['product_id']]);
+                    } else {
+                        $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                        $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
+                        $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
+                    }
                 }
             } catch (Exception $e) {
                 error_log("Auto sync products on create_item error: " . $e->getMessage());
@@ -623,11 +633,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                     $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $finalImage]);
                 }
 
-                // 2. Sync Box Product
-                $bPrice = $sellPriceBox > 0 ? $sellPriceBox : ($uPrice * $rate);
-                $bCost = $costBox > 0 ? $costBox : ($uCost * $rate);
-                $bImage = !empty($finalImageBox) ? $finalImageBox : $finalImage;
-
+                // 2. Sync Box Product ONLY if image_box is provided
                 $bCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) IN (
                     LOWER(REPLACE(?, ' ', '')),
                     LOWER(REPLACE(?, ' ', '')),
@@ -650,14 +656,26 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 ]);
                 $existingBoxProd = $bCheck->fetch();
 
-                if ($existingBoxProd) {
-                    $bImgFinal = !empty($bImage) ? $bImage : $existingBoxProd['image'];
-                    $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                    $bUpd->execute([$boxName, $bPrice, $bCost, $bImgFinal, $existingBoxProd['product_id']]);
+                if (!empty($finalImageBox)) {
+                    $bPrice = $sellPriceBox > 0 ? $sellPriceBox : ($uPrice * $rate);
+                    $bCost = $costBox > 0 ? $costBox : ($uCost * $rate);
+                    $bImage = $finalImageBox;
+
+                    if ($existingBoxProd) {
+                        $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                        $bUpd->execute([$boxName, $bPrice, $bCost, $bImage, $existingBoxProd['product_id']]);
+                    } else {
+                        $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                        $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
+                        $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
+                    }
                 } else {
-                    $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
-                    $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
-                    $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
+                    // If no box image is set, remove Box product so POS menu only sells unit
+                    if ($existingBoxProd) {
+                        $bPid = (int)$existingBoxProd['product_id'];
+                        $pdo->prepare("DELETE FROM product_recipes WHERE product_id = ?")->execute([$bPid]);
+                        $pdo->prepare("DELETE FROM products WHERE product_id = ?")->execute([$bPid]);
+                    }
                 }
             } catch (Exception $e) {
                 error_log("Auto sync products on update_item error: " . $e->getMessage());
@@ -807,9 +825,9 @@ $stockItems = $initStmt->fetchAll();
             --surface-hover: #202028;
             --border: #24242b;
             --border-subtle: #1c1c22;
-            --accent: #d1904b;
-            --accent-hover: #e5a15a;
-            --accent-glow: rgba(209, 144, 75, 0.25);
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --accent-glow: rgba(16, 185, 129, 0.25);
             --text-main: #f4f4f6;
             --text-muted: #8e8e9f;
             --sidebar-w: 256px;
@@ -822,9 +840,9 @@ $stockItems = $initStmt->fetchAll();
             --surface-hover: #f1f5f9;
             --border: #e2e4ea;
             --border-subtle: #ebedf2;
-            --accent: #c47c2c;
-            --accent-hover: #ad6b22;
-            --accent-glow: rgba(196, 124, 44, 0.18);
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --accent-glow: rgba(16, 185, 129, 0.18);
             --text-main: #111827;
             --text-muted: #64748b;
         }
@@ -892,6 +910,169 @@ $stockItems = $initStmt->fetchAll();
             color: #111827 !important;
         }
         [data-theme="light"] .modal-content label { color: #475569 !important; }
+        
+        /* ══════════════════════════════════════════════════════════════
+           MODAL OBSIDIAN DARK THEME (Default / Dark Mode)
+        ══════════════════════════════════════════════════════════════ */
+        html:not([data-theme="light"]) .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.8) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+        }
+        html:not([data-theme="light"]) .modal-content {
+            background-color: #0e1422 !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85) !important;
+            color: #ffffff !important;
+        }
+        html:not([data-theme="light"]) .modal-header,
+        html:not([data-theme="light"]) .modal-content .modal-header,
+        html:not([data-theme="light"]) #restockModal .px-6.py-5 {
+            background-color: #0e1422 !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        html:not([data-theme="light"]) .modal-content form {
+            background-color: #080c14 !important;
+            color: #ffffff !important;
+        }
+        html:not([data-theme="light"]) .modal-content label {
+            color: #cbd5e1 !important;
+        }
+        html:not([data-theme="light"]) .modal-content h3,
+        html:not([data-theme="light"]) .modal-content h4,
+        html:not([data-theme="light"]) .modal-content strong,
+        html:not([data-theme="light"]) .modal-content .modal-title,
+        html:not([data-theme="light"]) .modal-content .text-slate-800,
+        html:not([data-theme="light"]) .modal-content .text-slate-900,
+        html:not([data-theme="light"]) .modal-content .text-slate-700 {
+            color: #ffffff !important;
+        }
+        html:not([data-theme="light"]) .modal-content p,
+        html:not([data-theme="light"]) .modal-content .text-slate-400,
+        html:not([data-theme="light"]) .modal-content .text-slate-500,
+        html:not([data-theme="light"]) .modal-content .text-slate-600 {
+            color: #94a3b8 !important;
+        }
+
+        /* Modal Inputs & Selects */
+        html:not([data-theme="light"]) .modal-content input:not([type="checkbox"]):not([type="radio"]),
+        html:not([data-theme="light"]) .modal-content select,
+        html:not([data-theme="light"]) .modal-content textarea {
+            background-color: #101726 !important;
+            border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+            color: #ffffff !important;
+        }
+        html:not([data-theme="light"]) .modal-content input::placeholder,
+        html:not([data-theme="light"]) .modal-content textarea::placeholder {
+            color: #64748b !important;
+        }
+        html:not([data-theme="light"]) .modal-content input:focus,
+        html:not([data-theme="light"]) .modal-content select:focus,
+        html:not([data-theme="light"]) .modal-content textarea:focus {
+            border-color: #10b981 !important;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+        }
+        html:not([data-theme="light"]) .modal-content select option {
+            background-color: #101726 !important;
+            color: #ffffff !important;
+        }
+
+        /* Sub-cards and nested containers inside modals */
+        html:not([data-theme="light"]) .modal-content .bg-white,
+        html:not([data-theme="light"]) .modal-content .bg-slate-50,
+        html:not([data-theme="light"]) .modal-content .bg-slate-50\/70,
+        html:not([data-theme="light"]) .modal-content .bg-slate-50\/50,
+        html:not([data-theme="light"]) .modal-content .bg-slate-100 {
+            background-color: #101726 !important;
+        }
+        html:not([data-theme="light"]) .modal-content .border-slate-100,
+        html:not([data-theme="light"]) .modal-content .border-slate-200,
+        html:not([data-theme="light"]) .modal-content .border-slate-200\/80,
+        html:not([data-theme="light"]) .modal-content .border-slate-200\/60,
+        html:not([data-theme="light"]) .modal-content .border-indigo-100,
+        html:not([data-theme="light"]) .modal-content .border-emerald-100 {
+            border-color: rgba(255, 255, 255, 0.08) !important;
+        }
+
+        /* Image Dropzones in Add / Edit */
+        html:not([data-theme="light"]) .modal-content .border-dashed {
+            background-color: #101726 !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        html:not([data-theme="light"]) .modal-content .border-dashed:hover {
+            border-color: #10b981 !important;
+            background-color: rgba(16, 185, 129, 0.05) !important;
+        }
+        html:not([data-theme="light"]) .modal-content .border-dashed .bg-indigo-50,
+        html:not([data-theme="light"]) .modal-content .border-dashed .bg-emerald-50 {
+            background-color: rgba(16, 185, 129, 0.12) !important;
+            color: #34d399 !important;
+        }
+        html:not([data-theme="light"]) .modal-content .border-dashed span.text-indigo-600,
+        html:not([data-theme="light"]) .modal-content .border-dashed span.text-emerald-600 {
+            color: #ffffff !important;
+        }
+
+        /* Restock & Profit highlight cards */
+        html:not([data-theme="light"]) #restockPreviewCard,
+        html:not([data-theme="light"]) .modal-content .bg-indigo-50\/60,
+        html:not([data-theme="light"]) .modal-content .bg-indigo-50 {
+            background-color: rgba(99, 102, 241, 0.1) !important;
+            border-color: rgba(99, 102, 241, 0.25) !important;
+        }
+        html:not([data-theme="light"]) #restockPreviewCard .text-indigo-950,
+        html:not([data-theme="light"]) #restockPreviewCard .text-indigo-900\/80 {
+            color: #ffffff !important;
+        }
+        html:not([data-theme="light"]) #restockBadgeUnits {
+            background-color: #101726 !important;
+            border-color: rgba(99, 102, 241, 0.3) !important;
+            color: #818cf8 !important;
+        }
+        html:not([data-theme="light"]) #restockCurrentStock {
+            color: #94a3b8 !important;
+        }
+        html:not([data-theme="light"]) #restockProjectedStock {
+            color: #34d399 !important;
+        }
+        html:not([data-theme="light"]) #restockBoxToLoosePreview {
+            color: #34d399 !important;
+        }
+
+        /* Modal Footer & Buttons */
+        html:not([data-theme="light"]) .modal-footer,
+        html:not([data-theme="light"]) .modal-content .modal-footer {
+            background-color: #0e1422 !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        html:not([data-theme="light"]) #addStockSubmitBtn,
+        html:not([data-theme="light"]) #editStockSubmitBtn,
+        html:not([data-theme="light"]) #restockSubmitBtn,
+        html:not([data-theme="light"]) .modal-footer button[type="submit"] {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+        }
+        html:not([data-theme="light"]) #addStockSubmitBtn:hover,
+        html:not([data-theme="light"]) #editStockSubmitBtn:hover,
+        html:not([data-theme="light"]) #restockSubmitBtn:hover,
+        html:not([data-theme="light"]) .modal-footer button[type="submit"]:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45) !important;
+        }
+        html:not([data-theme="light"]) .modal-footer button[type="button"]:not([type="submit"]):not(.btn-primary),
+        html:not([data-theme="light"]) form .flex.items-center.justify-end.gap-3 button[type="button"] {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        html:not([data-theme="light"]) .modal-footer button[type="button"]:not([type="submit"]):not(.btn-primary):hover,
+        html:not([data-theme="light"]) form .flex.items-center.justify-end.gap-3 button[type="button"]:hover {
+            background-color: rgba(255, 255, 255, 0.12) !important;
+            color: #ffffff !important;
+        }
         
         /* ── Modal Header & Button Color Fix ── */
         .modal-header,
@@ -997,25 +1178,25 @@ $stockItems = $initStmt->fetchAll();
             box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
         }
 
-        /* ── Mini Image Thumbnails for Table (Dual Images) ── */
+        /* ── Mini Image Thumbnails for Table (Category Tint & Badge) ── */
         .item-mini-img {
-            width: 36px;
-            height: 36px;
-            border-radius: 9px;
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
             background-color: #1e1e24;
             border: 1px solid #282834;
-            overflow: hidden;
+            overflow: visible;
             flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
             position: relative;
             transition: transform 0.15s ease, border-color 0.15s ease;
         }
         .item-mini-img:hover {
             transform: scale(1.08);
-            border-color: #d1904b;
+            border-color: #10b981;
             z-index: 10;
         }
         .item-mini-img img {
@@ -1023,36 +1204,57 @@ $stockItems = $initStmt->fetchAll();
             height: 100%;
             object-fit: cover;
             display: block;
+            border-radius: 10px;
         }
+
+        /* Category Tint Placeholders */
+        .item-mini-img.tint-unit {
+            background-color: #eef2ff !important;
+            border-color: #dbeafe !important;
+        }
+        .item-mini-img.tint-box {
+            background-color: #fffbeb !important;
+            border-color: #fef3c7 !important;
+        }
+
+        [data-theme="dark"] .item-mini-img.tint-unit {
+            background-color: rgba(99, 102, 241, 0.12) !important;
+            border-color: rgba(99, 102, 241, 0.28) !important;
+        }
+        [data-theme="dark"] .item-mini-img.tint-box {
+            background-color: rgba(16, 185, 129, 0.12) !important;
+            border-color: rgba(16, 185, 129, 0.28) !important;
+        }
+
+        [data-theme="light"] .item-mini-img {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+        }
+
         .mini-img-tag {
             position: absolute;
-            bottom: 0;
-            right: 0;
-            background: rgba(15, 23, 42, 0.85);
-            color: #94a3b8;
-            font-size: 8px;
-            font-weight: 700;
-            padding: 0 3px;
-            border-top-left-radius: 4px;
-            line-height: 1.2;
+            bottom: -2px;
+            right: -2px;
+            background: #0f172a;
+            color: #ffffff;
+            font-size: 7.5px;
+            font-weight: 800;
+            padding: 0.5px 4.5px;
+            border-radius: 9999px;
+            line-height: 1.25;
             pointer-events: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            z-index: 2;
+            letter-spacing: 0.2px;
+        }
+        .mini-img-tag.unit-tag {
+            background: #090d16 !important;
+            color: #ffffff !important;
         }
         .mini-img-tag.box-tag {
-            color: #f59e0b;
-            background: rgba(30, 27, 75, 0.9);
-        }
-        [data-theme="light"] .item-mini-img {
-            background-color: #f1f5f9 !important;
-            border-color: #e2e4ea !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
-        }
-        [data-theme="light"] .mini-img-tag {
-            background: rgba(241, 245, 249, 0.9) !important;
-            color: #475569 !important;
-        }
-        [data-theme="light"] .mini-img-tag.box-tag {
-            background: #fef3c7 !important;
-            color: #b45309 !important;
+            background: #059669 !important;
+            color: #ffffff !important;
         }
 
         /* ── Modern Adaptive Stock Image Upload Box ── */
@@ -1068,7 +1270,7 @@ $stockItems = $initStmt->fetchAll();
             transition: all 0.2s ease;
         }
         .stock-img-upload-box:hover {
-            border-color: #d1904b;
+            border-color: #10b981;
             background-color: #1a1a22;
         }
         .stock-img-thumb {
@@ -1105,15 +1307,15 @@ $stockItems = $initStmt->fetchAll();
             border-radius: 10px;
             font-size: 12px;
             font-weight: 600;
-            background: rgba(209, 144, 75, 0.16);
-            color: #e5a15a;
-            border: 1px solid rgba(209, 144, 75, 0.35);
+            background: rgba(16, 185, 129, 0.16);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.35);
             transition: all 0.2s ease;
         }
         .stock-img-upload-box:hover .stock-upload-btn-pill {
-            background: rgba(209, 144, 75, 0.26);
-            color: #f5b774;
-            border-color: #d1904b;
+            background: rgba(16, 185, 129, 0.26);
+            color: #10b981;
+            border-color: #10b981;
         }
 
         [data-theme="light"] .stock-img-upload-box {
@@ -1121,8 +1323,8 @@ $stockItems = $initStmt->fetchAll();
             border-color: #cbd5e1 !important;
         }
         [data-theme="light"] .stock-img-upload-box:hover {
-            border-color: #d97706 !important;
-            background-color: #fffbeb !important;
+            border-color: #059669 !important;
+            background-color: #f0fdf4 !important;
         }
         [data-theme="light"] .stock-img-thumb {
             background-color: #ffffff !important;
@@ -1130,14 +1332,14 @@ $stockItems = $initStmt->fetchAll();
             box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         [data-theme="light"] .stock-upload-btn-pill {
-            background-color: #fef3c7 !important;
-            color: #92400e !important;
-            border-color: #fde68a !important;
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            border-color: #a7f3d0 !important;
         }
         [data-theme="light"] .stock-img-upload-box:hover .stock-upload-btn-pill {
-            background-color: #fde68a !important;
-            color: #78350f !important;
-            border-color: #f59e0b !important;
+            background-color: #a7f3d0 !important;
+            color: #047857 !important;
+            border-color: #10b981 !important;
         }
 
         [data-theme="light"] .card-num { color: #111827 !important; }
@@ -1153,16 +1355,16 @@ $stockItems = $initStmt->fetchAll();
             border-color: #cbd5e1 !important;
         }
 
-        /* ══ Amber Table Row Hover Effect ══ */
+        /* ══ Emerald Table Row Hover Effect ══ */
         .row-hover {
             transition: background-color 0.18s ease-in-out, border-color 0.18s ease-in-out;
         }
         .row-hover:hover {
-            background-color: rgba(209, 144, 75, 0.09) !important;
+            background-color: rgba(16, 185, 129, 0.08) !important;
         }
         html[data-theme="light"] .row-hover:hover,
         [data-theme="light"] .row-hover:hover {
-            background-color: rgba(209, 144, 75, 0.14) !important;
+            background-color: rgba(16, 185, 129, 0.1) !important;
         }
 
         /* ========== STATS BAR (5 CARDS GRID) ========== */
@@ -1237,14 +1439,14 @@ $stockItems = $initStmt->fetchAll();
 
         .stat-card:hover {
             transform: translateY(-3px);
-            border-color: rgba(209, 144, 75, 0.4);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(209, 144, 75, 0.1);
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.1);
         }
 
         .stat-card.active {
-            border-color: #d1904b;
-            background: rgba(209, 144, 75, 0.12);
-            box-shadow: 0 0 0 2px rgba(209, 144, 75, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.12);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35), 0 8px 30px rgba(0, 0, 0, 0.4);
         }
         .stat-card.total.active {
             border-color: #a78bfa;
@@ -1429,14 +1631,14 @@ $stockItems = $initStmt->fetchAll();
                 <div class="flex flex-wrap items-center gap-2.5">
                     <button type="button" 
                             onclick="openAuditLogsModal()" 
-                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#d1904b] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
-                        <i class="fa-solid fa-clock-rotate-left text-[#d1904b]"></i>
+                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#10b981] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-clock-rotate-left text-[#10b981]"></i>
                         <span><?= __('audit_and_logs', 'Audit & Logs') ?></span>
                     </button>
 
                     <button type="button" 
                             onclick="openAddStockModal()" 
-                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#d1904b] to-[#e5a15a] text-black text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-lg shadow-[#d1904b]/20">
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer shadow-lg shadow-[#10b981]/25">
                         <i class="fa-solid fa-plus text-sm"></i>
                         <span><?= __('add_canned_bottled_drink', 'Add Canned / Bottled Drink') ?></span>
                     </button>
@@ -1506,7 +1708,7 @@ $stockItems = $initStmt->fetchAll();
                         <input type="text" 
                                id="stockSearchInput" 
                                placeholder="<?= __('search_drinks_ph', 'Search direct drinks by name (e.g. Sting, Coke, Water)...') ?>" 
-                               class="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-sm text-[var(--text-main)] placeholder-[#727282] focus:outline-none focus:border-[#d1904b] focus:ring-1 focus:ring-[#d1904b] transition-all">
+                               class="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-sm text-[var(--text-main)] placeholder-[#727282] focus:outline-none focus:border-[#10b981] focus:ring-1 focus:ring-[#10b981] transition-all">
                         <button type="button" 
                                 id="clearSearchBtn" 
                                 onclick="clearSearch()" 
@@ -1523,7 +1725,7 @@ $stockItems = $initStmt->fetchAll();
                         <div class="relative min-w-[150px]">
                             <select id="sortSelector" 
                                     onchange="loadStockTable()" 
-                                    class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#d1904b] cursor-pointer">
+                                    class="w-full appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-[#141418] border border-[#252530] text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[#10b981] cursor-pointer">
                                 <option value="name_asc"><?= __('sort_name_asc', 'Name: A to Z') ?></option>
                                 <option value="name_desc"><?= __('sort_name_desc', 'Name: Z to A') ?></option>
                                 <option value="qty_asc"><?= __('sort_qty_asc', 'Qty: Low to High') ?></option>
@@ -1537,7 +1739,7 @@ $stockItems = $initStmt->fetchAll();
                         <!-- Reset / Refresh Button -->
                         <button type="button" 
                                 onclick="resetFilters()" 
-                                class="btn-reset-filter w-9 h-9 rounded-xl bg-[#141418] border border-[#252530] text-[#8e8e9f] hover:text-[#d1904b] hover:border-[#d1904b] flex items-center justify-center transition-all cursor-pointer" 
+                                class="btn-reset-filter w-9 h-9 rounded-xl bg-[#141418] border border-[#252530] text-[#8e8e9f] hover:text-[#10b981] hover:border-[#10b981] flex items-center justify-center transition-all cursor-pointer" 
                                 title="Reset Filters and Refresh Table">
                             <i class="fa-solid fa-arrows-rotate text-xs"></i>
                         </button>
@@ -1597,20 +1799,35 @@ $stockItems = $initStmt->fetchAll();
                                     <div class="flex items-center gap-3">
                                         <div class="flex items-center gap-1.5 flex-shrink-0">
                                             <!-- Unit Image -->
-                                            <div class="item-mini-img" title="<?= __('unit_image', 'រូបភាពរាយ (Unit Image)') ?>">
-                                                <?php $imgUnitSrc = get_image_url($item['image'] ?? null, 'uploads/no-image.png'); ?>
-                                                <img src="<?= htmlspecialchars($imgUnitSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?>" onerror="this.onerror=null; this.src='uploads/no-image.png';">
-                                                <span class="mini-img-tag"><?= $isKm ? 'រាយ' : 'Unit' ?></span>
+                                            <?php 
+                                            $hasUnitImg = !empty($item['image']) && trim($item['image']) !== '' && !str_contains($item['image'], 'no-image.png');
+                                            ?>
+                                            <div class="item-mini-img <?= !$hasUnitImg ? 'tint-unit' : '' ?>" title="<?= __('unit_image', 'រូបភាពរាយ (Unit Image)') ?>">
+                                                <?php if ($hasUnitImg): ?>
+                                                    <?php $imgUnitSrc = get_image_url($item['image']); ?>
+                                                    <img src="<?= htmlspecialchars($imgUnitSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?>" onerror="this.onerror=null; this.parentNode.classList.add('tint-unit'); this.remove();">
+                                                <?php else: ?>
+                                                    <svg class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 2 2 5"/><path d="M6 7h12l-1.5 13.5a2 2 0 0 1-2 1.5H9.5a2 2 0 0 1-2-1.5L6 7Z"/></svg>
+                                                <?php endif; ?>
+                                                <span class="mini-img-tag unit-tag"><?= $isKm ? 'រាយ' : 'Unit' ?></span>
                                             </div>
+
                                             <!-- Box Image -->
-                                            <div class="item-mini-img" title="<?= __('box_image', 'រូបភាពកេស (Box Image)') ?>">
-                                                <?php $imgBoxSrc = get_image_url($item['image_box'] ?? null, $imgUnitSrc); ?>
-                                                <img src="<?= htmlspecialchars($imgBoxSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?> Box" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                            <?php 
+                                            $hasBoxImg = !empty($item['image_box']) && trim($item['image_box']) !== '' && !str_contains($item['image_box'], 'no-image.png');
+                                            ?>
+                                            <div class="item-mini-img <?= !$hasBoxImg ? 'tint-box' : '' ?>" title="<?= __('box_image', 'រូបភាពកេស (Box Image)') ?>">
+                                                <?php if ($hasBoxImg): ?>
+                                                    <?php $imgBoxSrc = get_image_url($item['image_box']); ?>
+                                                    <img src="<?= htmlspecialchars($imgBoxSrc) ?>" alt="<?= htmlspecialchars($item['item_name']) ?> Box" onerror="this.onerror=null; this.parentNode.classList.add('tint-box'); this.remove();">
+                                                <?php else: ?>
+                                                    <svg class="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                                                <?php endif; ?>
                                                 <span class="mini-img-tag box-tag"><?= $isKm ? 'កេស' : 'Box' ?></span>
                                             </div>
                                         </div>
                                         <div class="min-w-0">
-                                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
+                                            <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#10b981] transition-colors truncate">
                                                 <?= htmlspecialchars($item['item_name']) ?>
                                             </div>
                                         </div>
@@ -1630,7 +1847,7 @@ $stockItems = $initStmt->fetchAll();
                                     </span>
                                 </td>
                                 <td class="py-3.5 px-3 font-medium">
-                                    <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#1e1e24] border border-[#282834] text-xs font-semibold text-[#d1904b]">
+                                    <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#101726] border border-emerald-500/25 text-xs font-bold text-[#34d399]">
                                         <?= htmlspecialchars($breakdown) ?>
                                     </span>
                                 </td>
@@ -1657,7 +1874,7 @@ $stockItems = $initStmt->fetchAll();
                                         <!-- Quick Box Restock -->
                                         <button type="button" 
                                                 onclick="openRestockModal(<?= $item['item_id'] ?>)" 
-                                                class="px-2.5 py-1.5 rounded-lg bg-[#d1904b]/15 text-[#d1904b] hover:bg-[#d1904b] hover:text-black font-bold transition-all cursor-pointer border border-[#d1904b]/30" 
+                                                class="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-[#10b981] hover:text-white font-bold transition-all cursor-pointer border border-emerald-500/30" 
                                                 title="<?= __('btn_restock', 'Restock') ?>">
                                             <i class="fa-solid fa-boxes-stacked mr-1"></i> <?= __('btn_restock', 'Restock') ?>
                                         </button>
@@ -2418,7 +2635,7 @@ $stockItems = $initStmt->fetchAll();
         <div class="modal-content glass-card max-w-4xl w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh]">
             <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#d1904b]/20 text-[#d1904b] flex items-center justify-center text-sm font-bold">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-[#10b981] flex items-center justify-center text-sm font-bold">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                     </div>
                     <div>
@@ -2660,12 +2877,12 @@ $stockItems = $initStmt->fetchAll();
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="11" class="py-12 text-center text-[#8e8e9f]">
-                            <div class="w-12 h-12 rounded-full bg-[#1e1e24] text-[#d1904b] mx-auto flex items-center justify-center text-xl mb-3">
+                            <div class="w-12 h-12 rounded-full bg-[#1e1e24] text-[#10b981] mx-auto flex items-center justify-center text-xl mb-3">
                                 <i class="fa-solid fa-wine-bottle"></i>
                             </div>
                             <div class="text-sm font-bold text-white mb-1">${escapeHtml(I18N.noDrinksFound)}</div>
                             <p class="text-xs text-[#7d7d8e] max-w-sm mx-auto mb-4">No direct drinks matched your search. Try resetting filters or adding a new canned/bottled drink.</p>
-                            <button type="button" onclick="openAddStockModal()" class="px-4 py-2 rounded-xl bg-[#d1904b] text-black text-xs font-bold hover:bg-[#e5a15a] cursor-pointer">
+                            <button type="button" onclick="openAddStockModal()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] text-white text-xs font-bold hover:brightness-110 cursor-pointer shadow-md shadow-emerald-500/20">
                                 <i class="fa-solid fa-plus mr-1"></i> Add Direct Drink
                             </button>
                         </td>
@@ -2700,8 +2917,17 @@ $stockItems = $initStmt->fetchAll();
                     qtyColor = 'text-amber-400';
                 }
 
-                const imgUnitSrc = item.image ? item.image : 'uploads/no-image.png';
-                const imgBoxSrc = item.image_box ? item.image_box : imgUnitSrc;
+                const hasUnit = item.image && item.image.trim() !== '' && !item.image.includes('no-image.png');
+                const hasBox  = item.image_box && item.image_box.trim() !== '' && !item.image_box.includes('no-image.png');
+
+                const unitImgHtml = hasUnit
+                    ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.item_name)}" onerror="this.onerror=null; this.parentNode.classList.add('tint-unit'); this.remove();">`
+                    : `<svg class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 2 2 5"/><path d="M6 7h12l-1.5 13.5a2 2 0 0 1-2 1.5H9.5a2 2 0 0 1-2-1.5L6 7Z"/></svg>`;
+
+                const boxImgHtml = hasBox
+                    ? `<img src="${escapeHtml(item.image_box)}" alt="${escapeHtml(item.item_name)} Box" onerror="this.onerror=null; this.parentNode.classList.add('tint-box'); this.remove();">`
+                    : `<svg class="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`;
+
                 const unitTagText = I18N.lang === 'km' ? 'រាយ' : 'Unit';
                 const boxTagText = I18N.lang === 'km' ? 'កេស' : 'Box';
 
@@ -2710,17 +2936,17 @@ $stockItems = $initStmt->fetchAll();
                     <td class="py-3 px-4">
                         <div class="flex items-center gap-3">
                             <div class="flex items-center gap-1.5 flex-shrink-0">
-                                <div class="item-mini-img" title="${I18N.lang === 'km' ? 'រូបភាពរាយ (Unit Image)' : 'Unit Image'}">
-                                    <img src="${escapeHtml(imgUnitSrc)}" alt="${escapeHtml(item.item_name)}" onerror="this.onerror=null; this.src='uploads/no-image.png';">
-                                    <span class="mini-img-tag">${unitTagText}</span>
+                                <div class="item-mini-img ${!hasUnit ? 'tint-unit' : ''}" title="${I18N.lang === 'km' ? 'រូបភាពរាយ (Unit Image)' : 'Unit Image'}">
+                                    ${unitImgHtml}
+                                    <span class="mini-img-tag unit-tag">${unitTagText}</span>
                                 </div>
-                                <div class="item-mini-img" title="${I18N.lang === 'km' ? 'រូបភាពកេស (Box Image)' : 'Box Image'}">
-                                    <img src="${escapeHtml(imgBoxSrc)}" alt="${escapeHtml(item.item_name)} Box" onerror="this.onerror=null; this.src='uploads/no-image.png';">
+                                <div class="item-mini-img ${!hasBox ? 'tint-box' : ''}" title="${I18N.lang === 'km' ? 'រូបភាពកេស (Box Image)' : 'Box Image'}">
+                                    ${boxImgHtml}
                                     <span class="mini-img-tag box-tag">${boxTagText}</span>
                                 </div>
                             </div>
                             <div class="min-w-0">
-                                <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#d1904b] transition-colors truncate">
+                                <div class="item-name-text font-bold text-[var(--text-main)] text-sm group-hover:text-[#10b981] transition-colors truncate">
                                     ${escapeHtml(item.item_name)}
                                 </div>
                             </div>
@@ -2740,7 +2966,7 @@ $stockItems = $initStmt->fetchAll();
                         </span>
                     </td>
                     <td class="py-3.5 px-3 font-medium">
-                        <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#1e1e24] border border-[#282834] text-xs font-semibold text-[#d1904b]">
+                        <span class="threshold-badge px-2.5 py-1 rounded-lg bg-[#101726] border border-emerald-500/25 text-xs font-bold text-[#34d399]">
                             ${escapeHtml(breakdown)}
                         </span>
                     </td>
@@ -2766,7 +2992,7 @@ $stockItems = $initStmt->fetchAll();
                         <div class="flex items-center justify-end gap-1.5">
                             <button type="button" 
                                     onclick="openRestockModal(${item.item_id})" 
-                                    class="px-2.5 py-1.5 rounded-lg bg-[#d1904b]/15 text-[#d1904b] hover:bg-[#d1904b] hover:text-black font-bold transition-all cursor-pointer border border-[#d1904b]/30" 
+                                    class="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 hover:bg-[#10b981] hover:text-white font-bold transition-all cursor-pointer border border-emerald-500/30" 
                                     title="${escapeHtml(I18N.restock)}">
                                 <i class="fa-solid fa-boxes-stacked mr-1"></i> ${escapeHtml(I18N.restock)}
                             </button>
@@ -3422,7 +3648,7 @@ $stockItems = $initStmt->fetchAll();
         async function openAuditLogsModal() {
             openModal('auditLogsModal');
             const container = document.getElementById('auditLogsContent');
-            container.innerHTML = `<div class="text-center py-8 text-[#8e8e9f]"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#d1904b] mb-2"></i><p>Loading drink audit history...</p></div>`;
+            container.innerHTML = `<div class="text-center py-8 text-[#8e8e9f]"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#10b981] mb-2"></i><p>Loading drink audit history...</p></div>`;
 
             try {
                 const res = await fetch('stock.php?action=get_audit_logs');
