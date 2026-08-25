@@ -18,6 +18,18 @@ function he($s) {
     return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 }
 
+// ── AUTO-MIGRATE USERS SCHEMA FIRST BEFORE ANY QUERY ──
+try {
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100) NULL DEFAULT NULL");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL DEFAULT NULL");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'staff'");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_set_security TINYINT(1) NOT NULL DEFAULT 0");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR(255) NULL DEFAULT NULL");
+    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR(255) NULL DEFAULT NULL");
+} catch (Throwable $e) {}
+
 $flash = null;
 if (isset($_SESSION['flash'])) {
     $flash = $_SESSION['flash'];
@@ -26,238 +38,236 @@ if (isset($_SESSION['flash'])) {
 
 // ── ACTION ROUTER ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
-        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid security token. Please try again.'];
-        header("Location: users.php");
-        exit;
-    }
-
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'create') {
-        $username  = trim((string)($_POST['username'] ?? ''));
-        $name      = trim((string)($_POST['name'] ?? ''));
-        if ($name === '') {
-            $name = $username;
-        }
-        $email     = trim((string)($_POST['email'] ?? ''));
-        $password  = (string)($_POST['password'] ?? '');
-        $user_role = strtolower(trim((string)($_POST['role'] ?? 'staff')));
-        $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
-
-        $valid_roles = ['admin', 'manager', 'staff', 'barista'];
-        if (!in_array($user_role, $valid_roles, true)) {
-            $user_role = 'staff';
-        }
-
-        if ($user_role === 'admin' && $_role !== 'admin') {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can create Admin accounts.'];
+    try {
+        if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid security token. Please try again.'];
             header("Location: users.php");
             exit;
         }
 
-        if (strlen($username) < 2 || strlen($username) > 50) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username must be between 2 and 50 characters.'];
-            header("Location: users.php");
-            exit;
-        }
+        $action = $_POST['action'] ?? '';
 
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Please provide a valid email address (e.g. name@example.com).'];
-            header("Location: users.php");
-            exit;
-        }
+        if ($action === 'create') {
+            $username  = trim((string)($_POST['username'] ?? ''));
+            $name      = trim((string)($_POST['name'] ?? ''));
+            if ($name === '') {
+                $name = $username;
+            }
+            $email     = trim((string)($_POST['email'] ?? ''));
+            $password  = (string)($_POST['password'] ?? '');
+            $user_role = strtolower(trim((string)($_POST['role'] ?? 'staff')));
+            $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
 
-        if (strlen($password) < 4) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Password must be at least 4 characters long.'];
-            header("Location: users.php");
-            exit;
-        }
+            $valid_roles = ['admin', 'manager', 'staff', 'barista'];
+            if (!in_array($user_role, $valid_roles, true)) {
+                $user_role = 'staff';
+            }
 
-        $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1");
-        $chk->bind_param("s", $username);
-        $chk->execute();
-        if ($chk->get_result()->fetch_assoc()) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username "' . he($username) . '" already exists.'];
-            header("Location: users.php");
-            exit;
-        }
+            if ($user_role === 'admin' && $_role !== 'admin') {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can create Admin accounts.'];
+                header("Location: users.php");
+                exit;
+            }
 
-        $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
-        $chk_email->bind_param("s", $email);
-        $chk_email->execute();
-        if ($chk_email->get_result()->fetch_assoc()) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
-            header("Location: users.php");
-            exit;
-        }
+            if (strlen($username) < 2 || strlen($username) > 50) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username must be between 2 and 50 characters.'];
+                header("Location: users.php");
+                exit;
+            }
 
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $ins = $conn->prepare("INSERT INTO users (username, name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?)");
-        $ins->bind_param("sssssi", $username, $name, $email, $hash, $user_role, $is_active);
-        if ($ins->execute()) {
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($name) . '" created successfully.'];
-        } else {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to create user: ' . $conn->error];
-        }
-        header("Location: users.php");
-        exit;
-    }
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Please provide a valid email address (e.g. name@example.com).'];
+                header("Location: users.php");
+                exit;
+            }
 
-    if ($action === 'update') {
-        $target_id = (int)($_POST['user_id'] ?? 0);
-        $username  = trim((string)($_POST['username'] ?? ''));
-        $name      = trim((string)($_POST['name'] ?? ''));
-        if ($name === '') {
-            $name = $username;
-        }
-        $email     = trim((string)($_POST['email'] ?? ''));
-        $password  = (string)($_POST['password'] ?? '');
-        $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+            if (strlen($password) < 4) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Password must be at least 4 characters long.'];
+                header("Location: users.php");
+                exit;
+            }
 
-        if ($target_id <= 0) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid user selected.'];
-            header("Location: users.php");
-            exit;
-        }
+            $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1");
+            $chk->bind_param("s", $username);
+            $chk->execute();
+            if ($chk->get_result()->fetch_assoc()) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username "' . he($username) . '" already exists.'];
+                header("Location: users.php");
+                exit;
+            }
 
-        $cur = $conn->prepare("SELECT user_id, username, role FROM users WHERE user_id = ? LIMIT 1");
-        $cur->bind_param("i", $target_id);
-        $cur->execute();
-        $target_user = $cur->get_result()->fetch_assoc();
-
-        if (!$target_user) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'User not found.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        $user_role = isset($_POST['role']) ? strtolower(trim((string)$_POST['role'])) : strtolower($target_user['role'] ?? 'staff');
-        $valid_roles = ['admin', 'manager', 'staff', 'barista'];
-        if (!in_array($user_role, $valid_roles, true)) {
-            $user_role = strtolower($target_user['role'] ?? 'staff');
-        }
-
-        if ($target_user['role'] === 'admin' && $_role !== 'admin') {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can edit Admin accounts.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        if ($user_role === 'admin' && $_role !== 'admin') {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can assign the Admin role.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        if (strlen($username) < 2 || strlen($username) > 50) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username must be between 2 and 50 characters.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Please provide a valid email address.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) AND user_id != ? LIMIT 1");
-        $chk->bind_param("si", $username, $target_id);
-        $chk->execute();
-        if ($chk->get_result()->fetch_assoc()) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username "' . he($username) . '" is taken by another account.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        if ($email !== '') {
-            $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND user_id != ? LIMIT 1");
-            $chk_email->bind_param("si", $email, $target_id);
+            $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
+            $chk_email->bind_param("s", $email);
             $chk_email->execute();
             if ($chk_email->get_result()->fetch_assoc()) {
                 $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
                 header("Location: users.php");
                 exit;
             }
+
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+            $ins = $conn->prepare("INSERT INTO users (username, name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+            $ins->bind_param("sssssi", $username, $name, $email, $hash, $user_role, $is_active);
+            if ($ins->execute()) {
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($name) . '" created successfully.'];
+            } else {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to create user: ' . $conn->error];
+            }
+            header("Location: users.php");
+            exit;
         }
 
-        if (!empty($password)) {
-            if (strlen($password) < 4) {
-                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'New password must be at least 4 characters long.'];
+        if ($action === 'update') {
+            $target_id = (int)($_POST['user_id'] ?? 0);
+            $username  = trim((string)($_POST['username'] ?? ''));
+            $name      = trim((string)($_POST['name'] ?? ''));
+            if ($name === '') {
+                $name = $username;
+            }
+            $email     = trim((string)($_POST['email'] ?? ''));
+            $password  = (string)($_POST['password'] ?? '');
+            $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
+
+            if ($target_id <= 0) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid user selected.'];
                 header("Location: users.php");
                 exit;
             }
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ?, password = ? WHERE user_id = ?");
-            $upd->bind_param("ssssisi", $username, $name, $email, $user_role, $is_active, $hash, $target_id);
-        } else {
-            $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ? WHERE user_id = ?");
-            $upd->bind_param("ssssii", $username, $name, $email, $user_role, $is_active, $target_id);
-        }
 
-        if ($upd->execute()) {
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($name) . '" updated successfully.'];
-        } else {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to update user: ' . $conn->error];
-        }
-        header("Location: users.php");
-        exit;
-    }
+            $cur = $conn->prepare("SELECT user_id, username, role FROM users WHERE user_id = ? LIMIT 1");
+            $cur->bind_param("i", $target_id);
+            $cur->execute();
+            $target_user = $cur->get_result()->fetch_assoc();
 
-    if ($action === 'delete') {
-        $target_id = (int)($_POST['user_id'] ?? 0);
+            if (!$target_user) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'User not found.'];
+                header("Location: users.php");
+                exit;
+            }
 
-        if ($target_id <= 0) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid user ID.'];
+            $user_role = isset($_POST['role']) ? strtolower(trim((string)$_POST['role'])) : strtolower($target_user['role'] ?? 'staff');
+            $valid_roles = ['admin', 'manager', 'staff', 'barista'];
+            if (!in_array($user_role, $valid_roles, true)) {
+                $user_role = strtolower($target_user['role'] ?? 'staff');
+            }
+
+            if ($target_user['role'] === 'admin' && $_role !== 'admin') {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can edit Admin accounts.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            if ($user_role === 'admin' && $_role !== 'admin') {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can assign the Admin role.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            if (strlen($username) < 2 || strlen($username) > 50) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username must be between 2 and 50 characters.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Please provide a valid email address.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            $chk = $conn->prepare("SELECT user_id FROM users WHERE LOWER(username) = LOWER(?) AND user_id != ? LIMIT 1");
+            $chk->bind_param("si", $username, $target_id);
+            $chk->execute();
+            if ($chk->get_result()->fetch_assoc()) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Username "' . he($username) . '" is taken by another account.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            if ($email !== '') {
+                $chk_email = $conn->prepare("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?) AND user_id != ? LIMIT 1");
+                $chk_email->bind_param("si", $email, $target_id);
+                $chk_email->execute();
+                if ($chk_email->get_result()->fetch_assoc()) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Email "' . he($email) . '" is already registered to another user.'];
+                    header("Location: users.php");
+                    exit;
+                }
+            }
+
+            if (!empty($password)) {
+                if (strlen($password) < 4) {
+                    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'New password must be at least 4 characters long.'];
+                    header("Location: users.php");
+                    exit;
+                }
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ?, password = ? WHERE user_id = ?");
+                $upd->bind_param("ssssisi", $username, $name, $email, $user_role, $is_active, $hash, $target_id);
+            } else {
+                $upd = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ?, role = ?, is_active = ? WHERE user_id = ?");
+                $upd->bind_param("ssssii", $username, $name, $email, $user_role, $is_active, $target_id);
+            }
+
+            if ($upd->execute()) {
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($name) . '" updated successfully.'];
+            } else {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to update user: ' . $conn->error];
+            }
             header("Location: users.php");
             exit;
         }
 
-        if ($target_id === (int)$_SESSION['user_id']) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You cannot delete your own logged-in account!'];
+        if ($action === 'delete') {
+            $target_id = (int)($_POST['user_id'] ?? 0);
+
+            if ($target_id <= 0) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Invalid user ID.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            if ($target_id === (int)$_SESSION['user_id']) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'You cannot delete your own logged-in account!'];
+                header("Location: users.php");
+                exit;
+            }
+
+            $cur = $conn->prepare("SELECT username, name, role FROM users WHERE user_id = ? LIMIT 1");
+            $cur->bind_param("i", $target_id);
+            $cur->execute();
+            $target_user = $cur->get_result()->fetch_assoc();
+
+            if (!$target_user) {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'User not found.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            if ($target_user['role'] === 'admin' && $_role !== 'admin') {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can delete Admin accounts.'];
+                header("Location: users.php");
+                exit;
+            }
+
+            $del = $conn->prepare("DELETE FROM users WHERE user_id = ?");
+            $del->bind_param("i", $target_id);
+            if ($del->execute()) {
+                $disp_name = $target_user['name'] ?: $target_user['username'];
+                $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($disp_name) . '" deleted.'];
+            } else {
+                $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to delete user: ' . $conn->error];
+            }
             header("Location: users.php");
             exit;
         }
-
-        $cur = $conn->prepare("SELECT username, name, role FROM users WHERE user_id = ? LIMIT 1");
-        $cur->bind_param("i", $target_id);
-        $cur->execute();
-        $target_user = $cur->get_result()->fetch_assoc();
-
-        if (!$target_user) {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'User not found.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        if ($target_user['role'] === 'admin' && $_role !== 'admin') {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Only Administrators can delete Admin accounts.'];
-            header("Location: users.php");
-            exit;
-        }
-
-        $del = $conn->prepare("DELETE FROM users WHERE user_id = ?");
-        $del->bind_param("i", $target_id);
-        if ($del->execute()) {
-            $disp_name = $target_user['name'] ?: $target_user['username'];
-            $_SESSION['flash'] = ['type' => 'success', 'msg' => 'User "' . he($disp_name) . '" deleted.'];
-        } else {
-            $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Failed to delete user: ' . $conn->error];
-        }
+    } catch (Throwable $e) {
+        error_log("[Users POST Error] " . $e->getMessage());
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Database error: ' . $e->getMessage()];
         header("Location: users.php");
         exit;
     }
 }
-
-// ── AUTO-MIGRATE USERS SCHEMA IF NEEDED ON HOSTING ──
-try {
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100) NULL DEFAULT NULL");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL DEFAULT NULL");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'staff'");
-    @$conn->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0");
-} catch (Throwable $e) {}
 
 // ── FETCH USERS LIST RESILIENTLY ──
 $users = [];
