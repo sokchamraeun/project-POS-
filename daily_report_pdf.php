@@ -46,7 +46,7 @@ $lbl_date_from    = $isKm ? 'ចាប់ពីថ្ងៃ:' : 'Date From:';
 $lbl_date_to      = $isKm ? 'ដល់ថ្ងៃ' : 'Date to';
 $lbl_doc_no       = $isKm ? 'Doc No :' : 'Doc No :';
 
-$lbl_gross_sales  = $isKm ? 'ចំណូលសរុបដើម' : 'Total Gross Sales';
+$lbl_gross_sales  = $isKm ? 'ចំណូលសរុប' : 'Total Gross Sales';
 $lbl_total_items  = $isKm ? 'ទំនិញសរុប' : 'Total Item';
 $lbl_net_revenue  = $isKm ? 'ចំណូលសុទ្ធសរុប' : 'Total Net Revenue';
 $lbl_total_cogs   = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
@@ -94,6 +94,11 @@ $to_time_full = '23:59:59';
 if (!empty($filter_to_time) && preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $filter_to_time)) {
     $to_time_full = (strlen($filter_to_time) === 5) ? ($filter_to_time . ':59') : $filter_to_time;
 }
+
+$time_from_fmt  = date('g:i A', strtotime($from_time_full));
+$time_to_fmt    = date('g:i A', strtotime($to_time_full));
+$period_top_str = $filter_from . ' ' . $time_from_fmt . ' ' . $lbl_to . ' ' . $filter_to . ' ' . $time_to_fmt;
+$period_bot_str = date('j/n/Y', strtotime($filter_from)) . ' ' . $time_from_fmt . ' ' . $lbl_to . ' ' . date('j/n/Y', strtotime($filter_to)) . ' ' . $time_to_fmt;
 
 $dt_from_str = $conn->real_escape_string($filter_from . ' ' . $from_time_full);
 $dt_to_str   = $conn->real_escape_string($filter_to   . ' ' . $to_time_full);
@@ -317,7 +322,7 @@ if (!empty($_GET['dompdf'])) {
     <div class="report-header">
       <h1><?= he($lbl_cafe_title) ?></h1>
       <p><?= he($lbl_report_sale) ?></p>
-      <p><?= he($lbl_period) ?> <?= he($filter_from) ?> <?= he($lbl_to) ?> <?= he($filter_to) ?></p>
+      <p><?= he($lbl_period) ?> <?= he($period_top_str) ?></p>
       <p><?= he($lbl_generated) ?> <?= date('j/n/Y, g:i:s A') ?></p>
       <p><?= he($lbl_generated_by) ?> <?= he($gen_by_str) ?></p>
     </div>
@@ -338,7 +343,7 @@ if (!empty($_GET['dompdf'])) {
       </thead>
       <tbody>
         <?php if (empty($processed_rows)): ?>
-          <tr><td colspan="9" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
+          <tr><td colspan="9" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យការលក់ឡើយ' : 'No sales order data found for selected period.' ?></td></tr>
         <?php else: foreach ($processed_rows as $r): ?>
           <tr>
             <td><?= $r['no'] ?></td>
@@ -347,7 +352,7 @@ if (!empty($_GET['dompdf'])) {
             <td><?= $r['qty_item'] ?></td>
             <td><?= $r['total'] ?></td>
             <td><?= $r['cogs'] ?></td>
-            <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color:#dc2626;font-weight:bold;' : '' ?>"><?= $r['profit'] ?></td>
+            <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $r['profit'] ?></td>
             <td><?= $r['payment_method'] ?></td>
             <td><?= $r['place_by'] ?></td>
           </tr>
@@ -357,7 +362,7 @@ if (!empty($_GET['dompdf'])) {
             <td style="background:#c6efce;"><?= $sum_qty ?></td>
             <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
             <td style="background:#c6efce;"><?= $fmt_sum_cogs ?></td>
-            <td style="background:#c6efce;<?= $sum_profit < 0 ? 'color:#dc2626;' : '' ?>"><?= $fmt_sum_profit ?></td>
+            <td style="background:#c6efce;<?= $sum_profit < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $fmt_sum_profit ?></td>
             <td style="background:#fff;"></td>
             <td style="background:#fff;"></td>
           </tr>
@@ -365,13 +370,12 @@ if (!empty($_GET['dompdf'])) {
       </tbody>
     </table>
     <div class="summary-footer">
-      <p><?= he($lbl_date_from) ?> <?= he(date('j/n/Y', strtotime($filter_from))) ?> <?= he($lbl_date_to) ?> <?= he(date('j/n/Y', strtotime($filter_to))) ?></p>
+      <p><?= he($lbl_date_from) ?> <?= he($period_bot_str) ?></p>
       <div class="sum-item"><b class="lbl"><?= $isKm ? 'ការកម៉្មង់សរុប' : 'Total Order' ?></b> : <b><?= count($processed_rows) ?></b></div>
       <div class="sum-item"><b class="lbl"><?= he($lbl_total_items) ?></b> : <b><?= $sum_qty ?></b></div>
       <div class="sum-item"><b class="lbl"><?= he($lbl_gross_sales) ?></b> : <b><?= $fmt_sum_gross ?></b></div>
       <div class="sum-item"><b class="lbl"><?= he($lbl_total_cogs) ?></b> : <b><?= $fmt_sum_cogs ?></b></div>
-      <div class="sum-item"><b class="lbl"><?= he($lbl_total_profit) ?></b> : <b><?= $fmt_sum_profit ?></b></div>
-      <div class="sum-item"><b class="lbl"><?= he($lbl_net_revenue) ?></b> : <b><?= $fmt_sum_net_khr ?></b></div>
+      <div class="sum-item"><b class="lbl"><?= he($lbl_total_profit) ?></b> : <b style="<?= $sum_profit < 0 ? 'color: #dc2626 !important;' : '' ?>"><?= $fmt_sum_profit ?></b></div>
     </div>
     </body>
     </html>
@@ -517,7 +521,7 @@ if (!empty($_GET['dompdf'])) {
   <div class="report-header">
     <h1><?= he($lbl_cafe_title) ?></h1>
     <p><?= he($lbl_report_sale) ?></p>
-    <p><?= he($lbl_period) ?> <?= he($filter_from) ?> <?= he($lbl_to) ?> <?= he($filter_to) ?></p>
+    <p><?= he($lbl_period) ?> <?= he($period_top_str) ?></p>
     <p><?= he($lbl_generated) ?> <?= date('j/n/Y, g:i:s A') ?></p>
     <p><?= he($lbl_generated_by) ?> <?= he($gen_by_str) ?></p>
   </div>
@@ -540,7 +544,7 @@ if (!empty($_GET['dompdf'])) {
     </thead>
     <tbody>
       <?php if (empty($processed_rows)): ?>
-        <tr><td colspan="9" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យបញ្ជាទិញឡើយ' : 'No orders found for selected period.' ?></td></tr>
+        <tr><td colspan="9" style="text-align:center; padding:14px"><?= $isKm ? 'គ្មានទិន្នន័យការលក់ឡើយ' : 'No sales order data found for selected period.' ?></td></tr>
       <?php else: foreach ($processed_rows as $r): ?>
         <tr>
           <td><?= $r['no'] ?></td>
@@ -549,7 +553,7 @@ if (!empty($_GET['dompdf'])) {
           <td><?= $r['qty_item'] ?></td>
           <td><?= $r['total'] ?></td>
           <td><?= $r['cogs'] ?></td>
-          <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color:#dc2626;font-weight:bold;' : '' ?>"><?= $r['profit'] ?></td>
+          <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $r['profit'] ?></td>
           <td><?= $r['payment_method'] ?></td>
           <td><?= $r['place_by'] ?></td>
         </tr>
@@ -559,7 +563,7 @@ if (!empty($_GET['dompdf'])) {
           <td style="background:#c6efce;"><?= $sum_qty ?></td>
           <td style="background:#c6efce;"><?= $fmt_sum_net ?></td>
           <td style="background:#c6efce;"><?= $fmt_sum_cogs ?></td>
-          <td style="background:#c6efce;<?= $sum_profit < 0 ? 'color:#dc2626;' : '' ?>"><?= $fmt_sum_profit ?></td>
+          <td style="background:#c6efce;<?= $sum_profit < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $fmt_sum_profit ?></td>
           <td style="background:#fff;"></td>
           <td style="background:#fff;"></td>
         </tr>
@@ -568,13 +572,12 @@ if (!empty($_GET['dompdf'])) {
   </table>
 
   <div class="summary-footer">
-    <p><?= he($lbl_date_from) ?> <?= he(date('j/n/Y', strtotime($filter_from))) ?> <?= he($lbl_date_to) ?> <?= he(date('j/n/Y', strtotime($filter_to))) ?></p>
+    <p><?= he($lbl_date_from) ?> <?= he($period_bot_str) ?></p>
     <div class="sum-item"><b class="lbl"><?= $isKm ? 'ការកម៉្មង់សរុប' : 'Total Order' ?></b> : <b><?= count($processed_rows) ?></b></div>
     <div class="sum-item"><b class="lbl"><?= he($lbl_total_items) ?></b> : <b><?= $sum_qty ?></b></div>
     <div class="sum-item"><b class="lbl"><?= he($lbl_gross_sales) ?></b> : <b><?= $fmt_sum_gross ?></b></div>
     <div class="sum-item"><b class="lbl"><?= he($lbl_total_cogs) ?></b> : <b><?= $fmt_sum_cogs ?></b></div>
-    <div class="sum-item"><b class="lbl"><?= he($lbl_total_profit) ?></b> : <b><?= $fmt_sum_profit ?></b></div>
-    <div class="sum-item"><b class="lbl"><?= he($lbl_net_revenue) ?></b> : <b><?= $fmt_sum_net_khr ?></b></div>
+    <div class="sum-item"><b class="lbl"><?= he($lbl_total_profit) ?></b> : <b style="<?= $sum_profit < 0 ? 'color: #dc2626 !important;' : '' ?>"><?= $fmt_sum_profit ?></b></div>
   </div>
 </div>
 

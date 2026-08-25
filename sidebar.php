@@ -135,6 +135,16 @@ html[data-theme="light"] .sidebar *,
 /* Header / Brand Block */
 .sidebar-brand-block {
     padding: 0.25rem 0.5rem 0.75rem 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    position: relative;
+}
+.sidebar-brand-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
 }
 .sidebar-brand-subtitle {
     font-size: 10.5px !important;
@@ -152,6 +162,42 @@ html[data-theme="light"] .sidebar *,
     color: #ffffff !important;
     margin-top: 4px !important;
     line-height: 1.2 !important;
+    white-space: nowrap;
+}
+.sidebar-brand-cartoon {
+    width: 84px;
+    height: 84px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: -12px;
+    margin-bottom: -12px;
+    margin-right: -6px;
+    perspective: 600px;
+}
+.sidebar-brand-cartoon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+    animation: cartoonFloat 3s ease-in-out infinite !important;
+    transform-origin: center bottom;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: auto;
+}
+
+@keyframes cartoonFloat {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    30% {
+        transform: translateY(-6px) rotate(-2.5deg);
+    }
+    70% {
+        transform: translateY(-3px) rotate(3deg);
+    }
 }
 
 /* Section Label */
@@ -224,29 +270,58 @@ html[data-theme="light"] .sidebar .nav-item:hover,
     transform: scale(1.06);
 }
 
-/* Active Nav Item - Solid Emerald Pill */
-.sidebar .nav-item.active,
-#reportNavToggle.active,
-button.nav-item.active,
-html[data-theme="light"] .sidebar .nav-item.active,
-[data-theme="light"] .sidebar .nav-item.active {
+/* Active Nav Item - Solid Emerald Pill (Links Only) */
+.sidebar a.nav-item.active,
+html[data-theme="light"] .sidebar a.nav-item.active,
+[data-theme="light"] .sidebar a.nav-item.active {
     background: #10b981 !important;
     color: #022c22 !important;
     font-weight: 700 !important;
     box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28) !important;
 }
-.sidebar .nav-item.active i,
-html[data-theme="light"] .sidebar .nav-item.active i,
-[data-theme="light"] .sidebar .nav-item.active i {
+.sidebar a.nav-item.active i,
+html[data-theme="light"] .sidebar a.nav-item.active i,
+[data-theme="light"] .sidebar a.nav-item.active i {
     color: #022c22 !important;
     transform: scale(1.05);
 }
-.sidebar .nav-item.active:hover {
+.sidebar a.nav-item.active:hover {
     background: #10b981 !important;
     color: #022c22 !important;
 }
-.sidebar .nav-item.active:hover i {
+.sidebar a.nav-item.active:hover i {
     color: #022c22 !important;
+}
+
+/* Group / Collapsible Nav Toggle Buttons - Transparent Background */
+.sidebar button.nav-item,
+#reportNavToggle,
+#reportNavToggle.active,
+#userMgmtNavToggle,
+#userMgmtNavToggle.active {
+    background: transparent !important;
+    color: #cbd5e1 !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}
+.sidebar button.nav-item:hover,
+#reportNavToggle:hover,
+#userMgmtNavToggle:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #ffffff !important;
+}
+.sidebar button.nav-item i,
+#reportNavToggle i,
+#userMgmtNavToggle i {
+    color: #94a3b8 !important;
+}
+.sidebar button.nav-item:hover i,
+#reportNavToggle:hover i,
+#userMgmtNavToggle:hover i {
+    color: #ffffff !important;
+}
+.rotate-180 {
+    transform: rotate(180deg) !important;
 }
 
 /* ══ Sidebar Stock & Ingredient Alert Badge ══ */
@@ -1050,8 +1125,13 @@ html[data-theme="light"] .toast-dismiss:hover {
     <div class="flex flex-col gap-1">
         <!-- Brand Header Section -->
         <div class="sidebar-brand-block">
-            <div class="sidebar-brand-subtitle">POINT OF SALE</div>
-            <div class="sidebar-brand-title">BIRD'S NEST</div>
+            <div class="sidebar-brand-info">
+                <div class="sidebar-brand-subtitle">POINT OF SALE</div>
+                <div class="sidebar-brand-title">BIRD'S NEST</div>
+            </div>
+            <div class="sidebar-brand-cartoon">
+                <img src="images/sidebar-cartoon.webp" alt="Bird's Nest Barista" />
+            </div>
         </div>
 
         <!-- Section Label: MENU -->
@@ -1118,7 +1198,7 @@ html[data-theme="light"] .toast-dismiss:hover {
                 <button type="button" 
                         id="reportNavToggle" 
                         onclick="toggleReportSubmenu(event)" 
-                        class="nav-item w-full justify-between cursor-pointer<?= in_array($_cur_page, ['daily_report.php', 'report.php', 'shift_report.php']) ? ' active' : '' ?>">
+                        class="nav-item w-full justify-between cursor-pointer">
                     <div class="flex items-center gap-3 min-w-0">
                         <i class="fa-solid fa-chart-simple"></i>
                         <span class="nav-label truncate"><?= __('nav_reports', 'របាយការណ៍') ?></span>
@@ -1407,21 +1487,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const reportPages = ['daily_report.php', 'report.php', 'shift_report.php'];
-        const reportNavToggle = document.getElementById('reportNavToggle');
         const reportSubmenu = document.getElementById('reportSubmenu');
         const reportChevron = document.getElementById('reportChevron');
         if (reportPages.includes(page)) {
-            if (reportNavToggle) reportNavToggle.classList.add('active');
             if (reportSubmenu) reportSubmenu.classList.remove('hidden');
             if (reportChevron) reportChevron.classList.add('rotate-180');
         }
 
         const userMgmtPages = ['employees.php', 'employee_add.php', 'manage_admin.php', 'manage_roles.php'];
-        const userMgmtNavToggle = document.getElementById('userMgmtNavToggle');
         const userMgmtSubmenu = document.getElementById('userMgmtSubmenu');
         const userMgmtChevron = document.getElementById('userMgmtChevron');
         if (userMgmtPages.includes(page)) {
-            if (userMgmtNavToggle) userMgmtNavToggle.classList.add('active');
             if (userMgmtSubmenu) userMgmtSubmenu.classList.remove('hidden');
             if (userMgmtChevron) userMgmtChevron.classList.add('rotate-180');
         }

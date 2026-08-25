@@ -315,10 +315,30 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             border-color: #e2e8f0 !important;
             color: #0f172a !important;
         }
-        [data-theme="light"] thead tr.bg-\[\#101118\] {
-            background-color: #f8fafc !important;
+
+        /* ══ Table Header Color Styling ══ */
+        .report-thead,
+        .report-thead tr,
+        .report-thead th {
+            background: #0d231e !important;
+            color: #34d399 !important;
+            border-bottom: 2px solid #10b981 !important;
+            font-weight: 700 !important;
         }
-        [data-theme="light"] th {
+
+        [data-theme="light"] .report-thead,
+        [data-theme="light"] .report-thead tr,
+        [data-theme="light"] .report-thead th {
+            background: #e6f7f0 !important;
+            color: #047857 !important;
+            border-bottom: 2px solid #10b981 !important;
+            font-weight: 700 !important;
+        }
+
+        [data-theme="light"] thead tr.bg-\[\#101118\] {
+            background-color: #f8fafc;
+        }
+        [data-theme="light"] th:not(.report-thead th):not(.report-thead) {
             color: #64748b !important;
             background-color: #f8fafc !important;
         }
@@ -536,16 +556,16 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             <div class="bg-[#14151e] border border-[#232433] rounded-2xl shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
                 <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="reportOrdersContainer">
                     <table class="w-full text-left border-collapse" id="reportOrdersTable">
-                        <thead class="sticky top-0 bg-[#101118] z-20 shadow-[0_1px_0_0_#232433]">
-                            <tr class="border-b border-[#232433] bg-[#101118]">
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'PRODUCT NAME' ?></th>
-                                <th class="py-3.5 px-6 text-center text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រភេទ' : 'CATEGORY' ?></th>
-                                <th class="py-3.5 px-6 text-center text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំនួនលក់' : 'QTY SOLD' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើម' : 'COST / UNIT' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'តម្លៃលក់' : 'PRICE / UNIT' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំណូលសរុប (REV)' : 'REVENUE' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'TOTAL COST' ?></th>
-                                <th class="py-3.5 px-6 text-right text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'PROFIT' ?></th>
+                        <thead class="sticky top-0 z-20 shadow-[0_2px_10px_rgba(0,0,0,0.1)] report-thead">
+                            <tr class="border-b-2 border-[#10b981]">
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ឈ្មោះទំនិញ (PRODUCT)' : 'PRODUCT NAME' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ប្រភេទ' : 'CATEGORY' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ចំនួនលក់' : 'QTY SOLD' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើម' : 'COST / UNIT' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'តម្លៃលក់' : 'PRICE / UNIT' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ចំណូលសរុប (REV)' : 'REVENUE' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើមសរុប (COST)' : 'TOTAL COST' ?></th>
+                                <th class="py-3.5 px-6 text-right text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ (PROFIT)' : 'PROFIT' ?></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[#1e1f2c]">
@@ -633,7 +653,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                         </div>
                         <div class="text-left sm:text-right">
                             <div class="text-[11px] font-extrabold text-[#8e8e9f] uppercase tracking-wider mb-0.5"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'TOTAL PROFIT' ?></div>
-                            <div class="text-xl md:text-2xl font-black text-emerald-400 tracking-tight leading-tight"><?= ($totalProfit >= 0 ? '+' : '') . '$' . number_format($totalProfit, 2) ?></div>
+                            <div class="text-xl md:text-2xl font-black <?= $totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400' ?> tracking-tight leading-tight"><?= ($totalProfit >= 0 ? '+' : '') . '$' . number_format($totalProfit, 2) ?></div>
                         </div>
                         <div class="text-left sm:text-right">
                             <div class="text-[11px] font-extrabold text-[#8e8e9f] uppercase tracking-wider mb-0.5"><?= $isKm ? 'ចំណូលសរុប' : 'TOTAL SALES' ?></div>

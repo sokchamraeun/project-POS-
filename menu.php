@@ -20,6 +20,39 @@ function cat_anchor_id($key) {
     return 'cat-' . ($slug !== '' ? $slug : 'uncategorized');
 }
 
+function getCategoryKhmerTag($key, $label = '') {
+    $map = [
+        'iced beverages' => 'ភេសជ្ជៈត្រជាក់',
+        'iced beverage'  => 'ភេសជ្ជៈត្រជាក់',
+        'iced'           => 'ភេសជ្ជៈត្រជាក់',
+        'hot beverages'  => 'ភេសជ្ជៈក្តៅ',
+        'hot beverage'   => 'ភេសជ្ជៈក្តៅ',
+        'hot'            => 'ភេសជ្ជៈក្តៅ',
+        'soft drinks'    => 'ភេសជ្ជៈកំប៉ុង',
+        'soft drink'     => 'ភេសជ្ជៈកំប៉ុង',
+        'direct drinks'  => 'ភេសជ្ជៈផ្ទាល់',
+        'canned drinks'  => 'ភេសជ្ជៈកំប៉ុង',
+        'bottled drinks' => 'ភេសជ្ជៈដប',
+        'coffee'         => 'កាហ្វេ',
+        'tea'            => 'តែ',
+        'frappe'         => 'ហ្វ្រេបប៉េ',
+        'smoothie'       => 'ស្ម៊ូតធី',
+        'juice'          => 'ទឹកផ្លែឈើ',
+        'bakery'         => 'នំបុ័ង / ខេក',
+        'cake'           => 'នំខេក',
+        'snacks'         => 'អាហារសម្រន់',
+        'snack'          => 'អាហារសម្រន់',
+        'food'           => 'អាហារ',
+        'dessert'        => 'បង្អែម',
+        'desserts'       => 'បង្អែម'
+    ];
+    $k = strtolower(trim((string)$key));
+    if (isset($map[$k])) return $map[$k];
+    $l = strtolower(trim((string)$label));
+    if (isset($map[$l])) return $map[$l];
+    return '';
+}
+
 /* ── NAV: view_order.php (Kitchen) is for barista only; admin/manager go to dashboard ── */
 $_show_kitchen_btn = ($_SESSION['role'] ?? '') === 'barista';
 
@@ -2747,17 +2780,36 @@ $defaultMilk = 'Fresh Milk';
           ?>
           <section class="cat-section" id="<?= e($anchor) ?>">
             <div class="cat-header">
-              <div class="cat-icon">
-                <?php if (str_contains($icon, '/')): ?>
-                <img src="<?= e($icon) ?>" alt="" class="cat-header-img">
-                <?php else: ?>
-                <i class="fa-solid <?= $icon ?>"></i>
-                <?php endif; ?>
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="cat-icon">
+                  <?php if (str_contains($icon, '/')): ?>
+                  <img src="<?= e($icon) ?>" alt="" class="cat-header-img">
+                  <?php else: ?>
+                  <i class="fa-solid <?= $icon ?>"></i>
+                  <?php endif; ?>
+                </div>
+                <div class="cat-title-text">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <h2><?= e($label) ?></h2>
+                    <?php $__khTag = getCategoryKhmerTag($key, $label); if (!empty($__khTag)): ?>
+                      <span class="cat-pill-badge"><?= e($__khTag) ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <?php $_in_stock = count(array_filter($products[$key], fn($p) => empty($p['is_out']) && (($p['live_status'] ?? '') !== 'out_of_stock'))); ?>
+                  <span><?= $isKm ? ('មានចំនួនសរុប <b class="text-[#10b981] font-bold cat-count-bold">' . $_in_stock . '</b> មុខទំនិញ') : ('Total <b class="text-[#10b981] font-bold cat-count-bold">' . $_in_stock . '</b> ' . ($_in_stock !== 1 ? 'items' : 'item')) ?></span>
+                </div>
               </div>
-              <div class="cat-title-text">
-                <h2><?= e($label) ?></h2>
-                <?php $_in_stock = count(array_filter($products[$key], fn($p) => empty($p['is_out']) && (($p['live_status'] ?? '') !== 'out_of_stock'))); ?>
-                <span><?= $_in_stock ?> <?= $_in_stock !== 1 ? __('item_plural', 'items') : __('item_single', 'item') ?></span>
+              <div class="flex items-center gap-2.5 flex-shrink-0">
+                <div class="cat-items-badge">
+                  <span class="cat-count-num"><?= $_in_stock ?></span> <span class="cat-count-unit"><?= $_in_stock !== 1 ? 'ITEMS' : 'ITEM' ?></span>
+                </div>
+                <button type="button" 
+                        class="cat-toggle-btn"
+                        onclick="toggleCatSection(this, '<?= e($anchor) ?>')"
+                        title="Toggle Category"
+                        aria-label="Toggle Category">
+                  <i class="fa-solid fa-chevron-up text-xs transition-transform duration-300"></i>
+                </button>
               </div>
             </div>
             <div class="product-grid">
@@ -7008,8 +7060,16 @@ function applyMenuFilters() {
         if (countSpan) {
           var isKm = (document.documentElement.lang === 'km' || document.documentElement.getAttribute('data-lang') === 'km');
           var unitWord = sectionVisibleCount !== 1 ? (isKm ? 'មុខទំនិញ' : 'items') : (isKm ? 'មុខទំនិញ' : 'item');
-          countSpan.textContent = sectionVisibleCount + ' ' + unitWord;
+          if (isKm) {
+            countSpan.innerHTML = 'មានចំនួនសរុប <b class="text-[#10b981] font-bold cat-count-bold">' + sectionVisibleCount + '</b> មុខទំនិញ';
+          } else {
+            countSpan.innerHTML = 'Total <b class="text-[#10b981] font-bold cat-count-bold">' + sectionVisibleCount + '</b> ' + unitWord;
+          }
         }
+        var countNum = section.querySelector('.cat-items-badge .cat-count-num');
+        if (countNum) countNum.textContent = sectionVisibleCount;
+        var countUnit = section.querySelector('.cat-items-badge .cat-count-unit');
+        if (countUnit) countUnit.textContent = sectionVisibleCount !== 1 ? 'ITEMS' : 'ITEM';
       } else {
         section.style.display = 'none';
       }
@@ -7055,6 +7115,31 @@ function applyMenuFilters() {
     noMatchEl.style.display = 'flex';
   } else if (noMatchEl) {
     noMatchEl.style.display = 'none';
+  }
+}
+
+function toggleCatSection(btn, sectionId) {
+  var section = document.getElementById(sectionId);
+  if (!section) return;
+  var grid = section.querySelector('.product-grid');
+  var chevron = btn ? btn.querySelector('i') : null;
+  if (!grid) return;
+
+  var isCollapsed = grid.classList.contains('hidden') || grid.style.display === 'none';
+  if (isCollapsed) {
+    grid.classList.remove('hidden');
+    grid.style.display = '';
+    if (chevron) {
+      chevron.classList.remove('rotate-180');
+      chevron.style.transform = '';
+    }
+  } else {
+    grid.classList.add('hidden');
+    grid.style.display = 'none';
+    if (chevron) {
+      chevron.classList.add('rotate-180');
+      chevron.style.transform = 'rotate(180deg)';
+    }
   }
 }
 

@@ -48,7 +48,7 @@ $lbl_sum_qty      = $isKm ? 'ចំនួនលក់សរុប' : 'Total QTY 
 $lbl_sum_disc     = $isKm ? 'បញ្ចុះតម្លៃសរុប' : 'Total Discount';
 $lbl_sum_rev      = $isKm ? 'ចំណូលសរុប' : 'Total Revenue';
 $lbl_sum_cogs     = $isKm ? 'ដើមទុនសរុប' : 'Total COGS';
-$lbl_sum_profit   = $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Gross Profit';
+$lbl_sum_profit   = $isKm ? 'ចំណេញសរុប' : 'Total Gross Profit';
 
 // ── Date range calculation ──
 $today = business_date_today();
@@ -224,6 +224,7 @@ foreach ($topProducts as $name => $p) {
         'revenue'     => fmtMoney($rev),
         'cogs'        => fmtMoney($cogs),
         'profit'      => fmtMoney($profit),
+        'profit_val'  => $profit,
         'margin'      => $margin . '%',
     ];
 }
@@ -294,7 +295,7 @@ if (!empty($_GET['dompdf'])) {
             <td><?= $r['price_cup'] ?></td>
             <td><?= $r['revenue'] ?></td>
             <td><?= $r['cogs'] ?></td>
-            <td><?= $r['profit'] ?></td>
+            <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $r['profit'] ?></td>
           </tr>
         <?php endforeach; ?>
           <tr class="total-row">
@@ -303,7 +304,7 @@ if (!empty($_GET['dompdf'])) {
             <td style="background:#fff;"></td>
             <td style="background:#c6efce;"><?= $fmt_total_rev ?></td>
             <td style="background:#c6efce;"><?= $fmt_total_cogs ?></td>
-            <td style="background:#c6efce;"><?= $fmt_total_profit ?></td>
+            <td style="background:#c6efce;<?= $totalGrossProfit < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $fmt_total_profit ?></td>
           </tr>
         <?php endif; ?>
       </tbody>
@@ -312,6 +313,8 @@ if (!empty($_GET['dompdf'])) {
       <p><?= he($lbl_date_from) ?> <?= he(date('j/n/Y', strtotime($dateFrom))) ?> <?= he($lbl_date_to) ?> <?= he(date('j/n/Y', strtotime($dateTo))) ?></p>
       <div class="sum-item"><b><?= he($lbl_sum_qty) ?></b> : <b><?= $totalItemsSold ?></b> Item</div>
       <div class="sum-item"><b><?= he($lbl_sum_rev) ?></b> : <b><?= $fmt_total_rev ?></b></div>
+      <div class="sum-item"><b><?= he($lbl_sum_cogs) ?></b> : <b><?= $fmt_total_cogs ?></b></div>
+      <div class="sum-item"><b><?= he($lbl_sum_profit) ?></b> : <b style="<?= $totalGrossProfit < 0 ? 'color: #dc2626 !important;' : '' ?>"><?= $fmt_total_profit ?></b></div>
     </div>
     </body>
     </html>
@@ -487,7 +490,7 @@ if (!empty($_GET['dompdf'])) {
           <td><?= $r['price_cup'] ?></td>
           <td><?= $r['revenue'] ?></td>
           <td><?= $r['cogs'] ?></td>
-          <td><?= $r['profit'] ?></td>
+          <td style="<?= ($r['profit_val'] ?? 0) < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $r['profit'] ?></td>
         </tr>
       <?php endforeach; ?>
         <tr class="total-row">
@@ -496,7 +499,7 @@ if (!empty($_GET['dompdf'])) {
           <td style="background:#fff;"></td>
           <td style="background:#c6efce;"><?= $fmt_total_rev ?></td>
           <td style="background:#c6efce;"><?= $fmt_total_cogs ?></td>
-          <td style="background:#c6efce;"><?= $fmt_total_profit ?></td>
+          <td style="background:#c6efce;<?= $totalGrossProfit < 0 ? 'color: #dc2626 !important; font-weight: bold;' : '' ?>"><?= $fmt_total_profit ?></td>
         </tr>
       <?php endif; ?>
     </tbody>
@@ -506,6 +509,8 @@ if (!empty($_GET['dompdf'])) {
     <p><?= he($lbl_date_from) ?> <?= he(date('j/n/Y', strtotime($dateFrom))) ?> <?= he($lbl_date_to) ?> <?= he(date('j/n/Y', strtotime($dateTo))) ?></p>
     <div class="sum-item"><b class="lbl"><?= he($lbl_sum_qty) ?></b> : <b><?= $totalItemsSold ?></b> Item</div>
     <div class="sum-item"><b class="lbl"><?= he($lbl_sum_rev) ?></b> : <b><?= $fmt_total_rev ?></b></div>
+    <div class="sum-item"><b class="lbl"><?= he($lbl_sum_cogs) ?></b> : <b><?= $fmt_total_cogs ?></b></div>
+    <div class="sum-item"><b class="lbl"><?= he($lbl_sum_profit) ?></b> : <b style="<?= $totalGrossProfit < 0 ? 'color: #dc2626 !important;' : '' ?>"><?= $fmt_total_profit ?></b></div>
   </div>
 </div>
 

@@ -222,6 +222,7 @@ $ordersList = [];
 $totalOrdersCount = 0;
 $totalItemsSold = 0;
 $totalSalesAmount = 0.0;
+$totalCostAmount = 0.0;
 $totalProfitAmount = 0.0;
 
 while ($row = $ordersResult->fetch_assoc()) {
@@ -230,6 +231,7 @@ while ($row = $ordersResult->fetch_assoc()) {
     $totalOrdersCount++;
     $totalItemsSold += (int)$row['total_items'];
     $totalSalesAmount += (float)$row['total'];
+    $totalCostAmount += (float)$row['total_cost'];
     $totalProfitAmount += (float)$row['total_profit'];
 }
 
@@ -355,10 +357,30 @@ if ($_is_mgr) {
             border-color: #e2e8f0 !important;
             color: #0f172a !important;
         }
-        [data-theme="light"] thead tr.bg-\[\#101118\] {
-            background-color: #f8fafc !important;
+
+        /* ══ Table Header Color Styling ══ */
+        .report-thead,
+        .report-thead tr,
+        .report-thead th {
+            background: #0d231e !important;
+            color: #34d399 !important;
+            border-bottom: 2px solid #10b981 !important;
+            font-weight: 700 !important;
         }
-        [data-theme="light"] th {
+
+        [data-theme="light"] .report-thead,
+        [data-theme="light"] .report-thead tr,
+        [data-theme="light"] .report-thead th {
+            background: #e6f7f0 !important;
+            color: #047857 !important;
+            border-bottom: 2px solid #10b981 !important;
+            font-weight: 700 !important;
+        }
+
+        [data-theme="light"] thead tr.bg-\[\#101118\] {
+            background-color: #f8fafc;
+        }
+        [data-theme="light"] th:not(.report-thead th):not(.report-thead) {
             color: #64748b !important;
             background-color: #f8fafc !important;
         }
@@ -598,22 +620,23 @@ if ($_is_mgr) {
             <div class="bg-[#14151e] border border-[#232433] rounded-2xl shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden" id="reportOrdersCard">
                 <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto w-full" id="reportOrdersContainer">
                     <table class="w-full text-left border-collapse" id="reportOrdersTable">
-                        <thead class="sticky top-0 bg-[#101118] z-20 shadow-[0_1px_0_0_#232433]">
-                            <tr class="border-b border-[#232433] bg-[#101118]">
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'លេខ ORDER' : 'ORDER NO' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'កាលបរិច្ឆេទ' : 'DATE & TIME' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'អតិថិជន' : 'CUSTOMER' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'តម្លៃ' : 'TOTAL' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ' : 'PROFIT' ?></th>
-                                <th class="py-3.5 px-6 text-center text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញ' : 'ITEMS' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'វិធីទូទាត់' : 'PAYMENT' ?></th>
-                                <th class="py-3.5 px-6 text-xs font-bold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'អ្នកលក់' : 'CASHIER' ?></th>
+                        <thead class="sticky top-0 z-20 shadow-[0_2px_10px_rgba(0,0,0,0.1)] report-thead">
+                            <tr class="border-b-2 border-[#10b981]">
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'លេខ ORDER' : 'ORDER NO' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'កាលបរិច្ឆេទ' : 'DATE & TIME' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'អតិថិជន' : 'CUSTOMER' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'តម្លៃ' : 'TOTAL' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើម' : 'COST' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញ' : 'PROFIT' ?></th>
+                                <th class="py-3.5 px-6 text-center text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញ' : 'ITEMS' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'វិធីទូទាត់' : 'PAYMENT' ?></th>
+                                <th class="py-3.5 px-6 text-xs font-bold uppercase tracking-wider"><?= $isKm ? 'អ្នកលក់' : 'CASHIER' ?></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[#1e1f2c]">
                             <?php if (empty($ordersList)): ?>
                             <tr id="noDataRow">
-                                <td colspan="8" class="text-center py-16 px-4 text-[#8e8e9f]">
+                                <td colspan="9" class="text-center py-16 px-4 text-[#8e8e9f]">
                                     <div class="w-14 h-14 rounded-full bg-[#1b1c27] flex items-center justify-center mx-auto mb-3 text-[#78788c] text-xl">
                                         <i class="fa-solid fa-folder-open"></i>
                                     </div>
@@ -628,6 +651,8 @@ if ($_is_mgr) {
                                     $dtFormatted   = date('G:i j/n/Y', strtotime($o['order_date']));
                                     $customerName  = !empty($o['customer_name']) ? $o['customer_name'] : 'Guest';
                                     $totalFormatted = '$' . number_format((float)$o['total'], 2);
+                                    $costVal         = (float)($o['total_cost'] ?? 0);
+                                    $costFormatted   = '$' . number_format($costVal, 2);
                                     $profitVal       = (float)($o['total_profit'] ?? 0);
                                     $profitFormatted = ($profitVal >= 0 ? '$' : '-$') . number_format(abs($profitVal), 2);
                                     $profitClass     = $profitVal < 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
@@ -651,6 +676,7 @@ if ($_is_mgr) {
                                     <td class="py-4 px-6 text-xs text-[#8e8e9f] font-medium whitespace-nowrap"><?= htmlspecialchars($dtFormatted) ?></td>
                                     <td class="py-4 px-6 text-xs font-semibold text-[#c7c7d4] whitespace-nowrap"><?= htmlspecialchars($customerName) ?></td>
                                     <td class="py-4 px-6 text-xs font-black text-white whitespace-nowrap"><?= $totalFormatted ?></td>
+                                    <td class="py-4 px-6 text-xs font-semibold text-[#8e8e9f] whitespace-nowrap"><?= $costFormatted ?></td>
                                     <td class="py-4 px-6 text-xs whitespace-nowrap <?= $profitClass ?>"><?= $profitFormatted ?></td>
                                     <td class="py-4 px-6 text-center text-xs font-semibold text-[#c7c7d4] whitespace-nowrap">
                                         <span class="inline-flex items-center justify-center min-w-[24px] px-2 py-0.5 rounded-full bg-[#1b1c27] border border-[#2c2d3e] font-semibold text-xs text-white"><?= $itemsCount ?></span>
@@ -672,7 +698,7 @@ if ($_is_mgr) {
                         <div><?= $isKm ? 'ចំនួនប្រតិបត្តិការសរុប (Orders):' : 'Total Orders Count:' ?> <span class="font-bold text-white"><?= number_format($totalOrdersCount) ?></span></div>
                     </div>
 
-                    <!-- Right: Total Items, Total Sales & Total Profit -->
+                    <!-- Right: Total Items, Total Sales, Total Cost & Total Profit -->
                     <div class="flex items-center gap-8 self-end md:self-auto">
                         <div class="text-right">
                             <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ចំនួនទំនិញសរុប' : 'Total Items' ?></div>
@@ -681,6 +707,10 @@ if ($_is_mgr) {
                         <div class="text-right">
                             <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ការលក់សរុប' : 'Total Sales' ?></div>
                             <div class="text-xl md:text-2xl font-black text-white leading-tight"><?= '$' . number_format($totalSalesAmount, 2) ?></div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ថ្លៃដើមសរុប' : 'Total Cost' ?></div>
+                            <div class="text-xl md:text-2xl font-black text-[#8e8e9f] leading-tight"><?= '$' . number_format($totalCostAmount, 2) ?></div>
                         </div>
                         <div class="text-right">
                             <div class="text-[11px] font-semibold text-[#8e8e9f] uppercase tracking-wider"><?= $isKm ? 'ប្រាក់ចំណេញសរុប' : 'Total Profit' ?></div>
