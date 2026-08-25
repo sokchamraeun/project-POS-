@@ -15,6 +15,22 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mail_helper.php';
 require_once __DIR__ . '/lang.php';
 
+// ── ENSURE USERS TABLE SCHEMA IS COMPATIBLE ACROSS ALL MYSQL VERSIONS ──
+try {
+    if (isset($conn) && $conn instanceof mysqli) {
+        $existing_cols = [];
+        $col_res = $conn->query("SHOW COLUMNS FROM `users`");
+        if ($col_res) {
+            while ($c = $col_res->fetch_assoc()) {
+                $existing_cols[strtolower($c['Field'])] = true;
+            }
+        }
+        if (!isset($existing_cols['email']))                @$conn->query("ALTER TABLE `users` ADD `email` VARCHAR(255) NULL DEFAULT NULL");
+        if (!isset($existing_cols['is_active']))            @$conn->query("ALTER TABLE `users` ADD `is_active` TINYINT(1) NOT NULL DEFAULT 1");
+        if (!isset($existing_cols['must_change_password'])) @$conn->query("ALTER TABLE `users` ADD `must_change_password` TINYINT(1) NOT NULL DEFAULT 0");
+    }
+} catch (Throwable $e) {}
+
 // Generate CSRF token if missing
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));

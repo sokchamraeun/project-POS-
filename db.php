@@ -27,10 +27,12 @@ final class Database
         // Check if local config file exists for custom credentials
         if (is_file(__DIR__ . '/db_config.local.php')) {
             require __DIR__ . '/db_config.local.php';
-            if (isset($servername)) $host = $servername;
-            if (isset($username))   $user = $username;
-            if (isset($password))   $pass = $password;
-            if (isset($dbname_custom)) $dbname = $dbname_custom;
+            if (isset($servername)) $host   = (string)$servername;
+            if (isset($username))   $user   = (string)$username;
+            if (isset($password))   $pass   = (string)$password;
+            if (isset($dbname))     $dbname = (string)$dbname;
+            if (isset($dbname_custom)) $dbname = (string)$dbname_custom;
+            if (isset($port))       $port   = (string)$port;
         }
 
         date_default_timezone_set('Asia/Phnom_Penh');
