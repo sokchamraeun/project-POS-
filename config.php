@@ -203,6 +203,28 @@ _migrate($conn, 'order_items_orig_price', function($db) {
     $db->query("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS orig_price DECIMAL(10,2) NOT NULL DEFAULT 0");
 });
 
+_migrate($conn, 'users_email_security_v1', function($db) {
+    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) NULL DEFAULT NULL");
+    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0");
+    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_set_security TINYINT(1) NOT NULL DEFAULT 0");
+    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question VARCHAR(255) NULL DEFAULT NULL");
+    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer VARCHAR(255) NULL DEFAULT NULL");
+    @$db->query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1");
+    @$db->query("CREATE TABLE IF NOT EXISTS `password_resets` (
+      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      `user_id` INT NOT NULL,
+      `email` VARCHAR(255) NOT NULL,
+      `token_hash` CHAR(64) NOT NULL,
+      `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      `expires_at` DATETIME NOT NULL,
+      PRIMARY KEY (`id`),
+      INDEX `idx_user_id` (`user_id`),
+      INDEX `idx_email` (`email`),
+      INDEX `idx_token_hash` (`token_hash`),
+      INDEX `idx_expires_at` (`expires_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+});
+
 // Barista unmade-item tracking: made_at NULL = drink not yet made (in the queue).
 // Stamped when the barista completes an order. Backfill everything not currently in the
 // queue so history doesn't flood the barista station on first load.

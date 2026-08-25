@@ -21,30 +21,52 @@ elseif (isset($_GET['error'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    $username = trim((string)($_POST['username'] ?? ''));
+    $password = (string)($_POST['password'] ?? '');
 
-    $stmt = $conn->prepare("SELECT u.*, u.username AS emp_name FROM users u WHERE u.username = ? OR u.email = ? LIMIT 1");
-    $stmt->bind_param("ss", $username, $username); $stmt->execute();
-    $result = $stmt->get_result();
+    if ($username !== '' && $password !== '') {
+        try {
+            // Attempt login with username or email
+            $stmt = @$conn->prepare("SELECT u.*, u.username AS emp_name FROM users u WHERE u.username = ? OR u.email = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param("ss", $username, $username);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } else {
+                // Fallback if email column not present in older hosting schema
+                $stmt = $conn->prepare("SELECT u.*, u.username AS emp_name FROM users u WHERE u.username = ? LIMIT 1");
+                $stmt->bind_param("s", $username);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            }
 
-    if ($result && $result->num_rows === 1) {
-        $user = $result->fetch_assoc();
-        if (password_verify($password, $user['password'])) {
-            session_regenerate_id(true);
-            $_SESSION['user_id']           = $user['user_id'];
-            $_SESSION['username']          = $user['username'];
-            $_SESSION['emp_name']          = $user['emp_name'] ?: $user['username'];
-            $_SESSION['role']              = $user['role'];
-            $_SESSION['last_activity']     = time();
-            $_SESSION['login_time']        = time();
-            $_SESSION['flash_welcome']     = true;
-            $_SESSION['flash_stock_alert'] = true;
-            if (!empty($user['must_change_password']) || (!empty($user['must_set_security']) && empty($user['security_question']))) { header("Location: profile.php"); exit; }
-            header("Location: loading.php"); exit;
+            if ($result && $result->num_rows === 1) {
+                $user = $result->fetch_assoc();
+                if (password_verify($password, (string)$user['password'])) {
+                    session_regenerate_id(true);
+                    $_SESSION['user_id']           = $user['user_id'];
+                    $_SESSION['username']          = $user['username'];
+                    $_SESSION['emp_name']          = $user['emp_name'] ?: $user['username'];
+                    $_SESSION['role']              = $user['role'];
+                    $_SESSION['last_activity']     = time();
+                    $_SESSION['login_time']        = time();
+                    $_SESSION['flash_welcome']     = true;
+                    $_SESSION['flash_stock_alert'] = true;
+
+                    if (!empty($user['must_change_password']) || (!empty($user['must_set_security']) && empty($user['security_question']))) {
+                        header("Location: profile.php");
+                        exit;
+                    }
+                    header("Location: loading.php");
+                    exit;
+                }
+            }
+        } catch (Throwable $e) {
+            error_log("[Login Exception] " . $e->getMessage());
         }
     }
-    header("Location: login.php?error=1"); exit;
+    header("Location: login.php?error=1");
+    exit;
 }
 ?>
 <!DOCTYPE html>
