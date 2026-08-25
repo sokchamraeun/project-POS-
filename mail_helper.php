@@ -4,7 +4,9 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require_once __DIR__ . '/vendor/autoload.php';
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
 require_once __DIR__ . '/config.php';
 
 /**
@@ -62,63 +64,67 @@ function get_mail_settings() {
  */
 function send_app_email($to_email, $to_name, $subject, $html_content, $plain_content = '') {
     $mail_cfg = get_mail_settings();
-    $mail = new PHPMailer(true);
 
-    try {
-        if ($mail_cfg['smtp_enabled'] && !empty($mail_cfg['smtp_user']) && !empty($mail_cfg['smtp_pass'])) {
-            $mail->isSMTP();
-            $mail->Host       = $mail_cfg['smtp_host'];
-            $mail->SMTPAuth   = true;
-            $mail->Username   = $mail_cfg['smtp_user'];
-            $mail->Password   = $mail_cfg['smtp_pass'];
-            $mail->SMTPSecure = ($mail_cfg['smtp_secure'] === 'ssl') ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = $mail_cfg['smtp_port'];
-            $mail->Timeout    = 15;
-            $mail->CharSet    = 'UTF-8';
+    // Check if PHPMailer is available
+    if (class_exists(PHPMailer::class)) {
+        $mail = new PHPMailer(true);
 
-            // Critical for Windows XAMPP SSL handshake
-            $mail->SMTPOptions = [
-                'ssl' => [
-                    'verify_peer'       => false,
-                    'verify_peer_name'  => false,
-                    'allow_self_signed' => true
-                ]
-            ];
+        try {
+            if ($mail_cfg['smtp_enabled'] && !empty($mail_cfg['smtp_user']) && !empty($mail_cfg['smtp_pass'])) {
+                $mail->isSMTP();
+                $mail->Host       = $mail_cfg['smtp_host'];
+                $mail->SMTPAuth   = true;
+                $mail->Username   = $mail_cfg['smtp_user'];
+                $mail->Password   = $mail_cfg['smtp_pass'];
+                $mail->SMTPSecure = ($mail_cfg['smtp_secure'] === 'ssl') ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port       = $mail_cfg['smtp_port'];
+                $mail->Timeout    = 15;
+                $mail->CharSet    = 'UTF-8';
 
-            $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : $mail_cfg['smtp_user'];
-        } else {
-            $mail->isMail();
-            $mail->CharSet = 'UTF-8';
-            $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : 'noreply@birdsnest.com';
+                // Critical for Windows XAMPP SSL handshake
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer'       => false,
+                        'verify_peer_name'  => false,
+                        'allow_self_signed' => true
+                    ]
+                ];
+
+                $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : $mail_cfg['smtp_user'];
+            } else {
+                $mail->isMail();
+                $mail->CharSet = 'UTF-8';
+                $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : 'noreply@birdsnest.com';
+            }
+
+            // Recipients
+            $mail->setFrom($from_email, $mail_cfg['from_name']);
+            $mail->addAddress($to_email, $to_name);
+
+            // Content
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body    = $html_content;
+            $mail->AltBody = !empty($plain_content) ? $plain_content : strip_tags($html_content);
+
+            $mail->send();
+            return ['success' => true, 'message' => 'Email sent successfully'];
+        } catch (Throwable $e) {
+            error_log("[PHPMailer Error] " . ($mail->ErrorInfo ?? '') . " | " . $e->getMessage());
         }
-
-        // Recipients
-        $mail->setFrom($from_email, $mail_cfg['from_name']);
-        $mail->addAddress($to_email, $to_name);
-
-        // Content
-        $mail->isHTML(true);
-        $mail->Subject = $subject;
-        $mail->Body    = $html_content;
-        $mail->AltBody = !empty($plain_content) ? $plain_content : strip_tags($html_content);
-
-        $mail->send();
-        return ['success' => true, 'message' => 'Email sent successfully'];
-    } catch (Exception $e) {
-        error_log("[PHPMailer Error] " . $mail->ErrorInfo . " | " . $e->getMessage());
-
-        // Fallback to PHP native mail()
-        $headers  = "MIME-Version: 1.0\r\n";
-        $headers .= "Content-type: text/html; charset=UTF-8\r\n";
-        $headers .= "From: " . $mail_cfg['from_name'] . " <" . (!empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : 'noreply@birdsnest.com') . ">\r\n";
-        $headers .= "X-Mailer: PHP/" . phpversion();
-
-        $native_sent = @mail($to_email, $subject, $html_content, $headers);
-        if ($native_sent) {
-            return ['success' => true, 'message' => 'Email sent via native mailer'];
-        }
-        return ['success' => false, 'error' => $mail->ErrorInfo ?: $e->getMessage()];
     }
+
+    // Fallback to PHP native mail()
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: " . $mail_cfg['from_name'] . " <" . (!empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : 'noreply@birdsnest.com') . ">\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion();
+
+    $native_sent = @mail($to_email, $subject, $html_content, $headers);
+    if ($native_sent) {
+        return ['success' => true, 'message' => 'Email sent via native mailer'];
+    }
+    return ['success' => false, 'error' => 'Could not send email via SMTP or native mailer'];
 }
 
 /**
