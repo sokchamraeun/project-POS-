@@ -15,13 +15,13 @@ require_once __DIR__ . '/config.php';
 function get_mail_settings() {
     global $conn;
     $settings = [
-        'smtp_enabled' => false,
+        'smtp_enabled' => true,
         'smtp_host'    => 'smtp.gmail.com',
         'smtp_port'    => 587,
         'smtp_secure'  => 'tls',
-        'smtp_user'    => '',
-        'smtp_pass'    => '',
-        'from_email'   => 'noreply@birdsnest.com',
+        'smtp_user'    => 'sokchamraeunid@gmail.com',
+        'smtp_pass'    => 'wtqsxliocitzbrxe',
+        'from_email'   => 'sokchamraeunid@gmail.com',
         'from_name'    => "Bird's Nest Coffee POS"
     ];
 

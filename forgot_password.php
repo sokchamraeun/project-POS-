@@ -11,9 +11,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mail_helper.php';
 require_once __DIR__ . '/lang.php';
+
+global $conn;
 
 // ── ENSURE USERS TABLE SCHEMA IS COMPATIBLE ACROSS ALL MYSQL VERSIONS ──
 try {
@@ -68,11 +71,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $step  = 1;
             } else {
                 try {
-                    $pdo = Database::getPdo();
-
-                    $stmt = $pdo->prepare("SELECT user_id, username, name, email FROM users WHERE email = ? AND is_active = 1 LIMIT 1");
-                    $stmt->execute([$email]);
-                    $user = $stmt->fetch();
+                    $user = null;
+                    if (isset($conn) && $conn instanceof mysqli) {
+                        $stmt = $conn->prepare("SELECT user_id, username, name, email FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1");
+                        if ($stmt) {
+                            $stmt->bind_param("s", $email);
+                            $stmt->execute();
+                            $res = $stmt->get_result();
+                            $user = $res ? $res->fetch_assoc() : null;
+                            $stmt->close();
+                        }
+                    }
 
                     if (!$user) {
                         $error = "រកមិនឃើញគណនីបុគ្គលិកជាមួយអ៊ីមែល " . htmlspecialchars($email) . " នេះទេ (No account found).";
@@ -82,12 +91,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $tempPass = 'BN-' . random_int(100000, 999999);
                         $hashedTemp = password_hash($tempPass, PASSWORD_BCRYPT, ['cost' => 12]);
                         $userId = (int)$user['user_id'];
-                        $userName = (string)($user['name'] ?: $user['username']);
+                        $userName = (string)(!empty($user['name']) ? $user['name'] : $user['username']);
                         $userEmail = (string)$user['email'];
 
                         // 2. Update user's temporary password in DB
-                        $updStmt = $pdo->prepare("UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?");
-                        $updStmt->execute([$hashedTemp, $userId]);
+                        $updStmt = $conn->prepare("UPDATE users SET password = ?, must_change_password = 1 WHERE user_id = ?");
+                        if ($updStmt) {
+                            $updStmt->bind_param("si", $hashedTemp, $userId);
+                            $updStmt->execute();
+                            $updStmt->close();
+                        }
 
                         // 3. Dispatch Email with Temporary Password
                         send_temporary_password_email($userEmail, $userName, $tempPass);
@@ -102,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } catch (Throwable $e) {
                     error_log("[Password Reset Error] " . $e->getMessage());
-                    $error = "មានបញ្ហាបច្ចេកទេសក្នុងការស្វែងរកគណនី សូមព្យាយាមម្តងទៀត។";
+                    $error = "មានបញ្ហាបច្ចេកទេស: " . htmlspecialchars($e->getMessage());
                     $step  = 1;
                 }
             }
@@ -121,29 +134,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (empty($currentPass)) {
                 $error = "សូមបញ្ចូលលេខសម្ងាត់បណ្តោះអាសន្នដែលទទួលបានពីអ៊ីមែល (Please enter temporary password from email).";
                 $step = 2;
-            } elseif (strlen($newPass) < 8) {
-                $error = "ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងហោចណាស់ 8 តួអក្សរឡើងទៅ (Min 8 chars).";
+            } elseif (strlen($newPass) < 4) {
+                $error = "ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងហោចណាស់ 4 តួអក្សរឡើងទៅ (Min 4 chars).";
                 $step = 2;
             } elseif ($newPass !== $confirmPass) {
                 $error = "ការបញ្ជាក់ពាក្យសម្ងាត់មិនត្រូវគ្នាទេ (Passwords do not match).";
                 $step = 2;
             } else {
                 try {
-                    $pdo = Database::getPdo();
+                    $dbUser = null;
+                    if (isset($conn) && $conn instanceof mysqli) {
+                        $chkStmt = $conn->prepare("SELECT password FROM users WHERE user_id = ? LIMIT 1");
+                        if ($chkStmt) {
+                            $chkStmt->bind_param("i", $userId);
+                            $chkStmt->execute();
+                            $res = $chkStmt->get_result();
+                            $dbUser = $res ? $res->fetch_assoc() : null;
+                            $chkStmt->close();
+                        }
+                    }
 
-                    // Verify current/temporary password against database
-                    $chkStmt = $pdo->prepare("SELECT password FROM users WHERE user_id = ? LIMIT 1");
-                    $chkStmt->execute([$userId]);
-                    $dbUser = $chkStmt->fetch();
-
-                    if (!$dbUser || !password_verify($currentPass, $dbUser['password'])) {
+                    if (!$dbUser || !password_verify($currentPass, (string)$dbUser['password'])) {
                         $error = "លេខសម្ងាត់ចាស់/បណ្តោះអាសន្នមិនត្រឹមត្រូវទេ (Invalid password from email).";
                         $step = 2;
                     } else {
                         // Hash new password using BCRYPT cost 12
                         $newHash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
-                        $upd = $pdo->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?");
-                        $upd->execute([$newHash, $userId]);
+                        $upd = $conn->prepare("UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?");
+                        if ($upd) {
+                            $upd->bind_param("si", $newHash, $userId);
+                            $upd->execute();
+                            $upd->close();
+                        }
 
                         // Clean reset session
                         unset($_SESSION['fp_user_id'], $_SESSION['fp_username'], $_SESSION['fp_email'], $_SESSION['fp_step']);
@@ -153,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } catch (Throwable $e) {
                     error_log("[Password Update Error] " . $e->getMessage());
-                    $error = "បរាជ័យក្នុងការផ្លាស់ប្តូរពាក្យសម្ងាត់ សូមព្យាយាមម្តងទៀត។";
+                    $error = "បរាជ័យក្នុងការផ្លាស់ប្តូរពាក្យសម្ងាត់: " . htmlspecialchars($e->getMessage());
                     $step = 2;
                 }
             }
