@@ -4,8 +4,14 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-if (file_exists(__DIR__ . '/vendor/autoload.php')) {
-    require_once __DIR__ . '/vendor/autoload.php';
+if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+    if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+        require_once __DIR__ . '/vendor/autoload.php';
+    } elseif (file_exists(__DIR__ . '/lib/phpmailer/PHPMailer.php')) {
+        require_once __DIR__ . '/lib/phpmailer/Exception.php';
+        require_once __DIR__ . '/lib/phpmailer/PHPMailer.php';
+        require_once __DIR__ . '/lib/phpmailer/SMTP.php';
+    }
 }
 require_once __DIR__ . '/config.php';
 
@@ -60,57 +66,72 @@ function get_mail_settings() {
 }
 
 /**
- * Send an email via PHPMailer (SMTP or PHP mail fallback)
+ * Send an email via PHPMailer (SMTP with dual-port fallback or PHP mail fallback)
  */
 function send_app_email($to_email, $to_name, $subject, $html_content, $plain_content = '') {
     $mail_cfg = get_mail_settings();
+    $last_error = '';
 
     // Check if PHPMailer is available
     if (class_exists(PHPMailer::class)) {
-        $mail = new PHPMailer(true);
+        // Try configured port first, fallback to SSL 465 if 587 blocked on hosting
+        $ports_to_try = [
+            ['port' => $mail_cfg['smtp_port'], 'secure' => $mail_cfg['smtp_secure']],
+            ['port' => 465, 'secure' => 'ssl'],
+            ['port' => 587, 'secure' => 'tls']
+        ];
 
-        try {
-            if ($mail_cfg['smtp_enabled'] && !empty($mail_cfg['smtp_user']) && !empty($mail_cfg['smtp_pass'])) {
-                $mail->isSMTP();
-                $mail->Host       = $mail_cfg['smtp_host'];
-                $mail->SMTPAuth   = true;
-                $mail->Username   = $mail_cfg['smtp_user'];
-                $mail->Password   = $mail_cfg['smtp_pass'];
-                $mail->SMTPSecure = ($mail_cfg['smtp_secure'] === 'ssl') ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port       = $mail_cfg['smtp_port'];
-                $mail->Timeout    = 15;
-                $mail->CharSet    = 'UTF-8';
+        $tried = [];
+        foreach ($ports_to_try as $p_cfg) {
+            $key = $p_cfg['port'] . '-' . $p_cfg['secure'];
+            if (isset($tried[$key])) continue;
+            $tried[$key] = true;
 
-                // Critical for Windows XAMPP SSL handshake
-                $mail->SMTPOptions = [
-                    'ssl' => [
-                        'verify_peer'       => false,
-                        'verify_peer_name'  => false,
-                        'allow_self_signed' => true
-                    ]
-                ];
+            $mail = new PHPMailer(true);
+            try {
+                if ($mail_cfg['smtp_enabled'] && !empty($mail_cfg['smtp_user']) && !empty($mail_cfg['smtp_pass'])) {
+                    $mail->isSMTP();
+                    $mail->Host       = $mail_cfg['smtp_host'];
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = $mail_cfg['smtp_user'];
+                    $mail->Password   = $mail_cfg['smtp_pass'];
+                    $mail->SMTPSecure = ($p_cfg['secure'] === 'ssl') ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port       = (int)$p_cfg['port'];
+                    $mail->Timeout    = 10;
+                    $mail->CharSet    = 'UTF-8';
 
-                $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : $mail_cfg['smtp_user'];
-            } else {
-                $mail->isMail();
-                $mail->CharSet = 'UTF-8';
-                $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : 'noreply@birdsnest.com';
+                    // Critical for Windows XAMPP SSL handshake
+                    $mail->SMTPOptions = [
+                        'ssl' => [
+                            'verify_peer'       => false,
+                            'verify_peer_name'  => false,
+                            'allow_self_signed' => true
+                        ]
+                    ];
+
+                    $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : $mail_cfg['smtp_user'];
+                } else {
+                    $mail->isMail();
+                    $mail->CharSet = 'UTF-8';
+                    $from_email = !empty($mail_cfg['from_email']) ? $mail_cfg['from_email'] : 'noreply@birdsnest.com';
+                }
+
+                // Recipients
+                $mail->setFrom($from_email, $mail_cfg['from_name']);
+                $mail->addAddress($to_email, $to_name);
+
+                // Content
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body    = $html_content;
+                $mail->AltBody = !empty($plain_content) ? $plain_content : strip_tags($html_content);
+
+                $mail->send();
+                return ['success' => true, 'message' => 'Email sent successfully'];
+            } catch (Throwable $e) {
+                $last_error = ($mail->ErrorInfo ?? '') . ' | ' . $e->getMessage();
+                error_log("[PHPMailer Error Port {$p_cfg['port']}] " . $last_error);
             }
-
-            // Recipients
-            $mail->setFrom($from_email, $mail_cfg['from_name']);
-            $mail->addAddress($to_email, $to_name);
-
-            // Content
-            $mail->isHTML(true);
-            $mail->Subject = $subject;
-            $mail->Body    = $html_content;
-            $mail->AltBody = !empty($plain_content) ? $plain_content : strip_tags($html_content);
-
-            $mail->send();
-            return ['success' => true, 'message' => 'Email sent successfully'];
-        } catch (Throwable $e) {
-            error_log("[PHPMailer Error] " . ($mail->ErrorInfo ?? '') . " | " . $e->getMessage());
         }
     }
 
@@ -124,7 +145,7 @@ function send_app_email($to_email, $to_name, $subject, $html_content, $plain_con
     if ($native_sent) {
         return ['success' => true, 'message' => 'Email sent via native mailer'];
     }
-    return ['success' => false, 'error' => 'Could not send email via SMTP or native mailer'];
+    return ['success' => false, 'error' => $last_error ?: 'Could not send email via SMTP or native mailer'];
 }
 
 /**
