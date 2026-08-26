@@ -54,7 +54,7 @@ $roles = [
         'tagline'    => 'Live queue ready.',
         'sync_title' => 'Connecting to Order Queue',
         'sync_desc'  => 'Syncing pending drink tickets...',
-        'dest'       => 'view_order.php',
+        'dest'       => 'menu.php',
     ],
     'inventory_clerk' => [
         'badge'      => 'INVENTORY',

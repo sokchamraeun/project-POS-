@@ -53,10 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['flash_welcome']     = true;
                     $_SESSION['flash_stock_alert'] = true;
 
-                    if (!empty($user['must_change_password']) || (!empty($user['must_set_security']) && empty($user['security_question']))) {
-                        header("Location: profile.php");
-                        exit;
-                    }
                     header("Location: loading.php");
                     exit;
                 }
