@@ -559,68 +559,111 @@ html:not([data-theme="light"]) .theme-switch-slider {
     100% { transform: rotate(-15deg) scale(1.15); }
 }
 
-/* Language Selector Card */
+/* ══ Language Selector - Neumorphic Soft Depth ══ */
 .sidebar-lang-card {
     position: relative;
     width: 100%;
+    box-sizing: border-box;
 }
 .sidebar-lang-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 8px 12px;
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.28) !important;
-    border-radius: 12px !important;
+    padding: 8.5px 13px !important;
+    background: #080e1c !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 9999px !important;
     text-decoration: none;
     cursor: pointer;
-    transition: all 0.2s ease;
     box-sizing: border-box;
+    /* Neumorphic Soft Depth Inset & Highlight Shadows */
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.78),
+                inset 0 1px 2px rgba(0, 0, 0, 0.95),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.06),
+                0 1px 1px rgba(255, 255, 255, 0.03) !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    user-select: none;
+    -webkit-user-select: none;
+    position: relative;
+    overflow: hidden;
 }
 .sidebar-lang-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.45) !important;
+    background: #0a1224 !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.65),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.08),
+                0 0 16px rgba(16, 185, 129, 0.18),
+                0 1px 2px rgba(255, 255, 255, 0.05) !important;
+}
+.sidebar-lang-btn:active {
+    transform: scale(0.985);
+    box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.9),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.04) !important;
 }
 .sidebar-lang-main {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 10px;
+    min-width: 0;
 }
 .sidebar-lang-flag {
     font-size: 18px;
     line-height: 1;
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
+}
+.sidebar-lang-flag-svg {
+    border-radius: 3px !important;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: block;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5) !important;
 }
 .sidebar-lang-name {
     font-size: 13.5px !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     color: #ffffff !important;
     letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .sidebar-lang-right {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
+    flex-shrink: 0;
 }
 .sidebar-lang-badge {
-    background: rgba(16, 185, 129, 0.15) !important;
+    background: #043e2e !important;
     color: #10b981 !important;
-    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    border: 1px solid rgba(16, 185, 129, 0.38) !important;
     font-size: 11px !important;
-    font-weight: 700 !important;
-    padding: 2px 7px !important;
-    border-radius: 6px !important;
+    font-weight: 800 !important;
+    padding: 2.5px 8px !important;
+    border-radius: 9999px !important;
     letter-spacing: 0.5px;
+    line-height: 1.2;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 8px rgba(16, 185, 129, 0.2) !important;
+    transition: all 0.2s ease;
+}
+.sidebar-lang-btn:hover .sidebar-lang-badge {
+    background: #064e3b !important;
+    color: #34d399 !important;
+    border-color: rgba(52, 211, 153, 0.5) !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 12px rgba(16, 185, 129, 0.4) !important;
 }
 .sidebar-lang-chevron {
-    color: #64748b !important;
-    font-size: 10px !important;
-    transition: transform 0.2s ease, color 0.2s ease;
+    color: #cbd5e1 !important;
+    font-size: 10.5px !important;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease !important;
 }
 .sidebar-lang-btn:hover .sidebar-lang-chevron {
-    color: #cbd5e1 !important;
+    color: #ffffff !important;
+    transform: translateY(1.5px);
 }
 
 /* User Profile & Logout Card */
