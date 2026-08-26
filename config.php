@@ -32,6 +32,15 @@ if (getenv('DB_NAME') || getenv('DB_USER')) {
     ];
 }
 
+// if (getenv('DB_NAME') || getenv('DB_USER')) {
+//     $db_candidates[] = [
+//         'host' => getenv('DB_HOST') ?: 'localhost',
+//         'user' => getenv('DB_USER') ?: 'dpdc690_pos',
+//         'pass' => getenv('DB_PASS') !== false ? getenv('Coffee@_1234') : '',
+//         'name' => getenv('DB_NAME') ?: 'dpdc690_pos'
+//     ];
+// }
+
 // 3. Detect if on Production Host or Localhost
 $is_local_env = (
     (!empty($_SERVER['SERVER_NAME']) && in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1', '::1'], true)) ||
