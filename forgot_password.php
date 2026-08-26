@@ -103,15 +103,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
 
                         // 3. Dispatch Email with Temporary Password
-                        send_temporary_password_email($userEmail, $userName, $tempPass);
+                        $mail_result = send_temporary_password_email($userEmail, $userName, $tempPass);
 
-                        // 4. Save session state & transition IMMEDIATELY to Step 2
-                        $_SESSION['fp_user_id']   = $userId;
-                        $_SESSION['fp_username']  = $userName;
-                        $_SESSION['fp_email']     = $userEmail;
-                        $_SESSION['fp_step']      = 2;
-                        $step = 2;
-                        $success = "យើងបានផ្ញើលេខសម្ងាត់បណ្តោះអាសន្នទៅកាន់អ៊ីមែល " . htmlspecialchars($userEmail) . " រួចរាល់ហើយ! សូមពិនិត្យមើល Email របស់អ្នក។";
+                        if (!$mail_result['success']) {
+                            $error = "បរាជ័យក្នុងការផ្ញើអ៊ីមែល (Failed to send email): " . htmlspecialchars($mail_result['error'] ?? 'SMTP error. Please verify SMTP settings in settings.php');
+                            $step = 1;
+                        } else {
+                            // 4. Save session state & transition IMMEDIATELY to Step 2
+                            $_SESSION['fp_user_id']   = $userId;
+                            $_SESSION['fp_username']  = $userName;
+                            $_SESSION['fp_email']     = $userEmail;
+                            $_SESSION['fp_step']      = 2;
+                            $step = 2;
+                            $success = "យើងបានផ្ញើលេខសម្ងាត់បណ្តោះអាសន្នទៅកាន់អ៊ីមែល " . htmlspecialchars($userEmail) . " រួចរាល់ហើយ! សូមពិនិត្យមើល Email របស់អ្នក។";
+                        }
                     }
                 } catch (Throwable $e) {
                     error_log("[Password Reset Error] " . $e->getMessage());

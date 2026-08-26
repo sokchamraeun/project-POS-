@@ -14,14 +14,16 @@ host.
 
 ## What must NOT come from the repo (upload manually on the server)
 
-Three files can hold environment-specific secrets and are git-ignored:
+Four files can hold environment-specific secrets and are git-ignored:
 
 | File | From template | Holds |
 |------|---------------|-------|
 | `db_config.local.php` | `db_config.local.example.php` | production DB host/user/pass/name |
 | `bakong_config.local.php` | `bakong_config.local.example.php` | real Bakong token + merchant identity |
+| `mail_config.local.php` | `mail_config.local.example.php` | production SMTP email credentials (Gmail App Password) |
 | `cloudinary_config.local.php` | `cloudinary_config.local.example.php` | *(optional)* production Cloudinary keys |
 
+Without `mail_config.local.php` (or configured settings in `settings.php`), password reset emails cannot be dispatched.
 Without `bakong_config.local.php`, QR generation uses placeholders and no payment
 can be verified. Without `db_config.local.php`, the app falls back to local XAMPP
 defaults (`localhost` / `root` / no password) and will fail to connect on a host.
