@@ -3,92 +3,42 @@ date_default_timezone_set('Asia/Phnom_Penh');
 require_once __DIR__ . '/lang.php';
 require_once __DIR__ . '/cloudinary_config.php';
 
-// ── SMART MULTI-ENVIRONMENT AUTO-CONFIG DATABASE CASCADE ──
-// Auto-detects environment (Localhost XAMPP vs cPanel / Production Hosting)
-// Works out of the box on deploy with zero manual setup required!
+// Database connection
+// ⚠️  Run this once in phpMyAdmin/MySQL CLI before changing these credentials:
+//   CREATE USER 'cafe_pos'@'localhost' IDENTIFIED BY 'Caf3P0S!2025#Kh';
+//   GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER ON db_coffee.* TO 'cafe_pos'@'localhost';
+//   FLUSH PRIVILEGES;
+// Local XAMPP defaults. In production, override these via a git-ignored
+// db_config.local.php (copy db_config.local.example.php) so real credentials
+// never live in the repo — same pattern as bakong_config.local.php.
+$servername = "localhost";
+$username   = "root";
+$password   = "";
+$dbname     = "db_coffeeshop_final--";
 
-$db_candidates = [];
 
-// 1. Highest priority: Local config file override if present
+
+// $servername = "localhost";
+// $username   = "dpdc690_pos";
+// $password   = "Coffee@_1234";
+// $dbname     = "dpdc690_pos";
+
+
+
+// hello?
+
 if (is_file(__DIR__ . '/db_config.local.php')) {
     require __DIR__ . '/db_config.local.php';
-    if (isset($servername, $username, $password, $dbname)) {
-        $db_candidates[] = [
-            'host' => $servername,
-            'user' => $username,
-            'pass' => $password,
-            'name' => $dbname
-        ];
-    }
 }
 
-// 2. Environment variables (Docker / Cloud / cPanel .env)
-if (getenv('DB_NAME') || getenv('DB_USER')) {
-    $db_candidates[] = [
-        'host' => getenv('DB_HOST') ?: 'localhost',
-        'user' => getenv('DB_USER') ?: 'root',
-        'pass' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : '',
-        'name' => getenv('DB_NAME') ?: 'db_coffeeshop_final--'
-    ];
-}
-
-// if (getenv('DB_NAME') || getenv('DB_USER')) {
-//     $db_candidates[] = [
-//         'host' => getenv('DB_HOST') ?: 'localhost',
-//         'user' => getenv('DB_USER') ?: 'dpdc690_pos',
-//         'pass' => getenv('DB_PASS') !== false ? getenv('Coffee@_1234') : '',
-//         'name' => getenv('DB_NAME') ?: 'dpdc690_pos'
-//     ];
-// }
-
-// 3. Detect if on Production Host or Localhost
-$is_local_env = (
-    (!empty($_SERVER['SERVER_NAME']) && in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1', '::1'], true)) ||
-    (!empty($_SERVER['HTTP_HOST']) && (str_contains($_SERVER['HTTP_HOST'], 'localhost') || str_contains($_SERVER['HTTP_HOST'], '127.0.0.1'))) ||
-    (php_sapi_name() === 'cli' && stripos(__DIR__, 'xampp') !== false)
-);
-
-if ($is_local_env) {
-    // Localhost XAMPP candidates first
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'root', 'pass' => '', 'name' => 'db_coffeeshop_final--'];
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'root', 'pass' => '', 'name' => 'db_coffee'];
-    $db_candidates[] = ['host' => '127.0.0.1', 'user' => 'root', 'pass' => '', 'name' => 'db_coffeeshop_final--'];
-    // Production candidates as fallback
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'dpdc690_pos', 'pass' => 'Coffee@_1234', 'name' => 'dpdc690_pos'];
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'dpdc690_dbcoffee', 'pass' => 'Coffee@_1234', 'name' => 'dpdc690_dbcoffee'];
-} else {
-    // Production Hosting candidates first (cPanel / thebirdnestcafe.online)
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'dpdc690_pos', 'pass' => 'Coffee@_1234', 'name' => 'dpdc690_pos'];
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'dpdc690_dbcoffee', 'pass' => 'Coffee@_1234', 'name' => 'dpdc690_dbcoffee'];
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'thebirdn_pos', 'pass' => 'Coffee@_1234', 'name' => 'thebirdn_pos'];
-    // Localhost fallback
-    $db_candidates[] = ['host' => 'localhost', 'user' => 'root', 'pass' => '', 'name' => 'db_coffeeshop_final--'];
-}
-
-// ── ROBUST AUTO-CONNECT ATTEMPT ──
+// ── ROBUST MYSQL CONNECTION & DIAGNOSTIC HANDLER ──
 mysqli_report(MYSQLI_REPORT_OFF);
 
-$conn = null;
 $conn_error_msg = null;
-$servername = 'localhost';
-$username   = 'root';
-$password   = '';
-$dbname     = 'db_coffeeshop_final--';
-
-foreach ($db_candidates as $cand) {
-    try {
-        $c = @new mysqli($cand['host'], $cand['user'], $cand['pass'], $cand['name']);
-        if ($c && !$c->connect_error) {
-            $conn = $c;
-            $servername = $cand['host'];
-            $username   = $cand['user'];
-            $password   = $cand['pass'];
-            $dbname     = $cand['name'];
-            break;
-        }
-    } catch (Throwable $e) {
-        $conn_error_msg = $e->getMessage();
-    }
+try {
+    $conn = @new mysqli($servername, $username, $password, $dbname);
+} catch (Throwable $e) {
+    $conn_error_msg = $e->getMessage();
 }
 
 if (!isset($conn) || $conn->connect_error || !empty($conn_error_msg)) {

@@ -16,52 +16,28 @@ final class Database
      */
     private function __construct()
     {
-        date_default_timezone_set('Asia/Phnom_Penh');
+        // Default local configuration (fallback to config.php or environment)
+        $host    = getenv('DB_HOST') ?: '127.0.0.1';
+        $port    = getenv('DB_PORT') ?: '3306';
+        $dbname  = getenv('DB_NAME') ?: 'db_coffeeshop_final--';
+        $user    = getenv('DB_USER') ?: 'root';
+        $pass    = getenv('DB_PASS') ?: '';
+        $charset = 'utf8mb4';
 
-        $candidates = [];
-
-        // 1. Local override if present
+        // Check if local config file exists for custom credentials
         if (is_file(__DIR__ . '/db_config.local.php')) {
             require __DIR__ . '/db_config.local.php';
-            if (isset($servername, $username, $password, $dbname)) {
-                $candidates[] = [
-                    'host' => (string)$servername,
-                    'port' => (string)($port ?? '3306'),
-                    'name' => (string)$dbname,
-                    'user' => (string)$username,
-                    'pass' => (string)$password
-                ];
-            }
+            if (isset($servername)) $host   = (string)$servername;
+            if (isset($username))   $user   = (string)$username;
+            if (isset($password))   $pass   = (string)$password;
+            if (isset($dbname))     $dbname = (string)$dbname;
+            if (isset($dbname_custom)) $dbname = (string)$dbname_custom;
+            if (isset($port))       $port   = (string)$port;
         }
 
-        // 2. Environment variables
-        if (getenv('DB_NAME') || getenv('DB_USER')) {
-            $candidates[] = [
-                'host' => getenv('DB_HOST') ?: '127.0.0.1',
-                'port' => getenv('DB_PORT') ?: '3306',
-                'name' => getenv('DB_NAME') ?: 'db_coffeeshop_final--',
-                'user' => getenv('DB_USER') ?: 'root',
-                'pass' => getenv('DB_PASS') !== false ? getenv('DB_PASS') : ''
-            ];
-        }
+        date_default_timezone_set('Asia/Phnom_Penh');
 
-        // 3. Environment detection
-        $is_local = (
-            (!empty($_SERVER['SERVER_NAME']) && in_array($_SERVER['SERVER_NAME'], ['localhost', '127.0.0.1', '::1'], true)) ||
-            (!empty($_SERVER['HTTP_HOST']) && (str_contains($_SERVER['HTTP_HOST'], 'localhost') || str_contains($_SERVER['HTTP_HOST'], '127.0.0.1'))) ||
-            (php_sapi_name() === 'cli' && stripos(__DIR__, 'xampp') !== false)
-        );
-
-        if ($is_local) {
-            $candidates[] = ['host' => '127.0.0.1', 'port' => '3306', 'name' => 'db_coffeeshop_final--', 'user' => 'root', 'pass' => ''];
-            $candidates[] = ['host' => 'localhost', 'port' => '3306', 'name' => 'db_coffeeshop_final--', 'user' => 'root', 'pass' => ''];
-            $candidates[] = ['host' => 'localhost', 'port' => '3306', 'name' => 'db_coffee', 'user' => 'root', 'pass' => ''];
-            $candidates[] = ['host' => 'localhost', 'port' => '3306', 'name' => 'dpdc690_pos', 'user' => 'dpdc690_pos', 'pass' => 'Coffee@_1234'];
-        } else {
-            $candidates[] = ['host' => 'localhost', 'port' => '3306', 'name' => 'dpdc690_pos', 'user' => 'dpdc690_pos', 'pass' => 'Coffee@_1234'];
-            $candidates[] = ['host' => 'localhost', 'port' => '3306', 'name' => 'dpdc690_dbcoffee', 'user' => 'dpdc690_pos', 'pass' => 'Coffee@_1234'];
-            $candidates[] = ['host' => '127.0.0.1', 'port' => '3306', 'name' => 'db_coffeeshop_final--', 'user' => 'root', 'pass' => ''];
-        }
+        $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
 
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -70,21 +46,12 @@ final class Database
             PDO::ATTR_PERSISTENT         => false,
         ];
 
-        $last_ex = null;
-        foreach ($candidates as $c) {
-            try {
-                $dsn = "mysql:host={$c['host']};port={$c['port']};dbname={$c['name']};charset=utf8mb4";
-                $this->pdo = new PDO($dsn, $c['user'], $c['pass'], $options);
-                $this->pdo->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
-                $this->pdo->exec("SET time_zone = '+07:00'");
-                break;
-            } catch (Throwable $e) {
-                $last_ex = $e;
-            }
-        }
-
-        if (!$this->pdo) {
-            error_log("[Database Connection Error] " . ($last_ex ? $last_ex->getMessage() : 'No candidate matched'));
+        try {
+            $this->pdo = new PDO($dsn, $user, $pass, $options);
+            $this->pdo->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
+            $this->pdo->exec("SET time_zone = '+07:00'");
+        } catch (PDOException $e) {
+            error_log("[Database Connection Error] " . $e->getMessage());
             throw new RuntimeException("Database connection failed. Please contact administrator.");
         }
     }
