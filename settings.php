@@ -402,6 +402,33 @@ i, .fa, .fa-solid, .fa-regular, .fa-brands, [class*="fa-"] {
   line-height: 1.4;
 }
 
+/* ── PASSWORD TOGGLE BUTTON (EYE ICON) ── */
+.password-toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition: var(--transition);
+  outline: none;
+}
+.password-toggle-btn:hover {
+  color: var(--accent) !important;
+  background: var(--accent-light) !important;
+}
+.password-toggle-btn:focus {
+  color: var(--accent) !important;
+}
+
 /* ── PREVIEW ROWS & BADGES ── */
 .preview-row {
   display: flex;
@@ -826,8 +853,13 @@ i, .fa, .fa-solid, .fa-regular, .fa-brands, [class*="fa-"] {
                     </div>
 
                     <div class="field">
-                        <label><i class="fa-solid fa-key"></i> SMTP Password / App Password</label>
-                        <input type="password" name="smtp_pass" value="<?= htmlspecialchars($smtp_pass) ?>" placeholder="Gmail 16-char App Password">
+                        <label><i class="fa-solid fa-key"></i> <?= $isKm ? 'លេខសម្ងាត់ SMTP / App Password' : 'SMTP Password / App Password' ?></label>
+                        <div style="position: relative; width: 100%;">
+                            <input type="password" name="smtp_pass" id="smtpPassInput" value="<?= htmlspecialchars($smtp_pass) ?>" placeholder="Gmail 16-char App Password" style="padding-right: 44px;">
+                            <button type="button" id="toggleSmtpPassBtn" onclick="togglePasswordVisibility('smtpPassInput', 'toggleSmtpPassIcon')" class="password-toggle-btn" title="<?= $isKm ? 'បង្ហាញ/លាក់លេខសម្ងាត់' : 'Show/Hide Password' ?>">
+                                <i class="fa-solid fa-eye" id="toggleSmtpPassIcon"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="field">
@@ -879,6 +911,25 @@ i, .fa, .fa-solid, .fa-regular, .fa-brands, [class*="fa-"] {
 </div>
 
 <script>
+// Toggle Password Visibility (Eye Icon)
+function togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (!input || !icon) return;
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        icon.style.color = 'var(--accent)';
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        icon.style.color = '';
+    }
+}
+
 // Live Receipt Preview Script
 const inputShopName  = document.getElementById('rcptShopName');
 const inputLocation  = document.getElementById('rcptLocation');

@@ -26,7 +26,7 @@ function get_mail_settings() {
         'smtp_port'    => 587,
         'smtp_secure'  => 'tls',
         'smtp_user'    => 'sokchamraeunid@gmail.com',
-        'smtp_pass'    => 'wtqsxliocitzbrxe',
+        'smtp_pass'    => 'axnojdgzlxgwvksm',
         'from_email'   => 'sokchamraeunid@gmail.com',
         'from_name'    => "Bird's Nest Coffee POS"
     ];
