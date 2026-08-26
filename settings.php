@@ -118,7 +118,7 @@ $receipt_location   = $settings_map['receipt_location']   ?? 'Phnom Penh';
 $receipt_phone      = $settings_map['receipt_phone']      ?? '+855 12 345 678';
 $receipt_footer_msg = $settings_map['receipt_footer_msg'] ?? 'Thank You!';
 
-$smtp_enabled       = ($settings_map['smtp_enabled'] ?? '0') === '1';
+$smtp_enabled       = ($settings_map['smtp_enabled'] ?? '') !== '0';
 $smtp_host          = $settings_map['smtp_host']          ?? 'smtp.gmail.com';
 $smtp_port          = $settings_map['smtp_port']          ?? '587';
 $smtp_secure        = $settings_map['smtp_secure']        ?? 'tls';

@@ -52,16 +52,22 @@ function get_mail_settings() {
                 $k = $r['setting_key'];
                 $v = $r['setting_value'];
                 if ($k === 'smtp_enabled' && !isset($smtp_enabled)) $settings['smtp_enabled'] = ($v === '1' || $v === 'true' || $v === 'yes');
-                if ($k === 'smtp_host' && !empty($v) && empty($settings['smtp_user'])) $settings['smtp_host'] = $v;
-                if ($k === 'smtp_port' && !empty($v) && empty($settings['smtp_user'])) $settings['smtp_port'] = (int)$v;
-                if ($k === 'smtp_secure' && !empty($v) && empty($settings['smtp_user'])) $settings['smtp_secure'] = $v;
-                if ($k === 'smtp_user' && !empty($v)) $settings['smtp_user'] = $v;
-                if ($k === 'smtp_pass' && !empty($v)) $settings['smtp_pass'] = $v;
+                if ($k === 'smtp_host' && !empty($v))       $settings['smtp_host'] = $v;
+                if ($k === 'smtp_port' && !empty($v))       $settings['smtp_port'] = (int)$v;
+                if ($k === 'smtp_secure' && !empty($v))     $settings['smtp_secure'] = $v;
+                if ($k === 'smtp_user' && !empty($v))       $settings['smtp_user'] = $v;
+                if ($k === 'smtp_pass' && !empty($v))       $settings['smtp_pass'] = $v;
                 if ($k === 'mail_from_email' && !empty($v)) $settings['from_email'] = $v;
-                if ($k === 'mail_from_name' && !empty($v)) $settings['from_name'] = $v;
+                if ($k === 'mail_from_name' && !empty($v))  $settings['from_name'] = $v;
             }
         }
     }
+
+    // Auto-enable SMTP if credentials are present
+    if (!empty($settings['smtp_user']) && !empty($settings['smtp_pass'])) {
+        $settings['smtp_enabled'] = true;
+    }
+
     return $settings;
 }
 
