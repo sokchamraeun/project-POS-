@@ -1,11 +1,7 @@
 <?php
 require 'auth.php';
 require_once 'config.php';
-// Cashiers (staff) collect pay-later payments from find_order.php — allow them alongside admin/manager
-if (!in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])) {
-    header("Location: dashboard.php?denied=1");
-    exit;
-}
+// Accessible by all authenticated staff
 if (file_exists(__DIR__ . '/bakong-khqr-php-main/autoload.php')) {
     require_once __DIR__ . '/bakong-khqr-php-main/autoload.php';
 } elseif (file_exists(__DIR__ . '/bakong-khqr-php-main/vendor/autoload.php')) {

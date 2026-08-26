@@ -2,16 +2,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/config.php';
 
-// Only admins and managers can run this cleanup
-if (!in_array($_SESSION['role'] ?? '', ['admin', 'manager'])) {
-    if (isset($_GET['ajax']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'message' => 'Unauthorized access.']);
-        exit;
-    }
-    header("Location: dashboard.php?denied=1");
-    exit;
-}
+// Accessible by all authenticated staff
 
 $conn->begin_transaction();
 try {

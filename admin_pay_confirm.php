@@ -1,6 +1,6 @@
 <?php
 require 'auth.php';
-if (!in_array($_SESSION['role'], ['admin', 'manager', 'staff'])) { header("Location: dashboard.php?denied=1"); exit; }
+require_once 'config.php';
 
 $order_id = (int)($_GET['order_id'] ?? 0);
 

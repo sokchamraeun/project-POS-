@@ -1,10 +1,7 @@
 <?php
-require 'auth.php'; // starts session, loads config ($conn), re-syncs $_SESSION['role']
-// Cashiers (staff) collect pay-later payments from find_order.php — allow them alongside admin/manager
-if (!in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])) {
-    header("Location: dashboard.php?denied=1");
-    exit;
-}
+require 'auth.php';
+require_once 'config.php';
+// Accessible by all authenticated staff
 
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 

@@ -1,11 +1,7 @@
 <?php
 require 'auth.php';
 require 'config.php';
-// Cashiers (staff) handle pay-later orders (add-to-order + settle) — allow them alongside admin/manager
-if (!in_array($_SESSION['role'] ?? '', ['admin', 'manager', 'staff'])) {
-    header("Location: dashboard.php?denied=1");
-    exit;
-}
+// Accessible by all authenticated staff
 
 $order_id = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
 if ($order_id <= 0) { header("Location: menu.php"); exit; }

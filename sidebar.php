@@ -1272,12 +1272,10 @@ html[data-theme="light"] .toast-dismiss:hover {
             </a>
             <?php endif; ?>
 
-            <?php if (in_array($_SESSION['role'] ?? '', ['admin', 'manager'], true)): ?>
             <a class="nav-item<?= $_cur_page === 'users.php' ? ' active' : '' ?>" href="users.php">
                 <i class="fa-solid fa-users-gear"></i>
                 <span class="nav-label"><?= __('nav_users', 'អ្នកប្រើប្រាស់') ?></span>
             </a>
-            <?php endif; ?>
 
         </nav>
     </div>

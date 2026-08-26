@@ -1,7 +1,6 @@
 <?php
 require 'auth.php';
 require 'config.php';
-if (!in_array($_SESSION['role'], ['admin', 'manager', 'staff'])) { header("Location: dashboard.php?denied=1"); exit; }
 
 $order_id = (int)($_GET['order_id'] ?? 0);
 if ($order_id <= 0) { header("Location: find_order.php"); exit; }

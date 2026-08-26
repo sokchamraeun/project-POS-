@@ -3,12 +3,8 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lang.php';
 
-// Only Admin and Manager are permitted to access user management
+// User management accessible by all staff
 $_role = $_SESSION['role'] ?? 'staff';
-if (!in_array($_role, ['admin', 'manager'], true)) {
-    header("Location: dashboard.php?denied=1");
-    exit;
-}
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -357,21 +353,33 @@ foreach ($users as $u) {
 @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
 
 :root {
-    --accent: #10b981;
-    --accent-dark: #059669;
-    --bg: #0c0c0c;
-    --bg-card: #121212;
-    --border: #1f1f1f;
-    --text: #f5f5f5;
-    --text-muted: #888888;
+    --bg:            #090d16;
+    --bg-card:       rgba(18, 24, 38, 0.75);
+    --border:        rgba(255, 255, 255, 0.08);
+    --border-hover:  rgba(16, 185, 129, 0.35);
+    --text:          #f8fafc;
+    --text-muted:    #94a3b8;
+    --text-sub:      #64748b;
+    --accent:        #10b981;
+    --accent-hover:  #059669;
+    --card-shadow:   0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+    --input-bg:      rgba(8, 14, 28, 0.85);
+    --th-bg:         rgba(22, 31, 48, 0.95);
+    --row-hover:     rgba(255, 255, 255, 0.03);
 }
 
 [data-theme="light"], html[data-theme="light"] {
-    --bg: #f8fafc;
-    --bg-card: #FFFFFF;
-    --border: #E2E8F0;
-    --text: #0f172a;
-    --text-muted: #64748b;
+    --bg:            #f8fafc !important;
+    --bg-card:       #ffffff !important;
+    --border:        #e2e8f0 !important;
+    --border-hover:  rgba(16, 185, 129, 0.5) !important;
+    --text:          #0f172a !important;
+    --text-muted:    #64748b !important;
+    --text-sub:      #94a3b8 !important;
+    --card-shadow:   0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    --input-bg:      #ffffff !important;
+    --th-bg:         #f1f5f9 !important;
+    --row-hover:     #f8fafc !important;
 }
 
 body, input, select, textarea, button, .modal-content, table {
@@ -380,9 +388,12 @@ body, input, select, textarea, button, .modal-content, table {
     -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-    background-color: var(--bg);
-    color: var(--text);
+body,
+.app-layout,
+.app-main {
+    background-color: var(--bg) !important;
+    background-image: none !important;
+    color: var(--text) !important;
     margin: 0;
     padding: 0;
     min-height: 100vh;
@@ -398,14 +409,20 @@ html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
     font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
 }
 
-body,
-.app-layout,
-.app-main,
-[data-theme="light"] body,
-[data-theme="light"] .app-layout,
-[data-theme="light"] .app-main {
-    background-color: #f8fafc !important;
-    color: #0f172a !important;
+.um-header-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 24px 24px 12px;
+}
+
+.um-page-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin: 0;
 }
 
 .um-wrapper {
@@ -427,51 +444,45 @@ body,
 .um-stat-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 18px 20px;
+    border-radius: 18px;
+    padding: 20px 22px;
     display: flex;
     align-items: center;
     gap: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-[data-theme="light"] .um-stat-card {
-    background: #FFFFFF !important;
-    border-color: #E2E5EA !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+.um-stat-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
 }
 
 .um-stat-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 20px;
     flex-shrink: 0;
 }
 
 .um-stat-value {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 800;
     color: var(--text);
     line-height: 1.2;
 }
 
-[data-theme="light"] .um-stat-value {
-    color: #111827 !important;
-}
-
 .um-stat-label {
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-muted);
     font-weight: 600;
     margin-top: 2px;
-}
-
-[data-theme="light"] .um-stat-label {
-    color: #5A6373 !important;
 }
 
 .um-toolbar {
@@ -500,20 +511,14 @@ body,
 
 .um-search-box input {
     width: 100%;
-    padding: 10px 14px 10px 38px;
-    border-radius: 10px;
+    padding: 11px 14px 11px 40px;
+    border-radius: 12px;
     border: 1px solid var(--border);
-    background: var(--bg-card);
+    background: var(--input-bg);
     color: var(--text);
     font-size: 13.5px;
     outline: none;
     transition: all 0.2s ease;
-}
-
-[data-theme="light"] .um-search-box input {
-    background: #FFFFFF !important;
-    border-color: #CDD0D8 !important;
-    color: #111827 !important;
 }
 
 .um-search-box input:focus {
@@ -525,8 +530,8 @@ body,
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 20px;
-    border-radius: 10px;
+    padding: 11px 22px;
+    border-radius: 12px;
     background: #10b981;
     color: #ffffff;
     font-weight: 700;
@@ -534,28 +539,24 @@ body,
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.28);
 }
 
 .btn-add-user:hover {
     background: #059669;
     color: #ffffff;
     transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.38);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
 }
 
 .um-table-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 18px;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-[data-theme="light"] .um-table-card {
-    background: #FFFFFF !important;
-    border-color: #E2E5EA !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .um-table {
@@ -570,36 +571,21 @@ body,
     font-size: 11.5px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #64748b;
-    background: #16161a;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    background: var(--th-bg);
+    border-bottom: 1px solid var(--border);
     font-weight: 700;
-}
-
-[data-theme="light"] .um-table th {
-    background: #F8FAFC !important;
-    color: #64748b !important;
-    border-bottom-color: #E2E5EA !important;
 }
 
 .um-table td {
     padding: 16px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--border);
     color: var(--text);
     vertical-align: middle;
 }
 
-[data-theme="light"] .um-table td {
-    border-bottom-color: #F1F5F9 !important;
-    color: #111827 !important;
-}
-
 .um-table tr:hover {
-    background: rgba(255, 255, 255, 0.02);
-}
-
-[data-theme="light"] .um-table tr:hover {
-    background: #F8FAFC !important;
+    background: var(--row-hover);
 }
 
 .status-badge {
@@ -628,7 +614,7 @@ body,
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.04);
     color: var(--text-muted);
     display: inline-flex;
@@ -639,9 +625,7 @@ body,
 }
 
 [data-theme="light"] .btn-action-icon {
-    background: #F1F5F9 !important;
-    border-color: #E2E5EA !important;
-    color: #64748B !important;
+    background: #f1f5f9;
 }
 
 .btn-action-icon:hover {
@@ -652,11 +636,13 @@ body,
 .btn-action-edit:hover {
     border-color: #3b82f6 !important;
     color: #60a5fa !important;
+    background: rgba(59, 130, 246, 0.15) !important;
 }
 
 .btn-action-delete:hover {
     border-color: #ef4444 !important;
     color: #f87171 !important;
+    background: rgba(239, 68, 68, 0.15) !important;
 }
 
 .um-modal-overlay {
@@ -664,6 +650,7 @@ body,
     inset: 0;
     background: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -680,21 +667,22 @@ body,
 }
 
 .um-modal-content {
-    background: #141417;
+    background: #0f172a;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 20px;
     width: 100%;
     max-width: 460px;
     padding: 28px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
     transform: scale(0.95) translateY(10px);
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    color: #f8fafc;
 }
 
 [data-theme="light"] .um-modal-content {
-    background: #FFFFFF !important;
-    border-color: #E2E8F0 !important;
-    color: #111827 !important;
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    color: #0f172a !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1) !important;
 }
 
@@ -758,9 +746,9 @@ body,
 }
 
 [data-theme="light"] .form-group input, [data-theme="light"] .form-group select {
-    background: #F8FAFC !important;
-    border-color: #CBD5E1 !important;
-    color: #0F172A !important;
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
 }
 
 .form-group input:focus, .form-group select:focus {
@@ -792,7 +780,7 @@ body,
 .btn-cancel {
     padding: 12px 20px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.05);
     color: var(--text);
     font-weight: 600;
@@ -800,8 +788,7 @@ body,
 }
 
 [data-theme="light"] .btn-cancel {
-    background: #F1F5F9 !important;
-    border-color: #E2E5EA !important;
+    background: #f1f5f9 !important;
     color: #475569 !important;
 }
 </style>
@@ -812,8 +799,8 @@ body,
     <?php require __DIR__ . '/sidebar.php'; ?>
 
     <div class="app-main flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <div class="flex items-center justify-between gap-4 px-6 pt-6 pb-2">
-            <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+        <div class="um-header-wrap">
+            <h1 class="um-page-title">
                 <?= __('nav_user_management', 'User Management') ?>
             </h1>
         </div>

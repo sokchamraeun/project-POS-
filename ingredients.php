@@ -8,12 +8,8 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/lang.php';
 
-// Role check: Only Admin, Manager, and authorized staff can access stock management
+// Access open for all authenticated staff
 $_user_role = strtolower(trim($_SESSION['role'] ?? 'staff'));
-if (!in_array($_user_role, ['admin', 'manager', 'staff', 'cashier'], true)) {
-    header("Location: dashboard.php?denied=1");
-    exit;
-}
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));

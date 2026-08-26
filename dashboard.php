@@ -8,25 +8,20 @@ date_default_timezone_set("Asia/Phnom_Penh");
 $isKm = (function_exists('current_lang') && current_lang() === 'km');
 
 $admin_name = $_SESSION['emp_name'] ?? $_SESSION['username'] ?? 'Admin';
-$_is_mgr = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
-$filter_user = 0;
+$_is_mgr = true;
+$filter_user = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
 $user_options = [];
-if ($_is_mgr) {
-    $user_options[0] = 'All Staff';
-    $q_users = $conn->query("SELECT u.user_id, u.username, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY u.username ASC");
-    if ($q_users) {
-        while ($ur = $q_users->fetch_assoc()) {
-            $displayName = $ur['display_name'] ?? $ur['username'];
-            $user_options[$ur['user_id']] = $displayName;
-        }
+$user_options[0] = 'All Staff';
+$q_users = $conn->query("SELECT u.user_id, u.username, COALESCE(NULLIF(u.name, ''), u.username) AS display_name FROM users u ORDER BY u.username ASC");
+if ($q_users) {
+    while ($ur = $q_users->fetch_assoc()) {
+        $displayName = $ur['display_name'] ?? $ur['username'];
+        $user_options[$ur['user_id']] = $displayName;
     }
-    $filter_user = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
-} else {
-    $filter_user = (int)$_SESSION['user_id'];
 }
 
-$user_clause_w = $filter_user > 0 ? " AND (user_id = $filter_user OR employee_id = $filter_user)" : "";
-$user_clause_o = $filter_user > 0 ? " AND (o.user_id = $filter_user OR o.employee_id = $filter_user)" : "";
+$user_clause_w = $filter_user > 0 ? " AND user_id = $filter_user" : "";
+$user_clause_o = $filter_user > 0 ? " AND o.user_id = $filter_user" : "";
 
 $_cur_role = $_SESSION['role'] ?? 'staff';
 
@@ -79,9 +74,13 @@ $sales = (float)($stmt_sales ? $stmt_sales->fetch_assoc()['total_sales'] : 0);
 
 // Yesterday Sales for trend
 $stmt_yest = $conn->prepare("SELECT IFNULL(SUM(total),0) AS yesterday_sales FROM orders WHERE DATE(order_date)=? " . $user_clause_w . " AND " . paid_orders_where());
-$stmt_yest->bind_param("s", $prev_business_date);
-$stmt_yest->execute();
-$yesterday_sales = (float)$stmt_yest->get_result()->fetch_assoc()['yesterday_sales'];
+$yesterday_sales = 0.0;
+if ($stmt_yest) {
+    $stmt_yest->bind_param("s", $prev_business_date);
+    $stmt_yest->execute();
+    $yesterday_sales = (float)($stmt_yest->get_result()->fetch_assoc()['yesterday_sales'] ?? 0);
+    $stmt_yest->close();
+}
 $sales_trend = $yesterday_sales > 0 ? round(($sales - $yesterday_sales) / $yesterday_sales * 100, 1) : ($sales > 0 ? 100.0 : 0.0);
 
 // Total Orders (matches report page: all non-cancelled orders)

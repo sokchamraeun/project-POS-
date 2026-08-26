@@ -1975,15 +1975,10 @@ if (!function_exists('getAvailableRewards')) {
     }
 }
 
-// ── RBAC: can() — check if current session user / role has a permission ──
+// ── RBAC: can() — check if current session user has a permission (all open) ──
 if (!function_exists('can')) {
-    function can(string $slug): bool {
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        $role = $_SESSION['role'] ?? 'staff';
-        if ($role === 'admin' || $role === 'manager') return true;
-
-        $staff_allowed = ['dashboard', 'find_orders', 'view_orders', 'loyalty', 'barista_station', 'my_profile', 'customer_display'];
-        return in_array($slug, $staff_allowed, true);
+    function can(string $slug = ''): bool {
+        return true;
     }
 }
 
