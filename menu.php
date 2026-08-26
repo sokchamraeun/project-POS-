@@ -3991,12 +3991,109 @@ function closeModal() {
   }
   document.body.style.overflow = '';
 }
+// ── SMART PRODUCT UNIT RESOLVER ──
+function getProductUnitLabel(itemOrName, category, qty) {
+  var isKm = Boolean(window.CPM_IS_KM);
+  var name = '';
+  var cat = '';
+  var unit = '';
+  var pkgType = '';
+
+  if (typeof itemOrName === 'object' && itemOrName !== null) {
+    name = itemOrName.product_name || itemOrName.name || (itemOrName.querySelector ? (itemOrName.querySelector('.cp-item-name') ? itemOrName.querySelector('.cp-item-name').textContent : '') : '');
+    cat = itemOrName.category || itemOrName.cat || itemOrName.product_category || (itemOrName.dataset ? itemOrName.dataset.productCategory : '') || '';
+    unit = itemOrName.unit || (itemOrName.dataset ? itemOrName.dataset.unit : '') || '';
+    pkgType = itemOrName.package_type || itemOrName.packageType || itemOrName.pkgType || (itemOrName.dataset ? itemOrName.dataset.packageType : '') || '';
+  } else {
+    name = String(itemOrName || '');
+    cat = String(category || '');
+  }
+
+  var nLower = name.toLowerCase();
+  var cLower = cat.toLowerCase();
+  var uLower = (unit || '').toLowerCase();
+  var count = typeof qty === 'number' ? qty : 1;
+
+  // 1. Box / Carton / Case / Pack checks
+  if (
+    pkgType === 'box' ||
+    /\((?:box|កេស|កេសធំ|កាតុង|carton|case|pack|យួរ|package|កញ្ចប់|dozen|ឡូ|crate|ស្នោ)\)/i.test(name) ||
+    /\b(?:box|carton|case|dozen|crate)\b/i.test(name) ||
+    /(?:កេស|កាតុង|យួរ|ឡូ|ស្នោ)/.test(name) ||
+    uLower === 'box' || uLower === 'boxes' || uLower === 'case' || uLower === 'carton' || uLower === 'កេស'
+  ) {
+    return isKm ? 'កេស' : (count > 1 ? 'boxes' : 'box');
+  }
+
+  // 2. Pack / Packet checks
+  if (
+    /\((?:pack|packet|កញ្ចប់)\)/i.test(name) ||
+    /\b(?:pack|packet)\b/i.test(name) ||
+    /កញ្ចប់/.test(name) ||
+    uLower === 'pack' || uLower === 'packs' || uLower === 'កញ្ចប់'
+  ) {
+    return isKm ? 'កញ្ចប់' : (count > 1 ? 'packs' : 'pack');
+  }
+
+  // 3. Bottle checks
+  if (
+    /(?:ដប|bottle)/i.test(name) ||
+    /(?:water|ទឹកសុទ្ធ|ទឹកបរិសុទ្ធ|syrup)/i.test(name) ||
+    /(?:water|bottled)/i.test(cLower) ||
+    uLower === 'bottle' || uLower === 'bottles' || uLower === 'ដប'
+  ) {
+    return isKm ? 'ដប' : (count > 1 ? 'bottles' : 'bottle');
+  }
+
+  // 4. Can checks (Soft drinks, beers, energy drinks, canned drinks)
+  if (
+    /(?:កំប៉ុង|can\b|canned)/i.test(name) ||
+    /(?:coca|coke|pepsi|sting|red bull|redbull|carabao|ize|7up|seven up|fanta|sprite|mirinda|bacchus|wurm|pocari|beer|angkor|cambodia beer|abc|heineken|tiger|singha|hanuman|krud|ganzberg)/i.test(name) ||
+    /(?:soft drink|canned|direct drink|beer|ភេសជ្ជៈកំប៉ុង)/i.test(cLower) ||
+    uLower === 'can' || uLower === 'cans' || uLower === 'កំប៉ុង'
+  ) {
+    return isKm ? 'កំប៉ុង' : (count > 1 ? 'cans' : 'can');
+  }
+
+  // 5. Bakery / Cake / Food checks
+  if (
+    /(?:croissant|cake|bread|sandwich|cookie|muffin|snack|burger|នំ|ខេក|អាហារសម្រន់)/i.test(name) ||
+    /(?:bakery|cake|snack|food|dessert|នំបុ័ង|នំខេក|អាហារ)/i.test(cLower) ||
+    uLower === 'piece' || uLower === 'pcs' || uLower === 'slice' || uLower === 'ដុំ'
+  ) {
+    return isKm ? 'ដុំ' : (count > 1 ? 'pcs' : 'pc');
+  }
+
+  // 6. Fresh drinks / Coffee / Tea (Cup)
+  if (
+    /(?:coffee|tea|latte|cappuccino|americano|espresso|mocha|macchiato|frappe|smoothie|juice|shake|chocolate|matcha|milk|កាហ្វេ|តែ|ហ្វ្រេបប៉េ|ស្ម៊ូតធី|ទឹកផ្លែឈើ|កែវ|cup)/i.test(name) ||
+    /(?:coffee|tea|beverage|drink|frappe|smoothie|juice|កាហ្វេ|តែ|ភេសជ្ជៈ)/i.test(cLower) ||
+    uLower === 'cup' || uLower === 'cups' || uLower === 'កែវ'
+  ) {
+    return isKm ? 'កែវ' : (count > 1 ? 'cups' : 'cup');
+  }
+
+  // Fallback
+  if (uLower) return unit;
+  return isKm ? 'កែវ' : (count > 1 ? 'units' : 'unit');
+}
+window.getProductUnitLabel = getProductUnitLabel;
+
+function getQtyLimitWarningMsg(maxQty, itemOrProduct) {
+  var unitLabel = getProductUnitLabel(itemOrProduct, null, maxQty);
+  if (window.CPM_IS_KM) {
+    return 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' + maxQty + ' ' + unitLabel;
+  }
+  return 'Maximum quantity allowed is ' + maxQty + ' ' + unitLabel;
+}
+window.getQtyLimitWarningMsg = getQtyLimitWarningMsg;
+
 function changeQty(delta) {
   var inp = document.getElementById('modalQtyInput') || document.getElementById('modalQtyDisplay');
   var current = parseInt(inp ? (inp.value || inp.textContent) : modalQty) || 1;
   var maxLimit = Math.min(100, Math.max(1, parseInt(product.maxStock || 100, 10)));
   if (delta > 0 && current >= maxLimit) {
-    var warningMsg = (window.CPM_IS_KM ? 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' : 'Maximum quantity allowed is ') + maxLimit + (window.CPM_IS_KM ? ' កែវ' : ' units');
+    var warningMsg = getQtyLimitWarningMsg(maxLimit, product);
     triggerQtyWarning(inp, warningMsg);
     return;
   }
@@ -4027,7 +4124,7 @@ function onModalQtyInput(input) {
   var maxLimit = Math.min(100, Math.max(1, parseInt(product.maxStock || 100, 10)));
   var val = parseInt(raw, 10);
   if (val > maxLimit) {
-    var warningMsg = (window.CPM_IS_KM ? 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' : 'Maximum quantity allowed is ') + maxLimit + (window.CPM_IS_KM ? ' កែវ' : ' units');
+    var warningMsg = getQtyLimitWarningMsg(maxLimit, product);
     triggerQtyWarning(input, warningMsg);
     modalQty = maxLimit;
     input.value = maxLimit;
@@ -4047,7 +4144,7 @@ function onModalQtyChange(input) {
   } else if (val > maxLimit) {
     val = maxLimit;
     input.value = maxLimit;
-    var warningMsg = (window.CPM_IS_KM ? 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' : 'Maximum quantity allowed is ') + maxLimit + (window.CPM_IS_KM ? ' កែវ' : ' units');
+    var warningMsg = getQtyLimitWarningMsg(maxLimit, product);
     triggerQtyWarning(input, warningMsg);
   } else {
     input.classList.remove('qty-limit-warning');
@@ -4062,7 +4159,8 @@ function onCartQtyInput(index, input) {
   var maxQty = Math.min(100, Math.max(1, rawMax));
   var val = parseInt(raw, 10);
   if (val > maxQty) {
-    var warningMsg = (window.CPM_IS_KM ? 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' : 'Maximum quantity allowed is ') + maxQty + (window.CPM_IS_KM ? ' កែវ' : ' units');
+    var item = (window.currentCartItems && window.currentCartItems[index]) ? window.currentCartItems[index] : null;
+    var warningMsg = getQtyLimitWarningMsg(maxQty, item || document.getElementById('cp-item-' + index));
     triggerQtyWarning(input, warningMsg);
     input.value = maxQty;
   } else if (val >= 1) {
@@ -4600,7 +4698,8 @@ function cpChangeQty(index, delta) {
   }
 
   if (delta > 0 && targetVal > maxQty) {
-    var warningMsg = (window.CPM_IS_KM ? 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' : 'Maximum quantity allowed is ') + maxQty + (window.CPM_IS_KM ? ' កែវ' : ' units');
+    var item = (window.currentCartItems && window.currentCartItems[index]) ? window.currentCartItems[index] : null;
+    var warningMsg = getQtyLimitWarningMsg(maxQty, item || document.getElementById('cp-item-' + index));
     triggerQtyWarning(inp, warningMsg);
     targetVal = maxQty;
   }
@@ -4628,7 +4727,8 @@ function cpSetQty(index, val) {
     raw = 1;
     if (inp) { inp.value = 1; inp.classList.remove('qty-limit-warning'); }
   } else if (raw > maxQty) {
-    var warningMsg = (window.CPM_IS_KM ? 'ចំនួនអតិបរិមាអនុញ្ញាតគឺ ' : 'Maximum quantity allowed is ') + maxQty + (window.CPM_IS_KM ? ' កែវ' : ' units');
+    var item = (window.currentCartItems && window.currentCartItems[index]) ? window.currentCartItems[index] : null;
+    var warningMsg = getQtyLimitWarningMsg(maxQty, item || document.getElementById('cp-item-' + index));
     triggerQtyWarning(inp, warningMsg);
     raw = maxQty;
     if (inp) inp.value = maxQty;
