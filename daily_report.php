@@ -282,7 +282,7 @@ if ($_is_mgr) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= current_lang() ?>">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
     <meta charset="UTF-8">
     <title><?= $isKm ? 'របាយការណ៍លក់' : 'Sales Report' ?> | Bird's Nest Coffee</title>
@@ -292,7 +292,7 @@ if ($_is_mgr) {
     <script>(function(){try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
     
     <style>
         :root, [data-theme="dark"], html:not([data-theme="light"]) {
@@ -326,11 +326,25 @@ if ($_is_mgr) {
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, input, select, textarea, button, table, .app-layout, .app-main, .rep-page-wrapper {
+            font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        :lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+            font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        }
+        html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+            font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+        }
+        html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+            font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
+        }
+
         body, .app-layout, .app-main, .rep-page-wrapper {
             background-color: var(--bg-main) !important;
             background-image: none !important;
             color: var(--text-main);
-            font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
         }
 
         /* Light Theme Overrides */

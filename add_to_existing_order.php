@@ -25,13 +25,15 @@ $order = $stmt->get_result()->fetch_assoc();
 
 if (!$order) {
     echo "<!DOCTYPE html>
-    <html>
+    <html lang='" . current_lang() . "' data-lang='" . current_lang() . "'>
     <head>
         <title>Order Not Found</title>
-        <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap' rel='stylesheet'>
+        <link rel='preconnect' href='https://fonts.googleapis.com'>
+        <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
+        <link href='https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans+Khmer:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap' rel='stylesheet'>
         <style>
             body {
-                font-family: 'Poppins', sans-serif;
+                font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', sans-serif;
                 background: #f2ede8;
                 display: flex;
                 justify-content: center;

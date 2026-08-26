@@ -20,7 +20,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Poppins', system-ui, sans-serif;
+  font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', system-ui, sans-serif;
   min-height: 100vh;
   line-height: 1.6;
 }

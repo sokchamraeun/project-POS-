@@ -1,6 +1,6 @@
 <!-- ── THERMAL RECEIPT MODAL PARTIAL ── -->
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
 
 @media print {
     @page {
@@ -49,7 +49,7 @@
         </div>
 
         <!-- 80mm Thermal Receipt Canvas -->
-        <div class="bg-white text-black p-4 rounded shadow-inner text-xs mx-auto overflow-hidden" style="width: 80mm; font-family: 'Kantumruy Pro', 'Poppins', sans-serif;" id="receipt-printable-area">
+        <div class="bg-white text-black p-4 rounded shadow-inner text-xs mx-auto overflow-hidden" style="width: 80mm; font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Poppins', sans-serif;" id="receipt-printable-area">
             <!-- Header -->
             <div class="text-center mb-2">
                 <h1 class="text-lg font-bold tracking-tight text-black leading-tight" id="rcpt-shop-name"><?= htmlspecialchars(defined('RECEIPT_SHOP_NAME') ? RECEIPT_SHOP_NAME : 'The Bird Nest Cafe') ?></h1>

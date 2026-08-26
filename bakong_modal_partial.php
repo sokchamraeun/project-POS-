@@ -104,11 +104,13 @@ if (empty($qrString) || empty($md5)) {
 
 $qrUrl = !empty($qrString) ? 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' . urlencode($qrString) : '';
 ?>
-<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <div id="receipt-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) confirmCloseBakongModal();">
-  <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl relative overflow-hidden p-6 text-black font-sans my-auto border border-gray-100 animate-in fade-in zoom-in-95 duration-200" style="font-family: 'Kantumruy Pro', 'Poppins', sans-serif; max-height: 94vh; overflow-y: auto;">
+  <div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl relative overflow-hidden p-6 text-black font-sans my-auto border border-gray-100 animate-in fade-in zoom-in-95 duration-200" style="font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Poppins', 'Siemreap', sans-serif; max-height: 94vh; overflow-y: auto;">
     
     <!-- Close Button -->
     <button type="button" id="btnCloseReceipt" title="Cancel & Return to Cart" onclick="confirmCloseBakongModal();"

@@ -15,7 +15,9 @@ if ($ip_whitelist_enabled && !in_array($_SERVER['REMOTE_ADDR'], $allowed_ips)) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Access Denied</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Noto+Sans+Khmer:wght@300;400;600;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 
@@ -25,7 +27,7 @@ if ($ip_whitelist_enabled && !in_array($_SERVER['REMOTE_ADDR'], $allowed_ips)) {
 @keyframes scanline  { 0%{transform:translateY(-100%)} 100%{transform:translateY(400%)} }
 
 body {
-  font-family:'Poppins',sans-serif;
+  font-family:'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', sans-serif;
   background:#070707;
   color:#e8e8e8;
   min-height:100vh;

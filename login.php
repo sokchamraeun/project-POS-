@@ -106,8 +106,8 @@ html, body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-:lang(km), [data-lang="km"], html[lang="km"] body {
-    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Plus Jakarta Sans', sans-serif;
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Plus Jakarta Sans', sans-serif !important;
 }
 
 /* ── PREVENT ICON FONT OVERRIDES ── */
@@ -859,8 +859,15 @@ i.fa-brands, i.fab, .fa-brands, .fab {
                         <span class="brand-sub">STAFF LOGIN</span>
                     </div>
                 </div>
-                <div class="terminal-badge">
-                    TERMINAL 01
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" 
+                       style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:rgba(0, 245, 160, 0.06); border:1px solid rgba(0, 245, 160, 0.22); color:var(--mint); text-decoration:none; font-size:11px; font-weight:700; transition:all 0.2s;"
+                       title="<?= current_lang() === 'en' ? 'Switch to ភាសាខ្មែរ' : 'Switch to English' ?>">
+                        <span><?= current_lang() === 'km' ? '🇰🇭 ខ្មែរ' : '🇬🇧 EN' ?></span>
+                    </a>
+                    <div class="terminal-badge">
+                        TERMINAL 01
+                    </div>
                 </div>
             </div>
 

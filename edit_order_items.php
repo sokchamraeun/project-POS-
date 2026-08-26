@@ -210,12 +210,14 @@ $stmt->execute();
 $items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Edit Order #<?= $order['daily_order_no'] ?> | Bird's Nest Coffee</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 :root {
@@ -229,7 +231,23 @@ $items = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     --radius: 14px; --transition: all .25s cubic-bezier(.4,0,.2,1);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Poppins', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 28px 20px; }
+
+body, input, select, textarea, button, table {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+}
+html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+    font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
+}
+
+body { background: var(--bg); color: var(--text); min-height: 100vh; padding: 28px 20px; }
 ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
 
 .page { max-width: 980px; margin: 0 auto; }

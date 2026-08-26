@@ -9,7 +9,7 @@
 
 body {
   background-color: var(--bg);
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', sans-serif;
   color: #2C1A0E;
   margin: 0;
   padding: 40px;

@@ -29,17 +29,37 @@ $_page_subtitle = $page_subtitle ?? '';
             <?php endif; ?>
         </div>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
+        <!-- Language Switcher in Header Bar -->
+        <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" 
+           class="header-lang-btn"
+           style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; border-radius: 12px; background: var(--surface-2, rgba(255,255,255,0.06)); border: 1px solid var(--border-hi, rgba(255,255,255,0.12)); color: var(--text, #fff); text-decoration: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;"
+           title="<?= current_lang() === 'en' ? 'Switch to ភាសាខ្មែរ' : 'Switch to English' ?>">
+            <span style="font-size: 14px; line-height: 1;"><?= current_lang() === 'km' ? '🇰🇭' : '🇬🇧' ?></span>
+            <span style="font-family: <?= current_lang() === 'km' ? "'Poppins', sans-serif" : "'Kantumruy Pro', 'Siemreap', sans-serif" ?>; font-size: 13px;"><?= current_lang() === 'km' ? 'ភាសាខ្មែរ' : 'English' ?></span>
+        </a>
         <button type="button" 
                 onclick="window.toggleTheme()" 
                 class="theme-toggle-btn"
-                style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 14px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; cursor: pointer; transition: all 0.2s; font-size: 13px; font-weight: 600;"
+                style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 14px; border-radius: 12px; background: var(--surface-2, rgba(255,255,255,0.06)); border: 1px solid var(--border-hi, rgba(255,255,255,0.12)); color: var(--text, #fff); cursor: pointer; transition: all 0.2s; font-size: 13px; font-weight: 600;"
                 title="Toggle Dark / Light Theme">
             <i class="fa-solid fa-moon" id="topThemeIcon"></i>
             <span id="topThemeText">Dark</span>
         </button>
     </div>
 </div>
+
+<style>
+/* Header Bar Typography Guarantee for All Devices */
+body, input, select, textarea, button, table {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] body, html[lang="km"] input, html[lang="km"] select, html[lang="km"] textarea, html[lang="km"] button, html[lang="km"] table, html[lang="km"] h1, html[lang="km"] h2, html[lang="km"] h3, html[lang="km"] h4, html[lang="km"] h5, html[lang="km"] h6, html[lang="km"] p, html[lang="km"] span, html[lang="km"] a {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+</style>
 
 <script>
 if (typeof window.toggleTheme !== 'function') {

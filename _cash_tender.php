@@ -36,13 +36,15 @@ $tender_fragment = !empty($tender_fragment);
 ?>
 <?php if (!$tender_fragment): ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>(function(){if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-theme','dark');})()</script>
 <title><?= __('cpm_modal_title', 'Cash Payment') ?> | Bird's Nest Coffee</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Kantumruy+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="tender.js?v=<?= @filemtime('tender.js') ?>"></script>
 <?php endif; ?>
@@ -63,24 +65,43 @@ $DARK = $tender_fragment ? '.tender-card' : '[data-theme="dark"]';
 /* The host page (find_order.php) follows the app convention: dark is the default
    and [data-theme="light"] overrides it. This partial standalone does the opposite
    — light base, [data-theme="dark"] override — so the fragment MUST invert. On a
-   dark find_order.php there is no data-theme attribute at all, and a
-   [data-theme="dark"] rule would never match, leaving a white panel on a black page. */
+   light host, [data-theme="dark"] .tender-card won't match, so .tender-card's dark
+   rules are dormant and the light styles apply. On a dark host, [data-theme="dark"]
+   .tender-card matches and applies the dark block. */
 .tender-card {
-    --bg-body: #0a0a0a; --bg-card: #141414;
-    --border: #222; --orange: #d1904b; --green: #2ecc71;
-    --text-1: #f0f0f0; --text-2: #aaa; --text-3: #666;
-    --shadow-md: 0 8px 32px rgba(0,0,0,0.6);
-}
-[data-theme="light"] .tender-card {
-    --bg-body: #f0ebe4; --bg-card: #fffdf9;
-    --border: #e4d9cc; --text-1: #1a1410; --text-2: #5a4a3a; --text-3: #9a8070;
+    --bg-body:   #f0ebe4;
+    --bg-card:   #fffdf9;
+    --border:    #e4d9cc;
+    --border-h:  #c9b89f;
+    --orange:    #d1904b;
+    --orange-d:  #a0702a;
+    --green:     #2ecc71;
+    --text-1:    #1a1410;
+    --text-2:    #5a4a3a;
+    --text-3:    #9a8070;
     --shadow-md: 0 8px 32px rgba(90,60,20,0.13);
+}
+[data-theme="dark"] .tender-card {
+    --bg-body: #0a0a0a;
+    --bg-card: #141414;
+    --border: #222;
+    --text-1: #f0f0f0;
+    --text-2: #aaa;
+    --text-3: #666;
+    --shadow-md: 0 8px 32px rgba(0,0,0,0.6);
 }
 <?php else: ?>
 :root {
-    --bg-body: #f0ebe4; --bg-card: #fffdf9;
-    --border: #e4d9cc; --orange: #d1904b; --green: #2ecc71;
-    --text-1: #1a1410; --text-2: #5a4a3a; --text-3: #9a8070;
+    --bg-body:   #f0ebe4;
+    --bg-card:   #fffdf9;
+    --border:    #e4d9cc;
+    --border-h:  #c9b89f;
+    --orange:    #d1904b;
+    --orange-d:  #a0702a;
+    --green:     #2ecc71;
+    --text-1:    #1a1410;
+    --text-2:    #5a4a3a;
+    --text-3:    #9a8070;
     --shadow-md: 0 8px 32px rgba(90,60,20,0.13);
 }
 [data-theme="dark"] {
@@ -91,11 +112,28 @@ $DARK = $tender_fragment ? '.tender-card' : '[data-theme="dark"]';
 <?php endif; ?>
 <?php if ($tender_fragment): ?>
 .tender-card, .tender-card * { box-sizing: border-box; }
-.tender-card { font-family: 'Poppins', 'Kantumruy Pro', sans-serif; color: var(--text-1); display: flex; justify-content: center; }
+.tender-card { font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', sans-serif; color: var(--text-1); display: flex; justify-content: center; }
+:lang(km) .tender-card, [data-lang="km"] .tender-card, html[lang="km"] .tender-card * {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', sans-serif !important;
+}
 <?php else: ?>
 * { box-sizing: border-box; margin: 0; padding: 0; }
+body, input, select, textarea, button, table {
+    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+html[lang="km"] .fa, html[lang="km"] [class*="fa-"], html[lang="km"] i {
+    font-family: 'Font Awesome 6 Free', 'FontAwesome' !important;
+}
+html[lang="km"] .fa-brands, html[lang="km"] [class*="fa-brands"] {
+    font-family: 'Font Awesome 6 Brands', 'FontAwesome' !important;
+}
 body {
-    background: var(--bg-body); font-family: 'Poppins', 'Kantumruy Pro', sans-serif;
+    background: var(--bg-body);
     min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
     padding: 24px 16px 40px; color: var(--text-1);
 }
