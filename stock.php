@@ -39,6 +39,18 @@ try {
         if (!$colCheck3) {
             $pdo->exec("ALTER TABLE stock_items ADD COLUMN image_box VARCHAR(255) NULL DEFAULT NULL AFTER image");
         }
+        $colCheck4 = $pdo->query("SHOW COLUMNS FROM stock_items LIKE 'category_id'")->fetch();
+        if (!$colCheck4) {
+            $pdo->exec("ALTER TABLE stock_items ADD COLUMN category_id INT(11) NULL DEFAULT NULL AFTER category");
+        }
+        $colCheck5 = $pdo->query("SHOW COLUMNS FROM stock_restocks LIKE 'boxes_added'")->fetch();
+        if (!$colCheck5) {
+            $pdo->exec("ALTER TABLE stock_restocks ADD COLUMN boxes_added DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER quantity_added");
+        }
+        $colCheck6 = $pdo->query("SHOW COLUMNS FROM stock_restocks LIKE 'loose_added'")->fetch();
+        if (!$colCheck6) {
+            $pdo->exec("ALTER TABLE stock_restocks ADD COLUMN loose_added DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER boxes_added");
+        }
     } catch (Exception $e) {
         // Table doesn't exist yet or already altered
     }
@@ -225,7 +237,9 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             $search = trim($_GET['search'] ?? '');
             $sortBy = trim($_GET['sort'] ?? 'name_asc');
 
-            $sql = "SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+            $sql = "SELECT s.*, 
+                           COALESCE(s.category_id, p.category_id, 0) AS category_id,
+                           COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
                            COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
                            COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box
                     FROM stock_items s 
@@ -286,6 +300,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         if ($action === 'get_item' || $action === 'get_single_item') {
             $itemId = (int)($_GET['item_id'] ?? ($_POST['item_id'] ?? 0));
             $stmt = $pdo->prepare("SELECT s.*, 
+                           COALESCE(s.category_id, p.category_id, 0) AS category_id,
                            COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
                            COALESCE(NULLIF(s.image_box, ''), '') AS image_box,
                            COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
@@ -313,6 +328,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         // 3. Create New Canned/Bottled Drink
         if ($action === 'create_item') {
             $name          = trim($_POST['item_name'] ?? '');
+            $catId         = (int)($_POST['category_id'] ?? 0);
             $unit          = trim($_POST['unit'] ?? 'can');
             $purchaseUnit  = trim($_POST['purchase_unit'] ?? 'box');
             $rate          = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
@@ -330,6 +346,29 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
             if (empty($name)) {
                 sendJsonResponse(['success' => false, 'message' => 'Drink name is required.'], 422);
+            }
+
+            // Resolve Category Details
+            $targetCatSlug = 'Drinks';
+            $targetCatId = 3;
+            $targetCatName = 'Direct Drinks';
+            if ($catId > 0) {
+                $catStmt = $pdo->prepare("SELECT category_id, slug, name FROM categories WHERE category_id = ? AND is_active = 1 LIMIT 1");
+                $catStmt->execute([$catId]);
+                $cRow = $catStmt->fetch();
+                if ($cRow) {
+                    $targetCatSlug = $cRow['slug'];
+                    $targetCatId   = (int)$cRow['category_id'];
+                    $targetCatName = $cRow['name'];
+                }
+            } else {
+                $catStmt = $pdo->query("SELECT category_id, slug, name FROM categories WHERE is_active = 1 ORDER BY (slug = 'Drinks' OR name LIKE '%Drink%' OR name LIKE '%ភេសជ្ជៈ%') DESC, display_order ASC LIMIT 1");
+                $cRow = $catStmt->fetch();
+                if ($cRow) {
+                    $targetCatSlug = $cRow['slug'];
+                    $targetCatId   = (int)$cRow['category_id'];
+                    $targetCatName = $cRow['name'];
+                }
             }
 
             // Duplicate Name Check
@@ -371,19 +410,13 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             $unitCost = $costUnit > 0 ? $costUnit : (($costBox > 0 && $rate > 0) ? ($costBox / $rate) : 0.0);
 
             $stmt = $pdo->prepare("INSERT INTO stock_items 
-                (item_name, image, image_box, category, item_type, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, selling_price_per_unit, selling_price_per_box, notes, is_active) 
-                VALUES (?, ?, ?, 'Direct Drinks', 'direct_drink', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
-            $stmt->execute([$name, $image_path, $image_box_path, $totalBaseUnits, $unit, $purchaseUnit, $rate, $alertLevel, $unitCost, $costBox, $sellPriceUnit, $sellPriceBox, $notes]);
+                (item_name, image, image_box, category, category_id, item_type, quantity, unit, purchase_unit, conversion_rate, alert_level, cost_per_unit, cost_per_purchase_unit, selling_price_per_unit, selling_price_per_box, notes, is_active) 
+                VALUES (?, ?, ?, ?, ?, 'direct_drink', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)");
+            $stmt->execute([$name, $image_path, $image_box_path, $targetCatSlug, $targetCatId, $totalBaseUnits, $unit, $purchaseUnit, $rate, $alertLevel, $unitCost, $costBox, $sellPriceUnit, $sellPriceBox, $notes]);
             $newId = (int)$pdo->lastInsertId();
 
             // ── Auto Add/Sync Products for POS (Unit and Box) ──
             try {
-                // Determine target category for POS menu
-                $catStmt = $pdo->query("SELECT category_id, slug FROM categories WHERE is_active = 1 ORDER BY (slug = 'Drinks' OR name LIKE '%Drink%') DESC, display_order ASC LIMIT 1");
-                $catRow = $catStmt->fetch();
-                $targetCatSlug = $catRow ? $catRow['slug'] : 'Drinks';
-                $targetCatId = $catRow ? (int)$catRow['category_id'] : 3;
-
                 $kmUnitSuffix = getPackageUnitSuffixKm($purchaseUnit);
                 $enUnitSuffix = getPackageUnitSuffixEn($purchaseUnit);
                 $boxName = $name . ' (' . $kmUnitSuffix . ')';
@@ -399,8 +432,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
                 if ($existingUnitProd) {
                     $uImg = !empty($image_path) ? $image_path : $existingUnitProd['image'];
-                    $uUpd = $pdo->prepare("UPDATE products SET price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                    $uUpd->execute([$uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
+                    $uUpd = $pdo->prepare("UPDATE products SET category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                    $uUpd->execute([$targetCatSlug, $targetCatId, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
                 } else {
                     $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
                     $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
@@ -423,8 +456,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                     $existingBoxProd = $bCheck->fetch();
 
                     if ($existingBoxProd) {
-                        $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                        $bUpd->execute([$boxName, $bPrice, $bCost, $bImage, $existingBoxProd['product_id']]);
+                        $bUpd = $pdo->prepare("UPDATE products SET name = ?, category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                        $bUpd->execute([$boxName, $targetCatSlug, $targetCatId, $bPrice, $bCost, $bImage, $existingBoxProd['product_id']]);
                     } else {
                         $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
                         $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
@@ -433,6 +466,25 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 }
             } catch (Exception $e) {
                 error_log("Auto sync products on create_item error: " . $e->getMessage());
+            }
+
+            // Log initial stock creation if units > 0
+            if ($totalBaseUnits > 0) {
+                try {
+                    $rParts = [];
+                    if ($boxes > 0) $rParts[] = "{$boxes} {$purchaseUnit}(s)";
+                    if ($loose > 0) $rParts[] = "{$loose} {$unit}(s)";
+                    $initLogDesc = "Initial Stock: " . implode(' + ', $rParts) . " = +{$totalBaseUnits} {$unit}s";
+                    if ($notes !== '') $initLogDesc .= " | " . $notes;
+
+                    $rStmt = $pdo->prepare("INSERT INTO stock_restocks 
+                        (item_id, quantity_added, boxes_added, loose_added, cost_per_unit, total_cost, supplier, notes, recorded_by) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $initTotalCost = ($boxes * $costBox) + ($loose * $unitCost);
+                    $rStmt->execute([$newId, $totalBaseUnits, $boxes, $loose, $unitCost, $initTotalCost, '', $initLogDesc, $recorded_by]);
+                } catch (Exception $e) {
+                    error_log("Failed to log initial stock restock: " . $e->getMessage());
+                }
             }
 
             sendJsonResponse([
@@ -491,9 +543,9 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 if ($notes !== '') $logDesc .= " | " . $notes;
 
                 $rStmt = $pdo->prepare("INSERT INTO stock_restocks 
-                    (item_id, quantity_added, cost_per_unit, total_cost, supplier, notes, recorded_by) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $rStmt->execute([$itemId, $totalBaseUnits, $activeUnitCost, $totalPurchaseCost, $supplier, $logDesc, $recorded_by]);
+                    (item_id, quantity_added, boxes_added, loose_added, cost_per_unit, total_cost, supplier, notes, recorded_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $rStmt->execute([$itemId, $totalBaseUnits, $boxesToAdd, $looseToAdd, $activeUnitCost, $totalPurchaseCost, $supplier, $logDesc, $recorded_by]);
 
                 $pdo->commit();
 
@@ -511,6 +563,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         if ($action === 'update_item') {
             $itemId        = (int)($_POST['item_id'] ?? 0);
             $name          = trim($_POST['item_name'] ?? '');
+            $catId         = (int)($_POST['category_id'] ?? 0);
             $unit          = trim($_POST['unit'] ?? 'can');
             $purchaseUnit  = trim($_POST['purchase_unit'] ?? 'box');
             $rate          = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
@@ -529,8 +582,31 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 sendJsonResponse(['success' => false, 'message' => 'Invalid parameters.'], 422);
             }
 
+            // Resolve Category Details
+            $targetCatSlug = 'Drinks';
+            $targetCatId = 3;
+            $targetCatName = 'Direct Drinks';
+            if ($catId > 0) {
+                $catStmt = $pdo->prepare("SELECT category_id, slug, name FROM categories WHERE category_id = ? AND is_active = 1 LIMIT 1");
+                $catStmt->execute([$catId]);
+                $cRow = $catStmt->fetch();
+                if ($cRow) {
+                    $targetCatSlug = $cRow['slug'];
+                    $targetCatId   = (int)$cRow['category_id'];
+                    $targetCatName = $cRow['name'];
+                }
+            } else {
+                $catStmt = $pdo->query("SELECT category_id, slug, name FROM categories WHERE is_active = 1 ORDER BY (slug = 'Drinks' OR name LIKE '%Drink%' OR name LIKE '%ភេសជ្ជៈ%') DESC, display_order ASC LIMIT 1");
+                $cRow = $catStmt->fetch();
+                if ($cRow) {
+                    $targetCatSlug = $cRow['slug'];
+                    $targetCatId   = (int)$cRow['category_id'];
+                    $targetCatName = $cRow['name'];
+                }
+            }
+
             // Duplicate Name Check on Edit
-            $chk = $pdo->prepare("SELECT item_id, image, image_box FROM stock_items WHERE item_id = ? AND is_active = 1 LIMIT 1");
+            $chk = $pdo->prepare("SELECT item_id, image, image_box, category, category_id FROM stock_items WHERE item_id = ? AND is_active = 1 LIMIT 1");
             $chk->execute([$itemId]);
             $existing = $chk->fetch(PDO::FETCH_ASSOC);
             if (!$existing) {
@@ -577,6 +653,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 item_name = ?, 
                 image = ?,
                 image_box = ?,
+                category = ?,
+                category_id = ?,
                 quantity = ?, 
                 unit = ?, 
                 purchase_unit = ?, 
@@ -589,15 +667,10 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 notes = ?, 
                 updated_at = NOW() 
                 WHERE item_id = ? AND is_active = 1");
-            $stmt->execute([$name, $finalImage, $finalImageBox, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $sellPriceUnit, $sellPriceBox, $notes, $itemId]);
+            $stmt->execute([$name, $finalImage, $finalImageBox, $targetCatSlug, $targetCatId, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $sellPriceUnit, $sellPriceBox, $notes, $itemId]);
 
             // ── Auto Sync Products for POS (Unit and Box) ──
             try {
-                $catStmt = $pdo->query("SELECT category_id, slug FROM categories WHERE is_active = 1 ORDER BY (slug = 'Drinks' OR name LIKE '%Drink%') DESC, display_order ASC LIMIT 1");
-                $catRow = $catStmt->fetch();
-                $targetCatSlug = $catRow ? $catRow['slug'] : 'Drinks';
-                $targetCatId = $catRow ? (int)$catRow['category_id'] : 3;
-
                 $oldPurchaseUnit = $existing['purchase_unit'] ?? 'box';
                 $oldKmUnitSuffix = getPackageUnitSuffixKm($oldPurchaseUnit);
                 $oldEnUnitSuffix = getPackageUnitSuffixEn($oldPurchaseUnit);
@@ -621,8 +694,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
                 if ($existingUnitProd) {
                     $uImg = !empty($finalImage) ? $finalImage : $existingUnitProd['image'];
-                    $uUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                    $uUpd->execute([$name, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
+                    $uUpd = $pdo->prepare("UPDATE products SET name = ?, category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                    $uUpd->execute([$name, $targetCatSlug, $targetCatId, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
                 } else {
                     $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
                     $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
@@ -658,8 +731,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                     $bImage = $finalImageBox;
 
                     if ($existingBoxProd) {
-                        $bUpd = $pdo->prepare("UPDATE products SET name = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                        $bUpd->execute([$boxName, $bPrice, $bCost, $bImage, $existingBoxProd['product_id']]);
+                        $bUpd = $pdo->prepare("UPDATE products SET name = ?, category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                        $bUpd->execute([$boxName, $targetCatSlug, $targetCatId, $bPrice, $bCost, $bImage, $existingBoxProd['product_id']]);
                     } else {
                         $bIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
                         $bDesc = "1 {$purchaseUnit} = {$rate} {$unit}s direct drink from stock inventory.";
@@ -743,20 +816,97 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 FROM stock_restocks r 
                 JOIN stock_items s ON r.item_id = s.item_id 
                 WHERE s.item_type = 'direct_drink' 
-                ORDER BY r.created_at DESC LIMIT 40");
-            $restocks = $rStmt->fetchAll();
+                ORDER BY r.created_at DESC LIMIT 60");
+            $rawRestocks = $rStmt->fetchAll();
 
+            $restocks = [];
+            foreach ($rawRestocks as $row) {
+                $qtyAdded = (float)($row['quantity_added'] ?? 0);
+                $convRate = max(1.0, (float)($row['conversion_rate'] ?? 24.0));
+                
+                $boxes = isset($row['boxes_added']) ? (float)$row['boxes_added'] : 0.0;
+                $loose = isset($row['loose_added']) ? (float)$row['loose_added'] : 0.0;
+
+                if ($boxes == 0.0 && !empty($row['notes'])) {
+                    if (preg_match('/(\d+(?:\.\d+)?)\s*(?:box\(s\)|box|boxes|កេស|យួរ|កញ្ចប់|កាតុង|ឡូ)/i', $row['notes'], $m)) {
+                        $boxes = (float)$m[1];
+                    }
+                    if (preg_match('/\+\s*(\d+(?:\.\d+)?)\s*(?:bottle\(s\)|bottle|bottles|can\(s\)|can|cans|កំប៉ុង|ដប|រាយ)\s*=/i', $row['notes'], $m2)) {
+                        $loose = (float)$m2[1];
+                    } else {
+                        $rem = $qtyAdded - ($boxes * $convRate);
+                        $loose = ($rem > 0 && $rem < $convRate) ? $rem : 0.0;
+                    }
+                }
+
+                if ($boxes == 0.0 && $loose == 0.0 && $convRate > 0 && $qtyAdded > 0) {
+                    $boxes = floor($qtyAdded / $convRate);
+                    $loose = fmod($qtyAdded, $convRate);
+                }
+
+                $row['boxes_added'] = $boxes;
+                $row['loose_added'] = $loose;
+                $restocks[] = $row;
+            }
+
+            // 2. Direct Drink Deductions (from stock_logs)
+            $deductions = [];
+            try {
+                $dStmt = $pdo->query("SELECT l.*, s.item_name, s.unit, s.purchase_unit, s.conversion_rate 
+                    FROM stock_logs l 
+                    JOIN stock_items s ON l.item_id = s.item_id 
+                    WHERE s.item_type = 'direct_drink' AND l.quantity_changed < 0 
+                    ORDER BY l.created_at DESC LIMIT 80");
+                $rawDeductions = $dStmt->fetchAll();
+
+                foreach ($rawDeductions as $row) {
+                    $qtyDeducted = abs((float)($row['quantity_changed'] ?? 0));
+                    $convRate = max(1.0, (float)($row['conversion_rate'] ?? 24.0));
+                    
+                    $boxes = 0.0;
+                    $loose = 0.0;
+
+                    if (!empty($row['notes'])) {
+                        if (preg_match('/(\d+(?:\.\d+)?)\s*(?:box\(s\)|box|boxes|កេស|យួរ|កញ្ចប់|កាតុង|ឡូ)/i', $row['notes'], $m)) {
+                            $boxes = (float)$m[1];
+                        }
+                    }
+                    
+                    if ($boxes > 0) {
+                        $rem = $qtyDeducted - ($boxes * $convRate);
+                        $loose = ($rem > 0 && $rem < $convRate) ? $rem : 0.0;
+                    } else {
+                        if ($convRate > 0 && $qtyDeducted >= $convRate && fmod($qtyDeducted, $convRate) == 0) {
+                            $boxes = floor($qtyDeducted / $convRate);
+                            $loose = 0.0;
+                        } else {
+                            $boxes = floor($qtyDeducted / $convRate);
+                            $loose = fmod($qtyDeducted, $convRate);
+                        }
+                    }
+
+                    $row['boxes_deducted'] = $boxes;
+                    $row['loose_deducted'] = $loose;
+                    $row['total_deducted'] = $qtyDeducted;
+                    $deductions[] = $row;
+                }
+            } catch (Exception $e) {
+                $deductions = [];
+            }
+
+            // 3. Waste Logs
             $wStmt = $pdo->query("SELECT w.*, s.item_name, s.unit 
                 FROM stock_waste_logs w 
                 JOIN stock_items s ON w.item_id = s.item_id 
                 WHERE s.item_type = 'direct_drink' 
-                ORDER BY w.created_at DESC LIMIT 40");
+                ORDER BY w.created_at DESC LIMIT 60");
             $waste = $wStmt->fetchAll();
 
             sendJsonResponse([
-                'success'  => true,
-                'restocks' => $restocks,
-                'waste'    => $waste
+                'success'    => true,
+                'restocks'   => $restocks,
+                'deductions' => $deductions,
+                'waste'      => $waste
             ]);
         }
 
@@ -766,7 +916,9 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
 
 // ── Initial Page Load Data ──
 $initialKpis = getDirectDrinkKPIs($pdo);
-$initStmt = $pdo->query("SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
+$initStmt = $pdo->query("SELECT s.*, 
+                         COALESCE(s.category_id, p.category_id, 0) AS category_id,
+                         COALESCE(NULLIF(s.image, ''), p.image, '') AS image,
                          COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) AS selling_price_per_unit,
                          COALESCE(NULLIF(s.selling_price_per_box, 0), (COALESCE(NULLIF(s.selling_price_per_unit, 0), p.price, 0) * s.conversion_rate), 0) AS selling_price_per_box
                          FROM stock_items s 
@@ -774,6 +926,10 @@ $initStmt = $pdo->query("SELECT s.*, COALESCE(NULLIF(s.image, ''), p.image, '') 
                          WHERE s.item_type = 'direct_drink' AND s.is_active = 1 
                          ORDER BY s.item_name ASC");
 $stockItems = $initStmt->fetchAll();
+
+// Active Categories for Add/Edit Drink modals
+$catInitStmt = $pdo->query("SELECT category_id, name, slug FROM categories WHERE is_active = 1 ORDER BY display_order ASC, name ASC");
+$activeCategories = $catInitStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="<?= current_lang() ?>" data-lang="<?= current_lang() ?>">
@@ -1679,10 +1835,17 @@ $stockItems = $initStmt->fetchAll();
                 <!-- Action Button Toolbar -->
                 <div class="flex flex-wrap items-center gap-2.5">
                     <button type="button" 
-                            onclick="openAuditLogsModal()" 
+                            onclick="openAuditLogsModal('restock')" 
                             class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-[#10b981] hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
                         <i class="fa-solid fa-clock-rotate-left text-[#10b981]"></i>
                         <span><?= __('audit_and_logs', 'Audit & Logs') ?></span>
+                    </button>
+
+                    <button type="button" 
+                            onclick="openAuditLogsModal('deduct')" 
+                            class="btn-top-toolbar inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#18181c] border border-[#262630] text-xs font-semibold text-[#c5c5d2] hover:text-white hover:border-rose-500/50 hover:bg-[#1f1f26] transition-all cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-cart-arrow-down text-rose-400"></i>
+                        <span><?= current_lang() === 'km' ? 'ប្រវត្តិដកស្តុក' : 'Deduct History' ?></span>
                     </button>
 
                     <button type="button" 
@@ -2018,6 +2181,28 @@ $stockItems = $initStmt->fetchAll();
                                    name="notes" 
                                    placeholder="e.g. Cambodia Beverage Co." 
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <?= current_lang() === 'km' ? 'ក្រុមប្រភេទភេសជ្ជៈ (Drink Category)' : 'Drink Category' ?> <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <select name="category_id" 
+                                        id="addStockCategoryId" 
+                                        required 
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all appearance-none cursor-pointer">
+                                    <option value=""><?= current_lang() === 'km' ? '-- ជ្រើសរើសក្រុមប្រភេទ --' : '-- Select Category --' ?></option>
+                                    <?php foreach ($activeCategories as $cat): ?>
+                                        <option value="<?= (int)$cat['category_id'] ?>" <?= ($cat['slug'] === 'Drinks' || stripos($cat['name'], 'Drink') !== false || stripos($cat['name'], 'ភេសជ្ជៈ') !== false) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($cat['name']) ?> (<?= htmlspecialchars($cat['slug']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -2462,6 +2647,28 @@ $stockItems = $initStmt->fetchAll();
                                    placeholder="e.g. Cambodia Beverage Co." 
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all">
                         </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">
+                                <?= current_lang() === 'km' ? 'ក្រុមប្រភេទភេសជ្ជៈ (Drink Category)' : 'Drink Category' ?> <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <select name="category_id" 
+                                        id="editStockCategoryId" 
+                                        required 
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all appearance-none cursor-pointer">
+                                    <option value=""><?= current_lang() === 'km' ? '-- ជ្រើសរើសក្រុមប្រភេទ --' : '-- Select Category --' ?></option>
+                                    <?php foreach ($activeCategories as $cat): ?>
+                                        <option value="<?= (int)$cat['category_id'] ?>">
+                                            <?= htmlspecialchars($cat['name']) ?> (<?= htmlspecialchars($cat['slug']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-slate-400">
+                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Right 2 Image Upload Square Boxes: Unit & Box -->
@@ -2680,29 +2887,123 @@ $stockItems = $initStmt->fetchAll();
     <!-- ══════════════════════════════════════════════════════════════
          MODAL 4: AUDIT LOGS & HISTORY
     ══════════════════════════════════════════════════════════════ -->
-    <div id="auditLogsModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-        <div class="modal-content glass-card max-w-4xl w-full p-6 bg-[#18181c] border border-[#2b2b36] rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh]">
-            <div class="modal-header flex items-center justify-between pb-3 mb-4 border-b border-[#252530]">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-[#10b981] flex items-center justify-center text-sm font-bold">
+    <div id="auditLogsModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/80 backdrop-blur-sm">
+        <div class="modal-content max-w-5xl xl:max-w-6xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative h-[90vh] max-h-[90vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="modal-header flex flex-col md:flex-row md:items-center justify-between gap-3 px-6 py-4 bg-[#121528] text-white shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-[#1e2340] border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-base shadow-inner shrink-0">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                     </div>
                     <div>
-                        <h3 class="modal-title text-base font-bold text-white"><?= __('audit_ledger_title', 'Direct Drinks Audit & History Ledger') ?></h3>
-                        <p class="text-xs text-[#8e8e9f] card-subtext"><?= __('audit_ledger_sub', 'Recent box restocks and direct drink activity history.') ?></p>
+                        <h3 class="modal-title text-base md:text-lg font-bold text-white leading-tight">
+                            <?= __('audit_ledger_title', 'Direct Drinks Audit & History Ledger') ?>
+                        </h3>
+                        <p class="text-[11px] md:text-xs text-slate-400 mt-0.5 font-normal">
+                            <?= __('audit_ledger_sub', 'Recent box restocks, sales deductions, and activity history.') ?>
+                        </p>
                     </div>
                 </div>
-                <button type="button" onclick="closeModal('auditLogsModal')" class="text-[#7d7d8e] hover:text-white p-1 text-sm">
-                    <i class="fa-solid fa-xmark"></i>
+
+                <!-- History Navigation Tab Buttons -->
+                <div class="flex items-center gap-1.5 bg-[#0a0c16] p-1.5 rounded-2xl border border-slate-700/60 shadow-inner shrink-0 self-start md:self-auto">
+                    <button type="button" 
+                            id="auditTabRestock"
+                            onclick="switchAuditTab('restock')" 
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-xs">
+                        <i class="fa-solid fa-boxes-stacked text-xs text-emerald-400"></i>
+                        <span><?= current_lang() === 'km' ? 'ប្រវត្តិបញ្ចូលស្តុក' : 'Restock History' ?></span>
+                        <span id="auditBadgeRestock" class="ml-0.5 px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 text-[10px] font-black border border-emerald-500/30">0</span>
+                    </button>
+                    <button type="button" 
+                            id="auditTabDeduct"
+                            onclick="switchAuditTab('deduct')" 
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white hover:bg-white/[0.06] border border-transparent">
+                        <i class="fa-solid fa-cart-arrow-down text-xs text-rose-400"></i>
+                        <span><?= current_lang() === 'km' ? 'ប្រវត្តិដកស្តុក' : 'Deduct History' ?></span>
+                        <span id="auditBadgeDeduct" class="ml-0.5 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-black border border-rose-500/20">0</span>
+                    </button>
+                </div>
+
+                <button type="button" onclick="closeModal('auditLogsModal')" class="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer hidden md:flex">
+                    <i class="fa-solid fa-xmark text-sm"></i>
                 </button>
             </div>
 
-            <div id="auditLogsContent" class="overflow-y-auto flex-1 pr-1 space-y-4">
-                <!-- Loaded via AJAX -->
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-hidden p-4 md:p-6 space-y-3 text-slate-800 bg-[#f8fafc]/70 flex flex-col min-h-0">
+                <!-- ── Filter & Search Toolbar (Clean Light Theme) ── -->
+                <div class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+                    <!-- Date Presets -->
+                    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 overflow-x-auto text-xs shrink-0">
+                        <button type="button" onclick="setAuditDatePreset('all')" id="preset_all" class="px-3 py-1.5 rounded-lg font-bold transition-all bg-indigo-600 text-white shadow-xs cursor-pointer">
+                            <?= __('filter_all', 'All') ?>
+                        </button>
+                        <button type="button" onclick="setAuditDatePreset('today')" id="preset_today" class="px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent cursor-pointer">
+                            <?= __('filter_today', 'Today') ?>
+                        </button>
+                        <button type="button" onclick="setAuditDatePreset('yesterday')" id="preset_yesterday" class="px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent cursor-pointer">
+                            <?= __('filter_yesterday', 'Yesterday') ?>
+                        </button>
+                        <button type="button" onclick="setAuditDatePreset('week')" id="preset_week" class="px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent cursor-pointer">
+                            <?= __('filter_this_week', 'This Week') ?>
+                        </button>
+                        <button type="button" onclick="setAuditDatePreset('month')" id="preset_month" class="px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent cursor-pointer">
+                            <?= __('filter_this_month', 'This Month') ?>
+                        </button>
+                    </div>
+
+                    <!-- Date Pickers, Search & Clear -->
+                    <div class="flex items-center gap-2 flex-wrap flex-1 justify-end">
+                        <!-- Date & Time Range Inputs -->
+                        <div class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 shrink-0">
+                            <i class="fa-regular fa-calendar-check text-xs text-indigo-500"></i>
+                            <input type="datetime-local" 
+                                   id="auditFilterDateFrom" 
+                                   onchange="onAuditDateInputChange()" 
+                                   class="bg-transparent text-xs text-slate-800 font-semibold outline-none border-none cursor-pointer w-36 md:w-40"
+                                   title="<?= __('from_date', 'From Date & Time') ?>">
+                            <span class="text-xs text-slate-400 font-bold">→</span>
+                            <input type="datetime-local" 
+                                   id="auditFilterDateTo" 
+                                   onchange="onAuditDateInputChange()" 
+                                   class="bg-transparent text-xs text-slate-800 font-semibold outline-none border-none cursor-pointer w-36 md:w-40"
+                                   title="<?= __('to_date', 'To Date & Time') ?>">
+                        </div>
+
+                        <!-- Search Drink / Order -->
+                        <div class="relative min-w-[170px] max-w-xs flex-1">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
+                            <input type="text" 
+                                   id="auditFilterKeyword" 
+                                   oninput="applyAuditFilters()" 
+                                   placeholder="<?= __('search_drink_order', 'Search drink, order #, staff...') ?>" 
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-8 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-all font-medium">
+                            <button type="button" onclick="clearAuditSearch()" id="auditSearchClearBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs cursor-pointer">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <!-- Reset Filter Button -->
+                        <button type="button" 
+                                onclick="resetAuditFilters()" 
+                                class="py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 hover:text-slate-900 border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                                title="<?= __('clear_filter', 'Clear') ?>">
+                            <i class="fa-solid fa-rotate-left text-xs text-indigo-500"></i>
+                            <span><?= __('clear_filter', 'Clear') ?></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Content Area (Flex-1) -->
+                <div id="auditLogsContent" class="flex-1 flex flex-col min-h-0 overflow-hidden space-y-2">
+                    <!-- Loaded via AJAX -->
+                </div>
             </div>
 
-            <div class="modal-footer flex items-center justify-end pt-3 mt-3 border-t border-[#252530]">
-                <button type="button" onclick="closeModal('auditLogsModal')" class="px-4 py-2 rounded-xl bg-[#202026] text-xs font-semibold text-[#b4b4c2] hover:text-white transition-all cursor-pointer">
+            <!-- Modal Footer -->
+            <div class="modal-footer flex items-center justify-end px-6 py-3.5 bg-slate-50 border-t border-slate-200/80 shrink-0">
+                <button type="button" onclick="closeModal('auditLogsModal')" class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold text-white transition-all cursor-pointer shadow-sm">
                     <?= __('btn_close', 'Close') ?>
                 </button>
             </div>
@@ -2761,19 +3062,36 @@ $stockItems = $initStmt->fetchAll();
             edit: "<?= __('btn_edit', 'Edit') ?>",
             delete: "<?= __('btn_delete', 'Delete') ?>",
             showingDrinks: "<?= __('showing_drinks_count', 'Showing direct drinks') ?>",
-            noDrinksFound: "<?= __('no_data', 'No Direct Drinks Found') ?>",
             recentRestocks: "<?= __('recent_restocks', 'Recent Direct Drink Restocks') ?>",
+            recentDeductions: "<?= __('recent_deductions', 'Stock Out / Deduction History') ?>",
             recentWaste: "<?= __('recent_waste', 'Recent Wastage / Breakage') ?>",
             noRestocksYet: "<?= __('no_restocks_yet', 'No restock entries recorded yet.') ?>",
+            noDeductYet: "<?= __('no_deduct_yet', 'No stock deduction entries recorded yet.') ?>",
             noWasteYet: "<?= __('no_waste_yet', 'No waste logged yet.') ?>",
             date: "<?= __('date', 'Date') ?>",
             drink: "<?= __('col_drink_product', 'Drink') ?>",
             boxesAdded: "<?= __('boxes_added', 'Boxes Added') ?>",
+            looseAdded: "<?= __('loose_added', 'Loose Units') ?>",
+            totalUnitsAdded: "<?= __('total_units_added', 'Total Units') ?>",
+            boxesDeducted: "<?= __('boxes_deducted', 'Boxes Out') ?>",
+            looseDeducted: "<?= __('loose_deducted', 'Loose Out') ?>",
+            totalDeducted: "<?= __('total_deducted', 'Total Out') ?>",
             unitsAdded: "<?= __('units_added', 'Units Added') ?>",
             wasted: "<?= __('log_waste', 'Wasted') ?>",
             reason: "<?= __('reason', 'Reason') ?>",
             supplierNotes: "<?= __('supplier_notes', 'Supplier / Notes') ?>",
-            staff: "<?= __('staff_member', 'Staff') ?>"
+            orderNotes: "<?= __('order_notes', 'Order / Deduction Notes') ?>",
+            staff: "<?= __('staff_member', 'Staff') ?>",
+            filterAll: "<?= __('filter_all', 'All') ?>",
+            filterToday: "<?= __('filter_today', 'Today') ?>",
+            filterYesterday: "<?= __('filter_yesterday', 'Yesterday') ?>",
+            filterThisWeek: "<?= __('filter_this_week', 'This Week') ?>",
+            filterThisMonth: "<?= __('filter_this_month', 'This Month') ?>",
+            fromDate: "<?= __('from_date', 'From Date') ?>",
+            toDate: "<?= __('to_date', 'To Date') ?>",
+            searchDrinkOrder: "<?= __('search_drink_order', 'Search drink, order #, staff...') ?>",
+            clearFilter: "<?= __('clear_filter', 'Clear') ?>",
+            noMatchFilter: "<?= __('no_match_filter', 'No records match the selected date/filter criteria.') ?>"
         };
 
         function escapeHtml(str) {
@@ -3284,6 +3602,17 @@ $stockItems = $initStmt->fetchAll();
             if (nameInput) nameInput.classList.remove('border-rose-500');
             const submitBtn = document.getElementById('addStockSubmitBtn');
             if (submitBtn) submitBtn.disabled = false;
+
+            const addCatSelect = document.getElementById('addStockCategoryId');
+            if (addCatSelect) {
+                const drinksOpt = Array.from(addCatSelect.options).find(opt => opt.text.toLowerCase().includes('drink') || opt.text.toLowerCase().includes('ភេសជ្ជៈ'));
+                if (drinksOpt) {
+                    addCatSelect.value = drinksOpt.value;
+                } else if (addCatSelect.options.length > 1) {
+                    addCatSelect.selectedIndex = 1;
+                }
+            }
+
             updateCardUnitLabels('add');
             openModal('addStockModal');
         }
@@ -3602,6 +3931,11 @@ $stockItems = $initStmt->fetchAll();
                 document.getElementById('editSellPriceBox').value = sBox.toFixed(2);
                 document.getElementById('editNotes').value = it.notes || '';
 
+                const editCatSelect = document.getElementById('editStockCategoryId');
+                if (editCatSelect) {
+                    editCatSelect.value = it.category_id || '';
+                }
+
                 // Preview Unit Image
                 const editPreview = document.getElementById('editStockImagePreview');
                 const editPlaceholder = document.getElementById('editStockImagePlaceholder');
@@ -3757,66 +4091,330 @@ $stockItems = $initStmt->fetchAll();
             }
         }
 
-        async function openAuditLogsModal() {
-            openModal('auditLogsModal');
+        let currentAuditLogsData = { restocks: [], deductions: [], waste: [] };
+        let activeAuditTab = 'restock';
+        let activeAuditDatePreset = 'all';
+
+        function switchAuditTab(tab) {
+            activeAuditTab = tab;
+            updateAuditTabButtonStyles();
+            renderAuditContent();
+        }
+
+        function updateAuditTabButtonStyles() {
+            const btnRestock = document.getElementById('auditTabRestock');
+            const btnDeduct = document.getElementById('auditTabDeduct');
+
+            const baseInactive = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white hover:bg-white/[0.06] border border-transparent";
+            const activeRestock = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs shadow-emerald-500/10";
+            const activeDeduct = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-xs shadow-rose-500/10";
+
+            if (btnRestock) btnRestock.className = (activeAuditTab === 'restock') ? activeRestock : baseInactive;
+            if (btnDeduct) btnDeduct.className = (activeAuditTab === 'deduct') ? activeDeduct : baseInactive;
+        }
+
+        function getLocalDateTimeISO(d, endOfDay = false) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const time = endOfDay ? '23:59' : '00:00';
+            return `${year}-${month}-${day}T${time}`;
+        }
+
+        function setAuditDatePreset(preset) {
+            activeAuditDatePreset = preset;
+            const fromInput = document.getElementById('auditFilterDateFrom');
+            const toInput = document.getElementById('auditFilterDateTo');
+            const now = new Date();
+
+            const presets = ['all', 'today', 'yesterday', 'week', 'month'];
+            presets.forEach(p => {
+                const el = document.getElementById('preset_' + p);
+                if (el) {
+                    if (p === preset) {
+                        el.className = "px-3 py-1.5 rounded-lg font-bold transition-all bg-indigo-600 text-white shadow-xs cursor-pointer";
+                    } else {
+                        el.className = "px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent cursor-pointer";
+                    }
+                }
+            });
+
+            if (preset === 'all') {
+                if (fromInput) fromInput.value = '';
+                if (toInput) toInput.value = '';
+            } else if (preset === 'today') {
+                if (fromInput) fromInput.value = getLocalDateTimeISO(now, false);
+                if (toInput) toInput.value = getLocalDateTimeISO(now, true);
+            } else if (preset === 'yesterday') {
+                const yest = new Date();
+                yest.setDate(yest.getDate() - 1);
+                if (fromInput) fromInput.value = getLocalDateTimeISO(yest, false);
+                if (toInput) toInput.value = getLocalDateTimeISO(yest, true);
+            } else if (preset === 'week') {
+                const weekStart = new Date();
+                weekStart.setDate(weekStart.getDate() - 6);
+                if (fromInput) fromInput.value = getLocalDateTimeISO(weekStart, false);
+                if (toInput) toInput.value = getLocalDateTimeISO(now, true);
+            } else if (preset === 'month') {
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                if (fromInput) fromInput.value = getLocalDateTimeISO(monthStart, false);
+                if (toInput) toInput.value = getLocalDateTimeISO(now, true);
+            }
+
+            applyAuditFilters();
+        }
+
+        function onAuditDateInputChange() {
+            activeAuditDatePreset = 'custom';
+            const presets = ['all', 'today', 'yesterday', 'week', 'month'];
+            presets.forEach(p => {
+                const el = document.getElementById('preset_' + p);
+                if (el) {
+                    el.className = "px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent cursor-pointer";
+                }
+            });
+            applyAuditFilters();
+        }
+
+        function clearAuditSearch() {
+            const kw = document.getElementById('auditFilterKeyword');
+            if (kw) {
+                kw.value = '';
+                applyAuditFilters();
+            }
+        }
+
+        function resetAuditFilters() {
+            const kw = document.getElementById('auditFilterKeyword');
+            if (kw) kw.value = '';
+            setAuditDatePreset('all');
+        }
+
+        function filterAuditList(list) {
+            if (!Array.isArray(list)) return [];
+
+            const fromVal = (document.getElementById('auditFilterDateFrom')?.value || '').trim();
+            const toVal = (document.getElementById('auditFilterDateTo')?.value || '').trim();
+            const kwVal = (document.getElementById('auditFilterKeyword')?.value || '').trim().toLowerCase();
+
+            const clearBtn = document.getElementById('auditSearchClearBtn');
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', kwVal.length === 0);
+            }
+
+            // Normalization for date & time comparison
+            const normToVal = toVal ? (toVal.length === 16 ? toVal + ':59' : toVal) : '';
+
+            return list.filter(item => {
+                // 1. Date & Time Filter
+                if (item.created_at) {
+                    const itemDT = item.created_at.replace(' ', 'T');
+                    if (fromVal && itemDT < fromVal) return false;
+                    if (normToVal && itemDT > normToVal) return false;
+                }
+
+                // 2. Keyword Search
+                if (kwVal) {
+                    const str = [
+                        item.item_name || '',
+                        item.supplier || '',
+                        item.notes || '',
+                        item.reason || '',
+                        item.recorded_by || '',
+                        item.created_by || '',
+                        item.order_id ? 'order #' + item.order_id : '',
+                        item.change_type || ''
+                    ].join(' ').toLowerCase();
+
+                    if (!str.includes(kwVal)) return false;
+                }
+
+                return true;
+            });
+        }
+
+        function renderAuditLoadingState() {
             const container = document.getElementById('auditLogsContent');
-            container.innerHTML = `<div class="text-center py-8 text-[#8e8e9f]"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#10b981] mb-2"></i><p>Loading drink audit history...</p></div>`;
+            if (!container) return;
+
+            let titleHtml = '';
+            let theadHtml = '';
+
+            if (activeAuditTab === 'restock') {
+                titleHtml = `<h4 class="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5"><i class="fa-solid fa-boxes-stacked"></i> ${escapeHtml(I18N.recentRestocks)}</h4><span class="text-[11px] text-slate-400 font-mono bg-white px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs font-semibold">...</span>`;
+                theadHtml = `<tr><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.date)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95 text-slate-900">${escapeHtml(I18N.drink)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-amber-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.boxesAdded)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-sky-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.looseAdded)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-emerald-700 bg-slate-50/95 font-black">${escapeHtml(I18N.totalUnitsAdded)}</th><th class="py-3 px-3.5 bg-slate-50/95">${escapeHtml(I18N.supplierNotes)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.staff)}</th></tr>`;
+            } else {
+                titleHtml = `<h4 class="text-xs font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1.5"><i class="fa-solid fa-cart-arrow-down"></i> ${escapeHtml(I18N.recentDeductions)}</h4><span class="text-[11px] text-slate-400 font-mono bg-white px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs font-semibold">...</span>`;
+                theadHtml = `<tr><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.date)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95 text-slate-900">${escapeHtml(I18N.drink)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-amber-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.boxesDeducted)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-sky-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.looseDeducted)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-rose-700 bg-slate-50/95 font-black">${escapeHtml(I18N.totalDeducted)}</th><th class="py-3 px-3.5 bg-slate-50/95">${escapeHtml(I18N.orderNotes)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.staff)}</th></tr>`;
+            }
+
+            container.innerHTML = `<div class="flex-1 flex flex-col min-h-0 space-y-2">
+                <div class="flex items-center justify-between pb-0.5">${titleHtml}</div>
+                <div class="flex-1 overflow-x-auto overflow-y-auto rounded-2xl border border-slate-200/90 shadow-sm bg-white min-h-[380px]">
+                    <table class="w-full text-xs text-left whitespace-nowrap">
+                        <thead class="sticky top-0 bg-slate-50/95 backdrop-blur-md z-10 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200 shadow-2xs">
+                            ${theadHtml}
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            <tr>
+                                <td colspan="7" class="py-24 text-center text-slate-400 bg-white">
+                                    <div class="flex flex-col items-center justify-center gap-2.5">
+                                        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-indigo-500"></i>
+                                        <div class="text-xs font-semibold text-slate-600">${escapeHtml(I18N.lang === 'km' ? 'កំពុងទាញយកទិន្នន័យ...' : 'Loading records...')}</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        function renderAuditContent() {
+            const container = document.getElementById('auditLogsContent');
+            if (!container) return;
+
+            const filteredRestocks = filterAuditList(currentAuditLogsData.restocks);
+            const filteredDeductions = filterAuditList(currentAuditLogsData.deductions);
+
+            // Update tab badge numbers
+            const bRestock = document.getElementById('auditBadgeRestock');
+            const bDeduct = document.getElementById('auditBadgeDeduct');
+            if (bRestock) bRestock.textContent = filteredRestocks.length;
+            if (bDeduct) bDeduct.textContent = filteredDeductions.length;
+
+            let html = '';
+
+            if (activeAuditTab === 'restock') {
+                html += `<div class="flex-1 flex flex-col min-h-0 space-y-2">`;
+                html += `<div class="flex items-center justify-between pb-0.5"><h4 class="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-1.5"><i class="fa-solid fa-boxes-stacked"></i> ${escapeHtml(I18N.recentRestocks)}</h4><span class="text-[11px] text-slate-500 font-mono bg-white px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs font-semibold">${filteredRestocks.length} records</span></div>`;
+                
+                html += `<div class="flex-1 overflow-x-auto overflow-y-auto rounded-2xl border border-slate-200/90 shadow-sm bg-white min-h-[380px]"><table class="w-full text-xs text-left whitespace-nowrap"><thead class="sticky top-0 bg-slate-50/95 backdrop-blur-md z-10 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200 shadow-2xs"><tr><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.date)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95 text-slate-900">${escapeHtml(I18N.drink)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-amber-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.boxesAdded)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-sky-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.looseAdded)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-emerald-700 bg-slate-50/95 font-black">${escapeHtml(I18N.totalUnitsAdded)}</th><th class="py-3 px-3.5 bg-slate-50/95">${escapeHtml(I18N.supplierNotes)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.staff)}</th></tr></thead><tbody class="divide-y divide-slate-100 bg-white">`;
+                
+                if (filteredRestocks.length === 0) {
+                    html += `<tr><td colspan="7" class="py-24 text-center text-slate-400 bg-white"><div class="flex flex-col items-center justify-center gap-2.5"><div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-400 text-xl shadow-2xs"><i class="fa-solid fa-folder-open"></i></div><div class="text-xs font-bold text-slate-700">${escapeHtml(I18N.noMatchFilter || I18N.noRestocksYet)}</div><div class="text-[11px] text-slate-400 font-normal">${escapeHtml(I18N.lang === 'km' ? 'មិនមានទិន្នន័យបញ្ចូលស្តុកត្រូវបង្ហាញទេ' : 'No restock records found')}</div></div></td></tr>`;
+                } else {
+                    filteredRestocks.forEach(r => {
+                        const boxesAdded = parseFloat(r.boxes_added) || 0;
+                        const looseAdded = parseFloat(r.loose_added) || 0;
+                        const unitsAdded = parseFloat(r.quantity_added) || 0;
+                        const unitName = formatUnitLabel(r.unit || 'can', unitsAdded);
+                        const looseUnitName = formatUnitLabel(r.unit || 'can', looseAdded || 1);
+                        const punitName = formatUnitLabel(r.purchase_unit || 'box', boxesAdded || 1);
+
+                        const boxDisplay = boxesAdded > 0 
+                            ? `<span class="font-extrabold text-amber-700 whitespace-nowrap bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200/80">+${formatNumber(boxesAdded)} ${escapeHtml(punitName)}</span>`
+                            : `<span class="text-slate-400 font-medium whitespace-nowrap">0 ${escapeHtml(punitName)}</span>`;
+
+                        const looseDisplay = looseAdded > 0 
+                            ? `<span class="font-bold text-sky-700 whitespace-nowrap bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200/80">+${formatNumber(looseAdded)} ${escapeHtml(looseUnitName)}</span>`
+                            : `<span class="text-slate-400 font-medium whitespace-nowrap">0 ${escapeHtml(looseUnitName)}</span>`;
+
+                        const totalDisplay = `<span class="font-black text-emerald-700 whitespace-nowrap bg-emerald-50 px-3 py-0.5 rounded-lg border border-emerald-300/80">+${formatNumber(unitsAdded)} ${escapeHtml(unitName)}</span>`;
+
+                        html += `<tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="py-3 px-3.5 text-slate-500 whitespace-nowrap font-mono text-[11px]">${escapeHtml(r.created_at)}</td>
+                            <td class="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap text-xs">${escapeHtml(r.item_name)}</td>
+                            <td class="py-3 px-3.5 text-center whitespace-nowrap">${boxDisplay}</td>
+                            <td class="py-3 px-3.5 text-center whitespace-nowrap">${looseDisplay}</td>
+                            <td class="py-3 px-3.5 text-center whitespace-nowrap font-extrabold">${totalDisplay}</td>
+                            <td class="py-3 px-3.5 text-slate-600 whitespace-nowrap">${escapeHtml(r.supplier || r.notes || '--')}</td>
+                            <td class="py-3 px-3.5 text-slate-500 whitespace-nowrap text-xs">${escapeHtml(r.recorded_by || 'Staff')}</td>
+                        </tr>`;
+                    });
+                }
+                html += `</tbody></table></div></div>`;
+            } else if (activeAuditTab === 'deduct') {
+                html += `<div class="flex-1 flex flex-col min-h-0 space-y-2">`;
+                html += `<div class="flex items-center justify-between pb-0.5"><h4 class="text-xs font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1.5"><i class="fa-solid fa-cart-arrow-down"></i> ${escapeHtml(I18N.recentDeductions)}</h4><span class="text-[11px] text-slate-500 font-mono bg-white px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs font-semibold">${filteredDeductions.length} records</span></div>`;
+                
+                html += `<div class="flex-1 overflow-x-auto overflow-y-auto rounded-2xl border border-slate-200/90 shadow-sm bg-white min-h-[380px]"><table class="w-full text-xs text-left whitespace-nowrap"><thead class="sticky top-0 bg-slate-50/95 backdrop-blur-md z-10 text-slate-600 font-bold uppercase text-[11px] border-b border-slate-200 shadow-2xs"><tr><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.date)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95 text-slate-900">${escapeHtml(I18N.drink)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-amber-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.boxesDeducted)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-sky-700 bg-slate-50/95 font-extrabold">${escapeHtml(I18N.looseDeducted)}</th><th class="py-3 px-3.5 whitespace-nowrap text-center text-rose-700 bg-slate-50/95 font-black">${escapeHtml(I18N.totalDeducted)}</th><th class="py-3 px-3.5 bg-slate-50/95">${escapeHtml(I18N.orderNotes)}</th><th class="py-3 px-3.5 whitespace-nowrap bg-slate-50/95">${escapeHtml(I18N.staff)}</th></tr></thead><tbody class="divide-y divide-slate-100 bg-white">`;
+                
+                if (filteredDeductions.length === 0) {
+                    html += `<tr><td colspan="7" class="py-24 text-center text-slate-400 bg-white"><div class="flex flex-col items-center justify-center gap-2.5"><div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-400 text-xl shadow-2xs"><i class="fa-solid fa-folder-open"></i></div><div class="text-xs font-bold text-slate-700">${escapeHtml(I18N.noMatchFilter || I18N.noDeductYet)}</div><div class="text-[11px] text-slate-400 font-normal">${escapeHtml(I18N.lang === 'km' ? 'មិនមានទិន្នន័យដកស្តុកត្រូវបង្ហាញទេ' : 'No deduction records found')}</div></div></td></tr>`;
+                } else {
+                    filteredDeductions.forEach(d => {
+                        const boxesDeducted = parseFloat(d.boxes_deducted) || 0;
+                        const looseDeducted = parseFloat(d.loose_deducted) || 0;
+                        const totalDeducted = parseFloat(d.total_deducted) || 0;
+                        const unitName = formatUnitLabel(d.unit || 'can', totalDeducted);
+                        const looseUnitName = formatUnitLabel(d.unit || 'can', looseDeducted || 1);
+                        const punitName = formatUnitLabel(d.purchase_unit || 'box', boxesDeducted || 1);
+
+                        const boxDisplay = boxesDeducted > 0 
+                            ? `<span class="font-extrabold text-amber-700 whitespace-nowrap bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200/80">-${formatNumber(boxesDeducted)} ${escapeHtml(punitName)}</span>`
+                            : `<span class="text-slate-400 font-medium whitespace-nowrap">0 ${escapeHtml(punitName)}</span>`;
+
+                        const looseDisplay = looseDeducted > 0 
+                            ? `<span class="font-bold text-sky-700 whitespace-nowrap bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200/80">-${formatNumber(looseDeducted)} ${escapeHtml(looseUnitName)}</span>`
+                            : `<span class="text-slate-400 font-medium whitespace-nowrap">0 ${escapeHtml(looseUnitName)}</span>`;
+
+                        const totalDisplay = `<span class="font-black text-rose-700 whitespace-nowrap bg-rose-50 px-3 py-0.5 rounded-lg border border-rose-300/80">-${formatNumber(totalDeducted)} ${escapeHtml(unitName)}</span>`;
+
+                        let typeBadge = '';
+                        if (d.change_type === 'sale_deduct' || (d.notes && d.notes.toLowerCase().includes('order #'))) {
+                            typeBadge = `<span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200 mr-1.5 inline-flex items-center gap-1"><i class="fa-solid fa-receipt text-[9px]"></i>POS Sale</span>`;
+                        } else {
+                            typeBadge = `<span class="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-bold border border-rose-200 mr-1.5 inline-flex items-center gap-1"><i class="fa-solid fa-minus text-[9px]"></i>Deduct</span>`;
+                        }
+
+                        html += `<tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="py-3 px-3.5 text-slate-500 whitespace-nowrap font-mono text-[11px]">${escapeHtml(d.created_at)}</td>
+                            <td class="py-3 px-3.5 font-bold text-slate-900 whitespace-nowrap text-xs">${escapeHtml(d.item_name)}</td>
+                            <td class="py-3 px-3.5 text-center whitespace-nowrap">${boxDisplay}</td>
+                            <td class="py-3 px-3.5 text-center whitespace-nowrap">${looseDisplay}</td>
+                            <td class="py-3 px-3.5 text-center whitespace-nowrap font-extrabold">${totalDisplay}</td>
+                            <td class="py-3 px-3.5 text-slate-700 whitespace-nowrap">${typeBadge} <span class="text-slate-800 font-medium">${escapeHtml(d.notes || ('Order #' + (d.order_id || '--')))}</span></td>
+                            <td class="py-3 px-3.5 text-slate-500 whitespace-nowrap text-xs">${escapeHtml(d.created_by || 'Staff')}</td>
+                        </tr>`;
+                    });
+                }
+                html += `</tbody></table></div></div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function applyAuditFilters() {
+            renderAuditContent();
+        }
+
+        async function openAuditLogsModal(defaultTab = 'restock') {
+            activeAuditTab = defaultTab;
+            openModal('auditLogsModal');
+            updateAuditTabButtonStyles();
+            
+            // Set preset 'all'
+            setAuditDatePreset('all');
+
+            // Render table layout with loading state inside tbody
+            renderAuditLoadingState();
 
             try {
                 const res = await fetch('stock.php?action=get_audit_logs');
                 const data = await res.json();
 
                 if (!data.success) {
-                    container.innerHTML = `<p class="text-rose-400 text-center py-4">Failed to load audit logs.</p>`;
+                    const container = document.getElementById('auditLogsContent');
+                    if (container) {
+                        container.innerHTML = `<div class="p-8 text-center text-rose-500 font-semibold bg-white rounded-2xl border border-slate-200">${escapeHtml(data.message || 'Failed to load audit logs.')}</div>`;
+                    }
                     return;
                 }
 
-                let html = '';
+                currentAuditLogsData = {
+                    restocks: data.restocks || [],
+                    deductions: data.deductions || [],
+                    waste: data.waste || []
+                };
 
-                html += `<div class="space-y-2 mb-6"><h4 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5"><i class="fa-solid fa-boxes-stacked"></i> ${escapeHtml(I18N.recentRestocks)}</h4>`;
-                if (!data.restocks || data.restocks.length === 0) {
-                    html += `<p class="text-xs text-[#7d7d8e] italic py-2">${escapeHtml(I18N.noRestocksYet)}</p>`;
-                } else {
-                    html += `<div class="overflow-x-auto"><table class="w-full text-xs text-left"><thead class="text-[#8e8e9f] border-b border-[#252530]"><tr><th class="py-2 px-3">${escapeHtml(I18N.date)}</th><th class="py-2 px-3">${escapeHtml(I18N.drink)}</th><th class="py-2 px-3">${escapeHtml(I18N.boxesAdded)}</th><th class="py-2 px-3">${escapeHtml(I18N.unitsAdded)}</th><th class="py-2 px-3">${escapeHtml(I18N.supplierNotes)}</th><th class="py-2 px-3">${escapeHtml(I18N.staff)}</th></tr></thead><tbody class="divide-y divide-[#202028]">`;
-                    data.restocks.forEach(r => {
-                        const boxesAdded = r.boxes_added ? parseFloat(r.boxes_added) : 0;
-                        const unitsAdded = parseFloat(r.quantity_added) || 0;
-                        const unitName = formatUnitLabel(r.unit || 'can', unitsAdded);
-                        const punitName = formatUnitLabel(r.purchase_unit || 'box', boxesAdded);
-                        html += `<tr>
-                            <td class="py-2 px-3 text-[#8e8e9f]">${escapeHtml(r.created_at)}</td>
-                            <td class="py-2 px-3 font-bold text-[var(--text-main)]">${escapeHtml(r.item_name)}</td>
-                            <td class="py-2 px-3 text-amber-400 font-extrabold">+${formatNumber(boxesAdded)} ${escapeHtml(punitName)}</td>
-                            <td class="py-2 px-3 text-emerald-400 font-extrabold">+${formatNumber(unitsAdded)} ${escapeHtml(unitName)}</td>
-                            <td class="py-2 px-3 text-[#b4b4c2]">${escapeHtml(r.supplier || r.notes || '--')}</td>
-                            <td class="py-2 px-3 text-[#8e8e9f]">${escapeHtml(r.recorded_by || 'Staff')}</td>
-                        </tr>`;
-                    });
-                    html += `</tbody></table></div>`;
-                }
-                html += `</div>`;
-
-                if (data.waste && data.waste.length > 0) {
-                    html += `<div class="space-y-2"><h4 class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5"><i class="fa-solid fa-trash-can-arrow-up"></i> ${escapeHtml(I18N.recentWaste)}</h4>`;
-                    html += `<div class="overflow-x-auto"><table class="w-full text-xs text-left"><thead class="text-[#8e8e9f] border-b border-[#252530]"><tr><th class="py-2 px-3">${escapeHtml(I18N.date)}</th><th class="py-2 px-3">${escapeHtml(I18N.drink)}</th><th class="py-2 px-3">${escapeHtml(I18N.wasted)}</th><th class="py-2 px-3">${escapeHtml(I18N.reason)}</th><th class="py-2 px-3">${escapeHtml(I18N.staff)}</th></tr></thead><tbody class="divide-y divide-[#202028]">`;
-                    data.waste.forEach(w => {
-                        const unitsWasted = parseFloat(w.quantity_wasted) || 0;
-                        const unitName = formatUnitLabel(w.unit || 'can', unitsWasted);
-                        html += `<tr>
-                            <td class="py-2 px-3 text-[#8e8e9f]">${escapeHtml(w.created_at)}</td>
-                            <td class="py-2 px-3 font-bold text-[var(--text-main)]">${escapeHtml(w.item_name)}</td>
-                            <td class="py-2 px-3 text-rose-400 font-extrabold">-${formatNumber(unitsWasted)} ${escapeHtml(unitName)}</td>
-                            <td class="py-2 px-3"><span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 text-[10px] font-bold border border-rose-500/20">${escapeHtml(w.reason)}</span> ${w.notes ? '<span class="text-[#8e8e9f] ml-1">(' + escapeHtml(w.notes) + ')</span>' : ''}</td>
-                            <td class="py-2 px-3 text-[#8e8e9f]">${escapeHtml(w.recorded_by || 'Staff')}</td>
-                        </tr>`;
-                    });
-                    html += `</tbody></table></div></div>`;
-                }
-
-                container.innerHTML = html;
+                renderAuditContent();
             } catch (err) {
                 console.error(err);
-                container.innerHTML = `<p class="text-rose-400 text-center py-4">Failed to load audit logs.</p>`;
+                const container = document.getElementById('auditLogsContent');
+                if (container) {
+                    container.innerHTML = `<div class="p-8 text-center text-rose-500 font-semibold bg-white rounded-2xl border border-slate-200">Failed to load audit logs.</div>`;
+                }
             }
         }
     </script>
