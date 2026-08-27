@@ -73,9 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Sign In — Bird's Nest POS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Noto+Sans+Khmer:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..900;1,100..900&family=Noto+Sans+Khmer:wght@100..900&family=Siemreap&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..900;1,100..900&family=Noto+Sans+Khmer:wght@100..900&family=Siemreap&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -96,18 +98,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     --err-border:  rgba(239, 68, 68, 0.3);
 }
 
+/* ── UNIVERSAL TYPOGRAPHY GUARANTEE (CROSS-DEVICE KHMER & LATIN) ── */
+html, body, input, select, textarea, button, a, span, p, h1, h2, h3, h4, h5, h6, label, div {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Plus Jakarta Sans', 'Outfit', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
 html, body {
     min-height: 100vh;
     background-color: var(--bg);
-    font-family: 'Plus Jakarta Sans', 'Outfit', 'Kantumruy Pro', 'Noto Sans Khmer', sans-serif;
     color: var(--text-main);
     overflow-x: hidden;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
 }
 
 :lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
-    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Plus Jakarta Sans', sans-serif !important;
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Plus Jakarta Sans', sans-serif !important;
 }
 
 /* ── PREVENT ICON FONT OVERRIDES ── */
@@ -127,6 +134,10 @@ i.fa-brands, i.fab, .fa-brands, .fab {
     font-family: "Font Awesome 6 Brands" !important;
     font-weight: 400 !important;
     font-style: normal !important;
+}
+
+.fa, [class*="fa-"], i.fa, i[class*="fa-"] {
+    font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands", "FontAwesome" !important;
 }
 
 /* ── BACKGROUND GRID & RADIAL GLOW ── */
@@ -859,15 +870,8 @@ i.fa-brands, i.fab, .fa-brands, .fab {
                         <span class="brand-sub">STAFF LOGIN</span>
                     </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <a href="set_language.php?lang=<?= current_lang() === 'en' ? 'km' : 'en' ?>" 
-                       style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:rgba(0, 245, 160, 0.06); border:1px solid rgba(0, 245, 160, 0.22); color:var(--mint); text-decoration:none; font-size:11px; font-weight:700; transition:all 0.2s;"
-                       title="<?= current_lang() === 'en' ? 'Switch to ភាសាខ្មែរ' : 'Switch to English' ?>">
-                        <span><?= current_lang() === 'km' ? '🇰🇭 ខ្មែរ' : '🇬🇧 EN' ?></span>
-                    </a>
-                    <div class="terminal-badge">
-                        TERMINAL 01
-                    </div>
+                <div class="terminal-badge">
+                    TERMINAL 01
                 </div>
             </div>
 
@@ -1020,7 +1024,8 @@ function initTypewriter(elementId, texts, typeSpeed = 75, eraseSpeed = 35, delay
                 return Array.from(seg.segment(str), s => s.segment);
             } catch(e) {}
         }
-        return Array.from(str);
+        const match = str.match(/[\u1780-\u17B3][\u17B4-\u17D3\u17DD]*|[^\u1780-\u17B3]/g);
+        return match ? match : Array.from(str);
     }
     
     function run() {

@@ -51,12 +51,13 @@ $_page_subtitle = $page_subtitle ?? '';
 
 <style>
 /* Header Bar Typography Guarantee for All Devices */
-body, input, select, textarea, button, table {
-    font-family: 'Poppins', 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+body, input, select, textarea, button, table, a, span, p, h1, h2, h3, h4, h5, h6, label, div {
+    font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
-:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] body, html[lang="km"] input, html[lang="km"] select, html[lang="km"] textarea, html[lang="km"] button, html[lang="km"] table, html[lang="km"] h1, html[lang="km"] h2, html[lang="km"] h3, html[lang="km"] h4, html[lang="km"] h5, html[lang="km"] h6, html[lang="km"] p, html[lang="km"] span, html[lang="km"] a {
+:lang(km), [data-lang="km"], html[lang="km"], html[lang="km"] * {
     font-family: 'Kantumruy Pro', 'Noto Sans Khmer', 'Siemreap', 'Khmer OS Battambang', 'Khmer OS Siemreap', 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }
 </style>

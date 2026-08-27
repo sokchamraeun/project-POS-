@@ -2423,11 +2423,9 @@ $categoriesList = [
                                         </span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="py-3.5 px-3">
+                                <td class="py-3.5 px-3 <?= $isPkgSet ? 'text-center' : '' ?>">
                                     <?php if ($isPkgSet): ?>
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                            <i class="fa-solid fa-calculator text-[10px]"></i> <?= __('auto_calculated_set', 'គិតតាមរូបមន្ត (Auto Set)') ?>
-                                        </span>
+                                        <span class="text-xs font-medium text-[#8e8e9f]">-</span>
                                     <?php else: ?>
                                         <?= $statusBadge ?>
                                     <?php endif; ?>
@@ -2441,11 +2439,9 @@ $categoriesList = [
                                         <div class="text-[10px] text-[#8e8e9f]">$<?= number_format($cost, 4) ?> / <?= htmlspecialchars($item['unit']) ?> <span class="text-emerald-400/80 font-semibold">(≈ <?= $khrFormatted ?> ៛)</span></div>
                                     <?php endif; ?>
                                 </td>
-                                <td class="py-3.5 px-4 text-right">
+                                <td class="py-3.5 px-4 <?= $isPkgSet ? 'text-center' : 'text-right' ?>">
                                     <?php if ($isPkgSet): ?>
-                                        <button type="button" onclick="openPackagingCostModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer shadow-sm">
-                                            <i class="fa-solid fa-gear text-xs"></i> <span><?= __('packaging_set_cost', 'ថ្លៃដើមវេចខ្ចប់') ?></span>
-                                        </button>
+                                        <span class="text-xs font-medium text-[#8e8e9f]">-</span>
                                     <?php else: ?>
                                         <div class="flex items-center justify-end gap-1.5">
                                             <button type="button" onclick="openIngredientHistoryModal(<?= $item['item_id'] ?>, '<?= addslashes(htmlspecialchars($item['item_name'])) ?>')" class="btn-action-neutral btn-act-history" title="<?= __('btn_history', 'ប្រវត្តិប្រើប្រាស់ & កាត់ស្តុក (Deduction History)') ?>"><i class="fa-solid fa-clock-rotate-left w-4 text-center"></i></button>
@@ -3645,23 +3641,15 @@ $categoriesList = [
                         <td class="py-3.5 px-3 font-medium text-center">
                             <span class="text-xs font-medium text-[#8e8e9f]">-</span>
                         </td>
-                        <td class="py-3.5 px-3">
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                <i class="fa-solid fa-calculator text-[10px]"></i> ${I18N.lang === 'km' ? 'គិតតាមរូបមន្ត (Auto Set)' : 'Auto Set'}
-                            </span>
+                        <td class="py-3.5 px-3 text-center">
+                            <span class="text-xs font-medium text-[#8e8e9f]">-</span>
                         </td>
                         <td class="py-3.5 px-3">
                             <div class="font-bold text-[var(--text-main)] text-xs">$${cost.toFixed(4)} / set</div>
                             <div class="text-[10px] text-emerald-500 font-semibold mt-0.5">(≈ ${khrCostText} ៛)</div>
                         </td>
-                        <td class="py-3.5 px-4 text-right">
-                            <button type="button" 
-                                    onclick="openPackagingCostModal()" 
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer shadow-sm" 
-                                    title="${escapeHtml(I18N.packagingSetCost)}">
-                                <i class="fa-solid fa-gear text-xs"></i>
-                                <span>${escapeHtml(I18N.packagingSetCost)}</span>
-                            </button>
+                        <td class="py-3.5 px-4 text-center">
+                            <span class="text-xs font-medium text-[#8e8e9f]">-</span>
                         </td>
                     </tr>
                     `;
