@@ -559,6 +559,81 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             }
         }
 
+        // 4.5. Deduct Stock / Stock Correction (Atomic Transaction)
+        if ($action === 'deduct_stock') {
+            $itemId        = (int)($_POST['item_id'] ?? 0);
+            $boxesToDeduct = max(0, (float)($_POST['purchase_qty'] ?? 0));
+            $looseToDeduct = max(0, (float)($_POST['loose_qty'] ?? 0));
+            $reason        = trim($_POST['reason'] ?? 'Wrong input / Correction');
+            $customNotes   = trim($_POST['notes'] ?? '');
+
+            if ($itemId <= 0 || ($boxesToDeduct <= 0 && $looseToDeduct <= 0)) {
+                sendJsonResponse(['success' => false, 'message' => 'សូមបញ្ចូលចំនួនកេស ឬចំនួនរាយដែលត្រូវដកចេញពីស្តុក។ (Please enter boxes or loose units to deduct)'], 422);
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $cStmt = $pdo->prepare("SELECT item_name, quantity, unit, purchase_unit, conversion_rate, cost_per_unit, cost_per_purchase_unit 
+                                       FROM stock_items WHERE item_id = ? AND is_active = 1 FOR UPDATE");
+                $cStmt->execute([$itemId]);
+                $cur = $cStmt->fetch();
+
+                if (!$cur) {
+                    $pdo->rollBack();
+                    sendJsonResponse(['success' => false, 'message' => 'Drink item not found.'], 404);
+                }
+
+                $rate           = max(1.0, (float)$cur['conversion_rate']);
+                $totalBaseUnits = ($boxesToDeduct * $rate) + $looseToDeduct;
+                $currentQty     = (float)$cur['quantity'];
+                $pUnit          = $cur['purchase_unit'];
+                $bUnit          = $cur['unit'];
+                $unitCost       = (float)$cur['cost_per_unit'];
+
+                if ($totalBaseUnits > $currentQty) {
+                    $pdo->rollBack();
+                    sendJsonResponse([
+                        'success' => false, 
+                        'message' => "មិនអាចដកចំនួនលើសពីស្តុកបច្ចុប្បន្នបានទេ! (ស្តុកមាន: {$currentQty} {$bUnit}, ប៉ុន្តែព្យាយាមដក: {$totalBaseUnits} {$bUnit})"
+                    ], 422);
+                }
+
+                $newQty = max(0.0, $currentQty - $totalBaseUnits);
+
+                $uStmt = $pdo->prepare("UPDATE stock_items SET 
+                    quantity = ?, 
+                    updated_at = NOW() 
+                    WHERE item_id = ?");
+                $uStmt->execute([$newQty, $itemId]);
+
+                $parts = [];
+                if ($boxesToDeduct > 0) $parts[] = "{$boxesToDeduct} {$pUnit}(s)";
+                if ($looseToDeduct > 0) $parts[] = "{$looseToDeduct} {$bUnit}(s)";
+                $logDesc = "Deduction: -" . implode(' - ', $parts) . " = -{$totalBaseUnits} {$bUnit}s | Reason: {$reason}";
+                if ($customNotes !== '') $logDesc .= " | Note: " . $customNotes;
+
+                // Log into stock_logs for audit ledger & deduction history
+                try {
+                    $lStmt = $pdo->prepare("INSERT INTO stock_logs 
+                        (item_id, change_type, quantity_changed, stock_before, stock_after, cost_at_time, notes, created_by) 
+                        VALUES (?, 'stock_correction', ?, ?, ?, ?, ?, ?)");
+                    $lStmt->execute([$itemId, -$totalBaseUnits, $currentQty, $newQty, $unitCost, $logDesc, $recorded_by]);
+                } catch (Exception $e) {
+                    error_log("Failed to insert stock_logs: " . $e->getMessage());
+                }
+
+                $pdo->commit();
+
+                sendJsonResponse([
+                    'success' => true,
+                    'message' => "បានដកស្តុក {$cur['item_name']} ចំនួន -{$totalBaseUnits} {$bUnit} ជោគជ័យ! ស្តុកនៅសល់: {$newQty} {$bUnit}."
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                sendJsonResponse(['success' => false, 'message' => 'Deduct stock transaction failed: ' . $e->getMessage()], 500);
+            }
+        }
+
         // 5. Update Drink Details
         if ($action === 'update_item') {
             $itemId        = (int)($_POST['item_id'] ?? 0);
@@ -567,7 +642,6 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             $unit          = trim($_POST['unit'] ?? 'can');
             $purchaseUnit  = trim($_POST['purchase_unit'] ?? 'box');
             $rate          = max(1.0, (float)($_POST['conversion_rate'] ?? 24.0));
-            $quantity      = (float)($_POST['quantity'] ?? 0);
             $alertLevel    = (float)($_POST['alert_level'] ?? 24.0);
             $costBox       = (float)($_POST['cost_per_purchase_unit'] ?? 0);
             $costUnit      = isset($_POST['cost_per_unit']) && $_POST['cost_per_unit'] !== '' ? (float)$_POST['cost_per_unit'] : (($costBox > 0) ? ($costBox / $rate) : 0.0);
@@ -606,7 +680,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
             }
 
             // Duplicate Name Check on Edit
-            $chk = $pdo->prepare("SELECT item_id, image, image_box, category, category_id FROM stock_items WHERE item_id = ? AND is_active = 1 LIMIT 1");
+            $chk = $pdo->prepare("SELECT item_id, image, image_box, category, category_id, quantity, cost_per_unit, unit FROM stock_items WHERE item_id = ? AND is_active = 1 LIMIT 1");
             $chk->execute([$itemId]);
             $existing = $chk->fetch(PDO::FETCH_ASSOC);
             if (!$existing) {
@@ -622,7 +696,8 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 ], 422);
             }
 
-            // Optional Unit Image Upload on Edit
+            // Optional Unit Image Upload on Edit or Remove
+            $remove_image = isset($_POST['remove_image']) && $_POST['remove_image'] === '1';
             $new_image_path = null;
             if (!empty($_FILES['image']['name']) && ($_FILES['image']['error'] ?? 1) === UPLOAD_ERR_OK) {
                 $uploadRes = cloudinary_upload_file($_FILES['image'], 'pos_coffee/stock');
@@ -632,9 +707,15 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                         cloudinary_delete_image($existing['image']);
                     }
                 }
+            } elseif ($remove_image) {
+                if (!empty($existing['image'])) {
+                    cloudinary_delete_image($existing['image']);
+                }
+                $new_image_path = ''; // Empty string indicates explicit removal
             }
 
-            // Optional Box Image Upload on Edit
+            // Optional Box Image Upload on Edit or Remove
+            $remove_image_box = isset($_POST['remove_image_box']) && $_POST['remove_image_box'] === '1';
             $new_image_box_path = null;
             if (!empty($_FILES['image_box']['name']) && ($_FILES['image_box']['error'] ?? 1) === UPLOAD_ERR_OK) {
                 $uploadResBox = cloudinary_upload_file($_FILES['image_box'], 'pos_coffee/stock');
@@ -644,10 +725,15 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                         cloudinary_delete_image($existing['image_box']);
                     }
                 }
+            } elseif ($remove_image_box) {
+                if (!empty($existing['image_box'])) {
+                    cloudinary_delete_image($existing['image_box']);
+                }
+                $new_image_box_path = ''; // Empty string indicates explicit removal
             }
 
-            $finalImage = $new_image_path !== null ? $new_image_path : $existing['image'];
-            $finalImageBox = $new_image_box_path !== null ? $new_image_box_path : ($existing['image_box'] ?? null);
+            $finalImage = $new_image_path !== null ? ($new_image_path === '' ? null : $new_image_path) : $existing['image'];
+            $finalImageBox = $new_image_box_path !== null ? ($new_image_box_path === '' ? null : $new_image_box_path) : ($existing['image_box'] ?? null);
 
             $stmt = $pdo->prepare("UPDATE stock_items SET 
                 item_name = ?, 
@@ -655,7 +741,6 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 image_box = ?,
                 category = ?,
                 category_id = ?,
-                quantity = ?, 
                 unit = ?, 
                 purchase_unit = ?, 
                 conversion_rate = ?, 
@@ -663,11 +748,11 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 cost_per_purchase_unit = ?, 
                 cost_per_unit = ?, 
                 selling_price_per_unit = ?,
-                selling_price_per_box = ?,
+                selling_price_per_box = ?, 
                 notes = ?, 
                 updated_at = NOW() 
                 WHERE item_id = ? AND is_active = 1");
-            $stmt->execute([$name, $finalImage, $finalImageBox, $targetCatSlug, $targetCatId, $quantity, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $sellPriceUnit, $sellPriceBox, $notes, $itemId]);
+            $stmt->execute([$name, $finalImage, $finalImageBox, $targetCatSlug, $targetCatId, $unit, $purchaseUnit, $rate, $alertLevel, $costBox, $costUnit, $sellPriceUnit, $sellPriceBox, $notes, $itemId]);
 
             // ── Auto Sync Products for POS (Unit and Box) ──
             try {
@@ -693,7 +778,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 $existingUnitProd = $pCheck->fetch();
 
                 if ($existingUnitProd) {
-                    $uImg = !empty($finalImage) ? $finalImage : $existingUnitProd['image'];
+                    $uImg = $remove_image ? null : (!empty($finalImage) ? $finalImage : $existingUnitProd['image']);
                     $uUpd = $pdo->prepare("UPDATE products SET name = ?, category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
                     $uUpd->execute([$name, $targetCatSlug, $targetCatId, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
                 } else {
@@ -1102,8 +1187,13 @@ $activeCategories = $catInitStmt->fetchAll();
         html:not([data-theme="light"]) .modal-content p,
         html:not([data-theme="light"]) .modal-content .text-slate-400,
         html:not([data-theme="light"]) .modal-content .text-slate-500,
-        html:not([data-theme="light"]) .modal-content .text-slate-600 {
+        html:not([data-theme="light"]) .modal-content .text-slate-600,
+        html:not([data-theme="light"]) #editTotalStockFormula {
             color: #94a3b8 !important;
+        }
+        html:not([data-theme="light"]) #editQuantity {
+            color: #818cf8 !important;
+            border-color: rgba(99, 102, 241, 0.35) !important;
         }
 
         /* Modal Inputs & Selects */
@@ -1130,6 +1220,16 @@ $activeCategories = $catInitStmt->fetchAll();
         }
 
         /* Sub-cards and nested containers inside modals */
+        html:not([data-theme="light"]) #editCurrentStockBreakdown {
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+            border-color: rgba(255, 255, 255, 0.12) !important;
+        }
+        html:not([data-theme="light"]) #editCurrentStockTotal {
+            background-color: rgba(99, 102, 241, 0.2) !important;
+            color: #a5b4fc !important;
+            border-color: rgba(99, 102, 241, 0.35) !important;
+        }
         html:not([data-theme="light"]) .modal-content .bg-white,
         html:not([data-theme="light"]) .modal-content .bg-slate-50,
         html:not([data-theme="light"]) .modal-content .bg-slate-50\/70,
@@ -1165,7 +1265,7 @@ $activeCategories = $catInitStmt->fetchAll();
             color: #ffffff !important;
         }
 
-        /* Restock & Profit highlight cards */
+        /* Restock & Deduct & Profit highlight cards */
         html:not([data-theme="light"]) #restockPreviewCard,
         html:not([data-theme="light"]) .modal-content .bg-indigo-50\/60,
         html:not([data-theme="light"]) .modal-content .bg-indigo-50 {
@@ -1180,6 +1280,22 @@ $activeCategories = $catInitStmt->fetchAll();
             background-color: #101726 !important;
             border-color: rgba(99, 102, 241, 0.3) !important;
             color: #818cf8 !important;
+        }
+
+        html:not([data-theme="light"]) #deductPreviewCard,
+        html:not([data-theme="light"]) .modal-content .bg-rose-50\/70,
+        html:not([data-theme="light"]) .modal-content .bg-rose-50\/40 {
+            background-color: rgba(244, 63, 94, 0.1) !important;
+            border-color: rgba(244, 63, 94, 0.25) !important;
+        }
+        html:not([data-theme="light"]) #deductPreviewCard .text-rose-950,
+        html:not([data-theme="light"]) #deductPreviewCard .text-rose-900\/80 {
+            color: #ffffff !important;
+        }
+        html:not([data-theme="light"]) #deductBadgeUnits {
+            background-color: #101726 !important;
+            border-color: rgba(244, 63, 94, 0.3) !important;
+            color: #fb7185 !important;
         }
         html:not([data-theme="light"]) #restockCurrentStock {
             color: #94a3b8 !important;
@@ -2090,6 +2206,13 @@ $activeCategories = $catInitStmt->fetchAll();
                                                 title="<?= __('btn_restock', 'Restock') ?>">
                                             <i class="fa-solid fa-boxes-stacked mr-1"></i> <?= __('btn_restock', 'Restock') ?>
                                         </button>
+                                        <!-- Quick Stock Deduction -->
+                                        <button type="button" 
+                                                onclick="openDeductStockModal(<?= $item['item_id'] ?>)" 
+                                                class="px-2.5 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-600 hover:text-white font-bold transition-all cursor-pointer border border-rose-500/30" 
+                                                title="<?= current_lang() === 'km' ? 'ដកស្ដុក (កែតម្រូវទិន្នន័យ)' : 'Deduct / Reduce Stock' ?>">
+                                            <i class="fa-solid fa-box-open mr-1"></i> <?= current_lang() === 'km' ? 'ដកស្ដុក' : 'Deduct' ?>
+                                        </button>
                                         <!-- Edit -->
                                         <button type="button" 
                                                 onclick="openEditStockModal(<?= $item['item_id'] ?>)" 
@@ -2217,6 +2340,14 @@ $activeCategories = $catInitStmt->fetchAll();
                                  onclick="document.getElementById('addStockImageInput').click()" 
                                  title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាពរាយ' : 'Click to choose unit image' ?>">
                                 <img id="addStockImagePreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl">
+                                <button type="button" 
+                                        id="addStockImageRemoveBtn" 
+                                        style="display:none;" 
+                                        onclick="event.stopPropagation(); removeStockImage('addStockImageInput', 'addStockImagePreview', 'addStockImagePlaceholder', 'addStockImageHoverOverlay', 'addStockImageRemoveBtn');" 
+                                        class="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-600 active:scale-90 text-white flex items-center justify-center text-xs shadow-md z-30 transition-all border border-white cursor-pointer"
+                                        title="<?= current_lang() === 'km' ? 'លុបរូបភាព' : 'Remove image' ?>">
+                                    <i class="fa-solid fa-xmark text-[11px]"></i>
+                                </button>
                                 <div id="addStockImageHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
                                     <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
                                     <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
@@ -2232,7 +2363,7 @@ $activeCategories = $catInitStmt->fetchAll();
                                        name="image" 
                                        id="addStockImageInput" 
                                        accept="image/*" 
-                                       onchange="previewStockImageLight(this, 'addStockImagePreview', 'addStockImagePlaceholder', 'addStockImageHoverOverlay')" 
+                                       onchange="previewStockImageLight(this, 'addStockImagePreview', 'addStockImagePlaceholder', 'addStockImageHoverOverlay', 'addStockImageRemoveBtn')" 
                                        style="display:none;">
                             </div>
                         </div>
@@ -2246,6 +2377,14 @@ $activeCategories = $catInitStmt->fetchAll();
                                  onclick="document.getElementById('addStockImageBoxInput').click()" 
                                  title="<?= current_lang() === 'km' ? 'ចុចដើម្បីជ្រើសរើសរូបភាពកេស' : 'Click to choose box image' ?>">
                                 <img id="addStockImageBoxPreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl">
+                                <button type="button" 
+                                        id="addStockImageBoxRemoveBtn" 
+                                        style="display:none;" 
+                                        onclick="event.stopPropagation(); removeStockImage('addStockImageBoxInput', 'addStockImageBoxPreview', 'addStockImageBoxPlaceholder', 'addStockImageBoxHoverOverlay', 'addStockImageBoxRemoveBtn');" 
+                                        class="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-600 active:scale-90 text-white flex items-center justify-center text-xs shadow-md z-30 transition-all border border-white cursor-pointer"
+                                        title="<?= current_lang() === 'km' ? 'លុបរូបភាព' : 'Remove image' ?>">
+                                    <i class="fa-solid fa-xmark text-[11px]"></i>
+                                </button>
                                 <div id="addStockImageBoxHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
                                     <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
                                     <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
@@ -2261,7 +2400,7 @@ $activeCategories = $catInitStmt->fetchAll();
                                        name="image_box" 
                                        id="addStockImageBoxInput" 
                                        accept="image/*" 
-                                       onchange="previewStockImageLight(this, 'addStockImageBoxPreview', 'addStockImageBoxPlaceholder', 'addStockImageBoxHoverOverlay')" 
+                                       onchange="previewStockImageLight(this, 'addStockImageBoxPreview', 'addStockImageBoxPlaceholder', 'addStockImageBoxHoverOverlay', 'addStockImageBoxRemoveBtn')" 
                                        style="display:none;">
                             </div>
                         </div>
@@ -2591,6 +2730,175 @@ $activeCategories = $catInitStmt->fetchAll();
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════
+         MODAL 2.5: DEDUCT / REDUCE STOCK (កែតម្រូវ / ដកស្តុក)
+    ══════════════════════════════════════════════════════════════ -->
+    <div id="deductStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
+        <div class="modal-content max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative font-['Poppins','Kantumruy_Pro',sans-serif]">
+            <!-- Modal Header (Dark Slate / Crimson Rose Accent) -->
+            <div class="px-6 py-5 bg-[#0f172a] text-white flex items-center justify-between relative border-b border-rose-500/20">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center text-lg shadow-inner">
+                        <i class="fa-solid fa-box-open"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white tracking-tight"><?= current_lang() === 'km' ? 'ដកស្ដុកភេសជ្ជៈ (កែតម្រូវទិន្នន័យ)' : 'Deduct Stock / Correction' ?></h3>
+                        <p class="text-xs text-slate-400 font-medium"><?= current_lang() === 'km' ? 'ដកចំនួនកេស ឬចំនួនរាយចេញពីស្តុកពេលបញ្ចូលខុស ឬខូចខាត' : 'Deduct boxes or loose units due to wrong input or damage' ?></p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeModal('deductStockModal')" class="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="deductStockForm" onsubmit="handleDeductStock(event)" class="p-6 space-y-4 bg-white">
+                <input type="hidden" name="action" value="deduct_stock">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+
+                <!-- 1. Drink Selection -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5"><?= current_lang() === 'km' ? 'ឈ្មោះភេសជ្ជៈដែលត្រូវដក' : 'Select Drink to Deduct' ?> <span class="text-rose-500">*</span></label>
+                    <div class="relative">
+                        <select name="item_id" 
+                                id="deductItemSelect" 
+                                required 
+                                onchange="updateDeductModalPreview()" 
+                                class="w-full px-4 py-3 rounded-2xl bg-white border border-slate-200 text-xs md:text-sm font-bold text-slate-800 focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 shadow-xs appearance-none">
+                            <option value="">-- <?= current_lang() === 'km' ? 'ជ្រើសរើសភេសជ្ជៈ' : 'Choose Drink' ?> --</option>
+                            <?php foreach ($stockItems as $it): ?>
+                            <option value="<?= $it['item_id'] ?>" 
+                                    data-unit="<?= htmlspecialchars($it['unit']) ?>" 
+                                    data-punit="<?= htmlspecialchars($it['purchase_unit']) ?>"
+                                    data-rate="<?= (float)$it['conversion_rate'] ?>"
+                                    data-qty="<?= (float)$it['quantity'] ?>" 
+                                    data-boxcost="<?= (float)$it['cost_per_purchase_unit'] ?>">
+                                <?= htmlspecialchars($it['item_name']) ?> (1 <?= htmlspecialchars(formatUnitLabel($it['purchase_unit'], 1)) ?> = <?= (int)$it['conversion_rate'] ?> <?= htmlspecialchars(formatUnitLabel($it['unit'], (float)$it['conversion_rate'])) ?>) — <?= current_lang() === 'km' ? 'មាន' : 'Stock:' ?> <?= (float)$it['quantity'] ?> <?= htmlspecialchars(formatUnitLabel($it['unit'], (float)$it['quantity'])) ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Dual Inputs: Boxes vs Loose Units -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <!-- Left: Deduct Box Input Card -->
+                    <div class="p-3.5 rounded-2xl bg-rose-50/40 border border-rose-200/70 flex flex-col justify-between gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-cube text-rose-500"></i>
+                                <?= current_lang() === 'km' ? 'ដកជាកេស' : 'Deduct Boxes' ?>
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-600 text-[10px] font-black border border-rose-200">
+                                <?= current_lang() === 'km' ? 'ខ្នាតធំ' : 'Bulk' ?>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mt-0.5">
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   name="purchase_qty" 
+                                   id="deductQtyInput" 
+                                   placeholder="0" 
+                                   oninput="calculateDeductTotal()" 
+                                   class="w-full bg-transparent text-2xl font-black text-slate-900 focus:outline-none tracking-tight">
+                            <span id="deductBoxUnitName" class="text-xs font-bold text-slate-500 whitespace-nowrap">កេស</span>
+                        </div>
+                        <div class="text-[11px] font-semibold text-slate-400 pt-1 border-t border-rose-200/50 flex items-center gap-1">
+                            <span>= -</span> <b id="deductBoxToLoosePreview" class="text-rose-600 font-bold">0</b> <span><?= current_lang() === 'km' ? 'ឯកតារាយ' : 'loose units' ?></span>
+                        </div>
+                    </div>
+
+                    <!-- Right: Deduct Loose Units Input Card -->
+                    <div class="p-3.5 rounded-2xl bg-rose-50/40 border border-rose-200/70 flex flex-col justify-between gap-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-glass-water text-rose-500"></i>
+                                <?= current_lang() === 'km' ? 'ដកជារាយ' : 'Deduct Loose Units' ?>
+                            </span>
+                            <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-600 text-[10px] font-black border border-rose-200">
+                                <?= current_lang() === 'km' ? 'ខ្នាតរាយ' : 'Loose' ?>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mt-0.5">
+                            <input type="number" 
+                                   step="any" 
+                                   min="0" 
+                                   name="loose_qty" 
+                                   id="deductLooseQtyInput" 
+                                   placeholder="0" 
+                                   oninput="calculateDeductTotal()" 
+                                   class="w-full bg-transparent text-2xl font-black text-slate-900 focus:outline-none tracking-tight">
+                            <span id="deductLooseUnitName" class="text-xs font-bold text-slate-500 whitespace-nowrap">កំប៉ុង</span>
+                        </div>
+                        <div class="text-[11px] font-semibold text-slate-400 pt-1 border-t border-rose-200/50">
+                            <?= current_lang() === 'km' ? 'ដកផ្ទាល់ពីស្តុករាយ' : 'Deduct directly from loose stock' ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Reason & Notes -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1"><?= current_lang() === 'km' ? 'មូលហេតុនៃការដក' : 'Reason for Deduction' ?> <span class="text-rose-500">*</span></label>
+                        <select name="reason" id="deductReasonSelect" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-rose-500">
+                            <option value="បញ្ចូលខុស / កែតម្រូវស្តុក (Wrong input / Correction)" selected><?= current_lang() === 'km' ? 'បញ្ចូលខុស / កែតម្រូវស្តុក (Correction)' : 'Wrong input / Correction' ?></option>
+                            <option value="ខូចខាត / ធ្លាយបែក (Damaged / Broken)"><?= current_lang() === 'km' ? 'ខូចខាត / ធ្លាយបែក (Damaged)' : 'Damaged / Broken' ?></option>
+                            <option value="ផុតកំណត់កាលបរិច្ឆេទ (Expired)"><?= current_lang() === 'km' ? 'ផុតកំណត់កាលបរិច្ឆេទ (Expired)' : 'Expired' ?></option>
+                            <option value="បាត់បង់ / រាប់ខ្វះ (Discrepancy / Lost)"><?= current_lang() === 'km' ? 'បាត់បង់ / រាប់ខ្វះ (Discrepancy)' : 'Discrepancy / Lost' ?></option>
+                            <option value="ដកប្រើប្រាស់ផ្ទៃក្នុង (Internal Use / Testing)"><?= current_lang() === 'km' ? 'ដកប្រើប្រាស់ផ្ទៃក្នុង (Internal Use)' : 'Internal Use / Tasting' ?></option>
+                            <option value="ផ្សេងៗ (Other)"><?= current_lang() === 'km' ? 'ផ្សេងៗ (Other)' : 'Other' ?></option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1"><?= current_lang() === 'km' ? 'កំណត់សម្គាល់បន្ថែម (បើមាន)' : 'Additional Note (Optional)' ?></label>
+                        <input type="text" 
+                               name="notes" 
+                               id="deductNotesInput" 
+                               placeholder="<?= current_lang() === 'km' ? 'ឧ. បញ្ចូលច្រឡំកាលពីម្សិលមិញ' : 'e.g. Mistyped quantity earlier' ?>" 
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-rose-500">
+                    </div>
+                </div>
+
+                <!-- 4. Total Deducted Highlight Card -->
+                <div id="deductPreviewCard" class="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 text-xs space-y-2.5 shadow-xs">
+                    <div class="flex items-center justify-between font-black text-rose-950">
+                        <span class="flex items-center gap-2 text-xs md:text-sm">
+                            <i class="fa-solid fa-calculator text-rose-600 text-sm"></i> <?= current_lang() === 'km' ? 'សរុបស្តុកត្រូវដកចេញ:' : 'Total Deducted Units:' ?>
+                        </span>
+                        <span id="deductBadgeUnits" class="px-3 py-1 rounded-2xl bg-white border border-rose-200 text-rose-600 font-black text-sm shadow-xs">-0 កំប៉ុង</span>
+                    </div>
+                    <p id="deductFormula" class="text-xs font-bold text-rose-900/80 leading-relaxed">(0 កេស × 24) + 0 រាយ = -0 កំប៉ុង</p>
+                    <div class="pt-2 border-t border-rose-200/60 flex items-center justify-between text-xs font-bold">
+                        <span id="deductCurrentStock" class="text-slate-600"><?= current_lang() === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Current:' ?> --</span>
+                        <span id="deductProjectedStock" class="text-rose-700 font-black"><?= current_lang() === 'km' ? 'ស្តុកសល់ថ្មី:' : 'New Remaining:' ?> --</span>
+                    </div>
+                    <div id="deductExcessWarning" class="hidden p-2.5 rounded-xl bg-rose-600 text-white font-bold text-xs flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-sm"></i>
+                        <span><?= current_lang() === 'km' ? 'ចំនួនដកលើសពីស្តុកបច្ចុប្បន្ន! សូមពិនិត្យឡើងវិញ។' : 'Deduction exceeds current stock! Please check values.' ?></span>
+                    </div>
+                </div>
+
+                <!-- 5. Footer -->
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" 
+                            onclick="closeModal('deductStockModal')" 
+                            class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
+                        <?= current_lang() === 'km' ? 'បោះបង់' : 'Cancel' ?>
+                    </button>
+                    <button type="submit" 
+                            id="deductSubmitBtn" 
+                            class="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black transition-all shadow-lg shadow-rose-600/25 flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-minus text-xs"></i>
+                        <span><?= current_lang() === 'km' ? 'បញ្ជាក់ការដកស្ដុក' : 'Confirm Deduction' ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
          MODAL 3: EDIT DRINK DETAILS
     ══════════════════════════════════════════════════════════════ -->
     <div id="editStockModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 bg-black/80 backdrop-blur-sm">
@@ -2671,6 +2979,10 @@ $activeCategories = $catInitStmt->fetchAll();
                         </div>
                     </div>
 
+                    <!-- Hidden Flags for Image Removal on Edit -->
+                    <input type="hidden" name="remove_image" id="editRemoveImageFlag" value="0">
+                    <input type="hidden" name="remove_image_box" id="editRemoveImageBoxFlag" value="0">
+
                     <!-- Right 2 Image Upload Square Boxes: Unit & Box -->
                     <div class="flex items-center gap-3 shrink-0 mx-auto md:mx-0">
                         <!-- Image 1: Unit Image -->
@@ -2681,7 +2993,15 @@ $activeCategories = $catInitStmt->fetchAll();
                             <div class="w-[110px] h-[110px] aspect-square border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white rounded-2xl p-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative overflow-hidden group shadow-sm shrink-0"
                                  onclick="document.getElementById('editStockImageInput').click()" 
                                  title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាពរាយ' : 'Click to change unit image' ?>">
-                                <img id="editStockImagePreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; (document.getElementById('editStockImagePlaceholder')||{}).style && (document.getElementById('editStockImagePlaceholder').style.display='flex');">
+                                <img id="editStockImagePreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; (document.getElementById('editStockImagePlaceholder')||{}).style && (document.getElementById('editStockImagePlaceholder').style.display='flex'); (document.getElementById('editStockImageRemoveBtn')||{}).style && (document.getElementById('editStockImageRemoveBtn').style.display='none');">
+                                <button type="button" 
+                                        id="editStockImageRemoveBtn" 
+                                        style="display:none;" 
+                                        onclick="event.stopPropagation(); removeStockImage('editStockImageInput', 'editStockImagePreview', 'editStockImagePlaceholder', 'editStockImageHoverOverlay', 'editStockImageRemoveBtn', 'editRemoveImageFlag');" 
+                                        class="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-600 active:scale-90 text-white flex items-center justify-center text-xs shadow-md z-30 transition-all border border-white cursor-pointer"
+                                        title="<?= current_lang() === 'km' ? 'លុបរូបភាព' : 'Remove image' ?>">
+                                    <i class="fa-solid fa-xmark text-[11px]"></i>
+                                </button>
                                 <div id="editStockImageHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
                                     <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
                                     <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
@@ -2697,7 +3017,7 @@ $activeCategories = $catInitStmt->fetchAll();
                                        name="image" 
                                        id="editStockImageInput" 
                                        accept="image/*" 
-                                       onchange="previewStockImageLight(this, 'editStockImagePreview', 'editStockImagePlaceholder', 'editStockImageHoverOverlay')" 
+                                       onchange="previewStockImageLight(this, 'editStockImagePreview', 'editStockImagePlaceholder', 'editStockImageHoverOverlay', 'editStockImageRemoveBtn', 'editRemoveImageFlag')" 
                                        style="display:none;">
                             </div>
                         </div>
@@ -2710,7 +3030,15 @@ $activeCategories = $catInitStmt->fetchAll();
                             <div class="w-[110px] h-[110px] aspect-square border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-white rounded-2xl p-1.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all relative overflow-hidden group shadow-sm shrink-0"
                                  onclick="document.getElementById('editStockImageBoxInput').click()" 
                                  title="<?= current_lang() === 'km' ? 'ចុចដើម្បីប្តូររូបភាពកេស' : 'Click to change box image' ?>">
-                                <img id="editStockImageBoxPreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; (document.getElementById('editStockImageBoxPlaceholder')||{}).style && (document.getElementById('editStockImageBoxPlaceholder').style.display='flex');">
+                                <img id="editStockImageBoxPreview" src="" alt="" style="display:none;" class="absolute inset-0 w-full h-full object-cover rounded-2xl" onerror="this.style.display='none'; (document.getElementById('editStockImageBoxPlaceholder')||{}).style && (document.getElementById('editStockImageBoxPlaceholder').style.display='flex'); (document.getElementById('editStockImageBoxRemoveBtn')||{}).style && (document.getElementById('editStockImageBoxRemoveBtn').style.display='none');">
+                                <button type="button" 
+                                        id="editStockImageBoxRemoveBtn" 
+                                        style="display:none;" 
+                                        onclick="event.stopPropagation(); removeStockImage('editStockImageBoxInput', 'editStockImageBoxPreview', 'editStockImageBoxPlaceholder', 'editStockImageBoxHoverOverlay', 'editStockImageBoxRemoveBtn', 'editRemoveImageBoxFlag');" 
+                                        class="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-500 hover:bg-rose-600 active:scale-90 text-white flex items-center justify-center text-xs shadow-md z-30 transition-all border border-white cursor-pointer"
+                                        title="<?= current_lang() === 'km' ? 'លុបរូបភាព' : 'Remove image' ?>">
+                                    <i class="fa-solid fa-xmark text-[11px]"></i>
+                                </button>
                                 <div id="editStockImageBoxHoverOverlay" style="display:none;" class="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
                                     <i class="fa-solid fa-arrow-up-from-bracket text-sm mb-0.5"></i>
                                     <span class="text-[9px] font-bold"><?= current_lang() === 'km' ? 'ប្តូររូប' : 'Change' ?></span>
@@ -2726,7 +3054,7 @@ $activeCategories = $catInitStmt->fetchAll();
                                        name="image_box" 
                                        id="editStockImageBoxInput" 
                                        accept="image/*" 
-                                       onchange="previewStockImageLight(this, 'editStockImageBoxPreview', 'editStockImageBoxPlaceholder', 'editStockImageBoxHoverOverlay')" 
+                                       onchange="previewStockImageLight(this, 'editStockImageBoxPreview', 'editStockImageBoxPlaceholder', 'editStockImageBoxHoverOverlay', 'editStockImageBoxRemoveBtn', 'editRemoveImageBoxFlag')" 
                                        style="display:none;">
                             </div>
                         </div>
@@ -2740,7 +3068,8 @@ $activeCategories = $catInitStmt->fetchAll();
                         <span><?= current_lang() === 'km' ? 'ខ្នាត និងការបំប្លែងស្តុក (Unit Packaging & Stock)' : 'Unit Packaging & Stock' ?></span>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-3">
+                    <!-- 4 Packaging Inputs Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ខ្នាតរាយ *' : 'Single Unit *' ?></label>
                             <select id="editUnit" name="unit" onchange="updateCardUnitLabels('edit')" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
@@ -2771,30 +3100,46 @@ $activeCategories = $catInitStmt->fetchAll();
                                    id="editConversionRate" 
                                    name="conversion_rate" 
                                    required 
-                                   oninput="onEditSellPriceUnitChange(document.getElementById('editSellPriceUnit')?.value); onEditCostBoxChange(document.getElementById('editCostPurchase')?.value);" 
+                                   oninput="onEditConversionRateChange(this.value)" 
                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                         </div>
-                    </div>
 
-                    <div class="grid grid-cols-2 gap-3 pt-1">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'ចំនួនសរុប (ខ្នាត)' : 'Total Qty (Units)' ?></label>
-                            <input type="number" 
-                                   step="any" 
-                                   min="0" 
-                                   id="editQuantity" 
-                                   name="quantity" 
-                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1"><?= current_lang() === 'km' ? 'កម្រិតប្រកាសអាសន្ន' : 'Alert Threshold' ?></label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">
+                                <?= current_lang() === 'km' ? 'កម្រិតប្រកាសអាសន្ន *' : 'Alert Level *' ?>
+                            </label>
                             <input type="number" 
                                    step="any" 
                                    min="0" 
                                    id="editAlertLevel" 
                                    name="alert_level" 
-                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-500">
+                                   required 
+                                   class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                         </div>
+                    </div>
+
+                    <!-- Full-Width Read-Only Current Stock Status Banner -->
+                    <div class="px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2 shadow-2xs">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-xs shrink-0">
+                                <i class="fa-solid fa-lock"></i>
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-bold text-slate-600">
+                                    <?= current_lang() === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Stock on Hand:' ?>
+                                </span>
+                                <span id="editCurrentStockBreakdown" class="text-xs font-black text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+                                    0 កេស + 0 កំប៉ុង
+                                </span>
+                                <span id="editCurrentStockTotal" class="text-xs font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200/70">
+                                    = 0 កំប៉ុង
+                                </span>
+                            </div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-600 text-[10px] font-bold">
+                            <?= current_lang() === 'km' ? 'អានប៉ុណ្ណោះ' : 'Read-only' ?>
+                        </span>
+                        <input type="hidden" id="editQuantity" name="quantity" value="0">
                     </div>
                 </div>
 
@@ -3059,6 +3404,7 @@ $activeCategories = $catInitStmt->fetchAll();
             lowStock: "<?= __('status_low_stock', 'Low Stock') ?>",
             outOfStock: "<?= __('status_out_of_stock', 'Out of Stock') ?>",
             restock: "<?= __('btn_restock', 'Restock') ?>",
+            deduct: "<?= current_lang() === 'km' ? 'ដកស្ដុក' : 'Deduct' ?>",
             edit: "<?= __('btn_edit', 'Edit') ?>",
             delete: "<?= __('btn_delete', 'Delete') ?>",
             showingDrinks: "<?= __('showing_drinks_count', 'Showing direct drinks') ?>",
@@ -3402,6 +3748,12 @@ $activeCategories = $catInitStmt->fetchAll();
                                 <i class="fa-solid fa-boxes-stacked mr-1"></i> ${escapeHtml(I18N.restock)}
                             </button>
                             <button type="button" 
+                                    onclick="openDeductStockModal(${item.item_id})" 
+                                    class="px-2.5 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-600 hover:text-white font-bold transition-all cursor-pointer border border-rose-500/30" 
+                                    title="${I18N.lang === 'km' ? 'ដកស្ដុក (កែតម្រូវទិន្នន័យ)' : 'Deduct / Reduce Stock'}">
+                                <i class="fa-solid fa-box-open mr-1"></i> ${escapeHtml(I18N.deduct || 'Deduct')}
+                            </button>
+                            <button type="button" 
                                     onclick="openEditStockModal(${item.item_id})" 
                                     class="btn-action-neutral btn-act-edit" 
                                     title="${escapeHtml(I18N.edit)}">
@@ -3425,7 +3777,9 @@ $activeCategories = $catInitStmt->fetchAll();
         function updateDropdownOptions(items) {
             if (!items) return;
             const rSelect = document.getElementById('restockItemSelect');
-            const currentRVal = rSelect.value;
+            const dSelect = document.getElementById('deductItemSelect');
+            const currentRVal = rSelect ? rSelect.value : '';
+            const currentDVal = dSelect ? dSelect.value : '';
 
             let optHtml = '<option value="">-- Choose Drink --</option>';
             items.forEach(it => {
@@ -3439,17 +3793,27 @@ $activeCategories = $catInitStmt->fetchAll();
                 </option>`;
             });
 
-            rSelect.innerHTML = optHtml;
-            if (currentRVal) rSelect.value = currentRVal;
+            if (rSelect) {
+                rSelect.innerHTML = optHtml;
+                if (currentRVal) rSelect.value = currentRVal;
+            }
+            if (dSelect) {
+                dSelect.innerHTML = optHtml;
+                if (currentDVal) dSelect.value = currentDVal;
+            }
         }
 
         // ── Image Preview Helper for New Light Card Layout ──
-        function previewStockImageLight(input, previewId, placeholderId, hoverOverlayId) {
+        function previewStockImageLight(input, previewId, placeholderId, hoverOverlayId, removeBtnId, removeFlagId) {
             if (!input.files || !input.files[0]) return;
             const file = input.files[0];
             const preview = document.getElementById(previewId);
             const placeholder = placeholderId ? document.getElementById(placeholderId) : null;
             const hoverOverlay = hoverOverlayId ? document.getElementById(hoverOverlayId) : null;
+            const removeBtn = removeBtnId ? document.getElementById(removeBtnId) : null;
+            const removeFlag = removeFlagId ? document.getElementById(removeFlagId) : null;
+
+            if (removeFlag) removeFlag.value = '0';
 
             if (typeof openProductCropper === 'function') {
                 const reader = new FileReader();
@@ -3474,6 +3838,9 @@ $activeCategories = $catInitStmt->fetchAll();
                         if (hoverOverlay) {
                             hoverOverlay.style.display = 'flex';
                         }
+                        if (removeBtn) {
+                            removeBtn.style.display = 'flex';
+                        }
                     }, 1);
                 };
                 reader.readAsDataURL(file);
@@ -3492,9 +3859,36 @@ $activeCategories = $catInitStmt->fetchAll();
                     if (hoverOverlay) {
                         hoverOverlay.style.display = 'flex';
                     }
+                    if (removeBtn) {
+                        removeBtn.style.display = 'flex';
+                    }
                 };
                 reader.readAsDataURL(file);
             }
+        }
+
+        // ── Remove Image Helper (Btn X) ──
+        function removeStockImage(inputId, previewId, placeholderId, hoverOverlayId, removeBtnId, removeFlagId) {
+            const input = inputId ? document.getElementById(inputId) : null;
+            const preview = previewId ? document.getElementById(previewId) : null;
+            const placeholder = placeholderId ? document.getElementById(placeholderId) : null;
+            const hoverOverlay = hoverOverlayId ? document.getElementById(hoverOverlayId) : null;
+            const removeBtn = removeBtnId ? document.getElementById(removeBtnId) : null;
+            const removeFlag = removeFlagId ? document.getElementById(removeFlagId) : null;
+
+            if (input) input.value = '';
+            if (preview) {
+                preview.src = '';
+                preview.style.display = 'none';
+                preview.classList.add('hidden');
+            }
+            if (placeholder) {
+                placeholder.style.display = 'flex';
+                placeholder.classList.remove('hidden');
+            }
+            if (hoverOverlay) hoverOverlay.style.display = 'none';
+            if (removeBtn) removeBtn.style.display = 'none';
+            if (removeFlag) removeFlag.value = '1';
         }
 
         function updateCardUnitLabels(modalPrefix) {
@@ -3514,6 +3908,10 @@ $activeCategories = $catInitStmt->fetchAll();
             }
             if (pTitle) {
                 pTitle.textContent = I18N.lang === 'km' ? `ខ្នាតកេស (Per Box / ${pName})` : `Package (Per Box / ${pName})`;
+            }
+
+            if (modalPrefix === 'edit') {
+                updateEditTotalStockDisplay();
             }
         }
 
@@ -3558,6 +3956,37 @@ $activeCategories = $catInitStmt->fetchAll();
             }
         }
 
+        // ── Edit Modal Stock Display (Read-Only Status Card) ──
+        function onEditConversionRateChange(val) {
+            updateEditTotalStockDisplay();
+            onEditCostBoxChange(document.getElementById('editCostPurchase')?.value);
+        }
+
+        function updateEditTotalStockDisplay() {
+            const unit = document.getElementById('editUnit')?.value || 'can';
+            const punit = document.getElementById('editPurchaseUnit')?.value || 'box';
+            const rate = Math.max(1, parseFloat(document.getElementById('editConversionRate')?.value) || 24);
+            const total = parseFloat(document.getElementById('editQuantity')?.value) || 0;
+            const boxes = Math.floor(total / rate);
+            const loose = total % rate;
+
+            const unitLabel = formatUnitLabel(unit, total || 1);
+            const punitLabel = formatUnitLabel(punit, boxes || 1);
+
+            const breakdownEl = document.getElementById('editCurrentStockBreakdown');
+            const totalEl = document.getElementById('editCurrentStockTotal');
+            
+            if (breakdownEl) {
+                let parts = [];
+                if (boxes > 0) parts.push(`${formatNumber(boxes)} ${punitLabel}`);
+                if (loose > 0 || boxes === 0) parts.push(`${formatNumber(loose)} ${unitLabel}`);
+                breakdownEl.textContent = parts.join(' + ');
+            }
+            if (totalEl) {
+                totalEl.textContent = `= ${formatNumber(total)} ${unitLabel}`;
+            }
+        }
+
         // ── Modal Actions ──
         function openAddStockModal() {
             document.getElementById('addStockForm').reset();
@@ -3566,6 +3995,7 @@ $activeCategories = $catInitStmt->fetchAll();
             const preview = document.getElementById('addStockImagePreview');
             const placeholder = document.getElementById('addStockImagePlaceholder');
             const hoverOverlay = document.getElementById('addStockImageHoverOverlay');
+            const removeBtn = document.getElementById('addStockImageRemoveBtn');
             if (preview) {
                 preview.src = '';
                 preview.style.display = 'none';
@@ -3576,6 +4006,7 @@ $activeCategories = $catInitStmt->fetchAll();
                 placeholder.classList.remove('hidden');
             }
             if (hoverOverlay) hoverOverlay.style.display = 'none';
+            if (removeBtn) removeBtn.style.display = 'none';
             const fileInput = document.getElementById('addStockImageInput');
             if (fileInput) fileInput.value = '';
 
@@ -3583,6 +4014,7 @@ $activeCategories = $catInitStmt->fetchAll();
             const previewBox = document.getElementById('addStockImageBoxPreview');
             const placeholderBox = document.getElementById('addStockImageBoxPlaceholder');
             const hoverOverlayBox = document.getElementById('addStockImageBoxHoverOverlay');
+            const removeBtnBox = document.getElementById('addStockImageBoxRemoveBtn');
             if (previewBox) {
                 previewBox.src = '';
                 previewBox.style.display = 'none';
@@ -3593,6 +4025,7 @@ $activeCategories = $catInitStmt->fetchAll();
                 placeholderBox.classList.remove('hidden');
             }
             if (hoverOverlayBox) hoverOverlayBox.style.display = 'none';
+            if (removeBtnBox) removeBtnBox.style.display = 'none';
             const fileInputBox = document.getElementById('addStockImageBoxInput');
             if (fileInputBox) fileInputBox.value = '';
 
@@ -3902,6 +4335,148 @@ $activeCategories = $catInitStmt->fetchAll();
             }
         }
 
+        // ── Deduct Stock / Stock Correction Actions ──
+        function openDeductStockModal(itemId = null) {
+            document.getElementById('deductStockForm').reset();
+            const select = document.getElementById('deductItemSelect');
+            if (itemId && select) {
+                select.value = itemId;
+            }
+            updateDeductModalPreview();
+            openModal('deductStockModal');
+        }
+
+        function updateDeductModalPreview() {
+            const select = document.getElementById('deductItemSelect');
+            const selectedOpt = select ? select.options[select.selectedIndex] : null;
+            const boxUnitName = document.getElementById('deductBoxUnitName');
+            const looseUnitName = document.getElementById('deductLooseUnitName');
+            const warnBox = document.getElementById('deductExcessWarning');
+            const submitBtn = document.getElementById('deductSubmitBtn');
+
+            if (!selectedOpt || !selectedOpt.value) {
+                if (boxUnitName) boxUnitName.textContent = 'កេស';
+                if (looseUnitName) looseUnitName.textContent = 'កំប៉ុង';
+                const bPreview = document.getElementById('deductBoxToLoosePreview');
+                if (bPreview) bPreview.textContent = '0';
+                document.getElementById('deductBadgeUnits').textContent = I18N.lang === 'km' ? '-0 ឯកតា' : '-0 units';
+                document.getElementById('deductFormula').textContent = I18N.lang === 'km' ? 'ជ្រើសរើសភេសជ្ជៈ និងបញ្ចូលចំនួនដើម្បីគណនា' : 'Select a drink and enter quantity to see calculation.';
+                document.getElementById('deductCurrentStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Current:'} --`;
+                document.getElementById('deductProjectedStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកសល់ថ្មី:' : 'New Remaining:'} --`;
+                if (warnBox) warnBox.classList.add('hidden');
+                if (submitBtn) submitBtn.disabled = false;
+                return;
+            }
+
+            const punit = selectedOpt.getAttribute('data-punit') || 'box';
+            const unit = selectedOpt.getAttribute('data-unit') || 'can';
+            const unitLabel = formatUnitLabel(unit, 1);
+            const punitLabel = formatUnitLabel(punit, 1);
+
+            if (boxUnitName) boxUnitName.textContent = punitLabel;
+            if (looseUnitName) looseUnitName.textContent = unitLabel;
+
+            calculateDeductTotal();
+        }
+
+        function calculateDeductTotal() {
+            const select = document.getElementById('deductItemSelect');
+            const selectedOpt = select ? select.options[select.selectedIndex] : null;
+            if (!selectedOpt || !selectedOpt.value) return;
+
+            const punit = selectedOpt.getAttribute('data-punit') || 'box';
+            const unit = selectedOpt.getAttribute('data-unit') || 'can';
+            const rate = parseFloat(selectedOpt.getAttribute('data-rate')) || 24;
+            const currentQty = parseFloat(selectedOpt.getAttribute('data-qty')) || 0;
+
+            const boxesToDeduct = parseFloat(document.getElementById('deductQtyInput')?.value) || 0;
+            const looseToDeduct = parseFloat(document.getElementById('deductLooseQtyInput')?.value) || 0;
+
+            const boxDeductedUnits = boxesToDeduct * rate;
+            const totalDeductedUnits = boxDeductedUnits + looseToDeduct;
+            const newRemainingUnits = currentQty - totalDeductedUnits;
+
+            const unitLabel = formatUnitLabel(unit, totalDeductedUnits || 1);
+            const punitLabel = formatUnitLabel(punit, boxesToDeduct || 1);
+
+            const boxToLoosePreview = document.getElementById('deductBoxToLoosePreview');
+            if (boxToLoosePreview) {
+                boxToLoosePreview.textContent = formatNumber(boxDeductedUnits);
+            }
+
+            document.getElementById('deductBadgeUnits').textContent = `-${formatNumber(totalDeductedUnits)} ${unitLabel}`;
+            
+            let formulaText = `(${formatNumber(boxesToDeduct)} ${punitLabel} × ${rate})`;
+            if (looseToDeduct > 0) {
+                formulaText += ` + ${formatNumber(looseToDeduct)} ${I18N.lang === 'km' ? 'រាយ' : 'loose'}`;
+            }
+            formulaText += ` = -${formatNumber(totalDeductedUnits)} ${unitLabel}`;
+            document.getElementById('deductFormula').textContent = formulaText;
+
+            document.getElementById('deductCurrentStock').textContent = `${I18N.lang === 'km' ? 'ស្តុកបច្ចុប្បន្ន:' : 'Current:'} ${formatNumber(currentQty)} ${unitLabel}`;
+            
+            const projEl = document.getElementById('deductProjectedStock');
+            const warnBox = document.getElementById('deductExcessWarning');
+            const submitBtn = document.getElementById('deductSubmitBtn');
+
+            if (projEl) {
+                projEl.textContent = `${I18N.lang === 'km' ? 'ស្តុកសល់ថ្មី:' : 'New Remaining:'} ${formatNumber(Math.max(0, newRemainingUnits))} ${unitLabel}`;
+                if (newRemainingUnits < 0) {
+                    projEl.classList.add('text-rose-500');
+                    projEl.classList.remove('text-rose-700');
+                } else {
+                    projEl.classList.remove('text-rose-500');
+                    projEl.classList.add('text-rose-700');
+                }
+            }
+
+            if (totalDeductedUnits > currentQty) {
+                if (warnBox) warnBox.classList.remove('hidden');
+                if (submitBtn) submitBtn.disabled = true;
+            } else {
+                if (warnBox) warnBox.classList.add('hidden');
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        }
+
+        async function handleDeductStock(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = document.getElementById('deductSubmitBtn');
+            const origContent = btn ? btn.innerHTML : 'Confirm Deduction';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Processing...';
+            }
+
+            const formData = new FormData(form);
+
+            try {
+                const res = await fetch('stock.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    closeModal('deductStockModal');
+                    loadStockTable();
+                } else {
+                    showToast(result.message || 'Deduction failed.', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Server connection error.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origContent;
+                }
+            }
+        }
+
         async function openEditStockModal(itemId) {
             try {
                 const res = await fetch(`stock.php?action=get_item&item_id=${itemId}`);
@@ -3920,8 +4495,9 @@ $activeCategories = $catInitStmt->fetchAll();
                 document.getElementById('editConversionRate').value = it.conversion_rate;
                 document.getElementById('editQuantity').value = it.quantity;
                 document.getElementById('editAlertLevel').value = it.alert_level;
+
+                const cRate = Math.max(1, parseFloat(it.conversion_rate || 24));
                 const cBox = parseFloat(it.cost_per_purchase_unit || 0);
-                const cRate = parseFloat(it.conversion_rate || 24) || 24;
                 const cUnit = parseFloat(it.cost_per_unit || (cBox > 0 ? cBox / cRate : 0));
                 document.getElementById('editCostPurchase').value = cBox.toFixed(2);
                 document.getElementById('editCostUnit').value = cUnit.toFixed(4);
@@ -3936,10 +4512,20 @@ $activeCategories = $catInitStmt->fetchAll();
                     editCatSelect.value = it.category_id || '';
                 }
 
+                updateCardUnitLabels('edit');
+                updateEditTotalStockDisplay();
+
+                // Reset remove flags
+                const remFlag = document.getElementById('editRemoveImageFlag');
+                if (remFlag) remFlag.value = '0';
+                const remBoxFlag = document.getElementById('editRemoveImageBoxFlag');
+                if (remBoxFlag) remBoxFlag.value = '0';
+
                 // Preview Unit Image
                 const editPreview = document.getElementById('editStockImagePreview');
                 const editPlaceholder = document.getElementById('editStockImagePlaceholder');
                 const editHoverOverlay = document.getElementById('editStockImageHoverOverlay');
+                const editRemoveBtn = document.getElementById('editStockImageRemoveBtn');
                 if (editPreview) {
                     if (it.image && it.image.trim() && !it.image.includes('no-image.png')) {
                         editPreview.src = it.image;
@@ -3950,6 +4536,7 @@ $activeCategories = $catInitStmt->fetchAll();
                             editPlaceholder.classList.add('hidden');
                         }
                         if (editHoverOverlay) editHoverOverlay.style.display = 'flex';
+                        if (editRemoveBtn) editRemoveBtn.style.display = 'flex';
                     } else {
                         editPreview.src = '';
                         editPreview.style.display = 'none';
@@ -3959,6 +4546,7 @@ $activeCategories = $catInitStmt->fetchAll();
                             editPlaceholder.classList.remove('hidden');
                         }
                         if (editHoverOverlay) editHoverOverlay.style.display = 'none';
+                        if (editRemoveBtn) editRemoveBtn.style.display = 'none';
                     }
                 }
                 const editFileInput = document.getElementById('editStockImageInput');
@@ -3968,6 +4556,7 @@ $activeCategories = $catInitStmt->fetchAll();
                 const editPreviewBox = document.getElementById('editStockImageBoxPreview');
                 const editPlaceholderBox = document.getElementById('editStockImageBoxPlaceholder');
                 const editHoverOverlayBox = document.getElementById('editStockImageBoxHoverOverlay');
+                const editRemoveBtnBox = document.getElementById('editStockImageBoxRemoveBtn');
                 if (editPreviewBox) {
                     if (it.image_box && it.image_box.trim() && !it.image_box.includes('no-image.png')) {
                         editPreviewBox.src = it.image_box;
@@ -3978,6 +4567,7 @@ $activeCategories = $catInitStmt->fetchAll();
                             editPlaceholderBox.classList.add('hidden');
                         }
                         if (editHoverOverlayBox) editHoverOverlayBox.style.display = 'flex';
+                        if (editRemoveBtnBox) editRemoveBtnBox.style.display = 'flex';
                     } else {
                         editPreviewBox.src = '';
                         editPreviewBox.style.display = 'none';
@@ -3987,6 +4577,7 @@ $activeCategories = $catInitStmt->fetchAll();
                             editPlaceholderBox.classList.remove('hidden');
                         }
                         if (editHoverOverlayBox) editHoverOverlayBox.style.display = 'none';
+                        if (editRemoveBtnBox) editRemoveBtnBox.style.display = 'none';
                     }
                 }
                 const editFileInputBox = document.getElementById('editStockImageBoxInput');
