@@ -422,22 +422,24 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 $boxName = $name . ' (' . $kmUnitSuffix . ')';
                 $boxNameEn = $name . ' (' . $enUnitSuffix . ')';
 
-                // 1. Auto Create / Update UNIT Product
+                // 1. Auto Create / Update UNIT Product ONLY if image_path is provided
                 $uPrice = $sellPriceUnit > 0 ? $sellPriceUnit : (($sellPriceBox > 0 && $rate > 0) ? ($sellPriceBox / $rate) : 1.0);
                 $uCost = $unitCost;
 
-                $pCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) LIMIT 1");
-                $pCheck->execute([$name]);
-                $existingUnitProd = $pCheck->fetch();
+                if (!empty($image_path)) {
+                    $pCheck = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) = LOWER(REPLACE(?, ' ', '')) LIMIT 1");
+                    $pCheck->execute([$name]);
+                    $existingUnitProd = $pCheck->fetch();
 
-                if ($existingUnitProd) {
-                    $uImg = !empty($image_path) ? $image_path : $existingUnitProd['image'];
-                    $uUpd = $pdo->prepare("UPDATE products SET category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                    $uUpd->execute([$targetCatSlug, $targetCatId, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
-                } else {
-                    $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
-                    $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
-                    $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $image_path]);
+                    if ($existingUnitProd) {
+                        $uImg = !empty($image_path) ? $image_path : $existingUnitProd['image'];
+                        $uUpd = $pdo->prepare("UPDATE products SET category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                        $uUpd->execute([$targetCatSlug, $targetCatId, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
+                    } else {
+                        $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                        $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
+                        $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $image_path]);
+                    }
                 }
 
                 // 2. Auto Create / Update BOX Product ONLY if image_box is provided
@@ -769,7 +771,7 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 $oldBoxName = $oldName ? ($oldName . ' (' . $oldKmUnitSuffix . ')') : '';
                 $oldBoxNameEn = $oldName ? ($oldName . ' (' . $oldEnUnitSuffix . ')') : '';
 
-                // 1. Sync Unit Product
+                // 1. Sync Unit Product (ONLY if finalImage is provided)
                 $uPrice = $sellPriceUnit > 0 ? $sellPriceUnit : (($sellPriceBox > 0 && $rate > 0) ? ($sellPriceBox / $rate) : 1.0);
                 $uCost = $costUnit;
 
@@ -777,14 +779,25 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                 $pCheck->execute([$name, $oldName]);
                 $existingUnitProd = $pCheck->fetch();
 
-                if ($existingUnitProd) {
-                    $uImg = $remove_image ? null : (!empty($finalImage) ? $finalImage : $existingUnitProd['image']);
-                    $uUpd = $pdo->prepare("UPDATE products SET name = ?, category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
-                    $uUpd->execute([$name, $targetCatSlug, $targetCatId, $uPrice, $uCost, $uImg, $existingUnitProd['product_id']]);
+                if (!empty($finalImage)) {
+                    if ($existingUnitProd) {
+                        $uUpd = $pdo->prepare("UPDATE products SET name = ?, category = ?, category_id = ?, price = ?, cost_price = ?, image = ?, is_available = 1 WHERE product_id = ?");
+                        $uUpd->execute([$name, $targetCatSlug, $targetCatId, $uPrice, $uCost, $finalImage, $existingUnitProd['product_id']]);
+                    } else {
+                        $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
+                        $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
+                        $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $finalImage]);
+                    }
                 } else {
-                    $uIns = $pdo->prepare("INSERT INTO products (name, description, price, cost_price, category, category_id, image, is_available, has_sizes, promo_percent) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 0)");
-                    $uDesc = "Single unit direct drink ({$unit}) from stock inventory.";
-                    $uIns->execute([$name, $uDesc, $uPrice, $uCost, $targetCatSlug, $targetCatId, $finalImage]);
+                    // IF REMOVE IMAGE / NO UNIT IMAGE: Delete the Unit product completely from products page!
+                    if ($existingUnitProd) {
+                        $uPid = (int)$existingUnitProd['product_id'];
+                        if (!empty($existingUnitProd['image'])) {
+                            cloudinary_delete_image($existingUnitProd['image']);
+                        }
+                        $pdo->prepare("DELETE FROM product_recipes WHERE product_id = ?")->execute([$uPid]);
+                        $pdo->prepare("DELETE FROM products WHERE product_id = ?")->execute([$uPid]);
+                    }
                 }
 
                 // 2. Sync Box Product ONLY if image_box is provided
@@ -824,9 +837,12 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
                         $bIns->execute([$boxName, $bDesc, $bPrice, $bCost, $targetCatSlug, $targetCatId, $bImage]);
                     }
                 } else {
-                    // If no box image is set, remove Box product so POS menu only sells unit
+                    // If no box image is set or removed, remove Box product from products page
                     if ($existingBoxProd) {
                         $bPid = (int)$existingBoxProd['product_id'];
+                        if (!empty($existingBoxProd['image'])) {
+                            cloudinary_delete_image($existingBoxProd['image']);
+                        }
                         $pdo->prepare("DELETE FROM product_recipes WHERE product_id = ?")->execute([$bPid]);
                         $pdo->prepare("DELETE FROM products WHERE product_id = ?")->execute([$bPid]);
                     }
@@ -841,10 +857,56 @@ if ($reqMethod === 'POST' || isset($_GET['action'])) {
         // 6. Delete Drink
         if ($action === 'delete_item') {
             $itemId = (int)($_POST['item_id'] ?? 0);
+
+            // Fetch details before archiving
+            $fetchStmt = $pdo->prepare("SELECT item_name, purchase_unit, image, image_box FROM stock_items WHERE item_id = ? LIMIT 1");
+            $fetchStmt->execute([$itemId]);
+            $itemToDelete = $fetchStmt->fetch();
+
             $stmt = $pdo->prepare("UPDATE stock_items SET is_active = 0, updated_at = NOW() WHERE item_id = ?");
             $stmt->execute([$itemId]);
 
-            sendJsonResponse(['success' => true, 'message' => 'Drink item archived successfully.']);
+            // Also delete all associated products on the product page (both unit and box)
+            if ($itemToDelete) {
+                try {
+                    $dName = trim($itemToDelete['item_name']);
+                    $dPUnit = $itemToDelete['purchase_unit'] ?? 'box';
+                    $dKmSuffix = getPackageUnitSuffixKm($dPUnit);
+                    $dEnSuffix = getPackageUnitSuffixEn($dPUnit);
+
+                    $dBoxName = $dName . ' (' . $dKmSuffix . ')';
+                    $dBoxNameEn = $dName . ' (' . $dEnSuffix . ')';
+
+                    // Find matching products
+                    $findProd = $pdo->prepare("SELECT product_id, image FROM products WHERE LOWER(REPLACE(name, ' ', '')) IN (
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', '')),
+                        LOWER(REPLACE(?, ' ', ''))
+                    )");
+                    $findProd->execute([
+                        $dName,
+                        $dBoxName,
+                        $dBoxNameEn,
+                        $dName . ' (កេស)',
+                        $dName . ' (យួរ)'
+                    ]);
+                    $prodsToDelete = $findProd->fetchAll();
+                    foreach ($prodsToDelete as $pRow) {
+                        $pId = (int)$pRow['product_id'];
+                        if (!empty($pRow['image'])) {
+                            cloudinary_delete_image($pRow['image']);
+                        }
+                        $pdo->prepare("DELETE FROM product_recipes WHERE product_id = ?")->execute([$pId]);
+                        $pdo->prepare("DELETE FROM products WHERE product_id = ?")->execute([$pId]);
+                    }
+                } catch (Exception $e) {
+                    error_log("Error deleting products on stock delete_item: " . $e->getMessage());
+                }
+            }
+
+            sendJsonResponse(['success' => true, 'message' => 'Drink item archived and removed from Products page successfully.']);
         }
 
         // 7. Export CSV
