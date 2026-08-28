@@ -3,8 +3,8 @@ header('X-Frame-Options: SAMEORIGIN');
 require 'auth.php';
 require 'config.php';
 require_once __DIR__ . '/lang.php';
-if (!can('products')) { header("Location: dashboard.php?denied=1"); exit; }
-$_can_manage_products = in_array($_SESSION['role'] ?? '', ['admin', 'manager']);
+$_user_role = strtolower(trim($_SESSION['role'] ?? 'staff'));
+$_can_manage_products = in_array($_user_role, ['admin', 'manager', 'owner', 'staff'], true) || can('products');
 $_flash_welcome = !empty($_SESSION['flash_welcome']); unset($_SESSION['flash_welcome']);
 $isKm = (current_lang() === 'km');
 
@@ -2380,36 +2380,68 @@ body.select-mode .product-card .image-wrapper .overlay { display: none; }
 .product-card .content .actions {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     margin-top: 0;
     margin-left: auto;
+    flex-shrink: 0;
 }
 .product-card .content .actions .btn-action {
-    padding: 3px 6px;
-    border-radius: 6px;
+    padding: 3.5px 7px;
+    height: 26px;
+    border-radius: 7px;
     border: 1px solid var(--border, #e2e8f0);
     background: transparent;
     color: var(--text-muted, #64748b);
     text-decoration: none;
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 600;
     text-align: center;
     transition: var(--transition);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     cursor: pointer;
     font-family: inherit;
     line-height: 1;
+    flex-shrink: 0;
 }
-.btn-action.edit:hover     { border-color: var(--success, #10b981); color: var(--success, #10b981); background: rgba(16, 185, 129, 0.08); }
-.btn-action.delete:hover   { border-color: var(--danger, #ef4444); color: var(--danger, #ef4444); background: rgba(239, 68, 68, 0.08); }
+.btn-action.edit {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.25);
+    color: #059669;
+}
+.btn-action.edit:hover { 
+    border-color: var(--success, #10b981); 
+    color: #ffffff; 
+    background: #10b981; 
+}
+.btn-action.delete {
+    background: rgba(239, 68, 68, 0.06);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+.btn-action.delete:hover { 
+    border-color: var(--danger, #ef4444); 
+    color: #ffffff; 
+    background: #ef4444; 
+}
 .btn-action.duplicate:hover { border-color: var(--info, #0ea5e9); color: var(--info, #0ea5e9); background: rgba(14, 165, 233, 0.08); }
-.btn-action.avail-on  { border-color: var(--success, #10b981); color: var(--success, #10b981); }
-.btn-action.avail-off { border-color: var(--danger, #ef4444);  color: var(--danger, #ef4444); }
-.btn-action.avail-on:hover  { background: rgba(16, 185, 129, 0.08); }
-.btn-action.avail-off:hover { background: rgba(239, 68, 68, 0.08); }
+.btn-action.avail-on  { border-color: rgba(16, 185, 129, 0.3); color: #059669; background: rgba(16, 185, 129, 0.08); font-weight: 700; }
+.btn-action.avail-off { border-color: rgba(239, 68, 68, 0.3);  color: #e11d48; background: rgba(239, 68, 68, 0.08); font-weight: 700; }
+.btn-action.avail-on:hover  { background: rgba(16, 185, 129, 0.18); }
+.btn-action.avail-off:hover { background: rgba(239, 68, 68, 0.18); }
+
+[data-theme="dark"] .btn-action.edit {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #34d399;
+}
+[data-theme="dark"] .btn-action.delete {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
 
 /* ── Product badge starburst on image ── */
 .product-badge {
